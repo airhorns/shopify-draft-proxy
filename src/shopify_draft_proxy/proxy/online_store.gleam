@@ -5,6 +5,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import gleam/uri
 import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/parse_operation
@@ -1748,31 +1749,47 @@ fn create_script_tag(
       "input",
     )
     |> option.unwrap(dict.new())
-  let #(record, identity) =
-    make_integration(outcome.identity, "scriptTag", [
-      #("__typename", SrcString("ScriptTag")),
-      #("src", option_source(input_string(input, "src"), "")),
-      #(
-        "displayScope",
-        option_source(input_string(input, "displayScope"), "ONLINE_STORE"),
-      ),
-      #("cache", bool_source(input_bool(input, "cache"), False)),
-    ])
-  let #(_, store) =
-    store.upsert_staged_online_store_integration(outcome.store, record)
-  integration_payload_result(
-    outcome,
-    field,
-    fragments,
-    variables,
-    "scriptTagCreate",
-    "scriptTag",
-    Some(record),
-    [],
-    store,
-    identity,
-    [record.id],
-  )
+  let errors = script_tag_input_errors(input, True)
+  case errors {
+    [] -> {
+      let display_scope =
+        normalized_script_tag_display_scope(
+          input_string(input, "displayScope"),
+          "online_store",
+        )
+      let #(record, identity) =
+        make_integration(outcome.identity, "scriptTag", [
+          #("__typename", SrcString("ScriptTag")),
+          #("src", option_source(input_string(input, "src"), "")),
+          #("displayScope", SrcString(display_scope)),
+          #("cache", bool_source(input_bool(input, "cache"), False)),
+        ])
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(outcome.store, record)
+      integration_payload_result(
+        outcome,
+        field,
+        fragments,
+        variables,
+        "scriptTagCreate",
+        "scriptTag",
+        Some(record),
+        [],
+        store,
+        identity,
+        [record.id],
+      )
+    }
+    _ ->
+      integration_validation_error_payload(
+        outcome,
+        field,
+        fragments,
+        "scriptTagCreate",
+        "scriptTag",
+        errors,
+      )
+  }
 }
 
 fn update_script_tag(
@@ -1787,30 +1804,46 @@ fn update_script_tag(
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   case lookup_integration_by_id(outcome.store, "scriptTag", id) {
     IntegrationFound(existing) -> {
-      let data =
-        existing.data
-        |> maybe_insert_string("src", input_string(input, "src"))
-        |> maybe_insert_string(
-          "displayScope",
-          input_string(input, "displayScope"),
-        )
-        |> maybe_insert_bool("cache", input_bool(input, "cache"))
-      let record = OnlineStoreIntegrationRecord(..existing, data: data)
-      let #(_, store) =
-        store.upsert_staged_online_store_integration(outcome.store, record)
-      integration_payload_result(
-        outcome,
-        field,
-        fragments,
-        variables,
-        "scriptTagUpdate",
-        "scriptTag",
-        Some(record),
-        [],
-        store,
-        outcome.identity,
-        [record.id],
-      )
+      let errors = script_tag_input_errors(input, False)
+      case errors {
+        [] -> {
+          let display_scope =
+            normalize_optional_script_tag_display_scope(input_string(
+              input,
+              "displayScope",
+            ))
+          let data =
+            existing.data
+            |> maybe_insert_string("src", input_string(input, "src"))
+            |> maybe_insert_string("displayScope", display_scope)
+            |> maybe_insert_bool("cache", input_bool(input, "cache"))
+          let record = OnlineStoreIntegrationRecord(..existing, data: data)
+          let #(_, store) =
+            store.upsert_staged_online_store_integration(outcome.store, record)
+          integration_payload_result(
+            outcome,
+            field,
+            fragments,
+            variables,
+            "scriptTagUpdate",
+            "scriptTag",
+            Some(record),
+            [],
+            store,
+            outcome.identity,
+            [record.id],
+          )
+        }
+        _ ->
+          integration_validation_error_payload(
+            outcome,
+            field,
+            fragments,
+            "scriptTagUpdate",
+            "scriptTag",
+            errors,
+          )
+      }
     }
     IntegrationInvalidId ->
       integration_payload_result(
@@ -1841,6 +1874,127 @@ fn update_script_tag(
         [],
       )
   }
+}
+
+fn script_tag_input_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  require_src: Bool,
+) -> List(graphql_helpers.SourceValue) {
+  list.append(
+    script_tag_src_errors(input_string(input, "src"), require_src),
+    script_tag_display_scope_errors(input_string(input, "displayScope")),
+  )
+}
+
+fn script_tag_src_errors(
+  src: Option(String),
+  require_src: Bool,
+) -> List(graphql_helpers.SourceValue) {
+  case src {
+    None if require_src -> [
+      script_tag_user_error(["input", "src"], "Source can't be blank", "BLANK"),
+    ]
+    None -> []
+    Some(value) ->
+      case string.trim(value) {
+        "" -> [
+          script_tag_user_error(
+            ["input", "src"],
+            "Source can't be blank",
+            "BLANK",
+          ),
+        ]
+        _ -> validate_non_blank_script_tag_src(value)
+      }
+  }
+}
+
+fn validate_non_blank_script_tag_src(
+  value: String,
+) -> List(graphql_helpers.SourceValue) {
+  case string.length(value) > 255 {
+    True -> [
+      script_tag_user_error(
+        ["input", "src"],
+        "Source is too long (maximum is 255 characters)",
+        "TOO_LONG",
+      ),
+    ]
+    False ->
+      case script_tag_src_is_http_url(value) {
+        True -> []
+        False -> [
+          script_tag_user_error(
+            ["input", "src"],
+            "Source is invalid",
+            "INVALID",
+          ),
+        ]
+      }
+  }
+}
+
+fn script_tag_src_is_http_url(value: String) -> Bool {
+  case uri.parse(value) {
+    Ok(uri.Uri(scheme: Some(scheme), host: Some(host), ..)) ->
+      { scheme == "http" || scheme == "https" } && string.trim(host) != ""
+    _ -> False
+  }
+}
+
+fn script_tag_display_scope_errors(
+  display_scope: Option(String),
+) -> List(graphql_helpers.SourceValue) {
+  case display_scope {
+    None -> []
+    Some(value) ->
+      case normalize_optional_script_tag_display_scope(Some(value)) {
+        Some(_) -> []
+        None -> [
+          script_tag_user_error(
+            ["input", "displayScope"],
+            "Display scope is not included in the list",
+            "INCLUSION",
+          ),
+        ]
+      }
+  }
+}
+
+fn normalized_script_tag_display_scope(
+  display_scope: Option(String),
+  default: String,
+) -> String {
+  normalize_optional_script_tag_display_scope(display_scope)
+  |> option.unwrap(default)
+}
+
+fn normalize_optional_script_tag_display_scope(
+  display_scope: Option(String),
+) -> Option(String) {
+  case display_scope {
+    Some("ALL") | Some("all") -> Some("all")
+    Some("ONLINE_STORE") | Some("online_store") -> Some("online_store")
+    Some("ORDER_STATUS") | Some("order_status") -> Some("order_status")
+    _ -> None
+  }
+}
+
+fn script_tag_display_scope_graphql(value: String) -> String {
+  case value {
+    "all" | "ALL" -> "ALL"
+    "order_status" | "ORDER_STATUS" -> "ORDER_STATUS"
+    "online_store" | "ONLINE_STORE" -> "ONLINE_STORE"
+    _ -> value
+  }
+}
+
+fn script_tag_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  integration_user_error("scriptTag", field, message, code)
 }
 
 fn create_pixel(
@@ -2417,6 +2571,32 @@ fn integration_payload_result(
   }
   let payload = mutation_payload(field, fragments, payload_key, value, errors)
   #(key, payload, mutation_outcome(outcome, store, identity, root, staged_ids))
+}
+
+fn integration_validation_error_payload(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  root: String,
+  payload_key: String,
+  errors: List(graphql_helpers.SourceValue),
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let payload =
+    mutation_payload(field, fragments, payload_key, json.null(), errors)
+  #(
+    key,
+    payload,
+    mutation_outcome_with_status(
+      outcome,
+      outcome.store,
+      outcome.identity,
+      root,
+      [],
+      store.Failed,
+      Some("Rejected " <> root <> " validation in shopify-draft-proxy."),
+    ),
+  )
 }
 
 fn storefront_token_create_error_payload(
@@ -3108,6 +3288,19 @@ fn integration_projection_source(
 ) -> graphql_helpers.SourceValue {
   let source = captured_to_source(record.data)
   case record.kind {
+    "scriptTag" ->
+      base_source(source, [
+        #(
+          "displayScope",
+          SrcString(
+            script_tag_display_scope_graphql(source_string_field(
+              source,
+              "displayScope",
+              "online_store",
+            )),
+          ),
+        ),
+      ])
     "webPixel" ->
       base_source(without_source_field(source, "webhookEndpointAddress"), [
         #(

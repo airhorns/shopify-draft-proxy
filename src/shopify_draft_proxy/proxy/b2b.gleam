@@ -41,11 +41,12 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
-  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CustomerRecord,
-  type ProductMetafieldRecord, type StorePropertyValue, B2BCompanyContactRecord,
-  B2BCompanyContactRoleRecord, B2BCompanyLocationRecord, B2BCompanyRecord,
-  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
-  StorePropertyNull, StorePropertyObject, StorePropertyString,
+  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
+  type CustomerRecord, type ProductMetafieldRecord, type StorePropertyValue,
+  B2BCompanyContactRecord, B2BCompanyContactRoleRecord, B2BCompanyLocationRecord,
+  B2BCompanyRecord, CapturedObject, CapturedString, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
+  StorePropertyObject, StorePropertyString,
 }
 
 const domain = "b2b"
@@ -1902,6 +1903,38 @@ fn resource_not_found(field: List(String)) {
   )
 }
 
+fn company_role_not_found() {
+  user_error(
+    Some(["companyContactRoleId"]),
+    "The company contact role doesn't exist.",
+    user_error_code.resource_not_found,
+  )
+}
+
+fn company_location_not_found() {
+  user_error(
+    Some(["companyLocationId"]),
+    "The company location doesn't exist.",
+    user_error_code.resource_not_found,
+  )
+}
+
+fn one_role_already_assigned() {
+  user_error(
+    None,
+    "Company contact has already been assigned a role in that company location.",
+    user_error_code.limit_reached,
+  )
+}
+
+fn existing_orders_error() {
+  user_error(
+    Some(["companyContactId"]),
+    "Cannot delete a company contact with existing orders or draft orders.",
+    user_error_code.failed_to_delete,
+  )
+}
+
 fn dispatch_mutation_root(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -3221,6 +3254,99 @@ fn delete_contact(store: Store, contact_id: String) -> #(Store, List(String)) {
   }
 }
 
+fn contact_has_associated_orders(
+  store: Store,
+  contact: B2BCompanyContactRecord,
+) -> Bool {
+  contact_has_associated_order_marker(contact)
+  || contact_has_staged_order_history(store, contact.id)
+}
+
+fn contact_has_associated_order_marker(
+  contact: B2BCompanyContactRecord,
+) -> Bool {
+  case data_get(contact.data, "ordersCount") {
+    SrcInt(count) if count > 0 -> True
+    _ ->
+      case data_get(contact.data, "associatedOrdersCount") {
+        SrcInt(count) if count > 0 -> True
+        _ ->
+          case data_get(contact.data, "hasAssociatedOrders") {
+            SrcBool(True) -> True
+            _ ->
+              case data_get(contact.data, "orders") {
+                SrcList([_, ..]) -> True
+                _ -> False
+              }
+          }
+      }
+  }
+}
+
+fn contact_has_staged_order_history(store: Store, contact_id: String) -> Bool {
+  list.any(store.list_effective_orders(store), fn(order) {
+    purchasing_entity_contact_id(order.data) == Some(contact_id)
+  })
+  || list.any(store.list_effective_draft_orders(store), fn(draft_order) {
+    completed_draft_order_references_contact(draft_order.data, contact_id)
+  })
+}
+
+fn completed_draft_order_references_contact(
+  data: CapturedJsonValue,
+  contact_id: String,
+) -> Bool {
+  case captured_string_field(data, "status") {
+    Some("COMPLETED") -> purchasing_entity_contact_id(data) == Some(contact_id)
+    _ -> False
+  }
+  || case captured_object_field(data, "order") {
+    Some(order) -> purchasing_entity_contact_id(order) == Some(contact_id)
+    None -> False
+  }
+}
+
+fn purchasing_entity_contact_id(data: CapturedJsonValue) -> Option(String) {
+  data
+  |> captured_object_field("purchasingEntity")
+  |> option.then(fn(entity) {
+    entity
+    |> captured_object_field("contact")
+    |> option.then(fn(contact) { captured_string_field(contact, "id") })
+  })
+}
+
+fn captured_object_field(
+  data: CapturedJsonValue,
+  field: String,
+) -> Option(CapturedJsonValue) {
+  case data {
+    CapturedObject(fields) -> captured_field(fields, field)
+    _ -> None
+  }
+}
+
+fn captured_string_field(
+  data: CapturedJsonValue,
+  field: String,
+) -> Option(String) {
+  case captured_object_field(data, field) {
+    Some(CapturedString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn captured_field(
+  fields: List(#(String, CapturedJsonValue)),
+  field: String,
+) -> Option(CapturedJsonValue) {
+  case fields {
+    [] -> None
+    [#(key, value), ..] if key == field -> Some(value)
+    [_, ..rest] -> captured_field(rest, field)
+  }
+}
+
 fn handle_contact_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -3229,15 +3355,31 @@ fn handle_contact_delete(
   case read_string(args, "companyContactId") {
     Some(id) ->
       case store.get_effective_b2b_company_contact_by_id(store, id) {
-        Some(_) -> {
-          let #(store, ids) = delete_contact(store, id)
-          RootResult(
-            Payload(..empty_payload([]), deleted_company_contact_id: Some(id)),
-            store,
-            identity,
-            ids,
-          )
-        }
+        Some(contact) ->
+          case contact_has_associated_orders(store, contact) {
+            True ->
+              RootResult(
+                Payload(
+                  ..empty_payload([existing_orders_error()]),
+                  deleted_company_contact_id: None,
+                ),
+                store,
+                identity,
+                [],
+              )
+            False -> {
+              let #(store, ids) = delete_contact(store, id)
+              RootResult(
+                Payload(
+                  ..empty_payload([]),
+                  deleted_company_contact_id: Some(id),
+                ),
+                store,
+                identity,
+                ids,
+              )
+            }
+          }
         None ->
           RootResult(
             Payload(
@@ -3286,15 +3428,24 @@ fn handle_contacts_delete(
       fn(acc, id) {
         let #(current_store, deleted, staged, errors) = acc
         case store.get_effective_b2b_company_contact_by_id(current_store, id) {
-          Some(_) -> {
-            let #(next_store, ids) = delete_contact(current_store, id)
-            #(
-              next_store,
-              list.append(deleted, [id]),
-              list.append(staged, ids),
-              errors,
-            )
-          }
+          Some(contact) ->
+            case contact_has_associated_orders(current_store, contact) {
+              True -> #(
+                current_store,
+                deleted,
+                staged,
+                list.append(errors, [existing_orders_error()]),
+              )
+              False -> {
+                let #(next_store, ids) = delete_contact(current_store, id)
+                #(
+                  next_store,
+                  list.append(deleted, [id]),
+                  list.append(staged, ids),
+                  errors,
+                )
+              }
+            }
           None -> #(
             current_store,
             deleted,
@@ -4039,8 +4190,8 @@ fn resolve_role_assignments(
   contact_fallback: Option(String),
   location_fallback: Option(String),
 ) -> #(List(SourceValue), List(UserError), SyntheticIdentityRegistry) {
-  list.fold(inputs, #([], [], identity), fn(acc, input) {
-    let #(assignments, errors, current_identity) = acc
+  list.fold(inputs, #([], [], identity, []), fn(acc, input) {
+    let #(assignments, errors, current_identity, planned_pairs) = acc
     let contact_id =
       read_string(input, "companyContactId") |> option_or(contact_fallback)
     let role_id = read_string(input, "companyContactRoleId")
@@ -4053,26 +4204,91 @@ fn resolve_role_assignments(
           store.get_effective_b2b_company_contact_role_by_id(store, role_id),
           store.get_effective_b2b_company_location_by_id(store, location_id)
         {
-          Some(contact), Some(role), Some(location)
-            if contact.company_id == role.company_id
-            && contact.company_id == location.company_id
-          -> {
-            let #(assignment, next_identity) =
-              build_role_assignment(current_identity, contact, role, location)
-            #(list.append(assignments, [assignment]), errors, next_identity)
-          }
-          _, _, _ -> #(
+          None, _, _ -> #(
             assignments,
-            list.append(errors, [resource_not_found(["rolesToAssign"])]),
+            list.append(errors, [resource_not_found(["companyContactId"])]),
             current_identity,
+            planned_pairs,
           )
+          _, None, _ -> #(
+            assignments,
+            list.append(errors, [company_role_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          Some(contact), Some(role), _
+            if role.company_id != contact.company_id
+          -> #(
+            assignments,
+            list.append(errors, [company_role_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          _, _, None -> #(
+            assignments,
+            list.append(errors, [company_location_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          Some(contact), _, Some(location)
+            if location.company_id != contact.company_id
+          -> #(
+            assignments,
+            list.append(errors, [company_location_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          Some(contact), Some(role), Some(location) -> {
+            let pair = #(contact.id, location.id)
+            case
+              contact_has_role_assignment_for_location(contact, location.id)
+              || list.contains(planned_pairs, pair)
+            {
+              True -> #(
+                assignments,
+                list.append(errors, [one_role_already_assigned()]),
+                current_identity,
+                planned_pairs,
+              )
+              False -> {
+                let #(assignment, next_identity) =
+                  build_role_assignment(
+                    current_identity,
+                    contact,
+                    role,
+                    location,
+                  )
+                #(
+                  list.append(assignments, [assignment]),
+                  errors,
+                  next_identity,
+                  list.append(planned_pairs, [pair]),
+                )
+              }
+            }
+          }
         }
       _, _, _ -> #(
         assignments,
         list.append(errors, [resource_not_found(["rolesToAssign"])]),
         current_identity,
+        planned_pairs,
       )
     }
+  })
+  |> fn(result) {
+    let #(assignments, errors, identity, _) = result
+    #(assignments, errors, identity)
+  }
+}
+
+fn contact_has_role_assignment_for_location(
+  contact: B2BCompanyContactRecord,
+  location_id: String,
+) -> Bool {
+  read_object_sources(data_get(contact.data, "roleAssignments"))
+  |> list.any(fn(assignment) {
+    assignment_ref(assignment, "companyLocationId") == Some(location_id)
   })
 }
 
@@ -4112,8 +4328,10 @@ fn handle_contact_assign_role(
   RootResult(
     Payload(
       ..empty_payload(errors),
-      company_contact_role_assignment: list.first(assignments)
-        |> option_from_result,
+      company_contact_role_assignment: case errors {
+        [] -> list.first(assignments) |> option_from_result
+        _ -> None
+      },
     ),
     store,
     identity,
@@ -4143,7 +4361,10 @@ fn handle_contact_assign_roles(
     _ -> #(store, [])
   }
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: assignments),
+    Payload(..empty_payload(errors), role_assignments: case errors {
+      [] -> assignments
+      _ -> []
+    }),
     store,
     identity,
     staged,
@@ -4168,7 +4389,10 @@ fn handle_location_assign_roles(
     _ -> #(store, [])
   }
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: assignments),
+    Payload(..empty_payload(errors), role_assignments: case errors {
+      [] -> assignments
+      _ -> []
+    }),
     store,
     identity,
     staged,

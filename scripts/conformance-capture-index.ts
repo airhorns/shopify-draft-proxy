@@ -196,6 +196,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-contact-business-rule-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-business-rule-preconditions-conformance.mts',
+    purpose:
+      'B2B contact role assignment one-role-per-location/resource lookup guards and contact delete order-history/main-contact preconditions.',
+    requiredAuthScopes: ['read_companies', 'write_companies', 'write_draft_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-contact-business-rule-preconditions.json`,
+      'config/parity-specs/b2b/b2b-contact-business-rule-preconditions.json',
+      'config/parity-requests/b2b/b2b-contact-business-rules-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable companies and a B2B draft order completed into an order; cancels the order and attempts company deletes during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Shopify retains company order history after cancellation, so the order-history company delete may return a cleanup userError in the fixture.',
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',

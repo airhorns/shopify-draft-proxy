@@ -106,6 +106,14 @@ type DeliveryProfileUserError {
   )
 }
 
+type ShippingPackageUpdateUserError {
+  ShippingPackageUpdateUserError(
+    field: Option(List(String)),
+    message: String,
+    code: String,
+  )
+}
+
 type FulfillmentOrderMoveDestination {
   FulfillmentOrderMoveDestination(
     id: String,
@@ -801,6 +809,7 @@ fn shipping_package_record_from_json(
     id: id,
     name: json_get_string(value, "name"),
     type_: json_get_string(value, "type"),
+    box_type: json_get_string(value, "boxType"),
     default: json_get_bool(value, "default") |> option.unwrap(False),
     weight: json_get_weight(value, "weight"),
     dimensions: json_get_dimensions(value, "dimensions"),
@@ -2187,7 +2196,7 @@ fn maybe_hydrate_shipping_package(
           // Without a cassette/Snapshot mode this remains a no-op.
           let query =
             "query ShippingPackageHydrate($id: ID!) {
-  shippingPackage(id: $id) { id name type default weight { value unit } dimensions { length width height unit } createdAt updatedAt }
+  shippingPackage(id: $id) { id name type boxType default weight { value unit } dimensions { length width height unit } createdAt updatedAt }
 }
 "
           let variables = json.object([#("id", json.string(id))])
@@ -5616,27 +5625,47 @@ fn handle_shipping_package_update(
     Some(package_id), Some(package_input) -> {
       case store.get_effective_shipping_package_by_id(draft_store, package_id) {
         Some(base) -> {
-          let #(updated_at, next_identity) =
-            synthetic_identity.make_synthetic_timestamp(identity)
-          let #(updated, pre_staged_store) =
-            apply_package_input(draft_store, base, package_input, updated_at)
-          let #(_, next_store) =
-            store.stage_update_shipping_package(pre_staged_store, updated)
-          #(
-            MutationFieldResult(
-              key: get_field_response_key(field),
-              payload: payload_json(
-                field,
-                fragments,
-                "ShippingPackageUpdatePayload",
-                None,
+          case is_flat_rate_shipping_package(base) {
+            True -> #(
+              MutationFieldResult(
+                key: get_field_response_key(field),
+                payload: shipping_package_update_payload_json(field, fragments, [
+                  flat_rate_shipping_package_not_updatable(),
+                ]),
+                errors: [],
+                staged_resource_ids: [],
               ),
-              errors: [],
-              staged_resource_ids: [package_id],
-            ),
-            next_store,
-            next_identity,
-          )
+              draft_store,
+              identity,
+            )
+            False -> {
+              let #(updated_at, next_identity) =
+                synthetic_identity.make_synthetic_timestamp(identity)
+              let #(updated, pre_staged_store) =
+                apply_package_input(
+                  draft_store,
+                  base,
+                  package_input,
+                  updated_at,
+                )
+              let #(_, next_store) =
+                store.stage_update_shipping_package(pre_staged_store, updated)
+              #(
+                MutationFieldResult(
+                  key: get_field_response_key(field),
+                  payload: shipping_package_update_payload_json(
+                    field,
+                    fragments,
+                    [],
+                  ),
+                  errors: [],
+                  staged_resource_ids: [package_id],
+                ),
+                next_store,
+                next_identity,
+              )
+            }
+          }
         }
         None -> invalid_shipping_package_result(draft_store, identity, field)
       }
@@ -5644,12 +5673,7 @@ fn handle_shipping_package_update(
     _, _ -> #(
       MutationFieldResult(
         key: get_field_response_key(field),
-        payload: payload_json(
-          field,
-          fragments,
-          "ShippingPackageUpdatePayload",
-          None,
-        ),
+        payload: shipping_package_update_payload_json(field, fragments, []),
         errors: [],
         staged_resource_ids: [],
       ),
@@ -5801,6 +5825,28 @@ fn payload_json(
         True -> json.object([#("deletedId", optional_string_json(deleted_id))])
         False -> json.object([])
       }
+  }
+}
+
+fn shipping_package_update_payload_json(
+  field: Selection,
+  fragments: FragmentMap,
+  user_errors: List(ShippingPackageUpdateUserError),
+) -> Json {
+  let source =
+    src_object([
+      #("__typename", SrcString("ShippingPackageUpdatePayload")),
+      #(
+        "userErrors",
+        SrcList(list.map(user_errors, shipping_package_update_user_error_source)),
+      ),
+    ])
+  case field {
+    Field(
+      selection_set: Some(SelectionSet(selections: child_selections, ..)),
+      ..,
+    ) -> project_graphql_value(source, child_selections, fragments)
+    _ -> json.object([])
   }
 }
 
@@ -7851,6 +7897,17 @@ fn local_pickup_user_error_source(error: LocalPickupUserError) -> SourceValue {
   ])
 }
 
+fn shipping_package_update_user_error_source(
+  error: ShippingPackageUpdateUserError,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("ShippingPackageUpdateUserError")),
+    #("field", optional_string_list_source(error.field)),
+    #("message", SrcString(error.message)),
+    #("code", SrcString(error.code)),
+  ])
+}
+
 fn optional_string_list_source(value: Option(List(String))) -> SourceValue {
   case value {
     Some(items) -> SrcList(list.map(items, SrcString))
@@ -8143,6 +8200,20 @@ fn local_pickup_custom_pickup_time_not_allowed() -> LocalPickupUserError {
     message: "Custom pickup time is not allowed for local pickup settings.",
     code: Some("CUSTOM_PICKUP_TIME_NOT_ALLOWED"),
   )
+}
+
+fn flat_rate_shipping_package_not_updatable() -> ShippingPackageUpdateUserError {
+  ShippingPackageUpdateUserError(
+    field: Some(["shippingPackage"]),
+    message: "Custom shipping box is not updatable",
+    code: "CUSTOM_SHIPPING_BOX_NOT_UPDATABLE",
+  )
+}
+
+fn is_flat_rate_shipping_package(
+  shipping_package: ShippingPackageRecord,
+) -> Bool {
+  shipping_package.box_type == Some("FLAT_RATE")
 }
 
 fn invalid_shipping_package_result(

@@ -70,11 +70,13 @@ billing interval and `trialDays`. The executable local-runtime proof is
 `comparison.mode` is the comparison contract for the target payloads. It
 is distinct from proxy runtime read mode, which the runner owns.
 
-`proxyRequest.localSetups` is a narrow runner hook for executable local
-state setup that is not sourced from captured Shopify payloads. Use it
-only when live setup would be impractical or unsafe, and compare against
-an explicit captured or documented runtime case. It is not a replacement
-for cassette playback, and it must not reintroduce `seedX` keys in
+`proxyRequest.localSetups` is legacy narrow support for existing high-volume
+validation scenarios such as segment-count caps. Do not add new setup kinds or
+use local setup to create domain lifecycle preconditions for a parity
+comparison. New parity coverage should drive normal proxy requests and recorded
+upstream cassettes; if that cannot create the required precondition, keep the
+gap in Linear instead of injecting proxy state in the runner. This hook is not a
+replacement for cassette playback, and it must not reintroduce `seedX` keys in
 capture files.
 
 ```jsonc
