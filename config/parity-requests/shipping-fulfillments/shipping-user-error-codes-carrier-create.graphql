@@ -1,0 +1,12 @@
+mutation ShippingUserErrorCodesCarrierCreate($input: DeliveryCarrierServiceCreateInput!) {
+  carrierServiceCreate(input: $input) {
+    carrierService {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
