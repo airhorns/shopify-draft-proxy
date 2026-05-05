@@ -2,7 +2,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { parseOperation } from '../src/graphql/parse-operation.js';
+import { parseOperation } from './support/graphql/parse-operation.js';
 
 type ParsedSummary = {
   type: 'query' | 'mutation';

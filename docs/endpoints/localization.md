@@ -42,7 +42,9 @@ resource and digest.
 
 ### Mutation behavior
 
-`shopLocaleEnable`, `shopLocaleUpdate`, and `shopLocaleDisable` stage only local shop-locale state. They do not update Shopify at runtime. The supported slice covers enabling available locales, toggling `published`, replacing local `marketWebPresenceIds`, and disabling non-primary locales. Disabling a locale also removes locally staged/base translations for that locale, matching Shopify's documented destructive locale-delete behavior.
+`shopLocaleEnable`, `shopLocaleUpdate`, and `shopLocaleDisable` stage only local shop-locale state. They do not update Shopify at runtime. The supported slice covers enabling available locales, toggling `published`, replacing local `marketWebPresenceIds`, and disabling non-primary locales. Attempts to enable the primary locale, unpublish the primary locale, or disable the primary locale return a `CAN_NOT_MUTATE_PRIMARY_LOCALE` shop-locale user error. Updating or disabling a locale that is not enabled returns `SHOP_LOCALE_DOES_NOT_EXIST`. Disabling a locale also removes locally staged/base translations for that locale, matching Shopify's documented destructive locale-delete behavior.
+
+The local `ShopLocaleError` serializer emits SCREAMING_SNAKE `code` values when a client selects `userErrors.code`. The current public Admin GraphQL 2026-04 schema exposes these shop-locale payload fields as plain `UserError` with only `field` and `message`, so the live parity fixture compares the public field/message shape while unit tests cover the proxy's local `code` selection behavior.
 
 `translationsRegister` stages translations for locally known product and product-metafield resources after validating resource existence, enabled shop locale, translatable key, non-blank value, digest match, and unsupported market-specific input. Locale validation uses enabled `shopLocales`, not the broader `availableLocales` catalog. Digest mismatch is checked only after the requested key resolves to translatable content, so invalid-key errors are not polluted by stale-digest errors. `translationsRemove` removes matching local/base translations and returns the removed translation payloads. Subsequent `translatableResource.translations(locale:)` reads observe these staged changes.
 
@@ -56,6 +58,7 @@ Live Admin GraphQL 2026-04 evidence was captured against `harry-test-heelo.mysho
 
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-locale-translation-fixture.json`
 - `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-disable-clears-translations.json`
+- `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-primary-guards.json`
 
 The capture includes:
 
@@ -63,10 +66,11 @@ The capture includes:
 - locale and product translatable-resource reads
 - unknown resource validation for `translationsRegister` and `translationsRemove`
 - a safe `fr` shop-locale enable/update/disable lifecycle with cleanup
+- primary-locale validation for `shopLocaleEnable`, primary-unpublish validation for `shopLocaleUpdate`, primary-locale validation for `shopLocaleDisable`, and missing-locale validation for `shopLocaleUpdate`
 - a product title `translationsRegister` / downstream read / `translationsRemove` / downstream empty read lifecycle with cleanup
 - a product title `translationsRegister` / `shopLocaleDisable` / downstream empty read lifecycle proving Shopify removes translations for the disabled locale
 
-The generic parity runner replays the captured read, unknown-resource validation, locale lifecycle, product-title translation lifecycle, and locale-disable translation cleanup lifecycle through the local proxy. `tests/integration/localization-flow.test.ts` also covers local-only guardrails that are difficult to isolate in the generic fixture replay: product SEO keys, product-metafield `value` translations, enabled-locale validation, invalid keys, stale digests, read-after-remove behavior, and the local no-upstream execution path for locale-disable translation cleanup.
+The generic parity runner replays the captured read, unknown-resource validation, locale lifecycle, shop-locale primary guard validation, product-title translation lifecycle, and locale-disable translation cleanup lifecycle through the local proxy. The Gleam parity runner also covers local-only guardrails that are difficult to isolate in the generic fixture replay: product SEO keys, product-metafield `value` translations, enabled-locale validation, invalid keys, stale digests, read-after-remove behavior, and the local no-upstream execution path for locale-disable translation cleanup.
 
 ### HAR-449 gap review
 

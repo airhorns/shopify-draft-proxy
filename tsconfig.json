@@ -17,13 +17,6 @@
     "skipLibCheck": true,
     "types": ["node", "vitest/globals"]
   },
-  "include": [
-    "src/**/*.ts",
-    "scripts/**/*.ts",
-    "scripts/**/*.d.ts",
-    "scripts/**/*.d.mts",
-    "tests/**/*.ts",
-    "tests/**/*.d.ts"
-  ],
+  "include": ["scripts/**/*.ts", "scripts/**/*.d.ts", "scripts/**/*.d.mts", "tests/**/*.ts", "tests/**/*.d.ts"],
   "exclude": ["dist", "node_modules"]
 }
