@@ -1416,6 +1416,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-query-validators',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-query-validators-conformance.ts',
+    purpose: 'bulkOperationRunQuery AdminQuery validator userErrors for validation-only branches.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-query-validators.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-query-validators.json',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'webhooks',
     captureId: 'webhook-subscriptions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
