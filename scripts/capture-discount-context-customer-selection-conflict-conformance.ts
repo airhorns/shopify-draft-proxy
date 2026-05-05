@@ -278,7 +278,7 @@ try {
   for (const [index, id] of setupDiscountIds.entries()) {
     cleanup[`discountDelete${index + 1}`] = await runGraphqlRaw(discountDeleteDocument, { id });
   }
-  for (const [index, id] of setupCustomerIds.toReversed().entries()) {
+  for (const [index, id] of [...setupCustomerIds].reverse().entries()) {
     cleanup[`customerDelete${index + 1}`] = await runGraphqlRaw(customerDeleteDocument, { input: { id } });
   }
 
@@ -339,7 +339,7 @@ try {
     const key = `discountDelete${index + 1}`;
     if (!cleanup[key]) cleanup[`${key}AfterFailure`] = await runGraphqlRaw(discountDeleteDocument, { id });
   }
-  for (const [index, id] of setupCustomerIds.toReversed().entries()) {
+  for (const [index, id] of [...setupCustomerIds].reverse().entries()) {
     const key = `customerDelete${index + 1}`;
     if (!cleanup[key]) {
       cleanup[`${key}AfterFailure`] = await runGraphqlRaw(customerDeleteDocument, { input: { id } });
