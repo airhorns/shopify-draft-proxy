@@ -4875,7 +4875,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages revocation on existing normalized payment methods by setting revokedAt/revokedReason locally. Revoked rows are hidden from customerPaymentMethod and Customer.paymentMethods unless showRevoked is true, and supported calls do not proxy destructive revocation upstream.",
+        "Stages revocation on existing normalized payment methods by setting revokedAt/revokedReason locally. Local subscription-contract links block revoke with ACTIVE_CONTRACT, already-revoked rows return idempotent success without replacing metadata, revoked rows are hidden from customerPaymentMethod and Customer.paymentMethods unless showRevoked is true, and supported calls do not proxy destructive revocation upstream.",
       ),
     ),
     RegistryEntry(
