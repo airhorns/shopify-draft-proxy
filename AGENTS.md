@@ -139,6 +139,12 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   clients must not depend on their internal encoding. **Do not pre-seed
   `base_state` from the captured response** — the runner no longer
   supports that pattern, and `seedX` keys in capture files are banned.
+- Do not add new parity-runner hooks that mutate proxy state before a scenario
+  request just to satisfy a comparison. Existing narrow runner setup support is
+  not precedent for new fidelity work. Parity scenarios must prove behavior
+  through normal proxy requests, captured upstream cassettes, and local domain
+  handlers. If a precondition matters, model the request lifecycle that creates
+  it, or leave the gap in Linear rather than injecting state into the runner.
 - Before handing off a fidelity PR, check the recent rejected-review lessons:
   - If behavior is claimed to match Shopify, include executable parity
     evidence (a checked-in parity spec running through `pnpm gleam:test`)
