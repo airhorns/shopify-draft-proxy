@@ -1,0 +1,95 @@
+{
+  "scenarioId": "fulfillment-service-delete-transfer",
+  "operationNames": ["locationAdd", "fulfillmentServiceCreate", "fulfillmentServiceDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-delete-transfer.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-delete-transfer-location-add.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.captures.destinationCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-571 captured Admin GraphQL 2026-04 fulfillmentServiceDelete TRANSFER evidence. The scenario creates a disposable merchant-managed destination location and fulfillment service; verifies an invalid transfer destination returns the captured Invalid destination location userError; then verifies a valid transfer delete succeeds. Live probes with inventory-free fulfillment-order setup showed missing destination succeeds and the fulfillment order remains assigned to the source service location, so the ticket-requested missing-destination and local fulfillment-order reassignment guardrails remain covered by focused runtime tests rather than this parity spec. Cleanup attempts to deactivate/delete the disposable destination location after capture.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "destination-location-create-payload",
+        "capturePath": "$.captures.destinationCreate.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic destination Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "service-create-payload",
+        "capturePath": "$.captures.serviceCreate.response.payload.data.fulfillmentServiceCreate",
+        "proxyPath": "$.data.fulfillmentServiceCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-delete-transfer-create.graphql",
+          "variablesCapturePath": "$.captures.serviceCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentService.id",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The proxy creates a stable synthetic fulfillment-service ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentService.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic fulfillment-service Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "invalid-destination-user-errors",
+        "capturePath": "$.captures.invalidDestination.response.payload.data.fulfillmentServiceDelete",
+        "proxyPath": "$.data.fulfillmentServiceDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-delete-transfer-invalid-destination.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "service-create-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            },
+            "destinationLocationId": "gid://shopify/Location/999999999"
+          }
+        }
+      },
+      {
+        "name": "valid-transfer-delete-payload",
+        "capturePath": "$.captures.validTransfer.response.payload.data.fulfillmentServiceDelete",
+        "proxyPath": "$.data.fulfillmentServiceDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-service-delete-transfer-valid.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "service-create-payload",
+              "path": "$.data.fulfillmentServiceCreate.fulfillmentService.id"
+            },
+            "destinationLocationId": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedId",
+            "matcher": "shopify-gid:FulfillmentService",
+            "reason": "The delete returns the proxy-created synthetic fulfillment-service ID without Shopify's query suffix."
+          }
+        ]
+      }
+    ]
+  }
+}

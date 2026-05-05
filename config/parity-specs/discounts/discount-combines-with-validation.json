@@ -1,0 +1,31 @@
+{
+  "scenarioId": "discount-combines-with-validation",
+  "operationNames": ["discountCodeBasicCreate", "discountCodeFreeShippingCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-combines-with-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-combines-with-validation.graphql",
+    "variablesCapturePath": "$.validation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 combinesWith validation branches for cart-line tag stacking on an ORDER-class basic discount, add/remove overlap inside productDiscountsWithTagsOnSameCartLine, and the existing free-shipping self-combine shippingDiscounts rejection.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-combines-with-validation-data",
+        "capturePath": "$.validation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "discount-combines-with-validation-errors",
+        "capturePath": "$.validation.response.errors",
+        "proxyPath": "$.errors"
+      }
+    ]
+  }
+}

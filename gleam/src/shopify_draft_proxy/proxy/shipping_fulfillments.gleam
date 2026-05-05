@@ -99,7 +99,11 @@ type LocalPickupUserError {
 }
 
 type FulfillmentServiceUserError {
-  FulfillmentServiceUserError(field: Option(List(String)), message: String)
+  FulfillmentServiceUserError(
+    field: Option(List(String)),
+    message: String,
+    code: Option(String),
+  )
 }
 
 type DeliveryProfileUserError {
@@ -2894,31 +2898,49 @@ fn handle_fulfillment_service_delete(
     Some(id) ->
       case store.get_effective_fulfillment_service_by_id(draft_store, id) {
         Some(existing) -> {
-          let service_store =
-            store.delete_staged_fulfillment_service(draft_store, id)
-          let next_store = case existing.location_id {
-            Some(location_id) ->
-              store.delete_staged_store_property_location(
-                service_store,
-                location_id,
+          let inventory_action = read_fulfillment_service_delete_action(args)
+          case
+            fulfillment_service_delete_destination(
+              draft_store,
+              inventory_action,
+              read_string(args, "destinationLocationId"),
+            )
+          {
+            Ok(destination) -> {
+              let service_store =
+                store.delete_staged_fulfillment_service(draft_store, id)
+              let #(next_store, affected_order_ids) =
+                stage_fulfillment_service_delete_effects(
+                  service_store,
+                  existing,
+                  inventory_action,
+                  destination,
+                )
+              #(
+                MutationFieldResult(
+                  key: get_field_response_key(field),
+                  payload: fulfillment_service_delete_payload_json(
+                    field,
+                    fragments,
+                    Some(strip_query_from_gid(id)),
+                    [],
+                  ),
+                  errors: [],
+                  staged_resource_ids: list.append([id], affected_order_ids),
+                ),
+                next_store,
+                identity,
               )
-            None -> service_store
-          }
-          #(
-            MutationFieldResult(
-              key: get_field_response_key(field),
-              payload: fulfillment_service_delete_payload_json(
+            }
+            Error(user_errors) ->
+              fulfillment_service_delete_validation_result(
+                draft_store,
+                identity,
                 field,
                 fragments,
-                Some(strip_query_from_gid(id)),
-                [],
-              ),
-              errors: [],
-              staged_resource_ids: [id],
-            ),
-            next_store,
-            identity,
-          )
+                user_errors,
+              )
+          }
         }
         None ->
           fulfillment_service_delete_validation_result(
@@ -2938,6 +2960,203 @@ fn handle_fulfillment_service_delete(
         [fulfillment_service_not_found()],
       )
   }
+}
+
+fn read_fulfillment_service_delete_action(
+  args: Dict(String, root_field.ResolvedValue),
+) -> String {
+  case read_string(args, "inventoryAction") {
+    Some("DELETE") -> "DELETE"
+    Some("KEEP") -> "KEEP"
+    Some("TRANSFER") -> "TRANSFER"
+    _ -> "TRANSFER"
+  }
+}
+
+fn fulfillment_service_delete_destination(
+  draft_store: Store,
+  inventory_action: String,
+  destination_location_id: Option(String),
+) -> Result(Option(StorePropertyRecord), List(FulfillmentServiceUserError)) {
+  case inventory_action {
+    "TRANSFER" ->
+      case
+        find_active_merchant_managed_location(
+          draft_store,
+          destination_location_id,
+        )
+      {
+        Some(location) -> Ok(Some(location))
+        None -> Error([invalid_fulfillment_service_destination_location()])
+      }
+    _ -> Ok(None)
+  }
+}
+
+fn find_active_merchant_managed_location(
+  draft_store: Store,
+  location_id: Option(String),
+) -> Option(StorePropertyRecord) {
+  case location_id {
+    Some(id) ->
+      case store.get_effective_store_property_location_by_id(draft_store, id) {
+        Some(location) ->
+          case
+            is_active_location(location)
+            && !is_fulfillment_service_location(location)
+          {
+            True -> Some(location)
+            False -> None
+          }
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn stage_fulfillment_service_delete_effects(
+  draft_store: Store,
+  service: FulfillmentServiceRecord,
+  inventory_action: String,
+  destination: Option(StorePropertyRecord),
+) -> #(Store, List(String)) {
+  case service.location_id {
+    Some(location_id) -> {
+      let location_store = case inventory_action {
+        "KEEP" ->
+          convert_fulfillment_service_location_to_merchant(
+            draft_store,
+            location_id,
+          )
+        _ ->
+          store.delete_staged_store_property_location(draft_store, location_id)
+      }
+      case inventory_action, destination {
+        "TRANSFER", Some(destination_location) ->
+          reassign_fulfillment_orders_from_service_location(
+            location_store,
+            location_id,
+            destination_location,
+          )
+        _, _ ->
+          close_fulfillment_orders_at_service_location(
+            location_store,
+            location_id,
+          )
+      }
+    }
+    None -> #(draft_store, [])
+  }
+}
+
+fn convert_fulfillment_service_location_to_merchant(
+  draft_store: Store,
+  location_id: String,
+) -> Store {
+  case
+    store.get_effective_store_property_location_by_id(draft_store, location_id)
+  {
+    Some(location) -> {
+      let converted =
+        StorePropertyRecord(
+          ..location,
+          data: location.data
+            |> dict.insert("isFulfillmentService", StorePropertyBool(False))
+            |> dict.insert("fulfillmentService", StorePropertyNull)
+            |> dict.insert("shipsInventory", StorePropertyBool(True))
+            |> dict.insert(
+              "updatedAt",
+              StorePropertyString(synthetic_timestamp_string()),
+            ),
+        )
+      let #(_, next_store) =
+        store.upsert_staged_store_property_location(draft_store, converted)
+      next_store
+    }
+    None -> draft_store
+  }
+}
+
+fn reassign_fulfillment_orders_from_service_location(
+  draft_store: Store,
+  source_location_id: String,
+  destination: StorePropertyRecord,
+) -> #(Store, List(String)) {
+  store.list_effective_fulfillment_orders(draft_store)
+  |> list.filter(fn(order) {
+    fulfillment_order_is_open(order)
+    && fulfillment_order_assigned_to_location(order, source_location_id)
+  })
+  |> list.fold(#(draft_store, []), fn(acc, order) {
+    let #(current_store, staged_ids) = acc
+    let reassigned =
+      update_fulfillment_order_fields(order, [
+        #(
+          "assignedLocation",
+          fulfillment_order_assigned_location_value(destination),
+        ),
+        #("updatedAt", CapturedString(synthetic_timestamp_string())),
+      ])
+    let reassigned =
+      FulfillmentOrderRecord(
+        ..reassigned,
+        assigned_location_id: Some(destination.id),
+      )
+    let #(_, next_store) =
+      store.stage_upsert_fulfillment_order(current_store, reassigned)
+    #(next_store, list.append(staged_ids, [order.id]))
+  })
+}
+
+fn close_fulfillment_orders_at_service_location(
+  draft_store: Store,
+  source_location_id: String,
+) -> #(Store, List(String)) {
+  store.list_effective_fulfillment_orders(draft_store)
+  |> list.filter(fn(order) {
+    fulfillment_order_is_open(order)
+    && fulfillment_order_assigned_to_location(order, source_location_id)
+  })
+  |> list.fold(#(draft_store, []), fn(acc, order) {
+    let #(current_store, staged_ids) = acc
+    let closed =
+      update_fulfillment_order_fields(order, [
+        #("status", CapturedString("CLOSED")),
+        #("updatedAt", CapturedString(synthetic_timestamp_string())),
+        #("supportedActions", CapturedArray([])),
+      ])
+    let closed = FulfillmentOrderRecord(..closed, status: "CLOSED")
+    let #(_, next_store) =
+      store.stage_upsert_fulfillment_order(current_store, closed)
+    #(next_store, list.append(staged_ids, [order.id]))
+  })
+}
+
+fn fulfillment_order_is_open(order: FulfillmentOrderRecord) -> Bool {
+  order.status != "CLOSED"
+}
+
+fn fulfillment_order_assigned_to_location(
+  order: FulfillmentOrderRecord,
+  location_id: String,
+) -> Bool {
+  order.assigned_location_id == Some(location_id)
+}
+
+fn fulfillment_order_assigned_location_value(
+  location: StorePropertyRecord,
+) -> CapturedJsonValue {
+  let name = store_property_string_field(location, "name") |> option.unwrap("")
+  CapturedObject([
+    #("name", CapturedString(name)),
+    #(
+      "location",
+      CapturedObject([
+        #("id", CapturedString(location.id)),
+        #("name", CapturedString(name)),
+      ]),
+    ),
+  ])
 }
 
 fn handle_fulfillment_order_submit_request(
@@ -6688,6 +6907,7 @@ fn fulfillment_service_user_error_source(
     #("__typename", SrcString("UserError")),
     #("field", optional_string_list_source(error.field)),
     #("message", SrcString(error.message)),
+    #("code", option_to_source(error.code)),
   ])
 }
 
@@ -6790,6 +7010,7 @@ fn blank_fulfillment_service_name_errors() -> List(FulfillmentServiceUserError) 
     FulfillmentServiceUserError(
       field: Some(["name"]),
       message: "Name can't be blank",
+      code: None,
     ),
   ]
 }
@@ -6805,6 +7026,7 @@ fn validate_fulfillment_service_callback_url(
           FulfillmentServiceUserError(
             field: Some(["callbackUrl"]),
             message: "Callback url is not allowed",
+            code: None,
           ),
         ]
       }
@@ -6820,6 +7042,15 @@ fn fulfillment_service_not_found() -> FulfillmentServiceUserError {
   FulfillmentServiceUserError(
     field: Some(["id"]),
     message: "Fulfillment service could not be found.",
+    code: None,
+  )
+}
+
+fn invalid_fulfillment_service_destination_location() -> FulfillmentServiceUserError {
+  FulfillmentServiceUserError(
+    field: None,
+    message: "Invalid destination location.",
+    code: None,
   )
 }
 

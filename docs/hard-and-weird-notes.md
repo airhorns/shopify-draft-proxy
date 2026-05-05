@@ -1779,6 +1779,7 @@ A small Shopify-specific shape wrinkle worth preserving:
 
 - `tagsAdd` usefully accepts either `[String!]!` values or a comma-separated string in practice, so local staging should normalize both into one trimmed, deduplicated tag list
 - `tagsRemove` is narrower; a good first pass can require an explicit array and ignore unknown/non-member tags rather than fabricating errors for no-op removals
+- HAR-583's live `productUpdate` tag-normalization capture found that tag identity and returned tag text are not the same thing. Shopify trims tag edges, deduplicates case-insensitively, and uses a whitespace-collapsed identity for matching, but it preserved the first kept tag's casing and internal whitespace in the returned `Product.tags` array (`" big   sale "` came back as `"big   sale"`). The same capture returned a top-level `MAX_INPUT_SIZE_EXCEEDED` error for 251 submitted tags and a payload `Product tags is invalid` userError for a 256-character tag.
 
 ## 39. `inventoryItemUpdate` is a useful first inventory metadata mutation, and its unknown-id error message is product-worded
 
