@@ -1,0 +1,62 @@
+{
+  "scenarioId": "localization-shop-locale-primary-guards",
+  "operationNames": ["shopLocaleEnable", "shopLocaleUpdate", "shopLocaleDisable"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-shop-locale-primary-guards.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-shop-locale-enable-user-errors.graphql",
+    "variablesCapturePath": "$.primaryGuards.enablePrimary.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shop-locale-enable-primary-guard",
+        "capturePath": "$.primaryGuards.enablePrimary.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.shopLocale", "$.userErrors"]
+      },
+      {
+        "name": "shop-locale-update-primary-unpublish-guard",
+        "capturePath": "$.primaryGuards.updatePrimaryUnpublish.response.data.shopLocaleUpdate",
+        "proxyPath": "$.data.shopLocaleUpdate",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.shopLocale", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-update-user-errors.graphql",
+          "variablesCapturePath": "$.primaryGuards.updatePrimaryUnpublish.request.variables"
+        }
+      },
+      {
+        "name": "shop-locale-disable-primary-guard",
+        "capturePath": "$.primaryGuards.disablePrimary.response.data.shopLocaleDisable",
+        "proxyPath": "$.data.shopLocaleDisable",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.locale", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-disable-user-errors.graphql",
+          "variablesCapturePath": "$.primaryGuards.disablePrimary.request.variables"
+        }
+      },
+      {
+        "name": "shop-locale-update-missing-locale-guard",
+        "capturePath": "$.primaryGuards.updateMissingLocale.response.data.shopLocaleUpdate",
+        "proxyPath": "$.data.shopLocaleUpdate",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.shopLocale", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-update-user-errors.graphql",
+          "variablesCapturePath": "$.primaryGuards.updateMissingLocale.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves shopLocaleEnable, shopLocaleUpdate, and shopLocaleDisable reject primary-locale mutation attempts with coded ShopLocale userErrors and that shopLocaleUpdate distinguishes a missing locale with its own code."
+}

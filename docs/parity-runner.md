@@ -101,7 +101,7 @@ is just to forward), opt the operation into the dispatch-layer
 passthrough list:
 
 ```gleam
-// gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam
+// src/shopify_draft_proxy/proxy/draft_proxy.gleam
 fn force_passthrough_in_live_hybrid(
   proxy: DraftProxy,
   type_: GraphQLOperationType,
@@ -143,7 +143,7 @@ empty/null answer the test expects after a delete. The discounts
 domain demonstrates the pattern:
 
 ```gleam
-// gleam/src/shopify_draft_proxy/proxy/discounts.gleam
+// src/shopify_draft_proxy/proxy/discounts.gleam
 pub fn local_has_discount_id(
   proxy: DraftProxy,
   variables: Dict(String, root_field.ResolvedValue),
@@ -250,14 +250,14 @@ be served by forwarding verbatim.
 
 ```sh
 # Run every spec on both Gleam targets:
-cd gleam && gleam test --target javascript && gleam test --target erlang
+gleam test --target javascript && gleam test --target erlang
 
 # Run the parity test module on one target:
-cd gleam && gleam test --target javascript -- parity_test
+gleam test --target javascript -- parity_test
 ```
 
 The central gate test
-(`gleam/test/parity_test.gleam:all_discovered_parity_specs_pass_test`)
+(`test/parity_test.gleam:all_discovered_parity_specs_pass_test`)
 discovers every spec and treats any runner error or comparison mismatch
 as a hard test failure. A spec without a valid `upstreamCalls` cassette
 does not run in a degraded mode; it fails until the capture is repaired.
@@ -269,10 +269,10 @@ isn't enough to figure out why, the runner has a debug mode that
 streams every request, response, cassette match/miss, and per-target
 assertion result to stderr.
 
-Drop a tiny inspector test into `gleam/test/`:
+Drop a tiny inspector test into `test/`:
 
 ```gleam
-// gleam/test/inspect_spec_test.gleam
+// test/inspect_spec_test.gleam
 import gleam/io
 import parity/runner
 
@@ -295,7 +295,7 @@ pub fn inspect_test() {
 Run it with:
 
 ```sh
-cd gleam && gleam test --target erlang -- inspect_spec_test
+gleam test --target erlang -- inspect_spec_test
 ```
 
 The output is line-prefixed:
@@ -443,7 +443,7 @@ Per-scenario steps:
      populated; skip to step 3.
 2. Decide the pattern (1 or 2 above) and wire the operation:
    - Pattern 1: add the root field to `force_passthrough_in_live_hybrid`
-     in `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`. **Gate
+     in `src/shopify_draft_proxy/proxy/draft_proxy.gleam`. **Gate
      it on local state** (use or add a `local_has_*_id` /
      `local_has_staged_*` helper in the domain module — see Pattern 1
      section above for the discounts example).
@@ -452,7 +452,7 @@ Per-scenario steps:
    - Re-run `pnpm parity:record <id>` and confirm it writes the expected
      `upstreamCalls` entries. An empty array is valid for mutation-only
      scenarios that make no upstream reads.
-3. `cd gleam && gleam test --target javascript -- parity_test` to run
+3. `gleam test --target javascript -- parity_test` to run
    on JS, then `--target erlang` to run on Erlang. If you see:
    - `cassette miss: operation=<X>` — the operation made an upstream
      call we didn't record. Re-record or extend the cassette.

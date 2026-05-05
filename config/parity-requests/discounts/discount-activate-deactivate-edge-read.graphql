@@ -1,0 +1,16 @@
+query DiscountActivateDeactivateEdgeRead($id: ID!, $code: String!) {
+  codeDiscountNode(id: $id) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        startsAt
+        endsAt
+        status
+      }
+    }
+  }
+  codeDiscountNodeByCode(code: $code) {
+    id
+  }
+}

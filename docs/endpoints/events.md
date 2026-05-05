@@ -28,7 +28,7 @@ Staged mutations in other domains do not yet write into a shared top-level Event
 
 ### Validation anchors
 
-- Runtime shape coverage: `gleam/test/shopify_draft_proxy/proxy/events_test.gleam` and `gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam`
+- Runtime shape coverage: `test/shopify_draft_proxy/proxy/events_test.gleam` and `test/shopify_draft_proxy/proxy/draft_proxy_test.gleam`
 - Executable parity: `config/parity-specs/events/event-empty-read.json`
 - Live fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/events/event-empty-read.json`
 - Root presence evidence: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

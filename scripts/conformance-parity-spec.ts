@@ -1,15 +1,13 @@
 // Pure spec-validation helpers for parity scenarios. The seed-based
 // runner that used to live alongside these functions has been retired
-// (cassette playback now drives parity from `gleam/test/parity/...`).
+// (cassette playback now drives parity from `test/parity/...`).
 // Only the spec-shape validators remain here, used by:
 //   - scripts/gleam-port-coverage-gate.ts
 //   - tests/unit/conformance-scenario-discovery.test.ts
-//   - tests/unit/webhook-subscription-conformance-fixture.test.ts
-//   - tests/integration/bulk-operation-conformance-flow.test.ts
 
-import type { Matcher, ParitySpec } from '../src/json-schemas.js';
+import type { Matcher, ParitySpec } from './support/json-schemas.js';
 
-export type { ExpectedDifference, Matcher, ParitySpec, ProxyRequestSpec } from '../src/json-schemas.js';
+export type { ExpectedDifference, Matcher, ParitySpec, ProxyRequestSpec } from './support/json-schemas.js';
 
 export type ParityScenarioState =
   | 'ready-for-comparison'

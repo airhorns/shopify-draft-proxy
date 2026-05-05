@@ -1,0 +1,14 @@
+mutation LocalizationShopLocaleUpdateUserErrors($locale: String!, $shopLocale: ShopLocaleInput!) {
+  shopLocaleUpdate(locale: $locale, shopLocale: $shopLocale) {
+    shopLocale {
+      locale
+      name
+      primary
+      published
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

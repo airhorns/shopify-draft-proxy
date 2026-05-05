@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   listImplementedOperationRegistryEntries,
   listOperationRegistryEntries,
-} from '../../src/proxy/operation-registry.js';
+} from '../../scripts/support/operation-registry.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -22,18 +22,27 @@ describe('operation registry', () => {
     }
   });
 
+  it('keeps implemented runtime test references executable on disk', () => {
+    for (const entry of listImplementedOperationRegistryEntries()) {
+      for (const runtimeTest of entry.runtimeTests) {
+        expect(() => {
+          execFileSync('test', ['-f', runtimeTest], {
+            cwd: repoRoot,
+            stdio: 'pipe',
+          });
+        }, `${entry.name} runtime test should exist: ${runtimeTest}`).not.toThrow();
+      }
+    }
+  });
+
   it('exposes both overlay-read and stage-locally implemented operations', () => {
     const executions = new Set(listOperationRegistryEntries().map((entry) => entry.execution));
     expect(executions.has('overlay-read')).toBe(true);
     expect(executions.has('stage-locally')).toBe(true);
   });
 
-  it('keeps the generated Gleam operation registry mirror in sync', () => {
-    expect(() => {
-      execFileSync('bash', ['gleam/scripts/sync-operation-registry.sh', '--check'], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-      });
-    }).not.toThrow();
+  it('loads the checked-in Gleam operation registry as the source of truth', () => {
+    expect(listOperationRegistryEntries().length).toBeGreaterThan(0);
+    expect(listOperationRegistryEntries().some((entry) => entry.name === 'productCreate')).toBe(true);
   });
 });

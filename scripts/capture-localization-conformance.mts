@@ -10,7 +10,8 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'localization');
-const outputPath = path.join(outputDir, 'localization-disable-clears-translations.json');
+const disableCleanupOutputPath = path.join(outputDir, 'localization-disable-clears-translations.json');
+const primaryGuardsOutputPath = path.join(outputDir, 'localization-shop-locale-primary-guards.json');
 
 const readQuery = `#graphql
   query LocalizationLocaleTranslationRead($first: Int!, $resourceType: TranslatableResourceType!, $ids: [ID!]!) {
@@ -99,6 +100,40 @@ const enableMutation = `#graphql
   }
 `;
 
+const enableUserErrorsMutation = `#graphql
+  mutation LocalizationShopLocaleEnableUserErrors($locale: String!) {
+    shopLocaleEnable(locale: $locale) {
+      shopLocale {
+        locale
+        name
+        primary
+        published
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const updateUserErrorsMutation = `#graphql
+  mutation LocalizationShopLocaleUpdateUserErrors($locale: String!, $shopLocale: ShopLocaleInput!) {
+    shopLocaleUpdate(locale: $locale, shopLocale: $shopLocale) {
+      shopLocale {
+        locale
+        name
+        primary
+        published
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const registerMutation = `#graphql
   mutation LocalizationTranslationsRegister($resourceId: ID!, $translations: [TranslationInput!]!) {
     translationsRegister(resourceId: $resourceId, translations: $translations) {
@@ -115,7 +150,6 @@ const registerMutation = `#graphql
       userErrors {
         field
         message
-        code
       }
     }
   }
@@ -123,6 +157,18 @@ const registerMutation = `#graphql
 
 const disableMutation = `#graphql
   mutation LocalizationShopLocaleDisable($locale: String!) {
+    shopLocaleDisable(locale: $locale) {
+      locale
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const disableUserErrorsMutation = `#graphql
+  mutation LocalizationShopLocaleDisableUserErrors($locale: String!) {
     shopLocaleDisable(locale: $locale) {
       locale
       userErrors {
@@ -244,6 +290,36 @@ const readVariables = {
 await disableFrenchLocaleIfEnabled();
 
 const readCapture = await runGraphql(readQuery, readVariables);
+const primaryGuardVariables = {
+  locale: 'en',
+};
+const primaryUnpublishVariables = {
+  locale: 'en',
+  shopLocale: { published: false },
+};
+const missingLocaleUpdateVariables = {
+  locale: 'zz',
+  shopLocale: { published: false },
+};
+const primaryGuards = {
+  primaryLocale: 'en',
+  enablePrimary: {
+    request: { variables: primaryGuardVariables },
+    response: await runGraphql(enableUserErrorsMutation, primaryGuardVariables),
+  },
+  updatePrimaryUnpublish: {
+    request: { variables: primaryUnpublishVariables },
+    response: await runGraphql(updateUserErrorsMutation, primaryUnpublishVariables),
+  },
+  disablePrimary: {
+    request: { variables: primaryGuardVariables },
+    response: await runGraphql(disableUserErrorsMutation, primaryGuardVariables),
+  },
+  updateMissingLocale: {
+    request: { variables: missingLocaleUpdateVariables },
+    response: await runGraphql(updateUserErrorsMutation, missingLocaleUpdateVariables),
+  },
+};
 const { resourceId, digest } = findProductTitleDigest(readCapture);
 const translationValue = `Titre HAR-449 disable cleanup ${Date.now()}`;
 const registerVariables = {
@@ -299,9 +375,39 @@ try {
   };
 
   await mkdir(outputDir, { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(capture, null, 2)}\n`, 'utf8');
+  await writeFile(disableCleanupOutputPath, `${JSON.stringify(capture, null, 2)}\n`, 'utf8');
+  await writeFile(
+    primaryGuardsOutputPath,
+    `${JSON.stringify(
+      {
+        capturedAt: new Date().toISOString(),
+        storeDomain,
+        apiVersion,
+        rootAvailability: {
+          mutations: ['shopLocaleDisable', 'shopLocaleEnable', 'shopLocaleUpdate'],
+        },
+        primaryGuards,
+        upstreamCalls: [],
+      },
+      null,
+      2,
+    )}\n`,
+    'utf8',
+  );
   // oxlint-disable-next-line no-console -- CLI capture output is intentionally written to stdout.
-  console.log(JSON.stringify({ ok: true, outputPath, storeDomain, apiVersion, resourceId }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        ok: true,
+        outputPaths: [disableCleanupOutputPath, primaryGuardsOutputPath],
+        storeDomain,
+        apiVersion,
+        resourceId,
+      },
+      null,
+      2,
+    ),
+  );
 } finally {
   if (disablePayload === null) {
     await disableFrenchLocaleIfEnabled();
