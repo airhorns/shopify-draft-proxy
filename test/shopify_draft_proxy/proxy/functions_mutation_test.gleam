@@ -337,6 +337,18 @@ pub fn validation_create_defaults_enable_and_block_test() {
     == "{\"data\":{\"validationCreate\":{\"validation\":{\"enable\":false,\"blockOnFailure\":false}}}}"
 }
 
+pub fn validation_create_does_not_accept_enabled_alias_test() {
+  let fn_record =
+    shopify_fn("gid://shopify/ShopifyFunction/v", "v", "VALIDATION")
+  let body =
+    run_mutation(
+      seed_function(store.new(), fn_record),
+      "mutation { validationCreate(validation: { functionHandle: \"v\", enabled: true }) { validation { enable blockOnFailure } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"validationCreate\":{\"validation\":{\"enable\":false,\"blockOnFailure\":false},\"userErrors\":[]}}}"
+}
+
 pub fn validation_create_active_cap_returns_user_error_and_stages_nothing_test() {
   let fn_record =
     shopify_fn("gid://shopify/ShopifyFunction/cap", "cap", "VALIDATION")
@@ -416,6 +428,53 @@ pub fn validation_update_changes_title_and_enable_test() {
     )
   assert body
     == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/77\",\"title\":\"Renamed\",\"enable\":false},\"userErrors\":[]}}}"
+}
+
+pub fn validation_update_omitted_enable_and_block_reset_defaults_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/checkout-validator",
+      "checkout-validator",
+      "VALIDATION",
+    )
+  let v =
+    ValidationRecord(
+      id: "gid://shopify/Validation/defaults",
+      title: Some("Original"),
+      enable: Some(True),
+      block_on_failure: Some(True),
+      function_id: None,
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(fn_record.id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let document =
+    "mutation { validationUpdate(id: \"gid://shopify/Validation/defaults\", validation: { title: \"Renamed\" }) { validation { id title enable blockOnFailure } userErrors { field message code } } }"
+  let outcome =
+    run_mutation_outcome(
+      store.new()
+        |> seed_function(fn_record)
+        |> seed_validation(v),
+      document,
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/defaults\",\"title\":\"Renamed\",\"enable\":false,\"blockOnFailure\":false},\"userErrors\":[]}}}"
+  let assert Some(updated) =
+    store.get_effective_validation_by_id(
+      outcome.store,
+      "gid://shopify/Validation/defaults",
+    )
+  assert updated.enable == Some(False)
+  assert updated.block_on_failure == Some(False)
+
+  let assert [entry] = store.get_log(outcome.store)
+  assert entry.status == store.Staged
+  assert entry.operation_name == Some("validationUpdate")
+  assert entry.query == document
+  assert entry.staged_resource_ids == ["gid://shopify/Validation/defaults"]
 }
 
 pub fn validation_update_function_inputs_do_not_rebind_test() {
@@ -541,7 +600,7 @@ pub fn validation_update_unknown_id_emits_user_error_test() {
       "mutation { validationUpdate(id: \"gid://shopify/Validation/missing\", validation: { title: \"x\" }) { validation { id } userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"validationUpdate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"No function-backed resource exists with id gid://shopify/Validation/missing\",\"code\":\"NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"validationUpdate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Extension not found.\",\"code\":\"NOT_FOUND\"}]}}}"
 }
 
 // ----------- validationDelete -----------
