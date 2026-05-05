@@ -1,0 +1,270 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "minimumRequirement": {
+    "query": "mutation DiscountMinimumRequirementExclusivity(\n  $bothCode: DiscountCodeBasicInput!\n  $quantityLimit: DiscountCodeBasicInput!\n  $subtotalLimit: DiscountCodeBasicInput!\n  $bothAutomatic: DiscountAutomaticBasicInput!\n) {\n  bothCode: discountCodeBasicCreate(basicCodeDiscount: $bothCode) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  quantityLimit: discountCodeBasicCreate(basicCodeDiscount: $quantityLimit) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  subtotalLimit: discountCodeBasicCreate(basicCodeDiscount: $subtotalLimit) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  bothAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $bothAutomatic) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+    "variables": {
+      "bothCode": {
+        "title": "HAR-779 BOTH1778019350563",
+        "code": "BOTH1778019350563",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "all": true
+          }
+        },
+        "minimumRequirement": {
+          "quantity": {
+            "greaterThanOrEqualToQuantity": "2"
+          },
+          "subtotal": {
+            "greaterThanOrEqualToSubtotal": "10.00"
+          }
+        }
+      },
+      "quantityLimit": {
+        "title": "HAR-779 QLIMIT1778019350563",
+        "code": "QLIMIT1778019350563",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "all": true
+          }
+        },
+        "minimumRequirement": {
+          "quantity": {
+            "greaterThanOrEqualToQuantity": "9999999999"
+          }
+        }
+      },
+      "subtotalLimit": {
+        "title": "HAR-779 SLIMIT1778019350563",
+        "code": "SLIMIT1778019350563",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "all": true
+          }
+        },
+        "minimumRequirement": {
+          "subtotal": {
+            "greaterThanOrEqualToSubtotal": "1000000000000000001.00"
+          }
+        }
+      },
+      "bothAutomatic": {
+        "title": "HAR-779 automatic 1778019350563",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "all": true
+          }
+        },
+        "minimumRequirement": {
+          "quantity": {
+            "greaterThanOrEqualToQuantity": "2"
+          },
+          "subtotal": {
+            "greaterThanOrEqualToSubtotal": "10.00"
+          }
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "bothCode": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "minimumRequirement", "subtotal", "greaterThanOrEqualToSubtotal"],
+              "message": "Minimum subtotal cannot be defined when minimum quantity is.",
+              "code": "CONFLICT",
+              "extraInfo": null
+            },
+            {
+              "field": ["basicCodeDiscount", "minimumRequirement", "quantity", "greaterThanOrEqualToQuantity"],
+              "message": "Minimum quantity cannot be defined when minimum subtotal is.",
+              "code": "CONFLICT",
+              "extraInfo": null
+            }
+          ]
+        },
+        "quantityLimit": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "minimumRequirement", "quantity", "greaterThanOrEqualToQuantity"],
+              "message": "Minimum quantity must be less than 2147483647",
+              "code": "LESS_THAN",
+              "extraInfo": null
+            }
+          ]
+        },
+        "subtotalLimit": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "minimumRequirement", "subtotal", "greaterThanOrEqualToSubtotal"],
+              "message": "Minimum subtotal must be less than 1000000000000000000",
+              "code": "LESS_THAN",
+              "extraInfo": null
+            }
+          ]
+        },
+        "bothAutomatic": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["automaticBasicDiscount", "minimumRequirement", "subtotal", "greaterThanOrEqualToSubtotal"],
+              "message": "Minimum subtotal cannot be defined when minimum quantity is.",
+              "code": "CONFLICT",
+              "extraInfo": null
+            },
+            {
+              "field": ["automaticBasicDiscount", "minimumRequirement", "quantity", "greaterThanOrEqualToQuantity"],
+              "message": "Minimum quantity cannot be defined when minimum subtotal is.",
+              "code": "CONFLICT",
+              "extraInfo": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 40,
+          "actualQueryCost": 40,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1960,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

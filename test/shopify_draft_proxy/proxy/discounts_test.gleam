@@ -334,6 +334,98 @@ pub fn automatic_discount_creates_do_not_require_codes_test() {
   assert string.contains(body, "\"userErrors\":[]")
 }
 
+pub fn minimum_requirement_quantity_and_subtotal_are_mutually_exclusive_test() {
+  let code_create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Minimum both\", code: \"MIN-BOTH\", startsAt: \"2026-04-25T00:00:00Z\", context: { all: ALL }, customerGets: { value: { percentage: 0.1 }, items: { all: true } }, minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: \"2\" }, subtotal: { greaterThanOrEqualToSubtotal: \"10.00\" } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_create =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic minimum both\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } }, minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: \"2\" }, subtotal: { greaterThanOrEqualToSubtotal: \"10.00\" } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(code_create.data)
+    == minimum_requirement_conflict_payload(
+      "discountCodeBasicCreate",
+      "codeDiscountNode",
+      "basicCodeDiscount",
+    )
+  assert json.to_string(automatic_create.data)
+    == minimum_requirement_conflict_payload(
+      "discountAutomaticBasicCreate",
+      "automaticDiscountNode",
+      "automaticBasicDiscount",
+    )
+}
+
+pub fn minimum_requirement_updates_reject_quantity_and_subtotal_test() {
+  let code_created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Minimum update\", code: \"MIN-UP\", startsAt: \"2026-04-25T00:00:00Z\", context: { all: ALL }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let code_update =
+    run_mutation_from(
+      code_created.store,
+      code_created.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Minimum update\", code: \"MIN-UP\", startsAt: \"2026-04-25T00:00:00Z\", context: { all: ALL }, customerGets: { value: { percentage: 0.1 }, items: { all: true } }, minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: \"2\" }, subtotal: { greaterThanOrEqualToSubtotal: \"10.00\" } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_created =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic minimum update\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_update =
+    run_mutation_from(
+      automatic_created.store,
+      automatic_created.identity,
+      "mutation { discountAutomaticBasicUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBasicDiscount: { title: \"Automatic minimum update\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } }, minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: \"2\" }, subtotal: { greaterThanOrEqualToSubtotal: \"10.00\" } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(code_update.data)
+    == minimum_requirement_conflict_payload(
+      "discountCodeBasicUpdate",
+      "codeDiscountNode",
+      "basicCodeDiscount",
+    )
+  assert json.to_string(automatic_update.data)
+    == minimum_requirement_conflict_payload(
+      "discountAutomaticBasicUpdate",
+      "automaticDiscountNode",
+      "automaticBasicDiscount",
+    )
+}
+
+pub fn minimum_requirement_limits_reject_captured_upper_bounds_test() {
+  let quantity =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Minimum quantity limit\", code: \"MIN-Q-LIMIT\", startsAt: \"2026-04-25T00:00:00Z\", context: { all: ALL }, customerGets: { value: { percentage: 0.1 }, items: { all: true } }, minimumRequirement: { quantity: { greaterThanOrEqualToQuantity: \"9999999999\" } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let subtotal =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Minimum subtotal limit\", code: \"MIN-S-LIMIT\", startsAt: \"2026-04-25T00:00:00Z\", context: { all: ALL }, customerGets: { value: { percentage: 0.1 }, items: { all: true } }, minimumRequirement: { subtotal: { greaterThanOrEqualToSubtotal: \"1000000000000000001.00\" } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(quantity.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"minimumRequirement\",\"quantity\",\"greaterThanOrEqualToQuantity\"],\"message\":\"Minimum quantity must be less than 2147483647\",\"code\":\"LESS_THAN\",\"extraInfo\":null}]}}}"
+  assert json.to_string(subtotal.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"minimumRequirement\",\"subtotal\",\"greaterThanOrEqualToSubtotal\"],\"message\":\"Minimum subtotal must be less than 1000000000000000000\",\"code\":\"LESS_THAN\",\"extraInfo\":null}]}}}"
+}
+
+fn minimum_requirement_conflict_payload(
+  root: String,
+  node_field: String,
+  input_name: String,
+) -> String {
+  "{\"data\":{\""
+  <> root
+  <> "\":{\""
+  <> node_field
+  <> "\":null,\"userErrors\":[{\"field\":[\""
+  <> input_name
+  <> "\",\"minimumRequirement\",\"subtotal\",\"greaterThanOrEqualToSubtotal\"],\"message\":\"Minimum subtotal cannot be defined when minimum quantity is.\",\"code\":\"CONFLICT\",\"extraInfo\":null},{\"field\":[\""
+  <> input_name
+  <> "\",\"minimumRequirement\",\"quantity\",\"greaterThanOrEqualToQuantity\"],\"message\":\"Minimum quantity cannot be defined when minimum subtotal is.\",\"code\":\"CONFLICT\",\"extraInfo\":null}]}}}"
+}
+
 pub fn create_discount_inputs_reject_inverted_date_ranges_test() {
   let cases = [
     #(
