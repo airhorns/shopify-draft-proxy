@@ -13570,7 +13570,7 @@ fn handle_order_update_mutation(
                 None -> #(
                   key,
                   serialize_order_mutation_error_payload(field, [
-                    #(["id"], "Order does not exist"),
+                    mutation_user_error(["id"], "Order does not exist"),
                   ]),
                   hydrated_store,
                   identity,
@@ -14860,18 +14860,143 @@ fn handle_order_create_mutation(
 
 fn validate_order_create_input(
   input: Dict(String, root_field.ResolvedValue),
-) -> List(#(List(String), String)) {
-  case read_object_list(input, "lineItems") {
+) -> List(OrderMutationUserError) {
+  let line_items = read_object_list(input, "lineItems")
+  list.flatten([
+    validate_order_create_line_item_presence(line_items),
+    validate_order_create_processed_at(input),
+    validate_order_create_customer_fields(input),
+    validate_order_create_tax_line_rates("lineItems", line_items),
+    validate_order_create_tax_line_rates(
+      "shippingLines",
+      read_object_list(input, "shippingLines"),
+    ),
+  ])
+}
+
+fn validate_order_create_line_item_presence(
+  line_items: List(Dict(String, root_field.ResolvedValue)),
+) -> List(OrderMutationUserError) {
+  case line_items {
     [] -> [
-      #(["order", "lineItems"], "Line items must have at least one line item"),
+      order_mutation_user_error(
+        [UserErrorField("order"), UserErrorField("lineItems")],
+        "Line items must have at least one line item",
+        Some("INVALID"),
+      ),
     ]
     _ -> []
   }
 }
 
+fn validate_order_create_processed_at(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  case read_string(input, "processedAt") {
+    Some(value) ->
+      case
+        iso_timestamp.parse_iso(value),
+        iso_timestamp.parse_iso(iso_timestamp.now_iso())
+      {
+        Ok(processed_at), Ok(now) ->
+          case processed_at > now {
+            True -> [
+              order_mutation_user_error(
+                [UserErrorField("order"), UserErrorField("processedAt")],
+                "Processed at must not be in the future",
+                Some("PROCESSED_AT_INVALID"),
+              ),
+            ]
+            False -> []
+          }
+        _, _ -> []
+      }
+    None -> []
+  }
+}
+
+fn validate_order_create_customer_fields(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  case
+    non_empty_string_field(input, "customerId"),
+    has_non_null_field(input, "customer")
+  {
+    True, True -> [
+      order_mutation_user_error(
+        [UserErrorField("order")],
+        "Cannot specify both customerId and customer",
+        Some("REDUNDANT_CUSTOMER_FIELDS"),
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn validate_order_create_tax_line_rates(
+  parent_field: String,
+  parents: List(Dict(String, root_field.ResolvedValue)),
+) -> List(OrderMutationUserError) {
+  parents
+  |> list.index_map(fn(parent, parent_index) {
+    read_object_list(parent, "taxLines")
+    |> list.index_map(fn(tax_line, tax_line_index) {
+      case has_non_empty_rate(tax_line) {
+        True -> []
+        False -> [
+          order_mutation_user_error(
+            [
+              UserErrorField("order"),
+              UserErrorField(parent_field),
+              UserErrorIndex(parent_index),
+              UserErrorField("taxLines"),
+              UserErrorIndex(tax_line_index),
+              UserErrorField("rate"),
+            ],
+            "Tax line rate must be provided",
+            Some("TAX_LINE_RATE_MISSING"),
+          ),
+        ]
+      }
+    })
+    |> list.flatten
+  })
+  |> list.flatten
+}
+
+fn non_empty_string_field(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case read_string(input, name) {
+    Some(value) -> string.trim(value) != ""
+    None -> False
+  }
+}
+
+fn has_non_null_field(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(input, name) {
+    Ok(root_field.NullVal) -> False
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
+fn has_non_empty_rate(input: Dict(String, root_field.ResolvedValue)) -> Bool {
+  case dict.get(input, "rate") {
+    Ok(root_field.NullVal) -> False
+    Ok(root_field.StringVal(value)) -> string.trim(value) != ""
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
 fn serialize_order_mutation_error_payload(
   field: Selection,
-  user_errors: List(#(List(String), String)),
+  user_errors: List(OrderMutationUserError),
 ) -> Json {
   let entries =
     list.map(selection_children(field), fn(child) {
@@ -14883,7 +15008,7 @@ fn serialize_order_mutation_error_payload(
             "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
-                serialize_user_error(child, error)
+                serialize_order_mutation_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
@@ -14892,6 +15017,60 @@ fn serialize_order_mutation_error_payload(
       }
     })
   json.object(entries)
+}
+
+type UserErrorFieldSegment {
+  UserErrorField(String)
+  UserErrorIndex(Int)
+}
+
+type OrderMutationUserError {
+  OrderMutationUserError(
+    field_path: List(UserErrorFieldSegment),
+    message: String,
+    code: Option(String),
+  )
+}
+
+fn mutation_user_error(
+  field_path: List(String),
+  message: String,
+) -> OrderMutationUserError {
+  order_mutation_user_error(list.map(field_path, UserErrorField), message, None)
+}
+
+fn order_mutation_user_error(
+  field_path: List(UserErrorFieldSegment),
+  message: String,
+  code: Option(String),
+) -> OrderMutationUserError {
+  OrderMutationUserError(field_path: field_path, message: message, code: code)
+}
+
+fn serialize_order_mutation_user_error(
+  field: Selection,
+  error: OrderMutationUserError,
+) -> Json {
+  let base_fields = [
+    #("field", SrcList(list.map(error.field_path, user_error_path_source))),
+    #("message", SrcString(error.message)),
+  ]
+  let fields = case error.code {
+    Some(code) -> list.append(base_fields, [#("code", SrcString(code))])
+    None -> list.append(base_fields, [#("code", SrcNull)])
+  }
+  project_graphql_value(
+    src_object(fields),
+    selection_children(field),
+    dict.new(),
+  )
+}
+
+fn user_error_path_source(segment: UserErrorFieldSegment) -> SourceValue {
+  case segment {
+    UserErrorField(value) -> SrcString(value)
+    UserErrorIndex(value) -> SrcInt(value)
+  }
 }
 
 fn build_order_from_create_input(
