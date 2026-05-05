@@ -4348,7 +4348,6 @@ fn apply_order_mark_as_paid_update(
       let #(timestamp, next_identity) =
         synthetic_identity.make_synthetic_timestamp(identity)
       let amount_set = order_payment_amount_set(order)
-      let currency_code = captured_money_set_currency(amount_set)
       let transaction =
         CapturedObject([
           #("kind", CapturedString("SALE")),
@@ -4362,7 +4361,9 @@ fn apply_order_mark_as_paid_update(
           #("updatedAt", CapturedString(timestamp)),
           #("displayFinancialStatus", CapturedString("PAID")),
           #("paymentGatewayNames", CapturedArray([CapturedString("manual")])),
-          #("totalOutstandingSet", money_set_string("0.0", currency_code)),
+          #("totalOutstandingSet", order_money_set(order, 0.0)),
+          #("totalReceivedSet", amount_set),
+          #("netPaymentSet", amount_set),
           #(
             "transactions",
             CapturedArray(list.append(order_transactions(order), [transaction])),
@@ -4387,6 +4388,7 @@ fn order_payment_amount_set(order: OrderRecord) -> CapturedJsonValue {
   outstanding
   |> option.or(captured_object_field(order.data, "currentTotalPriceSet"))
   |> option.or(captured_object_field(order.data, "totalPriceSet"))
+  |> option.map(ensure_money_bag_presentment)
   |> option.unwrap(money_set_string("0.0", order_currency_code(order)))
 }
 
@@ -4406,19 +4408,128 @@ fn captured_money_set_currency(value: CapturedJsonValue) -> String {
   }
 }
 
+fn captured_money_set_presentment_currency(value: CapturedJsonValue) -> String {
+  case captured_object_field(value, "presentmentMoney") {
+    Some(presentment_money) ->
+      captured_string_field(presentment_money, "currencyCode")
+      |> option.unwrap(captured_money_set_currency(value))
+    None -> captured_money_set_currency(value)
+  }
+}
+
+fn order_presentment_currency_code(order: OrderRecord) -> String {
+  order_presentment_reference_money_sets(order)
+  |> list.find_map(fn(money_set) {
+    captured_money_set_presentment_currency(money_set) |> Ok
+  })
+  |> result.unwrap(order_currency_code(order))
+}
+
+fn order_money_set(order: OrderRecord, amount: Float) -> CapturedJsonValue {
+  money_set_with_presentment(
+    amount,
+    order_currency_code(order),
+    amount *. order_presentment_rate(order),
+    order_presentment_currency_code(order),
+  )
+}
+
+fn order_money_set_string(
+  order: OrderRecord,
+  amount: Float,
+) -> CapturedJsonValue {
+  money_set_string_with_presentment(
+    format_decimal_amount(amount),
+    order_currency_code(order),
+    format_decimal_amount(amount *. order_presentment_rate(order)),
+    order_presentment_currency_code(order),
+  )
+}
+
+fn order_presentment_rate(order: OrderRecord) -> Float {
+  order_presentment_reference_money_sets(order)
+  |> list.find_map(fn(money_set) {
+    let amount = captured_money_value(money_set)
+    case amount >. 0.0 {
+      True -> Ok(captured_money_presentment_value(money_set) /. amount)
+      False -> Error(Nil)
+    }
+  })
+  |> result.unwrap(1.0)
+}
+
+fn order_presentment_reference_money_sets(
+  order: OrderRecord,
+) -> List(CapturedJsonValue) {
+  let order_level_sets =
+    [
+      "currentTotalPriceSet",
+      "totalPriceSet",
+      "totalOutstandingSet",
+      "subtotalPriceSet",
+    ]
+    |> list.filter_map(fn(field_name) {
+      captured_object_field(order.data, field_name) |> option_to_result
+    })
+  let line_item_sets =
+    order_line_items(order.data)
+    |> money_sets_from_field("originalUnitPriceSet")
+  list.append(order_level_sets, line_item_sets)
+}
+
 fn money_set_string(
   amount: String,
   currency_code: String,
+) -> CapturedJsonValue {
+  money_set_string_with_presentment(
+    amount,
+    currency_code,
+    amount,
+    currency_code,
+  )
+}
+
+fn money_set_string_with_presentment(
+  shop_amount: String,
+  shop_currency_code: String,
+  presentment_amount: String,
+  presentment_currency_code: String,
 ) -> CapturedJsonValue {
   CapturedObject([
     #(
       "shopMoney",
       CapturedObject([
-        #("amount", CapturedString(amount)),
-        #("currencyCode", CapturedString(currency_code)),
+        #("amount", CapturedString(shop_amount)),
+        #("currencyCode", CapturedString(shop_currency_code)),
+      ]),
+    ),
+    #(
+      "presentmentMoney",
+      CapturedObject([
+        #("amount", CapturedString(presentment_amount)),
+        #("currencyCode", CapturedString(presentment_currency_code)),
       ]),
     ),
   ])
+}
+
+fn ensure_money_bag_presentment(value: CapturedJsonValue) -> CapturedJsonValue {
+  case captured_object_field(value, "presentmentMoney") {
+    Some(CapturedObject(_)) -> value
+    _ ->
+      case captured_object_field(value, "shopMoney") {
+        Some(shop_money) -> {
+          let amount =
+            captured_string_field(shop_money, "amount")
+            |> option.unwrap(float.to_string(captured_money_value(value)))
+          let currency_code =
+            captured_string_field(shop_money, "currencyCode")
+            |> option.unwrap(captured_money_set_currency(value))
+          money_set_string(amount, currency_code)
+        }
+        None -> value
+      }
+  }
 }
 
 fn order_transactions(order: OrderRecord) -> List(CapturedJsonValue) {
@@ -4622,8 +4733,6 @@ fn capture_order_payment(
               ])
             }
             False -> {
-              let currency_code =
-                payment_input_currency(input, order_currency_code(order))
               let #(payment_reference_id, identity_after_reference) =
                 synthetic_identity.make_synthetic_gid(
                   identity,
@@ -4633,7 +4742,7 @@ fn capture_order_payment(
                 build_payment_transaction(
                   identity_after_reference,
                   "CAPTURE",
-                  money_set(amount, currency_code),
+                  payment_input_money_set(input, order, amount),
                   captured_string_field(authorization, "gateway"),
                   captured_string_field(authorization, "id"),
                   Some(payment_reference_id),
@@ -4648,7 +4757,7 @@ fn capture_order_payment(
                     build_payment_transaction(
                       identity_after_capture,
                       "VOID",
-                      money_set(remaining_after_capture, currency_code),
+                      order_money_set(order, remaining_after_capture),
                       captured_string_field(authorization, "gateway"),
                       captured_string_field(authorization, "id"),
                       None,
@@ -4942,7 +5051,6 @@ fn create_mandate_payment(
   List(String),
   List(LogDraft),
 ) {
-  let currency_code = payment_input_currency(input, order_currency_code(order))
   let amount =
     payment_input_amount(
       input,
@@ -4974,7 +5082,7 @@ fn create_mandate_payment(
         build_payment_transaction(
           identity_after_reference,
           "MANDATE_PAYMENT",
-          money_set(amount, currency_code),
+          payment_input_money_set(input, order, amount),
           Some("mandate"),
           None,
           Some(payment_reference_id),
@@ -5101,12 +5209,23 @@ fn append_payment_gateway(order: OrderRecord, gateway: String) -> OrderRecord {
 
 fn apply_payment_derived_fields(order: OrderRecord) -> OrderRecord {
   let currency_code = order_currency_code(order)
+  let presentment_currency_code = order_presentment_currency_code(order)
   let received = total_received_amount(order)
+  let presentment_received = total_received_presentment_amount(order)
   let total =
     captured_money_amount(order.data, "currentTotalPriceSet")
     |> nonzero_float(captured_money_amount(order.data, "totalPriceSet"))
+  let presentment_total =
+    captured_money_presentment_amount(order.data, "currentTotalPriceSet")
+    |> nonzero_float(captured_money_presentment_amount(
+      order.data,
+      "totalPriceSet",
+    ))
   let outstanding = max_float(0.0, total -. received)
+  let presentment_outstanding =
+    max_float(0.0, presentment_total -. presentment_received)
   let capturable = total_capturable_amount(order)
+  let presentment_capturable = total_capturable_presentment_amount(order)
   let has_voided_authorization =
     order_transactions(order)
     |> list.any(fn(transaction) {
@@ -5140,10 +5259,42 @@ fn apply_payment_derived_fields(order: OrderRecord) -> OrderRecord {
       #("displayFinancialStatus", CapturedString(display_status)),
       #("capturable", CapturedBool(capturable >. 0.0)),
       #("totalCapturable", CapturedString(float.to_string(capturable))),
-      #("totalCapturableSet", money_set(capturable, currency_code)),
-      #("totalOutstandingSet", money_set(outstanding, currency_code)),
-      #("totalReceivedSet", money_set(received, currency_code)),
-      #("netPaymentSet", money_set(received, currency_code)),
+      #(
+        "totalCapturableSet",
+        money_set_with_presentment(
+          capturable,
+          currency_code,
+          presentment_capturable,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "totalOutstandingSet",
+        money_set_with_presentment(
+          outstanding,
+          currency_code,
+          presentment_outstanding,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "totalReceivedSet",
+        money_set_with_presentment(
+          received,
+          currency_code,
+          presentment_received,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "netPaymentSet",
+        money_set_with_presentment(
+          received,
+          currency_code,
+          presentment_received,
+          presentment_currency_code,
+        ),
+      ),
     ])
   OrderRecord(..order, data: updated)
 }
@@ -5215,6 +5366,22 @@ fn captured_amount_for_authorization(
   })
 }
 
+fn captured_presentment_amount_for_authorization(
+  order: OrderRecord,
+  parent_transaction_id: String,
+) -> Float {
+  order_transactions(order)
+  |> list.filter(fn(transaction) {
+    captured_string_field(transaction, "kind") == Some("CAPTURE")
+    && captured_string_field(transaction, "status") == Some("SUCCESS")
+    && captured_string_field(transaction, "parentTransactionId")
+    == Some(parent_transaction_id)
+  })
+  |> list.fold(0.0, fn(sum, transaction) {
+    sum +. captured_money_presentment_amount(transaction, "amountSet")
+  })
+}
+
 fn capturable_amount_for_authorization(
   order: OrderRecord,
   authorization: CapturedJsonValue,
@@ -5235,6 +5402,29 @@ fn capturable_amount_for_authorization(
   }
 }
 
+fn capturable_presentment_amount_for_authorization(
+  order: OrderRecord,
+  authorization: CapturedJsonValue,
+) -> Float {
+  let authorization_id =
+    captured_string_field(authorization, "id") |> option.unwrap("")
+  case
+    !is_successful_authorization(authorization)
+    || transaction_has_voiding_child(order, authorization_id)
+  {
+    True -> 0.0
+    False -> {
+      let captured_presentment =
+        captured_presentment_amount_for_authorization(order, authorization_id)
+      max_float(
+        0.0,
+        captured_money_presentment_amount(authorization, "amountSet")
+          -. captured_presentment,
+      )
+    }
+  }
+}
+
 fn total_capturable_amount(order: OrderRecord) -> Float {
   order_transactions(order)
   |> list.filter(is_successful_authorization)
@@ -5243,11 +5433,27 @@ fn total_capturable_amount(order: OrderRecord) -> Float {
   })
 }
 
+fn total_capturable_presentment_amount(order: OrderRecord) -> Float {
+  order_transactions(order)
+  |> list.filter(is_successful_authorization)
+  |> list.fold(0.0, fn(sum, transaction) {
+    sum +. capturable_presentment_amount_for_authorization(order, transaction)
+  })
+}
+
 fn total_received_amount(order: OrderRecord) -> Float {
   order_transactions(order)
   |> list.filter(is_successful_payment_capture)
   |> list.fold(0.0, fn(sum, transaction) {
     sum +. captured_money_amount(transaction, "amountSet")
+  })
+}
+
+fn total_received_presentment_amount(order: OrderRecord) -> Float {
+  order_transactions(order)
+  |> list.filter(is_successful_payment_capture)
+  |> list.fold(0.0, fn(sum, transaction) {
+    sum +. captured_money_presentment_amount(transaction, "amountSet")
   })
 }
 
@@ -5301,6 +5507,22 @@ fn payment_input_amount(
         None -> None
       })
       |> option.unwrap(fallback)
+  }
+}
+
+fn payment_input_money_set(
+  input: Dict(String, root_field.ResolvedValue),
+  order: OrderRecord,
+  fallback_amount: Float,
+) -> CapturedJsonValue {
+  case read_object(input, "amountSet") {
+    Some(amount_set) ->
+      order_money_set_from_input(
+        Some(amount_set),
+        payment_input_currency(input, order_currency_code(order)),
+        fallback_amount,
+      )
+    None -> order_money_set(order, payment_input_amount(input, fallback_amount))
   }
 }
 
@@ -14131,35 +14353,26 @@ fn build_refund_from_input(
   input: Dict(String, root_field.ResolvedValue),
   identity: SyntheticIdentityRegistry,
 ) -> #(CapturedJsonValue, CapturedJsonValue, SyntheticIdentityRegistry) {
-  let currency_code = order_currency_code(order)
   let #(refund_id, identity_after_refund) =
     synthetic_identity.make_synthetic_gid(identity, "Refund")
   let #(created_at, identity_after_time) =
     synthetic_identity.make_synthetic_timestamp(identity_after_refund)
   let #(refund_line_items, identity_after_lines) =
-    build_refund_line_items(order, input, currency_code, identity_after_time)
+    build_refund_line_items(order, input, identity_after_time)
   let refund_amount = refund_create_requested_amount(input, order)
   let shipping_amount = refund_shipping_amount(input, order)
   let #(transaction, next_identity) =
-    build_refund_transaction(
-      input,
-      refund_amount,
-      currency_code,
-      identity_after_lines,
-    )
+    build_refund_transaction(input, order, refund_amount, identity_after_lines)
   let refund =
     CapturedObject([
       #("id", CapturedString(refund_id)),
       #("note", optional_captured_string(read_string(input, "note"))),
       #("createdAt", CapturedString(created_at)),
       #("updatedAt", CapturedString(created_at)),
-      #(
-        "totalRefundedSet",
-        money_set_string(format_decimal_amount(refund_amount), currency_code),
-      ),
+      #("totalRefundedSet", order_money_set_string(order, refund_amount)),
       #(
         "totalRefundedShippingSet",
-        money_set_string(format_decimal_amount(shipping_amount), currency_code),
+        order_money_set_string(order, shipping_amount),
       ),
       #(
         "refundLineItems",
@@ -14176,7 +14389,6 @@ fn build_refund_from_input(
 fn build_refund_line_items(
   order: OrderRecord,
   input: Dict(String, root_field.ResolvedValue),
-  currency_code: String,
   identity: SyntheticIdentityRegistry,
 ) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
   read_object_list(input, "refundLineItems")
@@ -14214,10 +14426,7 @@ fn build_refund_line_items(
         #("restockType", CapturedString(restock_type)),
         #("restocked", CapturedBool(restocked)),
         #("lineItem", refund_line_item_reference(line_item)),
-        #(
-          "subtotalSet",
-          money_set_string(format_decimal_amount(subtotal), currency_code),
-        ),
+        #("subtotalSet", order_money_set_string(order, subtotal)),
       ])
     #(list.append(items, [item]), next_identity)
   })
@@ -14241,8 +14450,8 @@ fn refund_line_item_reference(
 
 fn build_refund_transaction(
   input: Dict(String, root_field.ResolvedValue),
+  order: OrderRecord,
   fallback_amount: Float,
-  currency_code: String,
   identity: SyntheticIdentityRegistry,
 ) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
   let transaction_input = case read_object_list(input, "transactions") {
@@ -14254,6 +14463,15 @@ fn build_refund_transaction(
   let amount =
     refund_transaction_amount(transaction_input)
     |> nonzero_float(fallback_amount)
+  let amount_set = case read_object(transaction_input, "amountSet") {
+    Some(input_amount_set) ->
+      order_money_set_from_input(
+        Some(input_amount_set),
+        order_currency_code(order),
+        amount,
+      )
+    None -> order_money_set_string(order, amount)
+  }
   let transaction =
     CapturedObject([
       #("id", CapturedString(id)),
@@ -14275,10 +14493,7 @@ fn build_refund_transaction(
           read_string(transaction_input, "gateway") |> option.unwrap("manual"),
         ),
       ),
-      #(
-        "amountSet",
-        money_set_string(format_decimal_amount(amount), currency_code),
-      ),
+      #("amountSet", amount_set),
     ])
   #(transaction, next_identity)
 }
@@ -14296,12 +14511,19 @@ fn apply_refund_to_order(
   refund_transaction: CapturedJsonValue,
 ) -> OrderRecord {
   let currency_code = order_currency_code(order)
+  let presentment_currency_code = order_presentment_currency_code(order)
   let total_refunded =
     sum_order_refunded_amount(order)
     +. captured_money_amount(refund, "totalRefundedSet")
+  let presentment_total_refunded =
+    sum_order_refunded_presentment_amount(order)
+    +. captured_money_presentment_amount(refund, "totalRefundedSet")
   let shipping_refunded =
     sum_order_refunded_shipping_amount(order)
     +. captured_money_amount(refund, "totalRefundedShippingSet")
+  let presentment_shipping_refunded =
+    sum_order_refunded_shipping_presentment_amount(order)
+    +. captured_money_presentment_amount(refund, "totalRefundedShippingSet")
   let total = order_total_price(order)
   let display_status = case total_refunded >=. total && total >. 0.0 {
     True -> "REFUNDED"
@@ -14313,13 +14535,20 @@ fn apply_refund_to_order(
       #("displayFinancialStatus", CapturedString(display_status)),
       #(
         "totalRefundedSet",
-        money_set_string(format_decimal_amount(total_refunded), currency_code),
+        money_set_string_with_presentment(
+          format_decimal_amount(total_refunded),
+          currency_code,
+          format_decimal_amount(presentment_total_refunded),
+          presentment_currency_code,
+        ),
       ),
       #(
         "totalRefundedShippingSet",
-        money_set_string(
+        money_set_string_with_presentment(
           format_decimal_amount(shipping_refunded),
           currency_code,
+          format_decimal_amount(presentment_shipping_refunded),
+          presentment_currency_code,
         ),
       ),
       #(
@@ -14576,6 +14805,13 @@ fn sum_order_refunded_amount(order: OrderRecord) -> Float {
   })
 }
 
+fn sum_order_refunded_presentment_amount(order: OrderRecord) -> Float {
+  order_refunds(order.data)
+  |> list.fold(0.0, fn(sum, refund) {
+    sum +. captured_money_presentment_amount(refund, "totalRefundedSet")
+  })
+}
+
 fn order_refundable_payment_amount(order: OrderRecord) -> Float {
   let refunded =
     captured_money_amount_field(order.data, "totalRefundedSet")
@@ -14611,6 +14847,13 @@ fn sum_order_refunded_shipping_amount(order: OrderRecord) -> Float {
   order_refunds(order.data)
   |> list.fold(0.0, fn(sum, refund) {
     sum +. captured_money_amount(refund, "totalRefundedShippingSet")
+  })
+}
+
+fn sum_order_refunded_shipping_presentment_amount(order: OrderRecord) -> Float {
+  order_refunds(order.data)
+  |> list.fold(0.0, fn(sum, refund) {
+    sum +. captured_money_presentment_amount(refund, "totalRefundedShippingSet")
   })
 }
 
@@ -15341,14 +15584,39 @@ fn build_order_from_create_input(
     build_order_create_transactions(identity_after_lines, input, currency_code)
   let shipping_lines = build_order_create_shipping_lines(input, currency_code)
   let subtotal = order_line_items_subtotal(line_items)
+  let presentment_subtotal = order_line_items_presentment_subtotal(line_items)
   let shipping_total = order_shipping_lines_total(shipping_lines)
+  let presentment_shipping_total =
+    order_shipping_lines_presentment_total(shipping_lines)
   let tax_total =
     order_create_tax_total(input, line_items, shipping_lines, currency_code)
+  let presentment_tax_total =
+    order_create_presentment_tax_total(
+      input,
+      line_items,
+      shipping_lines,
+      currency_code,
+    )
   let discount =
     order_create_discount(input, currency_code, subtotal, shipping_total)
   let discount_total = captured_money_value(discount.total_discounts_set)
+  let presentment_discount_total =
+    captured_money_presentment_value(discount.total_discounts_set)
   let total = subtotal +. shipping_total
+  let presentment_total = presentment_subtotal +. presentment_shipping_total
   let current_total = max_float(0.0, total +. tax_total -. discount_total)
+  let presentment_current_total =
+    max_float(
+      0.0,
+      presentment_total +. presentment_tax_total -. presentment_discount_total,
+    )
+  let presentment_currency_code =
+    order_create_presentment_currency(
+      line_items,
+      shipping_lines,
+      discount.total_discounts_set,
+      currency_code,
+    )
   let has_paid_transaction = order_transactions_include_paid(transactions)
   let has_authorization = order_transactions_include_authorization(transactions)
   let financial_status = case read_string(input, "financialStatus") {
@@ -15376,8 +15644,20 @@ fn build_order_from_create_input(
       }
     _ -> list.map(payment_gateways, CapturedString)
   }
-  let current_total_set = money_set(current_total, currency_code)
-  let zero_money = money_set(0.0, currency_code)
+  let current_total_set =
+    money_set_with_presentment(
+      current_total,
+      currency_code,
+      presentment_current_total,
+      presentment_currency_code,
+    )
+  let zero_money =
+    money_set_with_presentment(
+      0.0,
+      currency_code,
+      0.0,
+      presentment_currency_code,
+    )
   let total_capturable = case has_authorization {
     True -> current_total
     False -> 0.0
@@ -15427,31 +15707,109 @@ fn build_order_from_create_input(
         "shippingAddress",
         build_draft_order_address(read_object(input, "shippingAddress")),
       ),
-      #("subtotalPriceSet", money_set(subtotal, currency_code)),
-      #("currentSubtotalPriceSet", money_set(subtotal, currency_code)),
+      #(
+        "subtotalPriceSet",
+        money_set_with_presentment(
+          subtotal,
+          currency_code,
+          presentment_subtotal,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "currentSubtotalPriceSet",
+        money_set_with_presentment(
+          subtotal,
+          currency_code,
+          presentment_subtotal,
+          presentment_currency_code,
+        ),
+      ),
       #("currentTotalPriceSet", current_total_set),
       #("currentTotalDiscountsSet", discount.total_discounts_set),
-      #("currentTotalTaxSet", money_set(tax_total, currency_code)),
+      #(
+        "currentTotalTaxSet",
+        money_set_with_presentment(
+          tax_total,
+          currency_code,
+          presentment_tax_total,
+          presentment_currency_code,
+        ),
+      ),
       #("totalPriceSet", current_total_set),
       #(
         "totalOutstandingSet",
-        money_set(
+        money_set_with_presentment(
           case has_paid_transaction {
             True -> 0.0
             False -> current_total
           },
           currency_code,
+          case has_paid_transaction {
+            True -> 0.0
+            False -> presentment_current_total
+          },
+          presentment_currency_code,
         ),
       ),
       #("totalCapturable", CapturedString(float.to_string(total_capturable))),
-      #("totalCapturableSet", money_set(total_capturable, currency_code)),
+      #(
+        "totalCapturableSet",
+        money_set_with_presentment(
+          total_capturable,
+          currency_code,
+          case has_authorization {
+            True -> presentment_current_total
+            False -> 0.0
+          },
+          presentment_currency_code,
+        ),
+      ),
       #("capturable", CapturedBool(has_authorization)),
       #("totalRefundedSet", zero_money),
       #("totalRefundedShippingSet", zero_money),
-      #("totalReceivedSet", money_set(total_received, currency_code)),
-      #("netPaymentSet", money_set(total_received, currency_code)),
-      #("totalShippingPriceSet", money_set(shipping_total, currency_code)),
-      #("totalTaxSet", money_set(tax_total, currency_code)),
+      #(
+        "totalReceivedSet",
+        money_set_with_presentment(
+          total_received,
+          currency_code,
+          case has_paid_transaction {
+            True -> presentment_current_total
+            False -> 0.0
+          },
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "netPaymentSet",
+        money_set_with_presentment(
+          total_received,
+          currency_code,
+          case has_paid_transaction {
+            True -> presentment_current_total
+            False -> 0.0
+          },
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "totalShippingPriceSet",
+        money_set_with_presentment(
+          shipping_total,
+          currency_code,
+          presentment_shipping_total,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "totalTaxSet",
+        money_set_with_presentment(
+          tax_total,
+          currency_code,
+          presentment_tax_total,
+          presentment_currency_code,
+        ),
+      ),
       #("totalDiscountsSet", discount.total_discounts_set),
       #(
         "discountCodes",
@@ -15696,40 +16054,25 @@ fn order_money_set_from_input(
       None -> read_string(fields, "currencyCode")
     }
     |> option.unwrap(currency_code)
-  let presentment = case read_object(fields, "presentmentMoney") {
-    Some(money) -> [
-      #(
-        "presentmentMoney",
-        CapturedObject([
-          #(
-            "amount",
-            CapturedString(float.to_string(
-              read_number(money, "amount") |> option.unwrap(0.0),
-            )),
-          ),
-          #(
-            "currencyCode",
-            CapturedString(
-              read_string(money, "currencyCode") |> option.unwrap(shop_currency),
-            ),
-          ),
-        ]),
-      ),
-    ]
-    None -> []
-  }
-  CapturedObject(list.append(
-    [
-      #(
-        "shopMoney",
-        CapturedObject([
-          #("amount", CapturedString(float.to_string(amount))),
-          #("currencyCode", CapturedString(shop_currency)),
-        ]),
-      ),
-    ],
-    presentment,
-  ))
+  let presentment_money = read_object(fields, "presentmentMoney")
+  let presentment_amount =
+    case presentment_money {
+      Some(money) -> read_number(money, "amount")
+      None -> None
+    }
+    |> option.unwrap(amount)
+  let presentment_currency =
+    case presentment_money {
+      Some(money) -> read_string(money, "currencyCode")
+      None -> None
+    }
+    |> option.unwrap(shop_currency)
+  money_set_with_presentment(
+    amount,
+    shop_currency,
+    presentment_amount,
+    presentment_currency,
+  )
 }
 
 fn order_create_tags(
@@ -15751,12 +16094,34 @@ fn order_line_items_subtotal(line_items: List(CapturedJsonValue)) -> Float {
   })
 }
 
+fn order_line_items_presentment_subtotal(
+  line_items: List(CapturedJsonValue),
+) -> Float {
+  line_items
+  |> list.fold(0.0, fn(sum, line_item) {
+    sum
+    +. captured_money_presentment_amount(line_item, "originalUnitPriceSet")
+    *. int.to_float(
+      captured_int_field(line_item, "quantity") |> option.unwrap(0),
+    )
+  })
+}
+
 fn order_shipping_lines_total(
   shipping_lines: List(CapturedJsonValue),
 ) -> Float {
   shipping_lines
   |> list.fold(0.0, fn(sum, shipping_line) {
     sum +. captured_money_amount(shipping_line, "originalPriceSet")
+  })
+}
+
+fn order_shipping_lines_presentment_total(
+  shipping_lines: List(CapturedJsonValue),
+) -> Float {
+  shipping_lines
+  |> list.fold(0.0, fn(sum, shipping_line) {
+    sum +. captured_money_presentment_amount(shipping_line, "originalPriceSet")
   })
 }
 
@@ -15775,6 +16140,24 @@ fn order_create_tax_total(
   })
 }
 
+fn order_create_presentment_tax_total(
+  input: Dict(String, root_field.ResolvedValue),
+  line_items: List(CapturedJsonValue),
+  shipping_lines: List(CapturedJsonValue),
+  currency_code: String,
+) -> Float {
+  sum_captured_tax_lines_presentment(build_order_create_tax_lines(
+    input,
+    currency_code,
+  ))
+  +. list.fold(line_items, 0.0, fn(sum, line_item) {
+    sum +. sum_captured_tax_lines_presentment(captured_tax_lines(line_item))
+  })
+  +. list.fold(shipping_lines, 0.0, fn(sum, shipping_line) {
+    sum +. sum_captured_tax_lines_presentment(captured_tax_lines(shipping_line))
+  })
+}
+
 fn captured_tax_lines(value: CapturedJsonValue) -> List(CapturedJsonValue) {
   case captured_object_field(value, "taxLines") {
     Some(CapturedArray(tax_lines)) -> tax_lines
@@ -15787,6 +16170,42 @@ fn sum_captured_tax_lines(tax_lines: List(CapturedJsonValue)) -> Float {
   |> list.fold(0.0, fn(sum, tax_line) {
     sum +. captured_money_amount(tax_line, "priceSet")
   })
+}
+
+fn sum_captured_tax_lines_presentment(
+  tax_lines: List(CapturedJsonValue),
+) -> Float {
+  tax_lines
+  |> list.fold(0.0, fn(sum, tax_line) {
+    sum +. captured_money_presentment_amount(tax_line, "priceSet")
+  })
+}
+
+fn order_create_presentment_currency(
+  line_items: List(CapturedJsonValue),
+  shipping_lines: List(CapturedJsonValue),
+  discount_total_set: CapturedJsonValue,
+  fallback: String,
+) -> String {
+  let line_item_money_sets =
+    line_items |> money_sets_from_field("originalUnitPriceSet")
+  let shipping_money_sets =
+    shipping_lines |> money_sets_from_field("originalPriceSet")
+  let tax_money_sets =
+    list.append(
+      tax_line_money_sets(line_items),
+      tax_line_money_sets(shipping_lines),
+    )
+  first_money_set_presentment_currency(
+    list.append(
+      line_item_money_sets,
+      list.append(
+        shipping_money_sets,
+        list.append(tax_money_sets, [discount_total_set]),
+      ),
+    ),
+    fallback,
+  )
 }
 
 fn order_create_discount(
@@ -18404,15 +18823,76 @@ fn captured_attributes(
 }
 
 fn money_set(amount: Float, currency_code: String) -> CapturedJsonValue {
-  CapturedObject([
-    #(
-      "shopMoney",
-      CapturedObject([
-        #("amount", CapturedString(float.to_string(amount))),
-        #("currencyCode", CapturedString(currency_code)),
-      ]),
-    ),
-  ])
+  money_set_with_presentment(amount, currency_code, amount, currency_code)
+}
+
+fn money_set_with_presentment(
+  shop_amount: Float,
+  shop_currency_code: String,
+  presentment_amount: Float,
+  presentment_currency_code: String,
+) -> CapturedJsonValue {
+  money_set_string_with_presentment(
+    float.to_string(shop_amount),
+    shop_currency_code,
+    float.to_string(presentment_amount),
+    presentment_currency_code,
+  )
+}
+
+fn captured_money_presentment_amount(
+  value: CapturedJsonValue,
+  name: String,
+) -> Float {
+  case captured_object_field(value, name) {
+    Some(money) -> captured_money_presentment_value(money)
+    None -> 0.0
+  }
+}
+
+fn captured_money_presentment_value(value: CapturedJsonValue) -> Float {
+  case captured_object_field(value, "presentmentMoney") {
+    Some(presentment_money) ->
+      case captured_object_field(presentment_money, "amount") {
+        Some(CapturedString(amount)) -> parse_amount(amount)
+        _ -> captured_money_value(value)
+      }
+    None -> captured_money_value(value)
+  }
+}
+
+fn first_money_set_presentment_currency(
+  money_sets: List(CapturedJsonValue),
+  fallback: String,
+) -> String {
+  money_sets
+  |> list.find_map(fn(money_set) {
+    case captured_object_field(money_set, "presentmentMoney") {
+      Some(presentment_money) ->
+        captured_string_field(presentment_money, "currencyCode")
+        |> option_to_result
+      None -> Error(Nil)
+    }
+  })
+  |> result.unwrap(fallback)
+}
+
+fn money_sets_from_field(
+  values: List(CapturedJsonValue),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  values
+  |> list.filter_map(fn(value) {
+    captured_object_field(value, field_name) |> option_to_result
+  })
+}
+
+fn tax_line_money_sets(
+  values: List(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  values
+  |> list.flat_map(captured_tax_lines)
+  |> money_sets_from_field("priceSet")
 }
 
 fn captured_money_amount(value: CapturedJsonValue, name: String) -> Float {

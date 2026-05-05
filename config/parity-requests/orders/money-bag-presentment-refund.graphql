@@ -1,0 +1,32 @@
+mutation MoneyBagPresentmentRefund($input: RefundInput!) {
+  refundCreate(input: $input) {
+    refund {
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    order {
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
