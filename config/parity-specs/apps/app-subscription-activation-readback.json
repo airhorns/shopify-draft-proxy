@@ -1,0 +1,51 @@
+{
+  "scenarioId": "app-subscription-activation-readback",
+  "operationNames": ["appSubscriptionCreate", "currentAppInstallation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "subscription-activation"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-subscription-activation-readback.json"],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appSubscriptionCreate-activation-readback.graphql"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "subscription-create-activation-payload",
+        "capturePath": "$.evidence.parity.expected.subscriptionCreate.data.appSubscriptionCreate",
+        "proxyPath": "$.data.appSubscriptionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.appSubscription.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy generates stable session-local subscription IDs."
+          }
+        ]
+      },
+      {
+        "name": "active-subscription-read-after-create",
+        "capturePath": "$.evidence.parity.expected.activationRead.data.currentAppInstallation",
+        "proxyPath": "$.data.currentAppInstallation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/app-subscription-activation-read.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.activeSubscriptions[*].id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy reads back the locally staged subscription ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Local-runtime executable parity scenario for the test-charge activation path: appSubscriptionCreate(test: true) stages an ACTIVE subscription with deterministic currentPeriodEnd, then currentAppInstallation.activeSubscriptions reads it back without upstream writes."
+}

@@ -1,0 +1,31 @@
+{
+  "scenarioId": "discount-bulk-selector-validation",
+  "operationNames": [
+    "discountCodeBulkActivate",
+    "discountCodeBulkDeactivate",
+    "discountCodeBulkDelete",
+    "discountAutomaticBulkDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-bulk-selector-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-bulk-selector-validation.graphql",
+    "variablesCapturePath": "$.validation.bulkSelector.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 discount bulk selector validation for missing selector, blank code-discount search, mutually exclusive selectors, and unknown savedSearchId. Live Shopify returns no userErrors for discountAutomaticBulkDelete(search: \"\"), so the proxy mirrors that captured behavior while still rejecting missing, too-many, and unknown saved-search selectors.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-bulk-selector-user-errors",
+        "capturePath": "$.validation.bulkSelector.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

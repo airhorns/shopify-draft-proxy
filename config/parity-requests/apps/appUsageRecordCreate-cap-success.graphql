@@ -1,0 +1,35 @@
+mutation AppUsageRecordCreateCapSuccess($id: ID!) {
+  appUsageRecordCreate(
+    subscriptionLineItemId: $id
+    price: { amount: "3.00", currencyCode: USD }
+    description: "first"
+    idempotencyKey: "usage-key-cap-1"
+  ) {
+    appUsageRecord {
+      id
+      description
+      price {
+        amount
+        currencyCode
+      }
+      subscriptionLineItem {
+        id
+        plan {
+          pricingDetails {
+            __typename
+            ... on AppUsagePricing {
+              balanceUsed {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

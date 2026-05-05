@@ -1,0 +1,102 @@
+{
+  "scenarioId": "app-subscription-line-item-update-validation",
+  "operationNames": ["appSubscriptionCreate", "appSubscriptionLineItemUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/apps/app-subscription-line-item-update-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",
+    "variables": {
+      "lineItems": [
+        {
+          "plan": {
+            "appUsagePricingDetails": {
+              "cappedAmount": {
+                "amount": 5,
+                "currencyCode": "USD"
+              },
+              "terms": "usage terms"
+            }
+          }
+        },
+        {
+          "plan": {
+            "appRecurringPricingDetails": {
+              "price": {
+                "amount": 1,
+                "currencyCode": "USD"
+              },
+              "interval": "EVERY_30_DAYS"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "subscription-create-payload",
+        "capturePath": "$.evidence.parity.expected.subscriptionCreate.data.appSubscriptionCreate",
+        "proxyPath": "$.data.appSubscriptionCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.appSubscription.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy generates stable session-local subscription IDs."
+          },
+          {
+            "path": "$.appSubscription.lineItems[*].id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy generates stable session-local subscription line-item IDs."
+          }
+        ]
+      },
+      {
+        "name": "line-item-update-validation-payload",
+        "capturePath": "$.evidence.parity.expected.validation.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionLineItemUpdate-validation.graphql",
+          "variables": {
+            "usageLineItemId": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[0].id"
+            },
+            "recurringLineItemId": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.lineItems[1].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.success.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.success.appSubscription.id",
+            "matcher": "shopify-gid:AppSubscription",
+            "reason": "The proxy keeps the locally staged subscription ID stable."
+          },
+          {
+            "path": "$.success.appSubscription.lineItems[*].id",
+            "matcher": "shopify-gid:AppSubscriptionLineItem",
+            "reason": "The proxy keeps locally staged line-item IDs stable."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Covers HAR-643 validation branches for recurring line items, cappedAmount currency mismatch, non-increasing cappedAmount, and successful usage cappedAmount increase. Live Shopify billing mutation capture is blocked for the configured conformance app by Shopify's `Custom apps cannot use the Billing API` response, so this executable local-runtime fixture is paired with runtime tests rather than claiming fresh live billing parity."
+}
