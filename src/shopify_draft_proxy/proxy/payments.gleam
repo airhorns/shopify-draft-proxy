@@ -1992,6 +1992,14 @@ fn payment_method_missing_error(field: String) -> UserError {
   )
 }
 
+fn payment_method_active_contract_error(field: String) -> UserError {
+  payment_method_error(
+    field,
+    "Customer payment method cannot be revoked because it has active subscription contracts",
+    "ACTIVE_CONTRACT",
+  )
+}
+
 fn customer_missing_error(field: String) -> UserError {
   payment_method_error(
     field,
@@ -2005,13 +2013,22 @@ fn active_payment_method(
   id: Option(String),
   field_name: String,
 ) -> Result(CustomerPaymentMethodRecord, UserError) {
+  payment_method_by_id(store, id, field_name, False)
+}
+
+fn payment_method_by_id(
+  store: Store,
+  id: Option(String),
+  field_name: String,
+  show_revoked: Bool,
+) -> Result(CustomerPaymentMethodRecord, UserError) {
   case is_shopify_gid(id, "CustomerPaymentMethod"), id {
     True, Some(payment_id) ->
       case
         store.get_effective_customer_payment_method_by_id(
           store,
           payment_id,
-          False,
+          show_revoked,
         )
       {
         Some(record) -> Ok(record)
@@ -2878,10 +2895,11 @@ fn get_payment_method_update_url(store, identity, field, fragments, variables) {
 fn revoke_payment_method(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
   case
-    active_payment_method(
+    payment_method_by_id(
       store,
       graphql_helpers.read_arg_string_nonempty(args, "customerPaymentMethodId"),
       "customerPaymentMethodId",
+      True,
     )
   {
     Error(error) ->
@@ -2896,28 +2914,68 @@ fn revoke_payment_method(store, identity, field, fragments, variables) {
         [#("revokedCustomerPaymentMethodId", SrcNull)],
       )
     Ok(method) -> {
-      let #(_, identity_after_intent) =
-        synthetic_identity.make_synthetic_timestamp(identity)
-      let #(revoked_at, next_identity) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_intent)
-      let revoked =
-        CustomerPaymentMethodRecord(
-          ..method,
-          revoked_at: Some(revoked_at),
-          revoked_reason: Some("CUSTOMER_REVOKED"),
-        )
-      payment_method_result(
-        store.stage_customer_payment_method(store, revoked),
-        next_identity,
-        field,
-        fragments,
-        "customerPaymentMethodRevoke",
-        None,
-        [],
-        [#("revokedCustomerPaymentMethodId", SrcString(method.id))],
-      )
+      case method.subscription_contracts, method.revoked_at {
+        [_, ..], _ ->
+          payment_method_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "customerPaymentMethodRevoke",
+            None,
+            [payment_method_active_contract_error("customerPaymentMethodId")],
+            [#("revokedCustomerPaymentMethodId", SrcNull)],
+          )
+        _, Some(_) ->
+          payment_method_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "customerPaymentMethodRevoke",
+            None,
+            [],
+            [
+              #(
+                "revokedCustomerPaymentMethodId",
+                SrcString(customer_payment_method_gid_from_token(method.id)),
+              ),
+            ],
+          )
+        _, None -> {
+          let #(_, identity_after_intent) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let #(revoked_at, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_intent)
+          let revoked =
+            CustomerPaymentMethodRecord(
+              ..method,
+              revoked_at: Some(revoked_at),
+              revoked_reason: Some("CUSTOMER_REVOKED"),
+            )
+          payment_method_result(
+            store.stage_customer_payment_method(store, revoked),
+            next_identity,
+            field,
+            fragments,
+            "customerPaymentMethodRevoke",
+            None,
+            [],
+            [
+              #(
+                "revokedCustomerPaymentMethodId",
+                SrcString(customer_payment_method_gid_from_token(method.id)),
+              ),
+            ],
+          )
+        }
+      }
     }
   }
+}
+
+fn customer_payment_method_gid_from_token(id: String) -> String {
+  "gid://shopify/CustomerPaymentMethod/" <> gid_tail(id)
 }
 
 fn payment_terms_error(
