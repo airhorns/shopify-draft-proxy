@@ -1,0 +1,191 @@
+{
+  "capturedAt": "2026-05-05T20:03:42.340Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "request": {
+    "operationName": "BulkOperationRunMutationUserErrors",
+    "query": "mutation BulkOperationRunMutationUserErrors($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n"
+  },
+  "setup": {
+    "stagedUploadTarget": {
+      "operationName": "BulkOperationRunMutationUserErrorsStagedUpload",
+      "query": "mutation BulkOperationRunMutationUserErrorsStagedUpload($input: [StagedUploadInput!]!) {\n  stagedUploadsCreate(input: $input) {\n    stagedTargets {\n      parameters {\n        name\n        value\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "input": [
+          {
+            "filename": "har-725-missing.jsonl",
+            "mimeType": "text/jsonl",
+            "resource": "BULK_MUTATION_VARIABLES",
+            "httpMethod": "POST"
+          }
+        ]
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "stagedUploadsCreate": {
+            "stagedTargets": [
+              {
+                "parameters": [
+                  {
+                    "name": "Content-Type",
+                    "value": "text/jsonl"
+                  },
+                  {
+                    "name": "success_action_status",
+                    "value": "201"
+                  },
+                  {
+                    "name": "acl",
+                    "value": "private"
+                  },
+                  {
+                    "name": "key",
+                    "value": "tmp/92891250994/bulk/93f835cf-0c08-44ed-b005-9b560e4e04e6/har-725-missing.jsonl"
+                  },
+                  {
+                    "name": "x-goog-date",
+                    "value": "20260505T200341Z"
+                  },
+                  {
+                    "name": "x-goog-credential",
+                    "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260505/auto/storage/goog4_request"
+                  },
+                  {
+                    "name": "x-goog-algorithm",
+                    "value": "GOOG4-RSA-SHA256"
+                  },
+                  {
+                    "name": "x-goog-signature",
+                    "value": "5a4f079105b28a6fb18c1e9a4ce9d8e621490109e17f031d247ed8fa4ac8099b5bc0c45701160298d93d0e9d9f545e526f02a7d2afc62454d2fb2257baa4d9f83fc9e68e162e8ee037fd9c086b54984eb1f0b462f2769b03489bf3a8b6b64e6f8478123ef0a8673d8dc857bd2912f438f2502f07128182c16f0968f4bb1d7afd444fc024a6730e3eedbedffff854c3a96c4689f4fb0a120e0d90ee97e16a74bb6aca73c05bc03bf686b69784a93d43b6ee5e45fe3af1ade2f2f2009dbc5e10f92b6940a31bcc1d90906a00cd7a78b9da47773ab9e55d77f7f0d0ba2a5b02074f891a8c11db5410833028072358ce6067341993a327700fcab1f4284a94ec946e"
+                  },
+                  {
+                    "name": "policy",
+                    "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJ0ZXh0XC9qc29ubCJ9LHsic3VjY2Vzc19hY3Rpb25fc3RhdHVzIjoiMjAxIn0seyJhY2wiOiJwcml2YXRlIn0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMSwxMDQ4NTc2MDBdLHsiYnVja2V0Ijoic2hvcGlmeS1zdGFnZWQtdXBsb2FkcyJ9LHsia2V5IjoidG1wXC85Mjg5MTI1MDk5NFwvYnVsa1wvOTNmODM1Y2YtMGMwOC00NGVkLWIwMDUtOWI1NjBlNGUwNGU2XC9oYXItNzI1LW1pc3NpbmcuanNvbmwifSx7IngtZ29vZy1kYXRlIjoiMjAyNjA1MDVUMjAwMzQxWiJ9LHsieC1nb29nLWNyZWRlbnRpYWwiOiJtZXJjaGFudC1hc3NldHNAc2hvcGlmeS10aWVycy5pYW0uZ3NlcnZpY2VhY2NvdW50LmNvbVwvMjAyNjA1MDVcL2F1dG9cL3N0b3JhZ2VcL2dvb2c0X3JlcXVlc3QifSx7IngtZ29vZy1hbGdvcml0aG0iOiJHT09HNC1SU0EtU0hBMjU2In1dLCJleHBpcmF0aW9uIjoiMjAyNi0wNS0wNlQyMDowMzo0MVoifQ=="
+                  }
+                ]
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validations": {
+    "noSuchFile": {
+      "operationName": "BulkOperationRunMutationUserErrors",
+      "query": "mutation BulkOperationRunMutationUserErrors($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }",
+        "path": "tmp/92891250994/bulk/93f835cf-0c08-44ed-b005-9b560e4e04e6/har-725-missing.jsonl"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+                "code": "NO_SUCH_FILE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "invalidMutationSyntax": {
+      "operationName": "BulkOperationRunMutationUserErrors",
+      "query": "mutation BulkOperationRunMutationUserErrors($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation { not real syntax",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Failed to parse the mutation - syntax error, unexpected end of file at [1, 21]",
+                "code": "INVALID_MUTATION"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "disallowedRoot": {
+      "operationName": "BulkOperationRunMutationUserErrors",
+      "query": "mutation BulkOperationRunMutationUserErrors($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation Probe($mutation: String!, $stagedUploadPath: String!, $clientIdentifier: String) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath, clientIdentifier: $clientIdentifier) { bulkOperation { id } userErrors { field message } } }",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["mutation"],
+                "message": "You must use an allowed mutation name.",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
