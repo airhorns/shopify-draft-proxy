@@ -22,6 +22,16 @@
     "mode": "strict-json",
     "expectedDifferences": [
       {
+        "path": "$.discountAutomaticBasicCreate.automaticDiscountNode.automaticDiscount.status",
+        "matcher": "SCHEDULED",
+        "reason": "This older lifecycle fixture used a startsAt value active at live capture time but scheduled against the proxy's deterministic synthetic clock; HAR-593 adds dedicated stable-date status parity."
+      },
+      {
+        "path": "$.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.status",
+        "matcher": "SCHEDULED",
+        "reason": "This older lifecycle fixture used a startsAt value active at live capture time but scheduled against the proxy's deterministic synthetic clock; HAR-593 adds dedicated stable-date status parity."
+      },
+      {
         "path": "$.discountAutomaticBasicCreate.automaticDiscountNode.id",
         "matcher": "shopify-gid:DiscountAutomaticNode",
         "reason": "The proxy creates a stable synthetic automatic discount ID instead of using Shopify's live ID."

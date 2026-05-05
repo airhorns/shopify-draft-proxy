@@ -1,0 +1,56 @@
+query DiscountStatusTimeWindowDerivationRead(
+  $scheduledId: ID!
+  $expiredId: ID!
+  $activeId: ID!
+  $scheduledQuery: String!
+  $expiredQuery: String!
+) {
+  scheduledNode: codeDiscountNode(id: $scheduledId) {
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+        startsAt
+        endsAt
+      }
+    }
+  }
+  expiredNode: codeDiscountNode(id: $expiredId) {
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+        startsAt
+        endsAt
+      }
+    }
+  }
+  activeNode: discountNode(id: $activeId) {
+    discount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        status
+        startsAt
+        endsAt
+      }
+    }
+  }
+  scheduledDiscountNodes: discountNodes(first: 5, query: $scheduledQuery) {
+    nodes {
+      discount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+        }
+      }
+    }
+  }
+  expiredDiscountNodesCount: discountNodesCount(query: $expiredQuery) {
+    count
+    precision
+  }
+}
