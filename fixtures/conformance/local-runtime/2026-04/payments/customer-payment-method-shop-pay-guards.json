@@ -1,0 +1,149 @@
+{
+  "capturedAt": "2026-05-05T00:00:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "livePaymentCredentialSideEffects": false,
+  "notes": "HAR-651 executable local-runtime evidence for Shopify-like Shop Pay payment-method guardrails. Live success-path capture remains blocked by missing customer payment method scopes and sensitive vaulted payment material, so the cassette seeds scrubbed credit-card and Shop Pay method shells and checks the local guarded error branches without runtime Shopify writes.",
+  "variables": {
+    "targetCustomerId": "gid://shopify/Customer/8802",
+    "blankBillingAddress": {},
+    "encryptedDuplicationData": "shopify-draft-proxy:customer-payment-method-duplication:not-used-before-billing-address-validation"
+  },
+  "expected": {
+    "primary": {
+      "data": {
+        "creditCardDuplication": {
+          "encryptedDuplicationData": null,
+          "userErrors": [
+            {
+              "field": ["customerPaymentMethodId"],
+              "message": "Invalid instrument",
+              "code": "INVALID_INSTRUMENT"
+            }
+          ]
+        },
+        "sameShopDuplication": {
+          "encryptedDuplicationData": null,
+          "userErrors": [
+            {
+              "field": ["targetShopId"],
+              "message": "Target shop is not eligible for payment method duplication",
+              "code": "SAME_SHOP"
+            }
+          ]
+        },
+        "creditCardUpdateUrl": {
+          "updatePaymentMethodUrl": null,
+          "userErrors": [
+            {
+              "field": ["customerPaymentMethodId"],
+              "message": "Invalid instrument",
+              "code": "INVALID_INSTRUMENT"
+            }
+          ]
+        },
+        "blankBillingAddressCreate": {
+          "customerPaymentMethod": null,
+          "userErrors": [
+            {
+              "field": ["billing_address", "address1"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            },
+            {
+              "field": ["billing_address", "city"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            },
+            {
+              "field": ["billing_address", "zip"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            },
+            {
+              "field": ["billing_address", "country_code"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            },
+            {
+              "field": ["billing_address", "province_code"],
+              "message": "can't be blank",
+              "code": "BLANK"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerPaymentMethodHydrate",
+      "variables": {
+        "customerIds": ["gid://shopify/Customer/8802"],
+        "customerPaymentMethodIds": [
+          "gid://shopify/CustomerPaymentMethod/base-card",
+          "gid://shopify/CustomerPaymentMethod/base-shop-pay"
+        ]
+      },
+      "query": "local-runtime customer payment method Shop Pay guard hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/source",
+              "name": "Payment Source Shop",
+              "myshopifyDomain": "payment-source.myshopify.com",
+              "url": "https://payment-source.myshopify.com",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/payment-source.myshopify.com",
+                "host": "payment-source.myshopify.com",
+                "url": "https://payment-source.myshopify.com",
+                "sslEnabled": true
+              }
+            },
+            "customers": [
+              {
+                "id": "gid://shopify/Customer/8801",
+                "email": "payment-one@example.com",
+                "displayName": "Payment One",
+                "state": "ENABLED"
+              },
+              {
+                "id": "gid://shopify/Customer/8802",
+                "email": "payment-two@example.com",
+                "displayName": "Payment Two",
+                "state": "ENABLED"
+              }
+            ],
+            "customerPaymentMethods": [
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/base-card",
+                "customerId": "gid://shopify/Customer/8801",
+                "revokedAt": null,
+                "revokedReason": null,
+                "instrument": {
+                  "typeName": "CustomerCreditCard",
+                  "data": {
+                    "lastDigits": "4242",
+                    "maskedNumber": "**** **** **** 4242"
+                  }
+                }
+              },
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/base-shop-pay",
+                "customerId": "gid://shopify/Customer/8801",
+                "revokedAt": null,
+                "revokedReason": null,
+                "instrument": {
+                  "typeName": "CustomerShopPayAgreement",
+                  "data": {}
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

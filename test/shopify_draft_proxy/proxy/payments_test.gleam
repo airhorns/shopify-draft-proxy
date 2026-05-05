@@ -13,13 +13,16 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type CustomerPaymentMethodRecord,
-  type CustomerPaymentMethodSubscriptionContractRecord, type DraftOrderRecord,
-  type OrderRecord, type PaymentScheduleRecord, type PaymentTermsRecord,
-  CapturedBool, CapturedNull, CapturedObject, CapturedString,
-  CustomerPaymentMethodInstrumentRecord, CustomerPaymentMethodRecord,
-  CustomerPaymentMethodSubscriptionContractRecord, CustomerRecord,
-  DraftOrderRecord, Money, OrderRecord, PaymentScheduleRecord,
-  PaymentTermsRecord, ShopifyFunctionRecord,
+  type CustomerPaymentMethodSubscriptionContractRecord, type CustomerRecord,
+  type DraftOrderRecord, type OrderRecord, type PaymentScheduleRecord,
+  type PaymentTermsRecord, type ShopRecord, CapturedBool, CapturedNull,
+  CapturedObject, CapturedString, CustomerPaymentMethodInstrumentRecord,
+  CustomerPaymentMethodRecord, CustomerPaymentMethodSubscriptionContractRecord,
+  CustomerRecord, DraftOrderRecord, Money, OrderRecord, PaymentScheduleRecord,
+  PaymentSettingsRecord, PaymentTermsRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionRecord,
 }
 
 const customer_id = "gid://shopify/Customer/1"
@@ -1330,4 +1333,268 @@ pub fn customer_payment_method_revoke_already_revoked_is_idempotent_test() {
     )
   assert method.revoked_at == Some(existing_revoked_at)
   assert method.revoked_reason == Some("CUSTOMER_REVOKED")
+}
+
+fn payment_guard_customer(id: String, email: String) -> CustomerRecord {
+  CustomerRecord(
+    id: id,
+    first_name: None,
+    last_name: None,
+    display_name: Some("Payment Guard Customer"),
+    email: Some(email),
+    legacy_resource_id: Some(string.replace(id, "gid://shopify/Customer/", "")),
+    locale: Some("en"),
+    note: None,
+    can_delete: Some(True),
+    verified_email: Some(True),
+    data_sale_opt_out: False,
+    tax_exempt: Some(False),
+    tax_exemptions: [],
+    state: Some("ENABLED"),
+    tags: [],
+    number_of_orders: Some("0"),
+    amount_spent: None,
+    default_email_address: None,
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    account_activation_token: None,
+    created_at: None,
+    updated_at: None,
+  )
+}
+
+fn payment_guard_method(
+  id: String,
+  customer_id: String,
+  type_name: String,
+) -> CustomerPaymentMethodRecord {
+  CustomerPaymentMethodRecord(
+    id: id,
+    customer_id: customer_id,
+    cursor: None,
+    instrument: Some(CustomerPaymentMethodInstrumentRecord(
+      type_name: type_name,
+      data: dict.new(),
+    )),
+    revoked_at: None,
+    revoked_reason: None,
+    subscription_contracts: [],
+  )
+}
+
+fn payment_guard_shop() -> ShopRecord {
+  ShopRecord(
+    id: "gid://shopify/Shop/1000",
+    name: "Payments Guard Shop",
+    myshopify_domain: "payments-guard.myshopify.com",
+    url: "https://payments-guard.myshopify.com",
+    primary_domain: ShopDomainRecord(
+      id: "gid://shopify/Domain/1000",
+      host: "payments-guard.myshopify.com",
+      url: "https://payments-guard.myshopify.com",
+      ssl_enabled: True,
+    ),
+    contact_email: "shop@example.com",
+    email: "shop@example.com",
+    currency_code: "USD",
+    enabled_presentment_currencies: ["USD"],
+    iana_timezone: "America/New_York",
+    timezone_abbreviation: "EST",
+    timezone_offset: "-0500",
+    timezone_offset_minutes: -300,
+    taxes_included: False,
+    tax_shipping: False,
+    unit_system: "IMPERIAL_SYSTEM",
+    weight_unit: "POUNDS",
+    shop_address: ShopAddressRecord(
+      id: "gid://shopify/ShopAddress/1000",
+      address1: Some("1 Main St"),
+      address2: None,
+      city: Some("New York"),
+      company: None,
+      coordinates_validated: False,
+      country: Some("United States"),
+      country_code_v2: Some("US"),
+      formatted: ["1 Main St", "New York NY 10001", "United States"],
+      formatted_area: Some("New York NY, United States"),
+      latitude: None,
+      longitude: None,
+      phone: None,
+      province: Some("New York"),
+      province_code: Some("NY"),
+      zip: Some("10001"),
+    ),
+    plan: ShopPlanRecord(
+      partner_development: True,
+      public_display_name: "Development",
+      shopify_plus: False,
+    ),
+    resource_limits: ShopResourceLimitsRecord(
+      location_limit: 1000,
+      max_product_options: 3,
+      max_product_variants: 2048,
+      redirect_limit_reached: False,
+    ),
+    features: ShopFeaturesRecord(
+      avalara_avatax: False,
+      branding: "SHOPIFY",
+      bundles: ShopBundlesFeatureRecord(
+        eligible_for_bundles: True,
+        ineligibility_reason: None,
+        sells_bundles: False,
+      ),
+      captcha: True,
+      cart_transform: ShopCartTransformFeatureRecord(
+        eligible_operations: ShopCartTransformEligibleOperationsRecord(
+          expand_operation: True,
+          merge_operation: True,
+          update_operation: True,
+        ),
+      ),
+      dynamic_remarketing: False,
+      eligible_for_subscription_migration: False,
+      eligible_for_subscriptions: False,
+      gift_cards: True,
+      harmonized_system_code: True,
+      legacy_subscription_gateway_enabled: False,
+      live_view: True,
+      paypal_express_subscription_gateway_status: "DISABLED",
+      reports: True,
+      sells_subscriptions: False,
+      show_metrics: True,
+      storefront: True,
+      unified_markets: True,
+    ),
+    payment_settings: PaymentSettingsRecord(supported_digital_wallets: []),
+    shop_policies: [],
+  )
+}
+
+fn payment_guard_proxy() -> DraftProxy {
+  let source_customer =
+    payment_guard_customer(
+      "gid://shopify/Customer/8801",
+      "payment-one@example.com",
+    )
+  let target_customer =
+    payment_guard_customer(
+      "gid://shopify/Customer/8802",
+      "payment-two@example.com",
+    )
+  let card =
+    payment_guard_method(
+      "gid://shopify/CustomerPaymentMethod/base-card",
+      source_customer.id,
+      "CustomerCreditCard",
+    )
+  let shop_pay =
+    payment_guard_method(
+      "gid://shopify/CustomerPaymentMethod/base-shop-pay",
+      source_customer.id,
+      "CustomerShopPayAgreement",
+    )
+  let base_store =
+    store.new()
+    |> store.upsert_base_shop(payment_guard_shop())
+    |> store.upsert_base_customers([source_customer, target_customer])
+    |> store.upsert_base_customer_payment_methods([card, shop_pay])
+
+  DraftProxy(..draft_proxy.new(), store: base_store)
+}
+
+pub fn customer_payment_method_shop_pay_guards_reject_credit_cards_test() {
+  let mutation =
+    "mutation {
+      duplication: customerPaymentMethodGetDuplicationData(
+        customerPaymentMethodId: \"gid://shopify/CustomerPaymentMethod/base-card\",
+        targetShopId: \"gid://shopify/Shop/target\",
+        targetCustomerId: \"gid://shopify/Customer/8802\"
+      ) {
+        encryptedDuplicationData
+        userErrors { field message code }
+      }
+      updateUrl: customerPaymentMethodGetUpdateUrl(
+        customerPaymentMethodId: \"gid://shopify/CustomerPaymentMethod/base-card\"
+      ) {
+        updatePaymentMethodUrl
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(payment_guard_proxy(), mutation)
+  let response = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(response, "\"encryptedDuplicationData\":null")
+  assert string.contains(response, "\"updatePaymentMethodUrl\":null")
+  assert string.contains(response, "\"field\":[\"customerPaymentMethodId\"]")
+  assert string.contains(response, "\"code\":\"INVALID_INSTRUMENT\"")
+  assert !string.contains(
+    response,
+    "encryptedDuplicationData\":\"shopify-draft",
+  )
+  assert !string.contains(response, "updatePaymentMethodUrl\":\"https://")
+}
+
+pub fn customer_payment_method_shop_pay_guards_reject_same_shop_test() {
+  let mutation =
+    "mutation {
+      customerPaymentMethodGetDuplicationData(
+        customerPaymentMethodId: \"gid://shopify/CustomerPaymentMethod/base-shop-pay\",
+        targetShopId: \"gid://shopify/Shop/1000\",
+        targetCustomerId: \"gid://shopify/Customer/8802\"
+      ) {
+        encryptedDuplicationData
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(payment_guard_proxy(), mutation)
+  let response = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(response, "\"encryptedDuplicationData\":null")
+  assert string.contains(response, "\"field\":[\"targetShopId\"]")
+  assert string.contains(response, "\"code\":\"SAME_SHOP\"")
+  assert !string.contains(
+    response,
+    "encryptedDuplicationData\":\"shopify-draft",
+  )
+}
+
+pub fn customer_payment_method_create_from_duplication_data_requires_billing_address_fields_test() {
+  let mutation =
+    "mutation {
+      customerPaymentMethodCreateFromDuplicationData(
+        customerId: \"gid://shopify/Customer/8802\",
+        billingAddress: {},
+        encryptedDuplicationData: \"shopify-draft-proxy:customer-payment-method-duplication:not-used-before-validation\"
+      ) {
+        customerPaymentMethod { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(payment_guard_proxy(), mutation)
+  let response = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(response, "\"customerPaymentMethod\":null")
+  assert string.contains(
+    response,
+    "\"field\":[\"billing_address\",\"address1\"]",
+  )
+  assert string.contains(response, "\"field\":[\"billing_address\",\"city\"]")
+  assert string.contains(response, "\"field\":[\"billing_address\",\"zip\"]")
+  assert string.contains(
+    response,
+    "\"field\":[\"billing_address\",\"country_code\"]",
+  )
+  assert string.contains(
+    response,
+    "\"field\":[\"billing_address\",\"province_code\"]",
+  )
+  assert string.contains(response, "\"code\":\"BLANK\"")
 }

@@ -33,6 +33,18 @@
           "inactive": false
         }
       }
+    },
+    {
+      "id": "gid://shopify/CustomerPaymentMethod/base-shop-pay",
+      "customerId": "gid://shopify/Customer/8801",
+      "revokedAt": null,
+      "revokedReason": null,
+      "instrument": {
+        "typeName": "CustomerShopPayAgreement",
+        "data": {
+          "__typename": "CustomerShopPayAgreement"
+        }
+      }
     }
   ],
   "variables": {
@@ -42,7 +54,10 @@
       "firstName": "Sensitive",
       "lastName": "Billing",
       "address1": "1 Secret St",
-      "countryCode": "US"
+      "city": "New York",
+      "zip": "10001",
+      "countryCode": "US",
+      "provinceCode": "NY"
     },
     "sessionId": "csn_sensitive_session",
     "remoteReference": {
@@ -113,11 +128,11 @@
           "userErrors": []
         },
         "duplication": {
-          "encryptedDuplicationData": "shopify-draft-proxy:customer-payment-method-duplication:eyJjdXN0b21lclBheW1lbnRNZXRob2RJZCI6ImdpZDovL3Nob3BpZnkvQ3VzdG9tZXJQYXltZW50TWV0aG9kL2Jhc2UtY2FyZCIsInRhcmdldEN1c3RvbWVySWQiOiJnaWQ6Ly9zaG9waWZ5L0N1c3RvbWVyLzg4MDIiLCJ0YXJnZXRTaG9wSWQiOiJnaWQ6Ly9zaG9waWZ5L1Nob3AvdGFyZ2V0In0",
+          "encryptedDuplicationData": "shopify-draft-proxy:customer-payment-method-duplication:eyJjdXN0b21lclBheW1lbnRNZXRob2RJZCI6ImdpZDovL3Nob3BpZnkvQ3VzdG9tZXJQYXltZW50TWV0aG9kL2Jhc2Utc2hvcC1wYXkiLCJ0YXJnZXRDdXN0b21lcklkIjoiZ2lkOi8vc2hvcGlmeS9DdXN0b21lci84ODAyIiwidGFyZ2V0U2hvcElkIjoiZ2lkOi8vc2hvcGlmeS9TaG9wL3RhcmdldCJ9",
           "userErrors": []
         },
         "updateUrl": {
-          "updatePaymentMethodUrl": "https://shopify-draft-proxy.local/customer-payment-methods/base-card/update?token=local-only",
+          "updatePaymentMethodUrl": "https://shopify-draft-proxy.local/customer-payment-methods/base-shop-pay/update?token=local-only",
           "userErrors": []
         },
         "revoke": {
@@ -145,9 +160,7 @@
               "id": "gid://shopify/Customer/8802"
             },
             "instrument": {
-              "__typename": "CustomerCreditCard",
-              "lastDigits": null,
-              "maskedNumber": null
+              "__typename": "CustomerShopPayAgreement"
             }
           },
           "userErrors": []
@@ -184,6 +197,10 @@
               {
                 "id": "gid://shopify/CustomerPaymentMethod/base-paypal",
                 "revokedAt": null
+              },
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/base-shop-pay",
+                "revokedAt": null
               }
             ]
           }
@@ -194,9 +211,7 @@
               {
                 "id": "gid://shopify/CustomerPaymentMethod/6",
                 "instrument": {
-                  "__typename": "CustomerCreditCard",
-                  "lastDigits": null,
-                  "maskedNumber": null
+                  "__typename": "CustomerShopPayAgreement"
                 }
               }
             ]
@@ -212,7 +227,8 @@
         "customerIds": ["gid://shopify/Customer/8801", "gid://shopify/Customer/8802"],
         "customerPaymentMethodIds": [
           "gid://shopify/CustomerPaymentMethod/base-card",
-          "gid://shopify/CustomerPaymentMethod/base-paypal"
+          "gid://shopify/CustomerPaymentMethod/base-paypal",
+          "gid://shopify/CustomerPaymentMethod/base-shop-pay"
         ]
       },
       "query": "local-runtime customer payment method hydrate",
@@ -220,6 +236,18 @@
         "status": 200,
         "body": {
           "data": {
+            "shop": {
+              "id": "gid://shopify/Shop/source",
+              "name": "Payment Source Shop",
+              "myshopifyDomain": "payment-source.myshopify.com",
+              "url": "https://payment-source.myshopify.com",
+              "primaryDomain": {
+                "id": "gid://shopify/Domain/payment-source.myshopify.com",
+                "host": "payment-source.myshopify.com",
+                "url": "https://payment-source.myshopify.com",
+                "sslEnabled": true
+              }
+            },
             "customers": [
               {
                 "id": "gid://shopify/Customer/8801",
@@ -259,6 +287,16 @@
                     "paypalAccountEmail": "billing@example.com",
                     "inactive": false
                   }
+                }
+              },
+              {
+                "id": "gid://shopify/CustomerPaymentMethod/base-shop-pay",
+                "customerId": "gid://shopify/Customer/8801",
+                "revokedAt": null,
+                "revokedReason": null,
+                "instrument": {
+                  "typeName": "CustomerShopPayAgreement",
+                  "data": {}
                 }
               }
             ]

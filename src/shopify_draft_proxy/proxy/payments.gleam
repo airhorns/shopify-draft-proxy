@@ -46,13 +46,17 @@ import shopify_draft_proxy/state/types.{
   type Money, type OrderRecord, type PaymentCustomizationMetafieldRecord,
   type PaymentCustomizationRecord, type PaymentScheduleRecord,
   type PaymentTermsRecord, type PaymentTermsTemplateRecord,
-  type ShopifyFunctionRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CustomerPaymentMethodInstrumentRecord, CustomerPaymentMethodRecord,
-  CustomerPaymentMethodUpdateUrlRecord, CustomerRecord, DraftOrderRecord, Money,
-  OrderRecord, PaymentCustomizationMetafieldRecord, PaymentCustomizationRecord,
-  PaymentReminderSendRecord, PaymentScheduleRecord, PaymentTermsRecord,
-  PaymentTermsTemplateRecord,
+  type ShopDomainRecord, type ShopRecord, type ShopifyFunctionRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, CustomerPaymentMethodInstrumentRecord,
+  CustomerPaymentMethodRecord, CustomerPaymentMethodUpdateUrlRecord,
+  CustomerRecord, DraftOrderRecord, Money, OrderRecord,
+  PaymentCustomizationMetafieldRecord, PaymentCustomizationRecord,
+  PaymentReminderSendRecord, PaymentScheduleRecord, PaymentSettingsRecord,
+  PaymentTermsRecord, PaymentTermsTemplateRecord, ShopAddressRecord,
+  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
+  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
+  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
 }
 
 const customization_app_id: String = "347082227713"
@@ -2122,6 +2126,7 @@ fn hydrate_customer_payment_method_context(
 
 fn customer_payment_method_hydrate_query() -> String {
   "query CustomerPaymentMethodHydrate($customerIds: [ID!]!, $customerPaymentMethodIds: [ID!]!) {\n"
+  <> "  shop { id name myshopifyDomain url primaryDomain { id host url sslEnabled } }\n"
   <> "  customers: nodes(ids: $customerIds) { ... on Customer { id email displayName state } }\n"
   <> "  customerPaymentMethods: nodes(ids: $customerPaymentMethodIds) {\n"
   <> "    ... on CustomerPaymentMethod {\n"
@@ -2138,17 +2143,138 @@ fn hydrate_customer_payment_methods_from_response(
 ) -> Store {
   case json_get(value, "data") {
     Some(data) -> {
+      let with_shop = case
+        json_get(data, "shop") |> option.then(shop_from_hydrate_node)
+      {
+        Some(shop) -> store.upsert_base_shop(store, shop)
+        None -> store
+      }
       let customers =
         json_array_items(json_get(data, "customers"))
         |> list.filter_map(customer_from_hydrate_node)
       let methods =
         json_array_items(json_get(data, "customerPaymentMethods"))
         |> list.filter_map(customer_payment_method_from_hydrate_node)
-      let with_customers = store.upsert_base_customers(store, customers)
+      let with_customers = store.upsert_base_customers(with_shop, customers)
       store.upsert_base_customer_payment_methods(with_customers, methods)
     }
     None -> store
   }
+}
+
+fn shop_from_hydrate_node(node: commit.JsonValue) -> Option(ShopRecord) {
+  use id <- option.then(json_get_string(node, "id"))
+  let domain =
+    json_get_string(node, "myshopifyDomain")
+    |> option.unwrap("shopify-draft-proxy.myshopify.com")
+  let url =
+    json_get_string(node, "url")
+    |> option.unwrap("https://" <> domain)
+  Some(
+    ShopRecord(
+      id: id,
+      name: json_get_string(node, "name")
+        |> option.unwrap("Shopify Draft Proxy"),
+      myshopify_domain: domain,
+      url: url,
+      primary_domain: hydrate_primary_domain(node, domain, url),
+      contact_email: "",
+      email: "",
+      currency_code: "USD",
+      enabled_presentment_currencies: ["USD"],
+      iana_timezone: "UTC",
+      timezone_abbreviation: "UTC",
+      timezone_offset: "+0000",
+      timezone_offset_minutes: 0,
+      taxes_included: False,
+      tax_shipping: False,
+      unit_system: "IMPERIAL_SYSTEM",
+      weight_unit: "POUNDS",
+      shop_address: ShopAddressRecord(
+        id: "gid://shopify/ShopAddress/" <> gid_tail(id),
+        address1: None,
+        address2: None,
+        city: None,
+        company: None,
+        coordinates_validated: False,
+        country: None,
+        country_code_v2: None,
+        formatted: [],
+        formatted_area: None,
+        latitude: None,
+        longitude: None,
+        phone: None,
+        province: None,
+        province_code: None,
+        zip: None,
+      ),
+      plan: ShopPlanRecord(
+        partner_development: False,
+        public_display_name: "",
+        shopify_plus: False,
+      ),
+      resource_limits: ShopResourceLimitsRecord(
+        location_limit: 0,
+        max_product_options: 0,
+        max_product_variants: 0,
+        redirect_limit_reached: False,
+      ),
+      features: ShopFeaturesRecord(
+        avalara_avatax: False,
+        branding: "SHOPIFY",
+        bundles: ShopBundlesFeatureRecord(
+          eligible_for_bundles: False,
+          ineligibility_reason: None,
+          sells_bundles: False,
+        ),
+        captcha: False,
+        cart_transform: ShopCartTransformFeatureRecord(
+          eligible_operations: ShopCartTransformEligibleOperationsRecord(
+            expand_operation: False,
+            merge_operation: False,
+            update_operation: False,
+          ),
+        ),
+        dynamic_remarketing: False,
+        eligible_for_subscription_migration: False,
+        eligible_for_subscriptions: False,
+        gift_cards: False,
+        harmonized_system_code: False,
+        legacy_subscription_gateway_enabled: False,
+        live_view: False,
+        paypal_express_subscription_gateway_status: "DISABLED",
+        reports: False,
+        sells_subscriptions: False,
+        show_metrics: False,
+        storefront: False,
+        unified_markets: False,
+      ),
+      payment_settings: PaymentSettingsRecord(supported_digital_wallets: []),
+      shop_policies: [],
+    ),
+  )
+}
+
+fn hydrate_primary_domain(
+  shop_node: commit.JsonValue,
+  fallback_domain: String,
+  fallback_url: String,
+) -> ShopDomainRecord {
+  let primary = json_get(shop_node, "primaryDomain")
+  ShopDomainRecord(
+    id: primary
+      |> option.then(fn(domain) { json_get_string(domain, "id") })
+      |> option.unwrap("gid://shopify/Domain/" <> fallback_domain),
+    host: primary
+      |> option.then(fn(domain) { json_get_string(domain, "host") })
+      |> option.unwrap(fallback_domain),
+    url: primary
+      |> option.then(fn(domain) { json_get_string(domain, "url") })
+      |> option.unwrap(fallback_url),
+    ssl_enabled: primary
+      |> option.then(fn(domain) { json_get_bool(domain, "sslEnabled") })
+      |> option.unwrap(True),
+  )
 }
 
 fn customer_from_hydrate_node(
@@ -2694,14 +2820,8 @@ fn get_payment_method_duplication_data(
         [#("encryptedDuplicationData", SrcNull)],
       )
     Ok(method) ->
-      case
-        customer_by_id(
-          store,
-          graphql_helpers.read_arg_string_nonempty(args, "targetCustomerId"),
-          "targetCustomerId",
-        )
-      {
-        Error(error) ->
+      case require_shop_pay_instrument(method, "customerPaymentMethodId") {
+        Some(error) ->
           payment_method_result(
             store,
             identity,
@@ -2712,29 +2832,139 @@ fn get_payment_method_duplication_data(
             [error],
             [#("encryptedDuplicationData", SrcNull)],
           )
-        Ok(target_customer) -> {
-          let target_shop_id =
-            graphql_helpers.read_arg_string_nonempty(args, "targetShopId")
-            |> option.unwrap("")
-          let data =
-            encode_duplication_data(
-              method.id,
-              target_customer.id,
-              target_shop_id,
+        None -> {
+          case
+            customer_by_id(
+              store,
+              graphql_helpers.read_arg_string_nonempty(args, "targetCustomerId"),
+              "targetCustomerId",
             )
-          payment_method_result(
-            store,
-            identity,
-            field,
-            fragments,
-            "customerPaymentMethodGetDuplicationData",
-            None,
-            [],
-            [#("encryptedDuplicationData", SrcString(data))],
-          )
+          {
+            Error(error) ->
+              payment_method_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "customerPaymentMethodGetDuplicationData",
+                None,
+                [error],
+                [#("encryptedDuplicationData", SrcNull)],
+              )
+            Ok(target_customer) -> {
+              let target_shop_id =
+                graphql_helpers.read_arg_string_nonempty(args, "targetShopId")
+                |> option.unwrap("")
+              case same_shop_duplication_error(store, target_shop_id) {
+                Some(error) ->
+                  payment_method_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "customerPaymentMethodGetDuplicationData",
+                    None,
+                    [error],
+                    [#("encryptedDuplicationData", SrcNull)],
+                  )
+                None -> {
+                  let data =
+                    encode_duplication_data(
+                      method.id,
+                      target_customer.id,
+                      target_shop_id,
+                    )
+                  payment_method_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "customerPaymentMethodGetDuplicationData",
+                    None,
+                    [],
+                    [#("encryptedDuplicationData", SrcString(data))],
+                  )
+                }
+              }
+            }
+          }
         }
       }
   }
+}
+
+fn require_shop_pay_instrument(
+  method: CustomerPaymentMethodRecord,
+  field_name: String,
+) -> Option(UserError) {
+  case method.instrument {
+    Some(CustomerPaymentMethodInstrumentRecord(type_name: type_name, ..)) -> {
+      case is_shop_pay_agreement_type(type_name) {
+        True -> None
+        False ->
+          Some(payment_method_error(
+            field_name,
+            "Invalid instrument",
+            "INVALID_INSTRUMENT",
+          ))
+      }
+    }
+    _ ->
+      Some(payment_method_error(
+        field_name,
+        "Invalid instrument",
+        "INVALID_INSTRUMENT",
+      ))
+  }
+}
+
+fn is_shop_pay_agreement_type(type_name: String) -> Bool {
+  type_name == "CustomerShopPayAgreement"
+  || type_name == "CustomerShopPayBillingAgreement"
+  || type_name == "ShopPayBillingAgreement"
+  || type_name == "shop_pay_agreement"
+}
+
+fn same_shop_duplication_error(
+  store: Store,
+  target_shop_id: String,
+) -> Option(UserError) {
+  case store.get_effective_shop(store) {
+    Some(shop) if shop.id == target_shop_id ->
+      Some(UserError(
+        field: Some(["targetShopId"]),
+        message: "Target shop is not eligible for payment method duplication",
+        code: Some("SAME_SHOP"),
+      ))
+    _ -> None
+  }
+}
+
+fn billing_address_blank_errors(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  let address =
+    graphql_helpers.read_arg_object(args, "billingAddress")
+    |> option.unwrap(dict.new())
+  [
+    #("address1", "address1"),
+    #("city", "city"),
+    #("zip", "zip"),
+    #("countryCode", "country_code"),
+    #("provinceCode", "province_code"),
+  ]
+  |> list.filter_map(fn(field_pair) {
+    let #(input_name, field_name) = field_pair
+    case graphql_helpers.read_arg_string_nonempty(address, input_name) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(UserError(
+          field: Some(["billing_address", field_name]),
+          message: "can't be blank",
+          code: Some("BLANK"),
+        ))
+    }
+  })
 }
 
 fn create_payment_method_from_duplication_data(
@@ -2759,49 +2989,72 @@ fn create_payment_method_from_duplication_data(
         [],
       )
     Ok(customer) -> {
-      case
-        graphql_helpers.read_arg_string_nonempty(
-          args,
-          "encryptedDuplicationData",
-        )
-      {
-        None -> invalid_duplication_result(store, identity, field, fragments)
-        Some(raw) ->
-          case decode_duplication_data(raw) {
-            Error(_) ->
+      case billing_address_blank_errors(args) {
+        [_, ..] as errors ->
+          payment_method_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "customerPaymentMethodCreateFromDuplicationData",
+            None,
+            errors,
+            [],
+          )
+        [] -> {
+          case
+            graphql_helpers.read_arg_string_nonempty(
+              args,
+              "encryptedDuplicationData",
+            )
+          {
+            None ->
               invalid_duplication_result(store, identity, field, fragments)
-            Ok(payload) -> {
-              let source_id =
-                dict_string_to_option(payload, "customerPaymentMethodId")
-              let target_id = dict_string_to_option(payload, "targetCustomerId")
-              case target_id == Some(customer.id), source_id {
-                True, Some(method_id) ->
-                  case
-                    store.get_effective_customer_payment_method_by_id(
-                      store,
-                      method_id,
-                      True,
-                    )
-                  {
-                    Some(source_method) -> {
-                      let #(record, next_identity) =
-                        create_payment_method_record(
-                          identity,
-                          customer.id,
-                          source_method.instrument,
+            Some(raw) ->
+              case decode_duplication_data(raw) {
+                Error(_) ->
+                  invalid_duplication_result(store, identity, field, fragments)
+                Ok(payload) -> {
+                  let source_id =
+                    dict_string_to_option(payload, "customerPaymentMethodId")
+                  let target_id =
+                    dict_string_to_option(payload, "targetCustomerId")
+                  case target_id == Some(customer.id), source_id {
+                    True, Some(method_id) ->
+                      case
+                        store.get_effective_customer_payment_method_by_id(
+                          store,
+                          method_id,
+                          True,
                         )
-                      payment_method_result(
-                        store.stage_customer_payment_method(store, record),
-                        next_identity,
-                        field,
-                        fragments,
-                        "customerPaymentMethodCreateFromDuplicationData",
-                        Some(record),
-                        [],
-                        [],
-                      )
-                    }
-                    None ->
+                      {
+                        Some(source_method) -> {
+                          let #(record, next_identity) =
+                            create_payment_method_record(
+                              identity,
+                              customer.id,
+                              source_method.instrument,
+                            )
+                          payment_method_result(
+                            store.stage_customer_payment_method(store, record),
+                            next_identity,
+                            field,
+                            fragments,
+                            "customerPaymentMethodCreateFromDuplicationData",
+                            Some(record),
+                            [],
+                            [],
+                          )
+                        }
+                        None ->
+                          invalid_duplication_result(
+                            store,
+                            identity,
+                            field,
+                            fragments,
+                          )
+                      }
+                    _, _ ->
                       invalid_duplication_result(
                         store,
                         identity,
@@ -2809,11 +3062,10 @@ fn create_payment_method_from_duplication_data(
                         fragments,
                       )
                   }
-                _, _ ->
-                  invalid_duplication_result(store, identity, field, fragments)
+                }
               }
-            }
           }
+        }
       }
     }
   }
@@ -2869,34 +3121,49 @@ fn get_payment_method_update_url(store, identity, field, fragments, variables) {
         [#("updatePaymentMethodUrl", SrcNull)],
       )
     Ok(method) -> {
-      let #(id, identity_after_id) =
-        synthetic_identity.make_synthetic_gid(
-          identity,
-          "CustomerPaymentMethodUpdateUrl",
-        )
-      let #(created_at, next_identity) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let update_url =
-        "https://shopify-draft-proxy.local/customer-payment-methods/"
-        <> uri_encode(gid_tail(method.id))
-        <> "/update?token=local-only"
-      let record =
-        CustomerPaymentMethodUpdateUrlRecord(
-          id: id,
-          customer_payment_method_id: method.id,
-          update_payment_method_url: update_url,
-          created_at: created_at,
-        )
-      payment_method_result(
-        store.stage_customer_payment_method_update_url(store, record),
-        next_identity,
-        field,
-        fragments,
-        "customerPaymentMethodGetUpdateUrl",
-        None,
-        [],
-        [#("updatePaymentMethodUrl", SrcString(update_url))],
-      )
+      case require_shop_pay_instrument(method, "customerPaymentMethodId") {
+        Some(error) ->
+          payment_method_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "customerPaymentMethodGetUpdateUrl",
+            None,
+            [error],
+            [#("updatePaymentMethodUrl", SrcNull)],
+          )
+        None -> {
+          let #(id, identity_after_id) =
+            synthetic_identity.make_synthetic_gid(
+              identity,
+              "CustomerPaymentMethodUpdateUrl",
+            )
+          let #(created_at, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_id)
+          let update_url =
+            "https://shopify-draft-proxy.local/customer-payment-methods/"
+            <> uri_encode(gid_tail(method.id))
+            <> "/update?token=local-only"
+          let record =
+            CustomerPaymentMethodUpdateUrlRecord(
+              id: id,
+              customer_payment_method_id: method.id,
+              update_payment_method_url: update_url,
+              created_at: created_at,
+            )
+          payment_method_result(
+            store.stage_customer_payment_method_update_url(store, record),
+            next_identity,
+            field,
+            fragments,
+            "customerPaymentMethodGetUpdateUrl",
+            None,
+            [],
+            [#("updatePaymentMethodUrl", SrcString(update_url))],
+          )
+        }
+      }
     }
   }
 }
