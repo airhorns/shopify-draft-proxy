@@ -147,6 +147,20 @@ fn graphql_with_proxy(proxy: DraftProxy, query: String) {
   draft_proxy.process_request(proxy, request)
 }
 
+fn meta_state_json(proxy: DraftProxy) {
+  let #(Response(body: body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "GET",
+        path: "/__meta/state",
+        headers: dict.new(),
+        body: "",
+      ),
+    )
+  json.to_string(body)
+}
+
 fn escape(value: String) -> String {
   value
   |> string.replace("\\", "\\\\")
@@ -888,6 +902,170 @@ pub fn payment_terms_create_rejects_multiple_schedules_with_shopify_code_test() 
   )
 }
 
+pub fn payment_terms_create_rejects_unknown_template_without_staging_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/9999\",
+          paymentSchedules: [{ issuedAt: \"2026-01-01T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id paymentTermsName paymentTermsType }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, mutation)
+  let body = json.to_string(body)
+  let state = meta_state_json(proxy_after)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"Could not find payment terms template.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(state, "PaymentTerms/")
+}
+
+pub fn payment_terms_create_requires_template_id_instead_of_defaulting_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentSchedules: [{ issuedAt: \"2026-01-01T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id paymentTermsName }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, mutation)
+  let body = json.to_string(body)
+  let state = meta_state_json(proxy_after)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(
+    body,
+    "\"field\":[\"paymentTermsAttributes\",\"paymentTermsTemplateId\"]",
+  )
+  assert string.contains(
+    body,
+    "\"message\":\"Payment terms template is required.\"",
+  )
+  assert string.contains(body, "\"code\":\"REQUIRED\"")
+  assert !string.contains(state, "PaymentTerms/")
+}
+
+pub fn payment_terms_create_rejects_fixed_template_without_due_at_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/7\",
+          paymentSchedules: [{}]
+        }
+      ) {
+        paymentTerms { id paymentTermsName paymentTermsType }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, mutation)
+  let body = json.to_string(body)
+  let state = meta_state_json(proxy_after)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"A due date is required with fixed or net payment terms.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(state, "PaymentTerms/")
+}
+
+pub fn payment_terms_create_rejects_receipt_template_with_due_at_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/1\",
+          paymentSchedules: [{ dueAt: \"2026-01-01T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id paymentTermsName paymentTermsType }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, mutation)
+  let body = json.to_string(body)
+  let state = meta_state_json(proxy_after)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"A due date cannot be set with event payment terms.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(state, "PaymentTerms/")
+}
+
+pub fn payment_terms_create_accepts_receipt_issued_at_without_schedule_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/1\",
+          paymentSchedules: [{ issuedAt: \"2026-01-01T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms {
+          paymentTermsName
+          paymentTermsType
+          paymentSchedules(first: 1) { nodes { issuedAt dueAt } }
+        }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, mutation)
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"userErrors\":[]")
+  assert string.contains(body, "\"paymentTermsName\":\"Due on receipt\"")
+  assert string.contains(body, "\"paymentTermsType\":\"RECEIPT\"")
+  assert string.contains(body, "\"nodes\":[]")
+}
+
 pub fn payment_terms_update_and_delete_missing_ids_use_shopify_codes_test() {
   let proxy = draft_proxy.new()
   let update =
@@ -931,6 +1109,62 @@ pub fn payment_terms_update_and_delete_missing_ids_use_shopify_codes_test() {
   )
   assert !string.contains(update_body, "PAYMENT_TERMS_NOT_FOUND")
   assert !string.contains(delete_body, "PAYMENT_TERMS_NOT_FOUND")
+}
+
+pub fn payment_terms_update_uses_update_code_for_invalid_attributes_test() {
+  let terms_id = "gid://shopify/PaymentTerms/123"
+  let money = Money(amount: "57.00", currency_code: "CAD")
+  let seeded_store =
+    store.new()
+    |> store.upsert_staged_payment_terms(
+      PaymentTermsRecord(
+        id: terms_id,
+        owner_id: order_id,
+        due: False,
+        overdue: False,
+        due_in_days: Some(30),
+        payment_terms_name: "Net 30",
+        payment_terms_type: "NET",
+        translated_name: "Net 30",
+        payment_schedules: [
+          PaymentScheduleRecord(
+            id: "gid://shopify/PaymentSchedule/456",
+            due_at: Some("2026-06-04T00:00:00Z"),
+            issued_at: Some("2026-05-05T00:00:00Z"),
+            completed_at: None,
+            due: Some(False),
+            amount: Some(money),
+            balance_due: Some(money),
+            total_balance: Some(money),
+          ),
+        ],
+      ),
+    )
+  let proxy = DraftProxy(..draft_proxy.new(), store: seeded_store)
+  let mutation =
+    "mutation {
+      paymentTermsUpdate(input: {
+        paymentTermsId: \"gid://shopify/PaymentTerms/123\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/7\",
+          paymentSchedules: [{}]
+        }
+      }) {
+        paymentTerms { id paymentTermsName paymentTermsType }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, mutation)
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"A due date is required with fixed or net payment terms.\"",
+  )
+  assert string.contains(body, "\"code\":\"PAYMENT_TERMS_UPDATE_UNSUCCESSFUL\"")
 }
 
 pub fn payment_terms_delete_normalizes_numeric_input_to_gid_test() {

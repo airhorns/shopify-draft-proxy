@@ -469,6 +469,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'product-derived-fields',
+    scriptPath: 'scripts/capture-product-derived-fields-conformance.mts',
+    purpose: 'Product derived aggregate fields after variant price creation and inventory quantity adjustments.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_inventory', 'write_inventory', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-create-then-bulk-create-price-range-parity.json`,
+      `${CAPTURE_ROOT}inventory-adjust-then-has-out-of-stock-variants-parity.json`,
+      'config/parity-specs/products/productCreate-then-bulkCreate-priceRange-parity.json',
+      'config/parity-specs/products/inventoryAdjust-then-hasOutOfStockVariants-parity.json',
+      'config/parity-requests/products/productCreate-then-bulkCreate-derived-*.graphql',
+      'config/parity-requests/products/inventoryAdjust-then-hasOutOfStockVariants-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable products for price-range and inventory aggregate captures, then deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     captureId: 'inventory-item-mutations',
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',
@@ -1800,6 +1818,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}payment-terms-lifecycle.json`],
     cleanupBehavior:
       'Creates a disposable draft order, deletes payment terms during the scenario, then deletes the draft order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'payments',
+    captureId: 'payment-terms-create-template-and-schedule-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-terms-validation-conformance.ts',
+    purpose:
+      'paymentTermsCreate template lookup, unknown template, and template-specific schedule validation branches.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_payment_terms', 'write_payment_terms'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-terms-create-template-and-schedule-validation.json`,
+      'config/parity-specs/payments/payment-terms-create-template-and-schedule-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable draft order for each validation case, deletes payment terms for success cases, then deletes every draft order.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

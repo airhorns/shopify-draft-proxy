@@ -3987,6 +3987,7 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
     SrcList([]),
     empty_connection_source(),
     count_source(0),
+    "USD",
     None,
   )
 }
@@ -4024,8 +4025,38 @@ fn product_source_with_store_and_publication(
         product.id,
       )),
     ),
+    product_currency_code(store),
     publication_id,
   )
+}
+
+fn product_currency_code(store: Store) -> String {
+  case store.get_effective_shop(store) {
+    Some(shop) -> shop.currency_code
+    None -> "USD"
+  }
+}
+
+fn product_price_range_source(
+  product: ProductRecord,
+  currency_code: String,
+) -> SourceValue {
+  case product.price_range_min, product.price_range_max {
+    Some(min_amount), Some(max_amount) ->
+      src_object([
+        #("minVariantPrice", money_v2_source(min_amount, currency_code)),
+        #("maxVariantPrice", money_v2_source(max_amount, currency_code)),
+      ])
+    _, _ -> SrcNull
+  }
+}
+
+fn money_v2_source(amount: String, currency_code: String) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("MoneyV2")),
+    #("amount", SrcString(format_price_amount(amount))),
+    #("currencyCode", SrcString(currency_code)),
+  ])
 }
 
 fn product_source_with_relationships(
@@ -4036,6 +4067,7 @@ fn product_source_with_relationships(
   options: SourceValue,
   selling_plan_groups: SourceValue,
   selling_plan_groups_count: SourceValue,
+  currency_code: String,
   publication_id: Option(String),
 ) -> SourceValue {
   let visible_publication_count = case product.status == "ACTIVE" {
@@ -4059,6 +4091,20 @@ fn product_source_with_relationships(
     #("vendor", graphql_helpers.option_string_source(product.vendor)),
     #("productType", graphql_helpers.option_string_source(product.product_type)),
     #("tags", SrcList(list.map(product.tags, SrcString))),
+    #("priceRangeV2", product_price_range_source(product, currency_code)),
+    #("priceRange", product_price_range_source(product, currency_code)),
+    #(
+      "totalVariants",
+      graphql_helpers.option_int_source(product.total_variants),
+    ),
+    #(
+      "hasOnlyDefaultVariant",
+      graphql_helpers.option_bool_source(product.has_only_default_variant),
+    ),
+    #(
+      "hasOutOfStockVariants",
+      graphql_helpers.option_bool_source(product.has_out_of_stock_variants),
+    ),
     #(
       "totalInventory",
       graphql_helpers.option_int_source(product.total_inventory),
@@ -5948,6 +5994,28 @@ fn upsert_hydrated_variant_without_product(
                   vendor: None,
                   product_type: None,
                   tags: [],
+                  price_range_min: json_money_amount_field_at(node, [
+                    "product",
+                    "priceRangeV2",
+                    "minVariantPrice",
+                  ]),
+                  price_range_max: json_money_amount_field_at(node, [
+                    "product",
+                    "priceRangeV2",
+                    "maxVariantPrice",
+                  ]),
+                  total_variants: json_int_field_at(node, [
+                    "product",
+                    "totalVariants",
+                  ]),
+                  has_only_default_variant: json_bool_field_at(node, [
+                    "product",
+                    "hasOnlyDefaultVariant",
+                  ]),
+                  has_out_of_stock_variants: json_bool_field_at(node, [
+                    "product",
+                    "hasOutOfStockVariants",
+                  ]),
                   total_inventory: json_int_field_at(node, [
                     "product",
                     "totalInventory",
@@ -6099,6 +6167,38 @@ fn upsert_hydrated_inventory_level(
           vendor: None,
           product_type: None,
           tags: [],
+          price_range_min: json_money_amount_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "priceRangeV2",
+            "minVariantPrice",
+          ]),
+          price_range_max: json_money_amount_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "priceRangeV2",
+            "maxVariantPrice",
+          ]),
+          total_variants: json_int_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "totalVariants",
+          ]),
+          has_only_default_variant: json_bool_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "hasOnlyDefaultVariant",
+          ]),
+          has_out_of_stock_variants: json_bool_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "hasOutOfStockVariants",
+          ]),
           total_inventory: json_int_field_at(node, [
             "item",
             "variant",
@@ -6198,6 +6298,33 @@ fn upsert_hydrated_inventory_item_without_variant(
           vendor: None,
           product_type: None,
           tags: [],
+          price_range_min: json_money_amount_field_at(node, [
+            "variant",
+            "product",
+            "priceRangeV2",
+            "minVariantPrice",
+          ]),
+          price_range_max: json_money_amount_field_at(node, [
+            "variant",
+            "product",
+            "priceRangeV2",
+            "maxVariantPrice",
+          ]),
+          total_variants: json_int_field_at(node, [
+            "variant",
+            "product",
+            "totalVariants",
+          ]),
+          has_only_default_variant: json_bool_field_at(node, [
+            "variant",
+            "product",
+            "hasOnlyDefaultVariant",
+          ]),
+          has_out_of_stock_variants: json_bool_field_at(node, [
+            "variant",
+            "product",
+            "hasOutOfStockVariants",
+          ]),
           total_inventory: json_int_field_at(node, [
             "variant",
             "product",
@@ -6267,6 +6394,20 @@ fn product_record_from_json(node: commit.JsonValue) -> Option(ProductRecord) {
         vendor: json_string_field(node, "vendor"),
         product_type: json_string_field(node, "productType"),
         tags: json_string_array_field(node, ["tags"]),
+        price_range_min: json_money_amount_field_at(node, [
+          "priceRangeV2",
+          "minVariantPrice",
+        ]),
+        price_range_max: json_money_amount_field_at(node, [
+          "priceRangeV2",
+          "maxVariantPrice",
+        ]),
+        total_variants: json_int_field(node, "totalVariants"),
+        has_only_default_variant: json_bool_field(node, "hasOnlyDefaultVariant"),
+        has_out_of_stock_variants: json_bool_field(
+          node,
+          "hasOutOfStockVariants",
+        ),
         total_inventory: json_int_field(node, "totalInventory"),
         tracks_inventory: json_bool_field(node, "tracksInventory"),
         created_at: json_string_field(node, "createdAt"),
@@ -6755,6 +6896,14 @@ fn json_string_field_at(
     Some(commit.JsonString(value)) -> Some(value)
     _ -> None
   }
+}
+
+fn json_money_amount_field_at(
+  value: commit.JsonValue,
+  path: List(String),
+) -> Option(String) {
+  json_string_field_at(value, list.append(path, ["amount"]))
+  |> option.map(format_price_amount)
 }
 
 fn json_string_or_number_field(
@@ -9088,7 +9237,7 @@ fn handle_product_create(
             [] -> {
               let #(product, identity_after_product) =
                 created_product_record(store, identity, input)
-              let #(options, default_variant, final_identity, graph_ids) =
+              let #(options, default_variant, identity_after_graph, graph_ids) =
                 make_product_create_option_graph(
                   identity_after_product,
                   product,
@@ -9101,14 +9250,13 @@ fn handle_product_create(
                 |> store.replace_staged_variants_for_product(product.id, [
                   default_variant,
                 ])
-              let synced_product =
-                ProductRecord(
-                  ..product,
-                  total_inventory: Some(0),
-                  tracks_inventory: Some(False),
+              let #(synced_product, next_store, final_identity) =
+                sync_product_inventory_summary(
+                  next_store,
+                  identity_after_graph,
+                  product.id,
                 )
-              let #(_, next_store) =
-                store.upsert_staged_product(next_store, synced_product)
+              let synced_product = synced_product |> option.unwrap(product)
               mutation_result(
                 key,
                 product_create_payload(
@@ -10315,7 +10463,7 @@ fn sync_product_set_inventory_summary(
   store: Store,
   identity: SyntheticIdentityRegistry,
   product_id: String,
-  previous_product: Option(ProductRecord),
+  _previous_product: Option(ProductRecord),
 ) -> #(Option(ProductRecord), Store, SyntheticIdentityRegistry) {
   case store.get_effective_product_by_id(store, product_id) {
     None -> #(None, store, identity)
@@ -10324,44 +10472,22 @@ fn sync_product_set_inventory_summary(
         synthetic_identity.make_synthetic_timestamp(identity)
       let variants =
         store.get_effective_variants_by_product_id(store, product_id)
-      let total_inventory = case previous_product {
-        Some(previous) -> previous.total_inventory
-        None -> sum_product_set_create_inventory(variants)
-      }
+      let summary = product_derived_summary(variants)
       let next_product =
         ProductRecord(
           ..product,
-          total_inventory: total_inventory,
-          tracks_inventory: derive_tracks_inventory(variants),
+          price_range_min: summary.price_range_min,
+          price_range_max: summary.price_range_max,
+          total_variants: summary.total_variants,
+          has_only_default_variant: summary.has_only_default_variant,
+          has_out_of_stock_variants: summary.has_out_of_stock_variants,
+          total_inventory: summary.total_inventory,
+          tracks_inventory: summary.tracks_inventory,
           updated_at: Some(updated_at),
         )
       let #(_, next_store) = store.upsert_staged_product(store, next_product)
       #(Some(next_product), next_store, next_identity)
     }
-  }
-}
-
-fn sum_product_set_create_inventory(
-  variants: List(ProductVariantRecord),
-) -> Option(Int) {
-  let quantities =
-    variants
-    |> list.filter(fn(variant) {
-      case variant.inventory_item {
-        Some(item) -> item.tracked != Some(False)
-        None -> True
-      }
-    })
-    |> list.filter_map(fn(variant) {
-      case variant.inventory_quantity {
-        Some(quantity) -> Ok(quantity)
-        None -> Error(Nil)
-      }
-    })
-  case quantities {
-    [] -> None
-    _ ->
-      Some(list.fold(quantities, 0, fn(total, quantity) { total + quantity }))
   }
 }
 
@@ -22736,6 +22862,11 @@ fn created_product_record(
       tags: read_string_list_field(input, "tags")
         |> option.map(normalize_product_tags)
         |> option.unwrap([]),
+      price_range_min: None,
+      price_range_max: None,
+      total_variants: None,
+      has_only_default_variant: None,
+      has_out_of_stock_variants: None,
       total_inventory: Some(0),
       tracks_inventory: Some(False),
       created_at: Some(created_at),
@@ -23990,7 +24121,7 @@ fn make_default_variant_for_options(
       title: variant_title(selected_options),
       sku: None,
       barcode: None,
-      price: None,
+      price: Some("0.00"),
       compare_at_price: None,
       taxable: None,
       inventory_policy: None,
@@ -24065,7 +24196,7 @@ fn make_default_variant_record(
       title: "Default Title",
       sku: None,
       barcode: None,
-      price: None,
+      price: Some("0.00"),
       compare_at_price: None,
       taxable: None,
       inventory_policy: None,
@@ -25430,11 +25561,32 @@ fn clone_default_inventory_item(
   item: Option(InventoryItemRecord),
 ) -> #(Option(InventoryItemRecord), SyntheticIdentityRegistry) {
   case item {
-    None -> #(None, identity)
+    None -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "InventoryItem")
+      #(
+        Some(
+          InventoryItemRecord(
+            id: id,
+            tracked: Some(False),
+            requires_shipping: Some(True),
+            measurement: None,
+            country_code_of_origin: None,
+            province_code_of_origin: None,
+            harmonized_system_code: None,
+            inventory_levels: [],
+          ),
+        ),
+        next_identity,
+      )
+    }
     Some(item) -> {
       let #(id, next_identity) =
         synthetic_identity.make_synthetic_gid(identity, "InventoryItem")
-      #(Some(InventoryItemRecord(..item, id: id)), next_identity)
+      #(
+        Some(InventoryItemRecord(..item, id: id, tracked: Some(True))),
+        next_identity,
+      )
     }
   }
 }
@@ -25489,11 +25641,17 @@ fn apply_inventory_adjust_quantities(
           reference_document_uri,
           list.append(adjusted_changes, mirrored_changes),
         )
+      let #(synced_store, synced_identity, product_ids) =
+        sync_product_summaries_for_inventory_group(
+          next_store,
+          next_identity,
+          group,
+        )
       Ok(#(
-        next_store,
-        next_identity,
+        synced_store,
+        synced_identity,
         group,
-        inventory_adjustment_staged_ids(group),
+        list.append(inventory_adjustment_staged_ids(group), product_ids),
       ))
     }
   }
@@ -25578,11 +25736,17 @@ fn apply_inventory_set_quantities(
               reference_document_uri,
               list.append(changes, mirrored_changes),
             )
+          let #(synced_store, synced_identity, product_ids) =
+            sync_product_summaries_for_inventory_group(
+              next_store,
+              next_identity,
+              group,
+            )
           Ok(#(
-            next_store,
-            next_identity,
+            synced_store,
+            synced_identity,
             group,
-            inventory_adjustment_staged_ids(group),
+            list.append(inventory_adjustment_staged_ids(group), product_ids),
           ))
         }
       }
@@ -26069,11 +26233,17 @@ fn apply_inventory_move_quantities(
           reference_document_uri,
           adjustment_changes,
         )
+      let #(synced_store, synced_identity, product_ids) =
+        sync_product_summaries_for_inventory_group(
+          next_store,
+          next_identity,
+          group,
+        )
       Ok(#(
-        next_store,
-        next_identity,
+        synced_store,
+        synced_identity,
         group,
-        inventory_adjustment_staged_ids(group),
+        list.append(inventory_adjustment_staged_ids(group), product_ids),
       ))
     }
   }
@@ -26331,6 +26501,36 @@ fn inventory_adjustment_staged_ids(
       list.map(group.changes, fn(change) { change.inventory_item_id }),
     )
   ]
+}
+
+fn sync_product_summaries_for_inventory_group(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  group: InventoryAdjustmentGroup,
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let product_ids =
+    group.changes
+    |> list.filter_map(fn(change) {
+      store.find_effective_variant_by_inventory_item_id(
+        store,
+        change.inventory_item_id,
+      )
+      |> option.to_result(Nil)
+      |> result.map(fn(variant) { variant.product_id })
+    })
+    |> dedupe_preserving_order
+  let #(next_store, next_identity) =
+    list.fold(product_ids, #(store, identity), fn(acc, product_id) {
+      let #(current_store, current_identity) = acc
+      let #(_, synced_store, synced_identity) =
+        sync_product_inventory_summary(
+          current_store,
+          current_identity,
+          product_id,
+        )
+      #(synced_store, synced_identity)
+    })
+  #(next_store, next_identity, product_ids)
 }
 
 fn inventory_activate_staged_ids(
@@ -26761,11 +26961,17 @@ fn sync_product_inventory_summary(
         synthetic_identity.make_synthetic_timestamp(identity)
       let variants =
         store.get_effective_variants_by_product_id(store, product_id)
+      let summary = product_derived_summary(variants)
       let next_product =
         ProductRecord(
           ..product,
-          total_inventory: sum_variant_inventory(variants),
-          tracks_inventory: derive_tracks_inventory(variants),
+          price_range_min: summary.price_range_min,
+          price_range_max: summary.price_range_max,
+          total_variants: summary.total_variants,
+          has_only_default_variant: summary.has_only_default_variant,
+          has_out_of_stock_variants: summary.has_out_of_stock_variants,
+          total_inventory: summary.total_inventory,
+          tracks_inventory: summary.tracks_inventory,
           updated_at: Some(updated_at),
         )
       let #(_, next_store) = store.upsert_staged_product(store, next_product)
@@ -26774,44 +26980,155 @@ fn sync_product_inventory_summary(
   }
 }
 
-fn sum_variant_inventory(variants: List(ProductVariantRecord)) -> Option(Int) {
-  let quantities =
-    list.filter_map(variants, fn(variant) {
-      case variant.inventory_quantity {
-        Some(quantity) -> Ok(quantity)
-        None -> Error(Nil)
+type ProductDerivedSummary {
+  ProductDerivedSummary(
+    price_range_min: Option(String),
+    price_range_max: Option(String),
+    total_variants: Option(Int),
+    has_only_default_variant: Option(Bool),
+    has_out_of_stock_variants: Option(Bool),
+    total_inventory: Option(Int),
+    tracks_inventory: Option(Bool),
+  )
+}
+
+fn product_derived_summary(
+  variants: List(ProductVariantRecord),
+) -> ProductDerivedSummary {
+  let tracked_variants = list.filter(variants, variant_tracks_inventory)
+  ProductDerivedSummary(
+    price_range_min: min_variant_price_amount(variants),
+    price_range_max: max_variant_price_amount(variants),
+    total_variants: Some(list.length(variants)),
+    has_only_default_variant: Some(has_only_default_variant(variants)),
+    has_out_of_stock_variants: Some(
+      list.any(tracked_variants, fn(variant) {
+        variant_available_quantity(variant) <= 0
+      }),
+    ),
+    total_inventory: Some(
+      list.fold(tracked_variants, 0, fn(total, variant) {
+        total + variant_available_quantity(variant)
+      }),
+    ),
+    tracks_inventory: Some(!list.is_empty(tracked_variants)),
+  )
+}
+
+fn min_variant_price_amount(
+  variants: List(ProductVariantRecord),
+) -> Option(String) {
+  variant_prices(variants)
+  |> list.sort(compare_variant_price)
+  |> list.first
+  |> result.map(fn(price) { price.1 })
+  |> option.from_result
+}
+
+fn max_variant_price_amount(
+  variants: List(ProductVariantRecord),
+) -> Option(String) {
+  variant_prices(variants)
+  |> list.sort(compare_variant_price)
+  |> list.last
+  |> result.map(fn(price) { price.1 })
+  |> option.from_result
+}
+
+fn variant_prices(
+  variants: List(ProductVariantRecord),
+) -> List(#(Float, String)) {
+  variants
+  |> list.filter_map(fn(variant) {
+    case variant.price {
+      Some(price) ->
+        case parse_price_amount(price) {
+          Ok(value) -> Ok(#(value, format_price_amount(price)))
+          Error(_) -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn parse_price_amount(amount: String) -> Result(Float, Nil) {
+  case float.parse(amount) {
+    Ok(value) -> Ok(value)
+    Error(_) ->
+      case int.parse(amount) {
+        Ok(value) -> Ok(int.to_float(value))
+        Error(_) -> Error(Nil)
       }
-    })
-  case quantities {
-    [] -> None
-    _ ->
-      Some(list.fold(quantities, 0, fn(total, quantity) { total + quantity }))
   }
 }
 
-fn derive_tracks_inventory(
-  variants: List(ProductVariantRecord),
-) -> Option(Bool) {
-  let tracked_values =
-    list.filter_map(variants, fn(variant) {
-      case variant.inventory_item {
-        Some(item) ->
-          case item.tracked {
-            Some(tracked) -> Ok(tracked)
-            None -> Error(Nil)
-          }
-        None -> Error(Nil)
+fn compare_variant_price(left: #(Float, String), right: #(Float, String)) {
+  case left.0 <. right.0 {
+    True -> order.Lt
+    False ->
+      case left.0 >. right.0 {
+        True -> order.Gt
+        False -> order.Eq
       }
-    })
-  case tracked_values {
-    [] ->
-      case
-        list.any(variants, fn(variant) { variant.inventory_quantity != None })
-      {
-        True -> Some(True)
-        False -> None
+  }
+}
+
+fn has_only_default_variant(variants: List(ProductVariantRecord)) -> Bool {
+  case variants {
+    [variant] ->
+      variant.selected_options
+      == [
+        ProductVariantSelectedOptionRecord(
+          name: "Title",
+          value: "Default Title",
+        ),
+      ]
+    _ -> False
+  }
+}
+
+fn variant_tracks_inventory(variant: ProductVariantRecord) -> Bool {
+  case variant.inventory_item {
+    Some(item) ->
+      case item.tracked {
+        Some(True) -> True
+        Some(False) -> False
+        None -> variant.inventory_quantity != None
       }
-    _ -> Some(list.any(tracked_values, fn(tracked) { tracked }))
+    None -> False
+  }
+}
+
+fn variant_available_quantity(variant: ProductVariantRecord) -> Int {
+  case variant.inventory_item {
+    Some(item) ->
+      case item.inventory_levels {
+        [] -> option.unwrap(variant.inventory_quantity, 0)
+        levels ->
+          levels
+          |> active_inventory_levels
+          |> list.fold(0, fn(total, level) {
+            total + inventory_quantity_amount(level.quantities, "available")
+          })
+      }
+    None -> option.unwrap(variant.inventory_quantity, 0)
+  }
+}
+
+fn format_price_amount(amount: String) -> String {
+  let trimmed = string.trim(amount)
+  case string.split(trimmed, on: ".") {
+    [whole] -> whole <> ".00"
+    [whole, cents, ..] -> whole <> "." <> two_digit_cents(cents)
+    _ -> trimmed
+  }
+}
+
+fn two_digit_cents(cents: String) -> String {
+  case string.length(cents) {
+    0 -> "00"
+    1 -> cents <> "0"
+    _ -> string.slice(cents, 0, 2)
   }
 }
 
