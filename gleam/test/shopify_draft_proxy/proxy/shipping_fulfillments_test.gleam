@@ -1683,13 +1683,14 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
       }
     }
   "
-  let assert Ok(closed_cancel) =
+  let closed_cancel =
     shipping_fulfillments.process_mutation(
       base_store,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(closed_order_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(closed_cancel.data)
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order is not in cancelable request state and can't be canceled.\",\"code\":\"fulfillment_order_cannot_be_cancelled\"}]}}}"
@@ -1709,21 +1710,23 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
       }
     }
   "
-  let assert Ok(progress_report) =
+  let progress_report =
     shipping_fulfillments.process_mutation(
       base_store,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       report_mutation,
       dict.from_list([#("id", root_field.StringVal(progress_order_id))]),
+      empty_upstream_context(),
     )
-  let assert Ok(progress_cancel) =
+  let progress_cancel =
     shipping_fulfillments.process_mutation(
       progress_report.store,
       progress_report.identity,
       "/admin/api/2026-04/graphql.json",
       cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(progress_order_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(progress_cancel.data)
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"

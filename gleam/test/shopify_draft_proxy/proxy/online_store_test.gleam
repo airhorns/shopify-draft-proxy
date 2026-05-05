@@ -157,3 +157,69 @@ pub fn article_create_with_blog_id_and_author_name_still_stages_test() {
   assert article_log.staged_resource_ids
     == ["gid://shopify/Article/3?shopify-draft-proxy=synthetic"]
 }
+
+pub fn theme_publish_demotes_previous_main_and_filters_main_reads_test() {
+  let proxy = draft_proxy.new()
+  let first_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let second_id =
+    "gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic"
+  let first_create =
+    "mutation { themeCreate(source: \"https://example.com/current.zip\", name: \"Current main\", role: MAIN) { theme { id role name } userErrors { field message } } }"
+  let second_create =
+    "mutation { themeCreate(source: \"https://example.com/next.zip\", name: \"Next main\", role: UNPUBLISHED) { theme { id role name } userErrors { field message } } }"
+  let #(Response(status: first_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(first_create))
+  assert first_status == 200
+  let #(Response(status: second_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(second_create))
+  assert second_status == 200
+
+  let publish =
+    "mutation { themePublish(id: \""
+    <> second_id
+    <> "\") { theme { id role } userErrors { field message } } }"
+  let #(Response(status: publish_status, body: publish_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(publish))
+  assert publish_status == 200
+  assert json.to_string(publish_body)
+    == "{\"data\":{\"themePublish\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic\",\"role\":\"MAIN\"},\"userErrors\":[]}}}"
+
+  let read =
+    "query { previous: theme(id: \""
+    <> first_id
+    <> "\") { id role name } mains: themes(first: 10, roles: [MAIN]) { nodes { id role name } } }"
+  let #(Response(status: read_status, body: read_body, ..), _proxy) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"previous\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Current main\"},\"mains\":{\"nodes\":[{\"id\":\"gid://shopify/OnlineStoreTheme/3?shopify-draft-proxy=synthetic\",\"role\":\"MAIN\",\"name\":\"Next main\"}]}}}"
+}
+
+pub fn theme_publish_rejects_demo_locked_or_archived_theme_test() {
+  let proxy = draft_proxy.new()
+  let theme_id =
+    "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/demo.zip\", name: \"Demo theme\", role: DEMO) { theme { id role } userErrors { field message } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+  let publish =
+    "mutation { themePublish(id: \""
+    <> theme_id
+    <> "\") { theme { id role } userErrors { field message } } }"
+  let #(Response(status: publish_status, body: publish_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(publish))
+  assert publish_status == 200
+  assert json.to_string(publish_body)
+    == "{\"data\":{\"themePublish\":{\"theme\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Theme cannot be published from role DEMO\"}]}}}"
+
+  let read =
+    "query { theme(id: \""
+    <> theme_id
+    <> "\") { id role } themes(first: 5, roles: [MAIN]) { nodes { id role } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"DEMO\"},\"themes\":{\"nodes\":[]}}}"
+}
