@@ -1,0 +1,267 @@
+{
+  "capturedAt": "2026-05-05T21:50:51.919Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "variables": {
+      "input": {
+        "email": "har-768-setup-1778017850766@example.com",
+        "addresses": [
+          {
+            "address1": "1 Existing Spear St"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582933471538",
+              "email": "har-768-setup-1778017850766@example.com",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12056297439538?model_name=CustomerAddress",
+                "address1": "1 Existing Spear St"
+              },
+              "metafields": {
+                "nodes": []
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "both": {
+    "variables": {
+      "input": {
+        "email": "har-768-both-1778017850766@example.com",
+        "addresses": [
+          {
+            "id": "gid://shopify/MailingAddress/12056297439538?model_name=CustomerAddress",
+            "address1": "1 Spear St"
+          }
+        ],
+        "metafields": [
+          {
+            "id": "gid://shopify/Metafield/999",
+            "namespace": "har768",
+            "key": "nested",
+            "value": "v",
+            "type": "single_line_text_field"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "customerCreate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["addresses", "0", "id"],
+                "message": "Cannot specify address ID on creation"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "address": {
+    "variables": {
+      "input": {
+        "email": "har-768-address-1778017850766@example.com",
+        "addresses": [
+          {
+            "id": "gid://shopify/MailingAddress/12056297439538?model_name=CustomerAddress",
+            "address1": "1 Spear St"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "customerCreate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["addresses", "0", "id"],
+                "message": "Cannot specify address ID on creation"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "metafield": {
+    "variables": {
+      "input": {
+        "email": "har-768-metafield-1778017850766@example.com",
+        "metafields": [
+          {
+            "id": "gid://shopify/Metafield/999",
+            "namespace": "har768",
+            "key": "nested",
+            "value": "v",
+            "type": "single_line_text_field"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "customerCreate": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["metafields", "0", "id"],
+                "message": "Cannot specify metafield ID on creation"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "invalidRead": {
+    "variables": {
+      "query": "email:har-768-both-1778017850766@example.com OR email:har-768-address-1778017850766@example.com OR email:har-768-metafield-1778017850766@example.com"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "customers": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "happy": {
+    "variables": {
+      "input": {
+        "email": "har-768-happy-1778017850766@example.com",
+        "addresses": [
+          {
+            "address1": "1 Spear St"
+          }
+        ],
+        "metafields": [
+          {
+            "namespace": "har768",
+            "key": "nested",
+            "value": "v",
+            "type": "single_line_text_field"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582933537074",
+              "email": "har-768-happy-1778017850766@example.com",
+              "defaultAddress": {
+                "id": "gid://shopify/MailingAddress/12056297537842?model_name=CustomerAddress",
+                "address1": "1 Spear St"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/43106126725426",
+                    "namespace": "har768",
+                    "key": "nested",
+                    "value": "v",
+                    "type": "single_line_text_field"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "setup": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582933471538",
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "happy": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582933537074",
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "CustomerCreateNestedIdsRead",
+      "variables": {
+        "query": "email:har-768-both-1778017850766@example.com OR email:har-768-address-1778017850766@example.com OR email:har-768-metafield-1778017850766@example.com"
+      },
+      "query": "query CustomerCreateNestedIdsRead($query: String!) {\n  customers(first: 5, query: $query) {\n    nodes {\n      id\n      email\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customers": {
+              "nodes": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1995,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -491,6 +491,26 @@ pub fn graphql_validation_update_rejects_unknown_function_handle_input_test() {
     == "{\"errors\":[{\"message\":\"Field 'functionHandle' is not defined on ValidationUpdateInput\",\"locations\":[{\"line\":1,\"column\":100}],\"path\":[\"mutation ValidationUpdateRebind\",\"validationUpdate\",\"validation\",\"functionHandle\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"functionHandle\"}}]}"
 }
 
+pub fn graphql_validation_update_rejects_enabled_alias_input_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation ValidationUpdateEnabledAlias { validationUpdate(id: \\\"gid://shopify/Validation/1\\\", validation: { enabled: true }) { validation { id enable } userErrors { field message code } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  let body_json = json.to_string(body)
+  assert status == 200
+  assert string.contains(
+    body_json,
+    "\"message\":\"Field 'enabled' is not defined on ValidationUpdateInput\"",
+  )
+  assert string.contains(
+    body_json,
+    "\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"enabled\"}",
+  )
+}
+
 pub fn graphql_saved_search_create_missing_required_input_fields_test() {
   let proxy = draft_proxy.new()
   let request =

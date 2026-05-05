@@ -343,6 +343,91 @@ pub fn b2b_company_update_validates_external_id_and_duplicate_test() {
   )
 }
 
+pub fn b2b_company_update_rejects_customer_since_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Original\", customerSince: \"2024-01-01T00:00:00Z\" } }) { company { id name customerSince } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: only_status, body: only_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyUpdate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { customerSince: \"2020-01-01T00:00:00Z\" }) { company { id name customerSince } userErrors { field message code } } }",
+    )
+  assert only_status == 200
+  let only_json = json.to_string(only_body)
+  assert string.contains(only_json, "\"company\":null")
+  assert string.contains(only_json, "\"field\":[\"input\",\"customerSince\"]")
+  assert string.contains(
+    only_json,
+    "\"message\":\"This field may only be set on creation.\"",
+  )
+  assert string.contains(only_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { name customerSince } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"name\":\"Original\"")
+  assert string.contains(
+    read_json,
+    "\"customerSince\":\"2024-01-01T00:00:00Z\"",
+  )
+  assert !string.contains(read_json, "2020-01-01T00:00:00Z")
+
+  let #(Response(status: second_create_status, ..), second_proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Mixed Original\", customerSince: \"2024-02-01T00:00:00Z\" } }) { company { id } userErrors { code } } }",
+    )
+  assert second_create_status == 200
+  let #(Response(status: mixed_status, body: mixed_body, ..), second_proxy) =
+    graphql(
+      second_proxy,
+      "mutation { companyUpdate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Mixed Changed\", customerSince: \"2020-02-01T00:00:00Z\" }) { company { id name customerSince } userErrors { field message code } } }",
+    )
+  assert mixed_status == 200
+  let mixed_json = json.to_string(mixed_body)
+  assert string.contains(mixed_json, "\"company\":null")
+  assert string.contains(mixed_json, "\"field\":[\"input\",\"customerSince\"]")
+  assert string.contains(mixed_json, "\"code\":\"INVALID_INPUT\"")
+  let #(Response(status: mixed_read_status, body: mixed_read_body, ..), _) =
+    graphql(
+      second_proxy,
+      "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { name customerSince } }",
+    )
+  assert mixed_read_status == 200
+  let mixed_read_json = json.to_string(mixed_read_body)
+  assert string.contains(mixed_read_json, "\"name\":\"Mixed Original\"")
+  assert string.contains(
+    mixed_read_json,
+    "\"customerSince\":\"2024-02-01T00:00:00Z\"",
+  )
+  assert !string.contains(mixed_read_json, "Mixed Changed")
+
+  let #(Response(status: null_create_status, ..), null_proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Null Original\", customerSince: \"2024-03-01T00:00:00Z\" } }) { company { id } userErrors { code } } }",
+    )
+  assert null_create_status == 200
+  let #(Response(status: null_status, body: null_body, ..), _) =
+    graphql(
+      null_proxy,
+      "mutation { companyUpdate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { customerSince: null }) { company { id name customerSince } userErrors { field message code } } }",
+    )
+  assert null_status == 200
+  let null_json = json.to_string(null_body)
+  assert string.contains(null_json, "\"company\":null")
+  assert string.contains(null_json, "\"field\":[\"input\",\"customerSince\"]")
+  assert string.contains(null_json, "\"code\":\"INVALID_INPUT\"")
+}
+
 pub fn b2b_company_update_rejects_note_html_and_too_long_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(

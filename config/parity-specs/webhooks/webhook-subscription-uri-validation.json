@@ -1,0 +1,57 @@
+{
+  "scenarioId": "webhook-subscription-uri-validation",
+  "operationNames": ["webhookSubscriptionCreate", "webhookSubscriptionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-uri-validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/webhooks_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhook-subscription-uri-validation.graphql",
+    "variablesCapturePath": "$.primary.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for Shopify webhook subscription URI validation. The primary request captures rejected HTTP, localhost, and myshopify create branches plus a valid baseline create. The update target then uses the proxy-created baseline ID to prove an HTTP URI update is rejected without staging the URI change.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-http-uri-rejected",
+        "capturePath": "$.primary.response.payload.data.createHttpUriRejected",
+        "proxyPath": "$.data.createHttpUriRejected",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "create-internal-domain-rejected",
+        "capturePath": "$.primary.response.payload.data.createInternalDomainRejected",
+        "proxyPath": "$.data.createInternalDomainRejected",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "create-shopify-domain-rejected",
+        "capturePath": "$.primary.response.payload.data.createShopifyDomainRejected",
+        "proxyPath": "$.data.createShopifyDomainRejected",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "update-http-uri-rejected",
+        "capturePath": "$.updateHttp.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.baselineCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.updateHttp.variables.webhookSubscription"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

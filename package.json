@@ -37,6 +37,7 @@
     "conformance:check": "vitest run tests/unit/conformance-scenario-discovery.test.ts tests/unit/operation-registry.test.ts",
     "conformance:capture:check": "vitest run tests/unit/conformance-capture-index.test.ts tests/unit/conformance-script-config.test.ts tests/unit/no-mjs-files.test.ts",
     "conformance:status": "tsx ./scripts/conformance-status-report.ts",
+    "linear:cache": "tsx ./scripts/build-linear-issue-cache.ts",
     "parity:record": "tsx ./scripts/parity-record.mts",
     "parity:run": "gleam test --target javascript && gleam test --target erlang",
     "conformance:auth-link": "tsx ./scripts/generate-conformance-auth-link.mts",
