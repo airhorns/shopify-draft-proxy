@@ -894,6 +894,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'localization',
+    captureId: 'localization-payload-shapes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-payload-shapes-conformance.mts',
+    purpose:
+      'ShopLocale marketWebPresences payload projection, primary-disable error locale nulling, and mixed translationsRegister partial-success payloads.',
+    requiredAuthScopes: [
+      'read_markets',
+      'read_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-payload-shapes.json`,
+      'config/parity-specs/localization/localization-payload-shapes.json',
+      'config/parity-requests/localization/localization-payload-shapes-*.graphql',
+    ],
+    cleanupBehavior:
+      'Enables French with an existing market web presence, removes the staged product-title translation, and disables or restores French locale settings according to the pre-capture shop state.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'markets',
     captureId: 'markets',
     scriptPath: 'scripts/capture-market-conformance.mts',
