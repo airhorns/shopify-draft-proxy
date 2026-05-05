@@ -1244,6 +1244,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segments-user-errors-shape',
+    scriptPath: 'scripts/capture-segments-user-errors-shape-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate/segmentDelete default UserError shape plus customerSegmentMembersQueryCreate typed userError code and field shape.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segments-user-errors-shape.json`,
+      'config/parity-specs/segments/segments-user-errors-shape.json',
+      'config/parity-requests/segments/segments-user-errors-shape-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment for the segmentUpdate id-only validation branch and deletes it during cleanup; all other captured branches are validation-only.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'customer-segment-members-query-create-validation-and-shape',
     scriptPath: 'scripts/capture-customer-segment-members-query-create-conformance.ts',
     purpose:

@@ -127,7 +127,6 @@ const product_string_character_limit = 255
 
 const product_description_html_limit_bytes = 524_287
 
-
 pub fn is_products_query_root(name: String) -> Bool {
   case name {
     "product"
