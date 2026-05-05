@@ -732,11 +732,109 @@ fn schema_validation_errors(
               query,
               schema,
             )
+            |> list.append(staged_upload_resource_enum_errors(
+              name.value,
+              variables,
+            ))
           _ -> []
         }
       })
     }
   }
+}
+
+const staged_upload_resource_enum_values: List(String) = [
+  "COLLECTION_IMAGE",
+  "FILE",
+  "IMAGE",
+  "MODEL_3D",
+  "PRODUCT_IMAGE",
+  "SHOP_IMAGE",
+  "VIDEO",
+  "BULK_MUTATION_VARIABLES",
+  "RETURN_LABEL",
+  "URL_REDIRECT_IMPORT",
+  "DISPUTE_FILE_UPLOAD",
+]
+
+fn staged_upload_resource_enum_errors(
+  root_name: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(Json) {
+  case root_name, dict.get(variables, "input") {
+    "stagedUploadsCreate", Ok(root_field.ListVal(items)) ->
+      items
+      |> list.index_map(fn(item, index) {
+        case item {
+          root_field.ObjectVal(fields) ->
+            case dict.get(fields, "resource") {
+              Ok(root_field.StringVal(resource)) ->
+                case
+                  list.contains(staged_upload_resource_enum_values, resource)
+                {
+                  True -> []
+                  False -> [
+                    staged_upload_invalid_resource_variable_error(
+                      variables_value: root_field.ListVal(items),
+                      index:,
+                      resource:,
+                    ),
+                  ]
+                }
+              _ -> []
+            }
+          _ -> []
+        }
+      })
+      |> list.flatten
+    _, _ -> []
+  }
+}
+
+fn staged_upload_invalid_resource_variable_error(
+  variables_value variables_value: root_field.ResolvedValue,
+  index index: Int,
+  resource resource: String,
+) -> Json {
+  let explanation =
+    "Expected \""
+    <> resource
+    <> "\" to be one of: "
+    <> string.join(staged_upload_resource_enum_values, ", ")
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Variable $input of type [StagedUploadInput!]! was provided invalid value for "
+        <> int.to_string(index)
+        <> ".resource ("
+        <> explanation
+        <> ")",
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("INVALID_VARIABLE")),
+        #("value", root_field.resolved_value_to_json(variables_value)),
+        #(
+          "problems",
+          json.preprocessed_array([
+            json.object([
+              #(
+                "path",
+                json.preprocessed_array([
+                  json.int(index),
+                  json.string("resource"),
+                ]),
+              ),
+              #("explanation", json.string(explanation)),
+            ]),
+          ]),
+        ),
+      ]),
+    ),
+  ])
 }
 
 fn route_mutation_to_domain(
