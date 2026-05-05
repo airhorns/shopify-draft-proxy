@@ -14,6 +14,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -24,7 +25,12 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, serialize_empty_connection,
   src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, LogDraft, MutationOutcome, respond_to_query,
+}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
+}
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
@@ -47,16 +53,6 @@ const duplication_prefix: String = "shopify-draft-proxy:customer-payment-method-
 
 pub type PaymentsError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 type UserError {
@@ -123,6 +119,22 @@ pub fn process(
 ) -> Result(Json, PaymentsError) {
   use data <- result.try(handle_payments_query(store, document, variables))
   Ok(graphql_helpers.wrap_data(data))
+}
+
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  respond_to_query(
+    proxy,
+    process(proxy.store, document, variables),
+    "Failed to handle payments query",
+  )
 }
 
 pub fn handle_payments_query(
@@ -750,42 +762,25 @@ fn project_customer_payment_method(
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, PaymentsError) {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    upstream_query.empty_upstream_context(),
-  )
-}
-
-pub fn process_mutation_with_upstream(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, PaymentsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let store =
         hydrate_before_payments_mutation(store, fields, variables, upstream)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         fields,
         fragments,
         document,
         variables,
-      ))
+      )
     }
   }
 }

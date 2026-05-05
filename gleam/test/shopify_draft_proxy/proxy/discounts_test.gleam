@@ -5,6 +5,8 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/proxy/discounts
+import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -12,7 +14,7 @@ import shopify_draft_proxy/state/types.{
   CapturedString, DiscountRecord,
 }
 
-fn run_mutation(document: String) -> discounts.MutationOutcome {
+fn run_mutation(document: String) -> mutation_helpers.MutationOutcome {
   run_mutation_from(store.new(), synthetic_identity.new(), document)
 }
 
@@ -20,16 +22,15 @@ fn run_mutation_from(
   store: store.Store,
   identity: synthetic_identity.SyntheticIdentityRegistry,
   document: String,
-) -> discounts.MutationOutcome {
-  let assert Ok(outcome) =
-    discounts.process_mutation(
-      store,
-      identity,
-      "/admin/api/2026-04/graphql.json",
-      document,
-      dict.new(),
-    )
-  outcome
+) -> mutation_helpers.MutationOutcome {
+  discounts.process_mutation(
+    store,
+    identity,
+    "/admin/api/2026-04/graphql.json",
+    document,
+    dict.new(),
+    empty_upstream_context(),
+  )
 }
 
 pub fn code_basic_create_is_readable_by_code_test() {

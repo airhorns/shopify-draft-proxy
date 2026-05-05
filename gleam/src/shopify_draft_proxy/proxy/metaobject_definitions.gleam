@@ -32,15 +32,14 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, read_optional_string, single_root_log_draft,
+  type LogDraft, type MutationOutcome, MutationOutcome, read_optional_string,
+  single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext, empty_upstream_context,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{
   type Store, delete_staged_metaobject, delete_staged_metaobject_definition,
@@ -81,16 +80,6 @@ const execution_name = "stage-locally"
 
 pub type MetaobjectDefinitionsError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 type UserError {
@@ -424,40 +413,23 @@ fn resolved_value_strings(value: root_field.ResolvedValue) -> List(String) {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, MetaobjectDefinitionsError) {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
-
-pub fn process_mutation_with_upstream(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, MetaobjectDefinitionsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         fields,
         fragments,
         variables,
         upstream,
-      ))
+      )
     }
   }
 }

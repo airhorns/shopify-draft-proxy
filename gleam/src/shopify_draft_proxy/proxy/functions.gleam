@@ -30,7 +30,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_field_response_key, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, LogDraft, MutationOutcome,
+}
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
@@ -589,16 +591,6 @@ fn empty_page_info_source() -> SourceValue {
 
 /// Outcome of a functions mutation. Same shape as the apps / webhooks /
 /// saved-search outcome record.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload. Mirrors the TS `FunctionUserError` shape (path,
 /// message, optional code).
 pub type UserError {
@@ -615,51 +607,27 @@ type MutationFieldResult {
 
 /// Process a functions mutation document. Mirrors
 /// `handleFunctionMutation`.
+/// Pattern 2: dispatched LiveHybrid function metadata mutations first
+/// try to hydrate referenced ShopifyFunction owner/app metadata from
+/// upstream, then stage the mutation locally. Snapshot/no-transport
+/// paths fall back to the existing local synthetic Function record.
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, FunctionsError) {
-  case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
-    Ok(fields) -> {
-      let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
-        store,
-        identity,
-        request_path,
-        document,
-        fields,
-        fragments,
-        variables,
-      ))
-    }
-  }
-}
-
-/// Pattern 2: dispatched LiveHybrid function metadata mutations first
-/// try to hydrate referenced ShopifyFunction owner/app metadata from
-/// upstream, then stage the mutation locally. Snapshot/no-transport
-/// paths fall back to the existing local synthetic Function record.
-pub fn process_mutation_with_upstream(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, FunctionsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let identity_for_handlers =
         reserve_multiroot_log_identity(identity, fields)
       let hydrated_store =
         hydrate_referenced_shopify_functions(store, fields, variables, upstream)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         hydrated_store,
         identity_for_handlers,
         request_path,
@@ -667,7 +635,7 @@ pub fn process_mutation_with_upstream(
         fields,
         fragments,
         variables,
-      ))
+      )
     }
   }
 }

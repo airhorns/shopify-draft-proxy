@@ -28,13 +28,14 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
+}
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext, empty_upstream_context,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -78,15 +79,6 @@ const location_hydrate_query: String = "query StorePropertiesLocationHydrate($id
 
 pub type StorePropertiesError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-  )
 }
 
 type ShopPolicyUserError {
@@ -403,153 +395,147 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, StorePropertiesError) {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
-
-pub fn process_mutation_with_upstream(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, StorePropertiesError) {
-  use fields <- result.try(
-    root_field.get_root_fields(document)
-    |> result.map_error(ParseFailed),
-  )
-  let fragments = get_document_fragments(document)
-  let initial = #([], store, identity, [], [])
-  let #(entries, final_store, final_identity, staged_ids, top_errors) =
-    list.fold(fields, initial, fn(acc, field) {
-      let #(
-        data_entries,
-        current_store,
-        current_identity,
-        current_ids,
-        current_errors,
-      ) = acc
-      let key = get_field_response_key(field)
-      case field {
-        Field(name: name, ..) ->
-          case name.value {
-            "shopPolicyUpdate" -> {
-              let result =
-                stage_shop_policy_update(
-                  current_store,
-                  current_identity,
-                  field,
-                  fragments,
-                  variables,
-                  upstream,
-                )
-              let payload =
-                shop_policy_update_payload_source(
-                  result.shop_policy,
-                  result.user_errors,
-                )
-              let projected =
-                project_graphql_value(
-                  payload,
-                  selected_children(field),
-                  fragments,
-                )
-              let #(logged_store, logged_identity) = case result.user_errors {
-                [] ->
-                  record_mutation_log(
-                    result.store,
-                    result.identity,
-                    request_path,
-                    document,
-                    "shopPolicyUpdate",
-                    result.staged_resource_ids,
+) -> MutationOutcome {
+  case root_field.get_root_fields(document) {
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let initial = #([], store, identity, [], [])
+      let #(entries, final_store, final_identity, staged_ids, top_errors) =
+        list.fold(fields, initial, fn(acc, field) {
+          let #(
+            data_entries,
+            current_store,
+            current_identity,
+            current_ids,
+            current_errors,
+          ) = acc
+          let key = get_field_response_key(field)
+          case field {
+            Field(name: name, ..) ->
+              case name.value {
+                "shopPolicyUpdate" -> {
+                  let result =
+                    stage_shop_policy_update(
+                      current_store,
+                      current_identity,
+                      field,
+                      fragments,
+                      variables,
+                      upstream,
+                    )
+                  let payload =
+                    shop_policy_update_payload_source(
+                      result.shop_policy,
+                      result.user_errors,
+                    )
+                  let projected =
+                    project_graphql_value(
+                      payload,
+                      selected_children(field),
+                      fragments,
+                    )
+                  let #(logged_store, logged_identity) = case
+                    result.user_errors
+                  {
+                    [] ->
+                      record_mutation_log(
+                        result.store,
+                        result.identity,
+                        request_path,
+                        document,
+                        "shopPolicyUpdate",
+                        result.staged_resource_ids,
+                      )
+                    _ -> #(result.store, result.identity)
+                  }
+                  #(
+                    list.append(data_entries, [#(key, projected)]),
+                    logged_store,
+                    logged_identity,
+                    list.append(current_ids, result.staged_resource_ids),
+                    current_errors,
                   )
-                _ -> #(result.store, result.identity)
-              }
-              #(
-                list.append(data_entries, [#(key, projected)]),
-                logged_store,
-                logged_identity,
-                list.append(current_ids, result.staged_resource_ids),
-                current_errors,
-              )
-            }
-            "locationAdd"
-            | "locationEdit"
-            | "locationActivate"
-            | "locationDeactivate"
-            | "locationDelete" -> {
-              let result =
-                stage_location_mutation(
-                  current_store,
-                  current_identity,
-                  name.value,
-                  field,
-                  fragments,
-                  variables,
-                  request_path,
-                  document,
-                  upstream,
-                )
-              let #(logged_store, logged_identity) = case result.should_log {
-                True ->
-                  record_mutation_log(
-                    result.store,
-                    result.identity,
-                    request_path,
-                    document,
-                    name.value,
-                    result.staged_resource_ids,
+                }
+                "locationAdd"
+                | "locationEdit"
+                | "locationActivate"
+                | "locationDeactivate"
+                | "locationDelete" -> {
+                  let result =
+                    stage_location_mutation(
+                      current_store,
+                      current_identity,
+                      name.value,
+                      field,
+                      fragments,
+                      variables,
+                      request_path,
+                      document,
+                      upstream,
+                    )
+                  let #(logged_store, logged_identity) = case
+                    result.should_log
+                  {
+                    True ->
+                      record_mutation_log(
+                        result.store,
+                        result.identity,
+                        request_path,
+                        document,
+                        name.value,
+                        result.staged_resource_ids,
+                      )
+                    False -> #(result.store, result.identity)
+                  }
+                  #(
+                    list.append(data_entries, [#(key, result.payload)]),
+                    logged_store,
+                    logged_identity,
+                    list.append(current_ids, result.staged_resource_ids),
+                    list.append(current_errors, result.top_level_errors),
                   )
-                False -> #(result.store, result.identity)
-              }
-              #(
-                list.append(data_entries, [#(key, result.payload)]),
-                logged_store,
-                logged_identity,
-                list.append(current_ids, result.staged_resource_ids),
-                list.append(current_errors, result.top_level_errors),
-              )
-            }
-            "publishablePublish"
-            | "publishablePublishToCurrentChannel"
-            | "publishableUnpublish"
-            | "publishableUnpublishToCurrentChannel" -> {
-              let result =
-                stage_publishable_mutation(
+                }
+                "publishablePublish"
+                | "publishablePublishToCurrentChannel"
+                | "publishableUnpublish"
+                | "publishableUnpublishToCurrentChannel" -> {
+                  let result =
+                    stage_publishable_mutation(
+                      current_store,
+                      current_identity,
+                      name.value,
+                      field,
+                      fragments,
+                      variables,
+                      upstream,
+                    )
+                  let #(logged_store, logged_identity) =
+                    record_mutation_log(
+                      result.store,
+                      result.identity,
+                      request_path,
+                      document,
+                      name.value,
+                      result.staged_resource_ids,
+                    )
+                  #(
+                    list.append(data_entries, [#(key, result.payload)]),
+                    logged_store,
+                    logged_identity,
+                    list.append(current_ids, result.staged_resource_ids),
+                    current_errors,
+                  )
+                }
+                _ -> #(
+                  list.append(data_entries, [#(key, json.null())]),
                   current_store,
                   current_identity,
-                  name.value,
-                  field,
-                  fragments,
-                  variables,
-                  upstream,
+                  current_ids,
+                  current_errors,
                 )
-              let #(logged_store, logged_identity) =
-                record_mutation_log(
-                  result.store,
-                  result.identity,
-                  request_path,
-                  document,
-                  name.value,
-                  result.staged_resource_ids,
-                )
-              #(
-                list.append(data_entries, [#(key, result.payload)]),
-                logged_store,
-                logged_identity,
-                list.append(current_ids, result.staged_resource_ids),
-                current_errors,
-              )
-            }
+              }
             _ -> #(
               list.append(data_entries, [#(key, json.null())]),
               current_store,
@@ -558,30 +544,25 @@ pub fn process_mutation_with_upstream(
               current_errors,
             )
           }
-        _ -> #(
-          list.append(data_entries, [#(key, json.null())]),
-          current_store,
-          current_identity,
-          current_ids,
-          current_errors,
-        )
+        })
+      let data = json.object(entries)
+      let envelope = case top_errors {
+        [] -> json.object([#("data", data)])
+        _ ->
+          json.object([
+            #("errors", json.array(top_errors, fn(error) { error })),
+            #("data", data),
+          ])
       }
-    })
-  let data = json.object(entries)
-  let envelope = case top_errors {
-    [] -> json.object([#("data", data)])
-    _ ->
-      json.object([
-        #("errors", json.array(top_errors, fn(error) { error })),
-        #("data", data),
-      ])
+      MutationOutcome(
+        data: envelope,
+        store: final_store,
+        identity: final_identity,
+        staged_resource_ids: staged_ids,
+        log_drafts: [],
+      )
+    }
   }
-  Ok(MutationOutcome(
-    data: envelope,
-    store: final_store,
-    identity: final_identity,
-    staged_resource_ids: staged_ids,
-  ))
 }
 
 fn selected_children(field: Selection) -> List(Selection) {

@@ -37,7 +37,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type LogDraft, type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -880,16 +880,6 @@ fn page_info_source(
 /// Outcome of an apps mutation. Mirrors the saved-search/webhook-subscription
 /// outcome shape: a JSON envelope (`{"data": ...}` or `{"errors": ...}`),
 /// the updated store and identity registry, and the staged GIDs.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload emitted on a mutation failure. Mirrors the apps
 /// `UserError` shape in TS: an optional `code` and a path that defaults
 /// to an empty list.
@@ -918,12 +908,12 @@ pub fn process_mutation(
   origin: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, AppsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         request_path,
@@ -932,7 +922,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
-      ))
+      )
     }
   }
 }
@@ -1514,7 +1504,7 @@ fn handle_subscription_cancel(
           [
             UserError(
               field: ["id"],
-              message: "Subscription not found",
+              message: subscription_record_not_found_message(),
               code: None,
             ),
           ],
@@ -1534,49 +1524,103 @@ fn handle_subscription_cancel(
       )
     }
     Some(sub) -> {
-      let cancelled = AppSubscriptionRecord(..sub, status: "CANCELLED")
-      let #(_, store_after_sub) = store.stage_app_subscription(store, cancelled)
-      let store_after_install = case
-        store.get_current_app_installation(store_after_sub)
-      {
-        Some(install) -> {
-          let updated =
-            AppInstallationRecord(
-              ..install,
-              active_subscription_ids: list.filter(
-                install.active_subscription_ids,
-                fn(id) { id != cancelled.id },
-              ),
+      case is_cancellable_subscription_status(sub.status) {
+        False -> {
+          let payload =
+            project_subscription_payload(
+              store,
+              None,
+              None,
+              [
+                UserError(
+                  field: ["id"],
+                  message: subscription_invalid_cancel_transition_message(
+                    sub.status,
+                  ),
+                  code: None,
+                ),
+              ],
+              field,
+              fragments,
             )
-          let #(_, store_next) =
-            store.stage_app_installation(store_after_sub, updated)
-          store_next
+          let draft = make_log_draft("appSubscriptionCancel", [], store.Failed)
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+              log_drafts: [draft],
+            ),
+            store,
+            identity,
+          )
         }
-        None -> store_after_sub
+        True -> {
+          let cancelled = AppSubscriptionRecord(..sub, status: "CANCELLED")
+          let #(_, store_after_sub) =
+            store.stage_app_subscription(store, cancelled)
+          let store_after_install = case
+            store.get_current_app_installation(store_after_sub)
+          {
+            Some(install) -> {
+              let updated =
+                AppInstallationRecord(
+                  ..install,
+                  active_subscription_ids: list.filter(
+                    install.active_subscription_ids,
+                    fn(id) { id != cancelled.id },
+                  ),
+                )
+              let #(_, store_next) =
+                store.stage_app_installation(store_after_sub, updated)
+              store_next
+            }
+            None -> store_after_sub
+          }
+          let payload =
+            project_subscription_payload(
+              store_after_install,
+              Some(cancelled),
+              None,
+              [],
+              field,
+              fragments,
+            )
+          let draft =
+            make_log_draft(
+              "appSubscriptionCancel",
+              [cancelled.id],
+              store.Staged,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [cancelled.id],
+              log_drafts: [draft],
+            ),
+            store_after_install,
+            identity,
+          )
+        }
       }
-      let payload =
-        project_subscription_payload(
-          store_after_install,
-          Some(cancelled),
-          None,
-          [],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft("appSubscriptionCancel", [cancelled.id], store.Staged)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [cancelled.id],
-          log_drafts: [draft],
-        ),
-        store_after_install,
-        identity,
-      )
     }
   }
+}
+
+fn is_cancellable_subscription_status(status: String) -> Bool {
+  case status {
+    "PENDING" | "ACCEPTED" | "ACTIVE" -> True
+    _ -> False
+  }
+}
+
+fn subscription_invalid_cancel_transition_message(status: String) -> String {
+  "Cannot transition status via :cancel from :" <> string.lowercase(status)
+}
+
+fn subscription_record_not_found_message() -> String {
+  "Couldn't find RecurringApplicationCharge"
 }
 
 fn handle_line_item_update(

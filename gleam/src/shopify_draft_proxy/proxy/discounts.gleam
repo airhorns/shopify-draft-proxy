@@ -25,16 +25,14 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, type RequiredArgument, RequiredArgument, single_root_log_draft,
-  validate_required_field_arguments,
+  type MutationOutcome, type RequiredArgument, MutationOutcome, RequiredArgument,
+  single_root_log_draft, validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext, empty_upstream_context,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -49,16 +47,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type DiscountsError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 type MutationResult {
@@ -603,42 +591,25 @@ fn child_fields(field: Selection) -> List(Selection) {
   )
 }
 
-pub fn process_mutation(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, DiscountsError) {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
-
 /// Variant of `process_mutation` that threads an `UpstreamContext` into
 /// the per-handler logic. Used by the dispatcher when the proxy has an
 /// `upstream_transport` installed (parity cassette in tests, live HTTP
 /// in production), so that handlers like `discountCodeBasicCreate` can
 /// consult upstream for cross-discount uniqueness checks before staging.
-pub fn process_mutation_with_upstream(
+pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, DiscountsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let operation_path = get_operation_path_label(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         fields,
@@ -647,7 +618,7 @@ pub fn process_mutation_with_upstream(
         document,
         operation_path,
         upstream,
-      ))
+      )
     }
   }
 }
@@ -3928,18 +3899,14 @@ fn find_shopify_function(
   store: Store,
   reference: String,
 ) -> Option(ShopifyFunctionRecord) {
-  case store.get_effective_shopify_function_by_id(store, reference) {
-    Some(record) -> Some(record)
-    None ->
-      case
-        list.find(store.list_effective_shopify_functions(store), fn(record) {
-          record.handle == Some(reference) || record.id == reference
-        })
-      {
-        Ok(record) -> Some(record)
-        Error(_) -> None
-      }
-  }
+  store.get_effective_shopify_function_by_id(store, reference)
+  |> option.lazy_or(fn() {
+    store.list_effective_shopify_functions(store)
+    |> list.find(fn(record) {
+      record.handle == Some(reference) || record.id == reference
+    })
+    |> option.from_result
+  })
 }
 
 fn update_payload_status(
