@@ -1,0 +1,99 @@
+mutation DiscountBxgyDisallowedValueShapes(
+  $codePercentage: DiscountCodeBxgyInput!
+  $codeDiscountAmount: DiscountCodeBxgyInput!
+  $codeSubscription: DiscountCodeBxgyInput!
+  $codeOneTime: DiscountCodeBxgyInput!
+  $automaticPercentage: DiscountAutomaticBxgyInput!
+  $automaticDiscountAmount: DiscountAutomaticBxgyInput!
+  $automaticSubscription: DiscountAutomaticBxgyInput!
+  $automaticOneTime: DiscountAutomaticBxgyInput!
+) {
+  codePercentage: discountCodeBxgyCreate(bxgyCodeDiscount: $codePercentage) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeDiscountAmount: discountCodeBxgyCreate(bxgyCodeDiscount: $codeDiscountAmount) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeSubscription: discountCodeBxgyCreate(bxgyCodeDiscount: $codeSubscription) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  codeOneTime: discountCodeBxgyCreate(bxgyCodeDiscount: $codeOneTime) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticPercentage: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticPercentage) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticDiscountAmount: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticDiscountAmount) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticSubscription: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticSubscription) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  automaticOneTime: discountAutomaticBxgyCreate(automaticBxgyDiscount: $automaticOneTime) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
