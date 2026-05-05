@@ -1,71 +1,49 @@
 # Helper Modules
 
-This document catalogs shared helper surfaces that future work should reuse before adding resource-local utility functions.
+This document catalogs shared Gleam helper surfaces that future runtime work should reuse before adding resource-local utility functions. TypeScript helper modules from the retired runtime have been removed; remaining TypeScript under `scripts/` is conformance, capture, and repository tooling.
 
-## `src/proxy/graphql-helpers.ts`
+## `src/shopify_draft_proxy/proxy/graphql_helpers.gleam`
 
 Shared helpers for GraphQL Admin proxy serializers.
 
-- `getFieldResponseKey(field)` returns the Shopify GraphQL response key for a field, preserving aliases.
-- `resolveGraphQLValueNode(node, variables)`, `readIdempotencyKey(field, variables)`, and `buildMissingIdempotencyKeyError(field)` support Admin GraphQL directive validation for mutation roots that require `@idempotent(key:)` on newer route versions.
-- `getNodeLocation(node)` and `getVariableDefinitionLocation(document, variableName)` return Shopify-like `{ line, column }` GraphQL validation locations for AST nodes and variable definitions.
-- `isPlainObject(value)` narrows unknown values before proxy serializers read or hydrate object-shaped Shopify payloads.
-- `readStringValue(value)`, `readNumberValue(value)`, and `readBooleanValue(value)` are small scalar readers for serializers and upstream hydrators that need null-on-mismatch behavior at object boundaries.
-- `readPlainObjectArray(value)` filters unknown array values down to plain objects before normalizing nested upstream payloads.
-- `getDocumentFragments(document)` parses reusable fragment definitions from a GraphQL document for serializers that project stored snapshot data through the requested selection set.
-- `readGraphqlDataResponsePayload(payload, responseKey)` reads a root `data` payload by response key, returning `null` for malformed or absent upstream payloads so hydrate paths keep Shopify-like no-data behavior.
-- `projectGraphqlValue(value, selections, fragments, options)` and `projectGraphqlObject(source, selections, fragments, options)` project stored objects, arrays, fragment spreads, inline fragments, aliases, `__typename`, and connection `nodes` fallback behavior through a selected GraphQL shape. Use `options.projectFieldValue` only when a resource needs field-specific projection such as nested connection filtering.
-- `defaultGraphqlTypeConditionApplies(source, typeCondition)` applies the default projection rule for fragments: no type condition always applies, and missing `__typename` keeps snapshot projection permissive.
-- `getSelectedChildFields(field, options)` returns selected child `FieldNode`s. By default it preserves the direct-selection behavior used by product/customer serializers. Pass `{ includeInlineFragments: true }` for serializers that intentionally flatten inline fragments, as order serializers do.
-- `readNullableIntArgument(field, name, variables)` and `readNullableStringArgument(field, name, variables)` read literal or variable-backed field arguments with the same null-on-missing/null-on-unsupported behavior used by existing proxy serializers.
-- `buildSyntheticCursor(id)` creates the local `cursor:<id>` cursor form used by snapshot/local connection responses.
-- `paginateConnectionItems(items, field, variables, getCursorValue, options)` applies `first`, `last`, `after`, and `before` cursor-window pagination for in-memory connection lists whose cursors can be derived from each item. Pass `parseCursor` when the resource needs to preserve raw upstream cursors instead of interpreting the local `cursor:<value>` form.
-- `serializeConnection(field, options)` serializes selected `nodes`, `edges`, and `pageInfo` fields for a connection from an already-paginated item window. It supports aliases, unknown selected connection/edge fields as `null`, index-aware cursor values for synthetic ordinal cursors, optional raw cursor output via `pageInfoOptions.prefixCursors: false`, optional `pageInfo` cursor suppression via `pageInfoOptions.includeCursors: false`, inline-fragment child selection handling through `selectedFieldOptions`, and an opt-in `serializeUnknownField` hook for projected upstream connection payloads.
-- `serializeConnectionPageInfo(selection, items, hasNextPage, hasPreviousPage, getCursorValue, options)` serializes a selected `pageInfo` object, including aliases, unknown selected fields as `null`, optional cursor prefixing, optional cursor suppression, and optional fallback cursors for preserved snapshot baselines.
-- `serializeEmptyConnectionPageInfo(selection, options)` serializes an empty no-data `pageInfo` shape with false booleans and null cursors.
+- cursor windowing, `nodes` / `edges` serialization, and selected `pageInfo` fields
+- selected-field lookup, alias-aware response keys, and connection envelope helpers
+- synthetic cursor generation for local and snapshot-backed connection responses
 
-Use this module for GraphQL selection, projection, cursor, pagination, and PageInfo behavior shared across proxy resource files. New connection implementations should compose `paginateConnectionItems(...)` with `serializeConnection(...)` unless the payload must remain unprojected for a later serializer stage. Resource-specific domain decisions, such as how to sort products, derive ordinal cursors, preserve captured customer baseline cursors, apply additional fragment type-condition compatibility, or project Shopify-specific node fields, should stay in the resource module and pass explicit values into these helpers.
+Use this module for pagination and connection envelopes. Resource-specific sorting, filtering, cursor derivation, and node projection should stay in the owning domain module and pass explicit decisions into these helpers.
 
-## `src/proxy/metafields.ts`
+## `src/shopify_draft_proxy/proxy/metafields.gleam`
 
 Shared helpers for owner-scoped metafield serializers and staging input handling.
 
-- `normalizeOwnerMetafield(ownerKey, ownerId, raw)` normalizes a selected upstream metafield object into an owner-scoped record such as product, customer, or order metafields.
-- `readMetafieldInputObjects(raw)` filters mutation input arrays down to object inputs before owner-specific validation or staging.
-- `upsertOwnerMetafields(ownerKey, ownerId, inputs, existingMetafields, options)` applies Shopify-like `(namespace, key)` owner-scoped replacement semantics, with optional id lookup and identity trimming for input styles such as customer metafields.
-- `serializeMetafieldSelection(...)`, `serializeMetafieldSelectionSet(...)`, and `serializeMetafieldsConnection(...)` serialize singular `metafield(...)` and connection-style `metafields(...)` selections, including aliases, stable synthetic cursors, PageInfo, and optional inline-fragment flattening for order serializers.
-- `mergeMetafieldRecords(existing, next)` merges hydrated singular and connection metafields by `(namespace, key)` when upstream payloads provide both shapes.
+- owner-scoped metafield normalization
+- metafield input parsing and `(namespace, key)` replacement semantics
+- singular `metafield(...)` and connection-style `metafields(...)` serialization
 
-Use this module before adding product-, customer-, or order-local metafield serializer/upsert helpers. Owner-specific validation, store placement, and captured Shopify quirks should remain in the resource module that owns them.
+Use this module before adding product-, customer-, order-, or metaobject-local metafield helpers. Owner-specific validation, store placement, and captured Shopify quirks belong in the resource module that owns them.
 
-## `src/proxy/products/metafield-values.ts`
+## `src/shopify_draft_proxy/proxy/metafield_values.gleam`
 
 Shared custom-data value normalization helpers for metafields and metaobject fields.
 
-- `parseMetafieldJsonValue(type, value)` projects Shopify-like `jsonValue` for scalar, JSON-object, measurement, rating, date-time, decimal, reference-list, and other `list.*` custom-data field types.
-- `normalizeMetafieldValue(type, value)` canonicalizes staged custom-data `value` strings where Shopify rewrites input values, including date-time offsets, decimal list stringification, measurement unit/value JSON, and rating key order.
-- `isMeasurementMetafieldType(type)` identifies scalar and list measurement types for serializers that need measurement-specific display behavior.
+- Shopify-like `jsonValue` projection for scalar, JSON, measurement, rating, date-time, decimal, reference-list, and list custom-data field types
+- canonicalization for staged custom-data value strings where Shopify rewrites input values
+- measurement type predicates for serializers that need measurement-specific display behavior
 
-Use this module before adding resource-local custom-data parsers or serializers for metafield/metaobject value payloads. Owner-specific validation and resource setup should stay in the owning endpoint module.
+Use this module before adding resource-local custom-data parsers or serializers.
 
-## `src/search-query-parser.ts`
+## `src/shopify_draft_proxy/search_query_parser.gleam`
 
-Shared helpers for Shopify Admin `query:` parsing, query execution, and common term matching.
+Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversal, term-list guards, and primitive term matching.
 
-- `parseSearchQuery(raw, options)` parses boolean-style Shopify search syntax into `SearchQueryNode` trees with implicit `AND`, `OR`, grouped expressions, leading `-` negation, optional `NOT`, field names, comparators, and quote handling.
-- `applySearchQuery(items, rawQuery, options, matchesPositiveTerm)` is the preferred helper for endpoints that support boolean/grouped search. Resource modules provide only the domain-specific positive term matcher; the shared helper handles raw-query guards, parsing, AST traversal, and term/group negation.
-- `parseSearchQueryTermList(rawQuery, options)` and `applySearchQueryTerms(items, rawQuery, options, matchesPositiveTerm)` cover endpoints whose captured behavior is still a simple term-list/implicit-AND subset. Use options such as `ignoredKeywords`, `preserveQuotesInTerms`, and `dropEmptyValues` to mirror endpoint-specific evidence without duplicating raw-query guards.
-- `searchQueryTermValue(term)` reconstructs comparator-prefixed values such as `>=2026-01-01` for endpoint matchers.
-- `stripSearchQueryValueQuotes(value)`, `normalizeSearchQueryValue(value)`, `matchesSearchQueryString(...)`, `matchesSearchQueryNumber(...)`, and `matchesSearchQueryDate(...)` provide reusable primitive matching behavior for field filters.
+Endpoint modules should provide only the domain-specific positive term matcher and documented Shopify quirks. Do not add new resource-local query parsers or duplicated query-tree traversal helpers.
 
-New or expanded endpoint search support should use this module for parsing, execution, and primitive matching. Keep endpoint-specific Shopify semantics in the resource module's positive term matcher, especially unsupported fields, known no-op warning behavior, and domain-specific search-index lag.
+## `src/shopify_draft_proxy/proxy/upstream_query.gleam`
 
-## `src/shopify/upstream-request.ts`
+Shared chokepoint for runtime reads that need upstream Shopify data.
 
-Shared higher-level helpers for forwarding Admin GraphQL requests to upstream Shopify from Koa routes.
+- in parity tests, reads from the installed cassette transport
+- in live-hybrid runtime, forwards through the configured upstream client
+- keeps unsupported passthrough and explicit commit replay distinct from supported local staging
 
-- `buildForwardedGraphQLHeaders(ctx)` copies forwardable inbound request headers into the Shopify request, omitting hop-by-hop/framing headers such as `host`, `connection`, `transfer-encoding`, and `content-length`, forcing `content-type: application/json` for the serialized GraphQL body, and setting a proxy-specific `user-agent`.
-- `buildShopifyDraftProxyUserAgent(incomingUserAgent)` returns `shopify-draft-proxy` when no incoming user agent exists, or `shopify-draft-proxy (wrapping <incoming>)` when the client supplied one.
-- `requestUpstreamGraphQL(upstream, ctx, input)` sends a GraphQL request through an `UpstreamGraphQLClient` using the forwarded header policy, the current route path by default, and an explicit body. Pass `path` for replay paths such as `__meta/commit`.
-
-Use this module when a runtime route needs to forward a GraphQL operation to Shopify. Local staging branches should still synthesize responses without runtime Shopify writes; this helper is only for read-through, unsupported passthrough, and explicit commit replay paths.
+Supported mutation branches must still synthesize responses from local state without runtime Shopify writes.

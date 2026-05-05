@@ -98,10 +98,6 @@ The local implementation intentionally covers pin/unpin for definitions already 
 
 Validation entry points:
 
-- `tests/integration/metafield-definition-query-shapes.test.ts`
-- `tests/integration/metafield-definition-draft-flow.test.ts`
-- `tests/integration/product-draft-flow.test.ts` for product-owned `metafieldsSet`, `metafieldDelete`, `metafieldsDelete`, CAS, and downstream read behavior
-- `tests/integration/collection-draft-flow.test.ts` for collection-owned `metafieldsSet` / `metafieldsDelete` local staging
 - `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
 - `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`
 - `config/parity-specs/products/metafieldsSet-*.json`

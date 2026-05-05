@@ -1,4 +1,4 @@
-import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
+import { DEFAULT_ADMIN_API_VERSION } from './support/shopify/api-version.js';
 
 /* oxlint-disable no-console -- CLI scripts intentionally write missing-env errors to stderr. */
 
