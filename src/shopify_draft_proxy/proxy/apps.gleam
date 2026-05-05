@@ -44,6 +44,7 @@ import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
+import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
@@ -890,11 +891,21 @@ pub type UserError {
   UserError(field: List(String), message: String, code: Option(String))
 }
 
+type DelegateAccessTokenUserError {
+  DelegateAccessTokenUserError(
+    field: Option(List(String)),
+    message: String,
+    code: Option(String),
+  )
+}
+
 const default_billing_currency = "USD"
 
 const minimum_one_time_purchase_amount = 0.5
 
 const minimum_one_time_purchase_amount_label = "0.50"
+
+const synthetic_shop_id = "gid://shopify/Shop/1?shopify-draft-proxy=synthetic"
 
 type DecimalAmount {
   DecimalAmount(sign: Int, whole: String, fraction: String)
@@ -931,6 +942,7 @@ pub fn process_mutation(
         identity,
         request_path,
         upstream.origin,
+        upstream.headers,
         document,
         fields,
         fragments,
@@ -945,6 +957,7 @@ fn handle_mutation_fields(
   identity: SyntheticIdentityRegistry,
   request_path: String,
   origin: String,
+  headers: Dict(String, String),
   document: String,
   fields: List(Selection),
   fragments: FragmentMap,
@@ -984,6 +997,7 @@ fn handle_mutation_fields(
                 current_identity,
                 request_path,
                 document,
+                headers,
                 field,
                 fragments,
                 variables,
@@ -1470,6 +1484,7 @@ fn handle_delegate_create(
   identity: SyntheticIdentityRegistry,
   _request_path: String,
   _document: String,
+  request_headers: Dict(String, String),
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -1480,26 +1495,200 @@ fn handle_delegate_create(
     Ok(root_field.ObjectVal(d)) -> d
     _ -> dict.new()
   }
-  let delegate_scope =
-    graphql_helpers.read_arg_string(input, "delegateAccessScope")
-  let legacy_scopes = case dict.get(input, "accessScopes") {
-    Ok(root_field.ListVal(items)) ->
-      list.filter_map(items, fn(item) {
-        case item {
-          root_field.StringVal(s) -> Ok(s)
-          _ -> Error(Nil)
-        }
-      })
-    _ -> []
-  }
-  let access_scopes = case delegate_scope {
-    Some(s) -> [s]
-    None -> legacy_scopes
-  }
+  let access_scopes = read_delegate_access_scopes(input)
   let expires_in = case dict.get(input, "expiresIn") {
     Ok(root_field.IntVal(n)) -> Some(n)
     _ -> None
   }
+  case
+    delegate_create_user_errors(
+      store,
+      request_headers,
+      access_scopes,
+      expires_in,
+    )
+  {
+    [_, ..] as errors ->
+      failed_delegate_create_result(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+        errors,
+      )
+    [] ->
+      stage_delegate_create(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+        access_scopes,
+        expires_in,
+      )
+  }
+}
+
+fn read_delegate_access_scopes(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  case dict.get(input, "delegateAccessScope") {
+    Ok(_) ->
+      graphql_helpers.read_arg_string_list(input, "delegateAccessScope")
+      |> option.unwrap([])
+    Error(_) ->
+      graphql_helpers.read_arg_string_list(input, "accessScopes")
+      |> option.unwrap([])
+  }
+}
+
+fn delegate_create_user_errors(
+  store: Store,
+  request_headers: Dict(String, String),
+  access_scopes: List(String),
+  expires_in: Option(Int),
+) -> List(DelegateAccessTokenUserError) {
+  case access_scopes {
+    [] -> [
+      DelegateAccessTokenUserError(
+        field: None,
+        message: "The access scope can't be empty.",
+        code: Some("EMPTY_ACCESS_SCOPE"),
+      ),
+    ]
+    _ ->
+      case active_parent_is_delegate(store, request_headers) {
+        True -> [
+          DelegateAccessTokenUserError(
+            field: None,
+            message: "The parent access token can't be a delegate token.",
+            code: Some("DELEGATE_ACCESS_TOKEN"),
+          ),
+        ]
+        False ->
+          case expires_in {
+            Some(n) ->
+              case n <= 0 {
+                True -> [
+                  DelegateAccessTokenUserError(
+                    field: None,
+                    message: "The expires_in value must be greater than 0.",
+                    code: Some("NEGATIVE_EXPIRES_IN"),
+                  ),
+                ]
+                False -> delegate_unknown_scope_errors(access_scopes)
+              }
+            None -> delegate_unknown_scope_errors(access_scopes)
+          }
+      }
+  }
+}
+
+fn delegate_unknown_scope_errors(
+  access_scopes: List(String),
+) -> List(DelegateAccessTokenUserError) {
+  let unknown =
+    list.filter(access_scopes, fn(scope) {
+      !is_known_shopify_access_scope(scope)
+    })
+  case unknown {
+    [] -> []
+    _ -> [
+      DelegateAccessTokenUserError(
+        field: None,
+        message: "The access scope is invalid: " <> string.join(unknown, ", "),
+        code: Some("UNKNOWN_SCOPES"),
+      ),
+    ]
+  }
+}
+
+fn active_parent_is_delegate(
+  store: Store,
+  request_headers: Dict(String, String),
+) -> Bool {
+  case active_access_token(request_headers) {
+    Some(raw) ->
+      case store.find_delegated_access_token_by_hash(store, token_hash(raw)) {
+        Some(_) -> True
+        None -> False
+      }
+    None -> False
+  }
+}
+
+fn active_access_token(headers: Dict(String, String)) -> Option(String) {
+  active_access_token_from_pairs(dict.to_list(headers))
+}
+
+fn active_access_token_from_pairs(
+  headers: List(#(String, String)),
+) -> Option(String) {
+  case headers {
+    [] -> None
+    [#(key, value), ..rest] -> {
+      case string.lowercase(key) {
+        "x-shopify-access-token" -> Some(string.trim(value))
+        "authorization" -> bearer_token(value, rest)
+        _ -> active_access_token_from_pairs(rest)
+      }
+    }
+  }
+}
+
+fn bearer_token(
+  value: String,
+  rest: List(#(String, String)),
+) -> Option(String) {
+  let trimmed = string.trim(value)
+  case string.starts_with(string.lowercase(trimmed), "bearer ") {
+    True -> Some(string.trim(string.drop_start(trimmed, 7)))
+    False -> active_access_token_from_pairs(rest)
+  }
+}
+
+fn failed_delegate_create_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(DelegateAccessTokenUserError),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload =
+    project_delegate_create_payload(
+      store,
+      None,
+      [],
+      None,
+      None,
+      errors,
+      field,
+      fragments,
+    )
+  let draft = make_log_draft("delegateAccessTokenCreate", [], store.Failed)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [],
+      log_drafts: [draft],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn stage_delegate_create(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  access_scopes: List(String),
+  expires_in: Option(Int),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let #(token_gid, identity_after_id) =
     synthetic_identity.make_synthetic_gid(identity, "DelegateAccessToken")
   let #(timestamp, identity_after_ts) =
@@ -1518,9 +1707,10 @@ fn handle_delegate_create(
   let #(_, store_staged) = store.stage_delegated_access_token(store, record)
   let payload =
     project_delegate_create_payload(
-      raw_token,
+      store_staged,
+      Some(raw_token),
       access_scopes,
-      timestamp,
+      Some(timestamp),
       expires_in,
       [],
       field,
@@ -3296,32 +3486,83 @@ fn project_revoke_payload(
 }
 
 fn project_delegate_create_payload(
-  raw_token: String,
+  store: Store,
+  raw_token: Option(String),
   access_scopes: List(String),
-  created_at: String,
+  created_at: Option(String),
   expires_in: Option(Int),
-  user_errors: List(UserError),
+  user_errors: List(DelegateAccessTokenUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
-  let token_source =
-    src_object([
-      #("__typename", SrcString("DelegateAccessToken")),
-      #("accessToken", SrcString(raw_token)),
-      #(
-        "accessScopes",
-        SrcList(list.map(access_scopes, fn(s) { SrcString(s) })),
-      ),
-      #("createdAt", SrcString(created_at)),
-      #("expiresIn", graphql_helpers.option_int_source(expires_in)),
-    ])
+  let token_source = case raw_token {
+    Some(raw) ->
+      case created_at {
+        Some(timestamp) ->
+          src_object([
+            #("__typename", SrcString("DelegateAccessToken")),
+            #("accessToken", SrcString(raw)),
+            #(
+              "accessScopes",
+              SrcList(list.map(access_scopes, fn(s) { SrcString(s) })),
+            ),
+            #("createdAt", SrcString(timestamp)),
+            #("expiresIn", graphql_helpers.option_int_source(expires_in)),
+          ])
+        None -> SrcNull
+      }
+    None -> SrcNull
+  }
   let payload =
     src_object([
       #("delegateAccessToken", token_source),
-      #("shop", SrcNull),
-      #("userErrors", user_errors_source(user_errors)),
+      #("shop", current_shop_source(store)),
+      #("userErrors", delegate_user_errors_source(user_errors)),
     ])
   project_payload(payload, field, fragments)
+}
+
+fn current_shop_source(store: Store) -> SourceValue {
+  case store.get_effective_shop(store) {
+    Some(shop) -> store_properties.shop_source(shop)
+    None -> synthetic_shop_source()
+  }
+}
+
+fn synthetic_shop_source() -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Shop")),
+    #("id", SrcString(synthetic_shop_id)),
+    #("name", SrcString("Shopify Draft Proxy")),
+    #("myshopifyDomain", SrcString("shopify-draft-proxy.myshopify.com")),
+  ])
+}
+
+fn delegate_user_errors_source(
+  errors: List(DelegateAccessTokenUserError),
+) -> SourceValue {
+  SrcList(list.map(errors, delegate_user_error_to_source))
+}
+
+fn delegate_user_error_to_source(
+  error: DelegateAccessTokenUserError,
+) -> SourceValue {
+  let DelegateAccessTokenUserError(field: field, message: message, code: code) =
+    error
+  let field_source = case field {
+    Some(parts) -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
+    None -> SrcNull
+  }
+  let code_source = case code {
+    Some(c) -> SrcString(c)
+    None -> SrcNull
+  }
+  src_object([
+    #("__typename", SrcString("UserError")),
+    #("field", field_source),
+    #("message", SrcString(message)),
+    #("code", code_source),
+  ])
 }
 
 fn project_delegate_destroy_payload(
