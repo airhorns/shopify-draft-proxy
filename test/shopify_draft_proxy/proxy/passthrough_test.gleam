@@ -12,13 +12,26 @@ import gleam/option.{None}
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/draft_proxy.{type Request}
 import shopify_draft_proxy/proxy/proxy_state.{
-  Config, LiveHybrid, Request, Response,
+  Config, LiveHybrid, PassthroughUnsupportedMutations,
+  RejectUnsupportedMutations, Request, Response,
 }
 import shopify_draft_proxy/shopify/upstream_client
 
 fn live_hybrid_proxy() -> draft_proxy.DraftProxy {
   draft_proxy.with_config(Config(
     read_mode: LiveHybrid,
+    unsupported_mutation_mode: PassthroughUnsupportedMutations,
+    port: 4000,
+    shopify_admin_origin: "https://shop.example",
+    snapshot_path: None,
+  ))
+  |> draft_proxy.with_default_registry()
+}
+
+fn reject_unsupported_proxy() -> draft_proxy.DraftProxy {
+  draft_proxy.with_config(Config(
+    read_mode: LiveHybrid,
+    unsupported_mutation_mode: RejectUnsupportedMutations,
     port: 4000,
     shopify_admin_origin: "https://shop.example",
     snapshot_path: None,
@@ -40,6 +53,15 @@ fn passthrough_request() -> Request {
     path: "/admin/api/2025-01/graphql.json",
     headers: dict.new(),
     body: "{\"query\":\"{ __totallyUnknownRoot { id } }\"}",
+  )
+}
+
+fn unsupported_mutation_request() -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: dict.new(),
+    body: "{\"query\":\"mutation { definitelyUnsupportedMutation { ok } }\"}",
   )
 }
 
@@ -108,6 +130,23 @@ pub fn passthrough_only_fires_in_live_hybrid_mode_erl_test() {
 
   // The local fall-through is a 400 bad request, NOT a 502.
   assert status == 400
+}
+
+pub fn reject_unsupported_mutations_returns_400_before_upstream_test() {
+  let transport =
+    upstream_client.SyncTransport(send: fn(_req) {
+      panic as "reject mode should not call upstream"
+    })
+  let proxy =
+    reject_unsupported_proxy()
+    |> draft_proxy.with_upstream_transport(transport)
+
+  let #(Response(status: status, body: body, ..), _next) =
+    draft_proxy.process_request(proxy, unsupported_mutation_request())
+
+  assert status == 400
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Unsupported mutation rejected by configuration: definitelyUnsupportedMutation\"}]}"
 }
 
 @target(javascript)

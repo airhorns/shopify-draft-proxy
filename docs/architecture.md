@@ -33,6 +33,12 @@ execution paths.
    - proxy through to Shopify unchanged
    - this is an intentional escape hatch and should be visible in observability
 
+Unsupported mutation handling is configurable. The default
+`unsupportedMutationMode` is `passthrough`, which preserves the historical
+live-hybrid escape hatch. When set to `reject`, the dispatcher returns a 400
+GraphQL error envelope for unsupported mutation roots before any upstream
+transport call. Supported mutation roots still stage locally in both modes.
+
 ## High-level request flow
 
 ```text
@@ -43,7 +49,7 @@ App/test harness -> DraftProxy value -> operation classifier
                                    │   └─ GraphQL response serializer
                                    ├─ Mutation path
                                    │   ├─ supported? yes -> local stage + synthesized response
-                                   │   └─ supported? no  -> passthrough to Shopify
+                                   │   └─ supported? no  -> passthrough or 400 reject
                                    └─ Meta API path
                                        ├─ reset/log/state/config/health
                                        └─ commit replay
@@ -70,7 +76,8 @@ The runtime tree lives at `src/shopify_draft_proxy/`.
   `upstream_transport` used to inject a cassette in parity tests
 - routes parsed GraphQL operations through `route_query` / `route_mutation`
   and falls through to `dispatch_passthrough` for unimplemented or
-  force-passthrough roots in `LiveHybrid` mode
+  force-passthrough roots in `LiveHybrid` mode unless reject-unsupported mode
+  is enabled for mutation roots
 
 ### `js/src/app.ts`
 

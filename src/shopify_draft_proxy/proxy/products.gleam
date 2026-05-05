@@ -123,6 +123,10 @@ const collection_title_character_limit = 255
 
 const collection_handle_character_limit = 255
 
+const product_string_character_limit = 255
+
+const product_description_html_limit_bytes = 524_287
+
 pub fn is_products_query_root(name: String) -> Bool {
   case name {
     "product"
@@ -5375,6 +5379,7 @@ pub fn process_mutation(
       handle_mutation_fields(
         hydrated_store,
         identity,
+        upstream.origin,
         document,
         operation_path,
         request_path,
@@ -7284,6 +7289,7 @@ fn non_empty_string(value: String) -> Option(String) {
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shopify_admin_origin: String,
   document: String,
   operation_path: String,
   request_path: String,
@@ -7356,20 +7362,28 @@ fn handle_mutation_fields(
                 handle_product_create(
                   current_store,
                   current_identity,
+                  shopify_admin_origin,
                   document,
                   operation_path,
                   field,
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(store.Staged, "Gleam staged productCreate locally.")
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productCreate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productCreate locally."),
+                  Some(note),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -7586,14 +7600,21 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(store.Staged, "Gleam staged productUpdate locally.")
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productUpdate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productUpdate locally."),
+                  Some(note),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -7649,6 +7670,7 @@ fn handle_mutation_fields(
                 handle_product_set(
                   current_store,
                   current_identity,
+                  shopify_admin_origin,
                   field,
                   fragments,
                   variables,
@@ -9236,6 +9258,7 @@ fn handle_product_options_create(
 fn handle_product_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shopify_admin_origin: String,
   document: String,
   operation_path: String,
   field: Selection,
@@ -9250,9 +9273,11 @@ fn handle_product_create(
   // a misleading `["title"], "Title can't be blank"` userError when the
   // legacy shape was used; emit a structurally honest top-level error
   // instead when neither shows up at all.
-  let input = case graphql_helpers.read_arg_object(args, "product") {
-    Some(d) -> Some(d)
-    None -> graphql_helpers.read_arg_object(args, "input")
+  let #(input, input_root) = case
+    graphql_helpers.read_arg_object(args, "product")
+  {
+    Some(d) -> #(Some(d), "product")
+    None -> #(graphql_helpers.read_arg_object(args, "input"), "input")
   }
   case input {
     None -> {
@@ -9269,14 +9294,15 @@ fn handle_product_create(
     }
     Some(input) ->
       case
-        product_tags_max_input_size_errors("productCreate", "product", input)
+        product_tags_max_input_size_errors("productCreate", input_root, input)
       {
         [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
         [] -> {
-          let user_errors = product_create_validation_errors(store, input)
+          let user_errors =
+            product_create_validation_errors(store, input, input_root)
           case user_errors {
             [_, ..] ->
-              mutation_result(
+              mutation_rejected_result(
                 key,
                 product_create_payload(
                   store,
@@ -9287,11 +9313,15 @@ fn handle_product_create(
                 ),
                 store,
                 identity,
-                [],
               )
             [] -> {
               let #(product, identity_after_product) =
-                created_product_record(store, identity, input)
+                created_product_record(
+                  store,
+                  identity,
+                  shopify_admin_origin,
+                  input,
+                )
               let #(options, default_variant, identity_after_graph, graph_ids) =
                 make_product_create_option_graph(
                   identity_after_product,
@@ -9665,22 +9695,21 @@ fn handle_product_update(
                     [],
                   )
                 Some(product) ->
-                  case product_update_validation_error(input) {
-                    Some(error) ->
-                      mutation_result(
+                  case product_update_validation_errors(input) {
+                    [_, ..] as validation_errors ->
+                      mutation_rejected_result(
                         key,
                         product_update_payload(
                           store,
                           Some(product),
-                          [error],
+                          validation_errors,
                           field,
                           fragments,
                         ),
                         store,
                         identity,
-                        [],
                       )
-                    None -> {
+                    [] -> {
                       let #(next_product, next_identity) =
                         updated_product_record(identity, product, input)
                       let #(_, next_store) =
@@ -9814,6 +9843,7 @@ fn handle_product_duplicate(
 fn handle_product_set(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shopify_admin_origin: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
@@ -9865,6 +9895,7 @@ fn handle_product_set(
                         key,
                         existing,
                         input,
+                        shopify_admin_origin,
                         read_arg_bool_default_true(args, "synchronous"),
                         field,
                         variables,
@@ -10146,31 +10177,34 @@ fn product_set_product_field_errors(
   input: Dict(String, ResolvedValue),
   existing: Option(ProductRecord),
 ) -> List(ProductOperationUserErrorRecord) {
-  let maybe_error = case existing {
-    Some(_) -> product_update_validation_error(input)
-    None -> product_create_validation_error(input)
+  let scalar_errors = case existing {
+    Some(_) ->
+      product_scalar_validation_errors(input, ["input"], require_title: False)
+    None ->
+      product_scalar_validation_errors(input, ["input"], require_title: True)
   }
-  let field_errors = case maybe_error {
-    Some(ProductUserError(field: path, message: message, code: code)) -> [
-      ProductOperationUserErrorRecord(
-        field: Some(["input", ..path]),
-        message: message,
-        code: code,
-      ),
-    ]
-    None -> []
-  }
+  let tag_errors =
+    product_tags_validation_errors(input)
+    |> list.map(fn(error) {
+      let ProductUserError(field: path, message: message, code: code) = error
+      ProductUserError(field: ["input", ..path], message: message, code: code)
+    })
   let existing_id = option.map(existing, fn(product) { product.id })
   let handle_errors =
     explicit_product_handle_collision_errors(store, input, existing_id)
     |> list.map(fn(error) {
-      ProductOperationUserErrorRecord(
-        field: Some(["input", ..error.field]),
-        message: error.message,
-        code: error.code,
-      )
+      let ProductUserError(field: path, message: message, code: code) = error
+      ProductUserError(field: ["input", ..path], message: message, code: code)
     })
-  list.append(field_errors, handle_errors)
+  list.append(scalar_errors, list.append(tag_errors, handle_errors))
+  |> list.map(fn(error) {
+    let ProductUserError(field: path, message: message, code: code) = error
+    ProductOperationUserErrorRecord(
+      field: Some(path),
+      message: message,
+      code: code,
+    )
+  })
 }
 
 fn product_set_requires_variants_for_options_errors(
@@ -10416,6 +10450,7 @@ fn stage_product_set(
   key: String,
   existing: Option(ProductRecord),
   input: Dict(String, ResolvedValue),
+  shopify_admin_origin: String,
   synchronous: Bool,
   field: Selection,
   variables: Dict(String, ResolvedValue),
@@ -10425,7 +10460,7 @@ fn stage_product_set(
     Some(product) -> updated_product_record(identity, product, input)
     None -> {
       let #(created, next_identity) =
-        created_product_record(store, identity, input)
+        created_product_record(store, identity, shopify_admin_origin, input)
       #(
         ProductRecord(
           ..created,
@@ -17710,50 +17745,196 @@ fn handle_inventory_move_quantities(
   }
 }
 
-fn product_update_validation_error(
-  input: Dict(String, ResolvedValue),
-) -> Option(ProductUserError) {
-  case read_string_field(input, "title") {
-    Some(title) ->
-      case string.length(string.trim(title)) == 0 {
-        True ->
-          Some(blank_product_user_error(["title"], "Title can't be blank"))
-        False -> product_update_handle_validation_error(input)
-      }
-    None -> product_update_handle_validation_error(input)
-  }
-}
-
 fn product_create_validation_errors(
   store: Store,
   input: Dict(String, ResolvedValue),
+  input_root: String,
 ) -> List(ProductUserError) {
-  let product_errors = case product_create_validation_error(input) {
-    Some(error) -> [error]
-    None -> []
+  let field_prefix = case input_root {
+    "input" -> ["input"]
+    _ -> []
   }
-
   let handle_errors =
     explicit_product_handle_collision_errors(store, input, None)
     |> list.map(fn(error) {
-      ProductUserError(["input", ..error.field], error.message, error.code)
+      let ProductUserError(field: path, message: message, code: code) = error
+      ProductUserError(field: ["input", ..path], message: message, code: code)
     })
-  product_errors
-  |> list.append(product_create_variant_errors(input))
-  |> list.append(handle_errors)
+  list.append(
+    product_scalar_validation_errors(input, field_prefix, require_title: True),
+    list.append(
+      product_tags_validation_errors(input),
+      list.append(product_create_variant_errors(input), handle_errors),
+    ),
+  )
 }
 
-fn product_create_validation_error(
+fn product_update_validation_errors(
   input: Dict(String, ResolvedValue),
-) -> Option(ProductUserError) {
+) -> List(ProductUserError) {
+  list.append(
+    product_scalar_validation_errors(input, [], require_title: False),
+    product_tags_validation_errors(input),
+  )
+}
+
+fn product_scalar_validation_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  require_title require_title: Bool,
+) -> List(ProductUserError) {
+  list.append(
+    product_title_validation_errors(
+      input,
+      field_prefix,
+      require_missing: require_title,
+    ),
+    list.append(
+      product_string_length_validation_errors(input, field_prefix),
+      product_description_html_validation_errors(input, field_prefix),
+    ),
+  )
+}
+
+fn product_title_validation_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  require_missing require_missing: Bool,
+) -> List(ProductUserError) {
   case read_string_field(input, "title") {
-    Some(title) ->
-      case string.length(string.trim(title)) == 0 {
-        True ->
-          Some(blank_product_user_error(["title"], "Title can't be blank"))
-        False -> product_create_handle_validation_error(input)
+    Some(value) ->
+      case string.length(string.trim(value)) == 0 {
+        True -> [
+          blank_product_user_error(
+            list.append(field_prefix, ["title"]),
+            "Title can't be blank",
+          ),
+        ]
+        False -> []
       }
-    None -> Some(blank_product_user_error(["title"], "Title can't be blank"))
+    None ->
+      case require_missing {
+        True -> [
+          blank_product_user_error(
+            list.append(field_prefix, ["title"]),
+            "Title can't be blank",
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn product_string_length_validation_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+) -> List(ProductUserError) {
+  list.append(
+    product_string_length_validation_error(
+      input,
+      field_prefix,
+      "title",
+      "Title",
+    ),
+    list.append(
+      product_string_length_validation_error(
+        input,
+        field_prefix,
+        "handle",
+        "Handle",
+      ),
+      list.append(
+        product_string_length_validation_error(
+          input,
+          field_prefix,
+          "vendor",
+          "Vendor",
+        ),
+        list.append(
+          product_string_length_validation_error(
+            input,
+            field_prefix,
+            "productType",
+            "Product type",
+          ),
+          list.append(
+            product_string_length_validation_error(
+              input,
+              field_prefix,
+              "customProductType",
+              "Custom product type",
+            ),
+            mirrored_custom_product_type_length_errors(input, field_prefix),
+          ),
+        ),
+      ),
+    ),
+  )
+}
+
+fn mirrored_custom_product_type_length_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+) -> List(ProductUserError) {
+  case read_string_field(input, "customProductType") {
+    Some(_) -> []
+    None ->
+      case read_string_field(input, "productType") {
+        Some(value) ->
+          case string.length(value) > product_string_character_limit {
+            True -> [
+              ProductUserError(
+                list.append(field_prefix, ["customProductType"]),
+                "Custom product type is too long (maximum is 255 characters)",
+                None,
+              ),
+            ]
+            False -> []
+          }
+        None -> []
+      }
+  }
+}
+
+fn product_string_length_validation_error(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  field_name: String,
+  label: String,
+) -> List(ProductUserError) {
+  case read_string_field(input, field_name) {
+    Some(value) ->
+      case string.length(value) > product_string_character_limit {
+        True -> [
+          ProductUserError(
+            list.append(field_prefix, [field_name]),
+            label <> " is too long (maximum is 255 characters)",
+            None,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn product_description_html_validation_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+) -> List(ProductUserError) {
+  case read_string_field(input, "descriptionHtml") {
+    Some(value) ->
+      case string.byte_size(value) > product_description_html_limit_bytes {
+        True -> [
+          ProductUserError(
+            list.append(field_prefix, ["bodyHtml"]),
+            "Body (HTML) is too big (maximum is 512 KB)",
+            None,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
   }
 }
 
@@ -17771,39 +17952,32 @@ fn product_create_variant_errors(
   })
 }
 
-fn product_create_handle_validation_error(
+fn product_tags_validation_errors(
   input: Dict(String, ResolvedValue),
-) -> Option(ProductUserError) {
-  case read_explicit_product_handle(input) {
-    Some(handle) ->
-      case string.length(handle) > 255 {
-        True ->
-          Some(ProductUserError(
-            ["handle"],
-            "Handle is too long (maximum is 255 characters)",
-            None,
-          ))
-        False -> product_tags_validation_error(input)
+) -> List(ProductUserError) {
+  case read_string_list_field(input, "tags") {
+    Some(tags) ->
+      case product_tag_values_validation_error(tags) {
+        Some(error) -> [error]
+        None -> []
       }
-    None -> product_tags_validation_error(input)
+    None -> []
   }
 }
 
-fn product_update_handle_validation_error(
-  input: Dict(String, ResolvedValue),
+fn product_tag_values_validation_error(
+  tags: List(String),
 ) -> Option(ProductUserError) {
-  case read_string_field(input, "handle") {
-    Some(handle) ->
-      case string.length(handle) > 255 {
-        True ->
-          Some(ProductUserError(
-            ["handle"],
-            "Handle is too long (maximum is 255 characters)",
-            None,
-          ))
-        False -> product_tags_validation_error(input)
+  case
+    list.any(tags, fn(tag) {
+      case trimmed_non_empty(tag) {
+        Ok(trimmed) -> string.length(trimmed) > product_tag_character_limit
+        Error(_) -> False
       }
-    None -> product_tags_validation_error(input)
+    })
+  {
+    True -> Some(ProductUserError(["tags"], "Product tags is invalid", None))
+    False -> None
   }
 }
 
@@ -17827,31 +18001,6 @@ fn explicit_product_handle_collision_errors(
         False -> []
       }
     None -> []
-  }
-}
-
-fn product_tags_validation_error(
-  input: Dict(String, ResolvedValue),
-) -> Option(ProductUserError) {
-  case read_string_list_field(input, "tags") {
-    Some(tags) -> product_tag_values_validation_error(tags)
-    None -> None
-  }
-}
-
-fn product_tag_values_validation_error(
-  tags: List(String),
-) -> Option(ProductUserError) {
-  case
-    list.any(tags, fn(tag) {
-      case trimmed_non_empty(tag) {
-        Ok(trimmed) -> string.length(trimmed) > product_tag_character_limit
-        Error(_) -> False
-      }
-    })
-  {
-    True -> Some(ProductUserError(["tags"], "Product tags is invalid", None))
-    False -> None
   }
 }
 
@@ -22804,6 +22953,72 @@ fn trimmed_non_empty(value: String) -> Result(String, Nil) {
   }
 }
 
+fn product_vendor_for_create(
+  store: Store,
+  shopify_admin_origin: String,
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  read_non_empty_string_field(input, "vendor")
+  |> option.or(default_product_vendor(store, shopify_admin_origin))
+}
+
+fn default_product_vendor(
+  store: Store,
+  shopify_admin_origin: String,
+) -> Option(String) {
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      case trimmed_non_empty(shop.name) {
+        Ok(name) -> Some(name)
+        Error(_) -> vendor_from_shop_domain(shop.myshopify_domain)
+      }
+    None -> vendor_from_shopify_admin_origin(shopify_admin_origin)
+  }
+}
+
+fn vendor_from_shopify_admin_origin(origin: String) -> Option(String) {
+  let host = host_from_origin(origin)
+  case vendor_from_shop_domain(host) {
+    Some(vendor) -> Some(vendor)
+    None -> store_slug_from_admin_origin(origin)
+  }
+}
+
+fn host_from_origin(origin: String) -> String {
+  let without_scheme = case string.split(origin, "://") {
+    [_, rest] -> rest
+    [rest] -> rest
+    _ -> origin
+  }
+  case string.split(without_scheme, "/") {
+    [host, ..] -> host
+    [] -> without_scheme
+  }
+}
+
+fn vendor_from_shop_domain(domain: String) -> Option(String) {
+  case string.split(domain, ".") {
+    [subdomain, "myshopify", "com"] ->
+      trimmed_non_empty(subdomain) |> option.from_result
+    _ -> None
+  }
+}
+
+fn store_slug_from_admin_origin(origin: String) -> Option(String) {
+  origin
+  |> string.split("/")
+  |> segment_after_store
+  |> option.then(fn(slug) { trimmed_non_empty(slug) |> option.from_result })
+}
+
+fn segment_after_store(segments: List(String)) -> Option(String) {
+  case segments {
+    ["store", slug, ..] -> Some(slug)
+    [_, ..rest] -> segment_after_store(rest)
+    [] -> None
+  }
+}
+
 fn normalize_product_tags(tags: List(String)) -> List(String) {
   let #(reversed, _) =
     tags
@@ -22910,11 +23125,10 @@ fn updated_product_record(
 fn created_product_record(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shopify_admin_origin: String,
   input: Dict(String, ResolvedValue),
 ) -> #(ProductRecord, SyntheticIdentityRegistry) {
-  let title =
-    read_non_empty_string_field(input, "title")
-    |> option.unwrap("Untitled product")
+  let assert Some(title) = read_non_empty_string_field(input, "title")
   let #(created_at, identity_after_timestamp) =
     synthetic_identity.make_synthetic_timestamp(identity)
   let #(id, next_identity) =
@@ -22937,7 +23151,7 @@ fn created_product_record(
       title: title,
       handle: handle,
       status: read_product_status_field(input) |> option.unwrap("ACTIVE"),
-      vendor: read_string_field(input, "vendor"),
+      vendor: product_vendor_for_create(store, shopify_admin_origin, input),
       product_type: read_string_field(input, "productType"),
       tags: read_string_list_field(input, "tags")
         |> option.map(normalize_product_tags)

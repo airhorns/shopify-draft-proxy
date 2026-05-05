@@ -1,0 +1,80 @@
+{
+  "scenarioId": "productCreate-input-validation",
+  "operationNames": ["productCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-create-input-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-input-validation.graphql",
+    "variablesCapturePath": "$.scenarios.blankTitle.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-565 live 2025-01 productCreate input validation capture. Shopify returns unprefixed ProductCreate userError fields, has no `code` field on UserError in this API version, and defaults omitted/blank vendor to the shop name instead of rejecting vendor presence.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-title-user-errors",
+        "capturePath": "$.scenarios.blankTitle.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "missing-vendor-user-errors",
+        "capturePath": "$.scenarios.missingVendor.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-input-validation.graphql",
+          "variables": {
+            "product": {
+              "title": {
+                "fromCapturePath": "$.scenarios.missingVendor.variables.product.title"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "too-long-vendor-user-errors",
+        "capturePath": "$.scenarios.tooLongVendor.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-input-validation.graphql",
+          "variables": {
+            "product": {
+              "title": {
+                "fromCapturePath": "$.scenarios.tooLongVendor.variables.product.title"
+              },
+              "vendor": {
+                "fromCapturePath": "$.scenarios.tooLongVendor.variables.product.vendor"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "too-long-product-type-user-errors",
+        "capturePath": "$.scenarios.tooLongProductType.response.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-input-validation.graphql",
+          "variables": {
+            "product": {
+              "title": {
+                "fromCapturePath": "$.scenarios.tooLongProductType.variables.product.title"
+              },
+              "vendor": {
+                "fromCapturePath": "$.scenarios.tooLongProductType.variables.product.vendor"
+              },
+              "productType": {
+                "fromCapturePath": "$.scenarios.tooLongProductType.variables.product.productType"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

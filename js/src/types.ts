@@ -3,12 +3,14 @@
 // with the same shape.
 
 export type ReadMode = 'snapshot' | 'live-hybrid' | 'passthrough';
+export type UnsupportedMutationMode = 'passthrough' | 'reject';
 
 export interface AppConfig {
   readMode: ReadMode;
   port: number;
   shopifyAdminOrigin: string;
   snapshotPath?: string;
+  unsupportedMutationMode?: UnsupportedMutationMode;
 }
 
 export type DraftProxyHeaderValue = string | string[] | undefined;
@@ -37,7 +39,7 @@ export interface DraftProxyOptions extends AppConfig {
 }
 
 export interface DraftProxyConfigSnapshot {
-  runtime: { readMode: ReadMode };
+  runtime: { readMode: ReadMode; unsupportedMutationMode: UnsupportedMutationMode };
   proxy: { port: number; shopifyAdminOrigin: string };
   snapshot: { enabled: boolean; path: string | null };
 }
