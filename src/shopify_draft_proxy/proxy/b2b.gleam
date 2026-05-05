@@ -16,6 +16,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/b2b_limits
 import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type ConnectionWindow, type FragmentMap, type SourceValue,
@@ -1307,6 +1308,44 @@ fn user_error(
   UserError(field: field, message: message, code: code)
 }
 
+fn limit_reached_error(field: List(String), message: String) -> UserError {
+  user_error(Some(field), message, user_error_code.limit_reached)
+}
+
+fn company_contact_cap_errors(
+  company: B2BCompanyRecord,
+  field: List(String),
+) -> List(UserError) {
+  case
+    list.length(company.contact_ids) >= b2b_limits.company_contact_maximum_cap
+  {
+    True -> [
+      limit_reached_error(
+        field,
+        "Company has reached the maximum number of contacts.",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn company_location_cap_errors(
+  company: B2BCompanyRecord,
+  field: List(String),
+) -> List(UserError) {
+  case
+    list.length(company.location_ids) >= b2b_limits.company_location_maximum_cap
+  {
+    True -> [
+      limit_reached_error(
+        field,
+        "Company has reached the maximum number of locations.",
+      ),
+    ]
+    False -> []
+  }
+}
+
 fn field_path(prefix: List(String), field: String) -> List(String) {
   list.append(prefix, [field])
 }
@@ -2584,7 +2623,10 @@ fn handle_contact_create(
             prepare_contact_create_input(store, read_object(args, "input"))
           let #(input, validation_errors) =
             validate_contact_input(prepared, ["input"])
-          let errors = list.append(prepare_errors, validation_errors)
+          let errors =
+            prepare_errors
+            |> list.append(validation_errors)
+            |> list.append(company_contact_cap_errors(company, ["companyId"]))
           case errors {
             [_, ..] ->
               RootResult(
@@ -2833,6 +2875,11 @@ fn handle_assign_customer_as_contact(
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
           let #(input, errors) = prepare_contact_create_input(store, dict.new())
+          let errors =
+            list.append(
+              errors,
+              company_contact_cap_errors(company, ["companyId"]),
+            )
           case errors {
             [_, ..] ->
               RootResult(
@@ -3062,6 +3109,11 @@ fn handle_location_create(
           let fallback = source_string(data_get(company.data, "name"))
           let #(input, validation_errors) =
             validate_location_input(read_object(args, "input"), ["input"])
+          let validation_errors =
+            list.append(
+              validation_errors,
+              company_location_cap_errors(company, ["companyId"]),
+            )
           case validation_errors {
             [_, ..] ->
               RootResult(empty_payload(validation_errors), store, identity, [])
@@ -3491,6 +3543,77 @@ fn resolve_role_assignments(
   })
 }
 
+fn role_assignment_count(contact: B2BCompanyContactRecord) -> Int {
+  read_object_sources(data_get(contact.data, "roleAssignments"))
+  |> list.length
+}
+
+fn role_assignment_cap_error(
+  store: Store,
+  assignments: List(SourceValue),
+  field: List(String),
+) -> Option(UserError) {
+  do_role_assignment_cap_error(store, assignments, dict.new(), field)
+}
+
+fn do_role_assignment_cap_error(
+  store: Store,
+  assignments: List(SourceValue),
+  attempted_by_contact: Dict(String, Int),
+  field: List(String),
+) -> Option(UserError) {
+  case assignments {
+    [] -> None
+    [assignment, ..rest] ->
+      case assignment_ref(assignment, "companyContactId") {
+        Some(contact_id) ->
+          case
+            store.get_effective_b2b_company_contact_by_id(store, contact_id)
+          {
+            Some(contact) -> {
+              let attempted = case dict.get(attempted_by_contact, contact_id) {
+                Ok(value) -> value
+                Error(_) -> 0
+              }
+              case
+                role_assignment_count(contact) + attempted + 1
+                > b2b_limits.company_role_assignment_maximum_cap
+              {
+                True ->
+                  Some(limit_reached_error(
+                    field,
+                    "Company contact has reached the maximum number of role assignments.",
+                  ))
+                False ->
+                  do_role_assignment_cap_error(
+                    store,
+                    rest,
+                    dict.insert(attempted_by_contact, contact_id, attempted + 1),
+                    field,
+                  )
+              }
+            }
+            None ->
+              do_role_assignment_cap_error(
+                store,
+                rest,
+                attempted_by_contact,
+                field,
+              )
+          }
+        None ->
+          do_role_assignment_cap_error(store, rest, attempted_by_contact, field)
+      }
+  }
+}
+
+fn option_to_list(value: Option(a)) -> List(a) {
+  case value {
+    Some(value) -> [value]
+    None -> []
+  }
+}
+
 fn option_or(value: Option(a), fallback: Option(a)) -> Option(a) {
   case value {
     Some(_) -> value
@@ -3520,6 +3643,12 @@ fn handle_contact_assign_role(
       None,
       None,
     )
+  let errors =
+    errors
+    |> list.append(
+      role_assignment_cap_error(store, assignments, ["companyContactId"])
+      |> option_to_list,
+    )
   let #(store, staged) = case errors {
     [] -> stage_role_assignments(store, assignments)
     _ -> #(store, [])
@@ -3527,8 +3656,10 @@ fn handle_contact_assign_role(
   RootResult(
     Payload(
       ..empty_payload(errors),
-      company_contact_role_assignment: list.first(assignments)
-        |> option_from_result,
+      company_contact_role_assignment: case errors {
+        [] -> list.first(assignments) |> option_from_result
+        _ -> None
+      },
     ),
     store,
     identity,
@@ -3553,12 +3684,21 @@ fn handle_contact_assign_roles(
       read_string(args, "companyContactId"),
       None,
     )
+  let errors =
+    errors
+    |> list.append(
+      role_assignment_cap_error(store, assignments, ["rolesToAssign"])
+      |> option_to_list,
+    )
   let #(store, staged) = case errors {
     [] -> stage_role_assignments(store, assignments)
     _ -> #(store, [])
   }
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: assignments),
+    Payload(..empty_payload(errors), role_assignments: case errors {
+      [] -> assignments
+      _ -> []
+    }),
     store,
     identity,
     staged,
@@ -3578,12 +3718,21 @@ fn handle_location_assign_roles(
       None,
       read_string(args, "companyLocationId"),
     )
+  let errors =
+    errors
+    |> list.append(
+      role_assignment_cap_error(store, assignments, ["rolesToAssign"])
+      |> option_to_list,
+    )
   let #(store, staged) = case errors {
     [] -> stage_role_assignments(store, assignments)
     _ -> #(store, [])
   }
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: assignments),
+    Payload(..empty_payload(errors), role_assignments: case errors {
+      [] -> assignments
+      _ -> []
+    }),
     store,
     identity,
     staged,
@@ -3923,63 +4072,82 @@ fn handle_assign_staff(
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
-          let #(assignments, identity) =
-            list.fold(
-              read_string_list(args, "staffMemberIds"),
-              #([], identity),
-              fn(acc, staff_id) {
-                let #(items, current_identity) = acc
-                let #(id, next_identity) =
-                  make_gid(
-                    current_identity,
-                    "CompanyLocationStaffMemberAssignment",
-                  )
-                let assignment =
-                  src_object([
-                    #(
-                      "__typename",
-                      SrcString("CompanyLocationStaffMemberAssignment"),
-                    ),
-                    #("id", SrcString(id)),
-                    #("staffMemberId", SrcString(staff_id)),
-                    #("companyLocationId", SrcString(location.id)),
-                    #(
-                      "staffMember",
-                      src_object([
-                        #("__typename", SrcString("StaffMember")),
-                        #("id", SrcString(staff_id)),
-                      ]),
-                    ),
-                    #("companyLocation", location_source(location)),
-                  ])
-                #(list.append(items, [assignment]), next_identity)
-              },
-            )
+          let staff_member_ids = read_string_list(args, "staffMemberIds")
           let current =
             read_object_sources(data_get(
               location.data,
               "staffMemberAssignments",
             ))
-          let updated =
-            B2BCompanyLocationRecord(
-              ..location,
-              data: put_source(
-                location.data,
-                "staffMemberAssignments",
-                SrcList(list.append(current, assignments)),
-              ),
-            )
-          let #(updated, store) =
-            store.upsert_staged_b2b_company_location(store, updated)
-          RootResult(
-            Payload(
-              ..empty_payload([]),
-              company_location_staff_member_assignments: assignments,
-            ),
-            store,
-            identity,
-            list.append([updated.id], list.map(assignments, source_id)),
-          )
+          case
+            list.length(current) + list.length(staff_member_ids)
+            > b2b_limits.company_location_staff_member_assignment_maximum_cap
+          {
+            True ->
+              RootResult(
+                Payload(
+                  ..empty_payload([
+                    limit_reached_error(
+                      ["staffMemberIds"],
+                      "Company location has reached the maximum number of staff member assignments.",
+                    ),
+                  ]),
+                  company_location_staff_member_assignments: [],
+                ),
+                store,
+                identity,
+                [],
+              )
+            False -> {
+              let #(assignments, identity) =
+                list.fold(staff_member_ids, #([], identity), fn(acc, staff_id) {
+                  let #(items, current_identity) = acc
+                  let #(id, next_identity) =
+                    make_gid(
+                      current_identity,
+                      "CompanyLocationStaffMemberAssignment",
+                    )
+                  let assignment =
+                    src_object([
+                      #(
+                        "__typename",
+                        SrcString("CompanyLocationStaffMemberAssignment"),
+                      ),
+                      #("id", SrcString(id)),
+                      #("staffMemberId", SrcString(staff_id)),
+                      #("companyLocationId", SrcString(location.id)),
+                      #(
+                        "staffMember",
+                        src_object([
+                          #("__typename", SrcString("StaffMember")),
+                          #("id", SrcString(staff_id)),
+                        ]),
+                      ),
+                      #("companyLocation", location_source(location)),
+                    ])
+                  #(list.append(items, [assignment]), next_identity)
+                })
+              let updated =
+                B2BCompanyLocationRecord(
+                  ..location,
+                  data: put_source(
+                    location.data,
+                    "staffMemberAssignments",
+                    SrcList(list.append(current, assignments)),
+                  ),
+                )
+              let #(updated, store) =
+                store.upsert_staged_b2b_company_location(store, updated)
+              RootResult(
+                Payload(
+                  ..empty_payload([]),
+                  company_location_staff_member_assignments: assignments,
+                ),
+                store,
+                identity,
+                list.append([updated.id], list.map(assignments, source_id)),
+              )
+            }
+          }
         }
         None ->
           RootResult(

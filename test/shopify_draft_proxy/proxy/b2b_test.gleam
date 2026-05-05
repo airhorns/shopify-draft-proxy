@@ -1,13 +1,19 @@
 import gleam/dict
+import gleam/int
 import gleam/json
 import gleam/list
+import gleam/option.{None}
 import gleam/string
 import shopify_draft_proxy/proxy/b2b
 import shopify_draft_proxy/proxy/b2b_user_error_codes
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/types.{ShopLocaleRecord}
+import shopify_draft_proxy/state/types.{
+  B2BCompanyContactRecord, B2BCompanyContactRoleRecord, B2BCompanyLocationRecord,
+  B2BCompanyRecord, ShopLocaleRecord, StorePropertyList, StorePropertyObject,
+  StorePropertyString,
+}
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   let request =
@@ -39,6 +45,170 @@ fn proxy_with_primary_locale(locale: String) -> draft_proxy.DraftProxy {
         market_web_presence_ids: [],
       ),
     )
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn gid(resource_type: String, index: Int) -> String {
+  "gid://shopify/" <> resource_type <> "/" <> int.to_string(index)
+}
+
+fn numbered_ids(resource_type: String, count: Int) -> List(String) {
+  do_numbered_ids(resource_type, count, [])
+}
+
+fn do_numbered_ids(
+  resource_type: String,
+  remaining: Int,
+  ids: List(String),
+) -> List(String) {
+  case remaining <= 0 {
+    True -> ids
+    False ->
+      do_numbered_ids(resource_type, remaining - 1, [
+        gid(resource_type, remaining),
+        ..ids
+      ])
+  }
+}
+
+fn empty_assignment(id: String) {
+  StorePropertyObject(
+    dict.from_list([
+      #("id", StorePropertyString(id)),
+    ]),
+  )
+}
+
+fn seed_company(
+  proxy: draft_proxy.DraftProxy,
+  contacts contact_ids: List(String),
+  locations location_ids: List(String),
+  roles role_ids: List(String),
+) -> draft_proxy.DraftProxy {
+  let company_id = gid("Company", 1)
+  let #(_, seeded_store) =
+    store.upsert_staged_b2b_company(
+      proxy.store,
+      B2BCompanyRecord(
+        id: company_id,
+        cursor: None,
+        data: dict.from_list([
+          #("id", StorePropertyString(company_id)),
+          #("name", StorePropertyString("Cap Co")),
+        ]),
+        contact_ids: contact_ids,
+        location_ids: location_ids,
+        contact_role_ids: role_ids,
+      ),
+    )
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn seed_contact_cap_company(contact_count: Int) -> draft_proxy.DraftProxy {
+  seed_company(
+    draft_proxy.new(),
+    contacts: numbered_ids("CompanyContact", contact_count),
+    locations: [],
+    roles: [],
+  )
+}
+
+fn seed_location_cap_company(location_count: Int) -> draft_proxy.DraftProxy {
+  seed_company(
+    draft_proxy.new(),
+    contacts: [],
+    locations: numbered_ids("CompanyLocation", location_count),
+    roles: [],
+  )
+}
+
+fn seed_role_assignment_cap_company(
+  assignment_count: Int,
+) -> draft_proxy.DraftProxy {
+  let company_id = gid("Company", 1)
+  let contact_id = gid("CompanyContact", 1)
+  let role_id = gid("CompanyContactRole", 1)
+  let location_id = gid("CompanyLocation", 1)
+  let proxy =
+    seed_company(
+      draft_proxy.new(),
+      contacts: [contact_id],
+      locations: [location_id],
+      roles: [role_id],
+    )
+  let assignments =
+    numbered_ids("CompanyContactRoleAssignment", assignment_count)
+    |> list.map(empty_assignment)
+  let contact =
+    B2BCompanyContactRecord(
+      id: contact_id,
+      cursor: None,
+      company_id: company_id,
+      data: dict.from_list([
+        #("id", StorePropertyString(contact_id)),
+        #("roleAssignments", StorePropertyList(assignments)),
+      ]),
+    )
+  let role =
+    B2BCompanyContactRoleRecord(
+      id: role_id,
+      cursor: None,
+      company_id: company_id,
+      data: dict.from_list([
+        #("id", StorePropertyString(role_id)),
+        #("name", StorePropertyString("Location admin")),
+      ]),
+    )
+  let location =
+    B2BCompanyLocationRecord(
+      id: location_id,
+      cursor: None,
+      company_id: company_id,
+      data: dict.from_list([
+        #("id", StorePropertyString(location_id)),
+        #("name", StorePropertyString("HQ")),
+        #("roleAssignments", StorePropertyList([])),
+        #("staffMemberAssignments", StorePropertyList([])),
+      ]),
+    )
+  let #(_, seeded_store) =
+    store.upsert_staged_b2b_company_contact(proxy.store, contact)
+  let #(_, seeded_store) =
+    store.upsert_staged_b2b_company_contact_role(seeded_store, role)
+  let #(_, seeded_store) =
+    store.upsert_staged_b2b_company_location(seeded_store, location)
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn seed_staff_assignment_cap_company(
+  assignment_count: Int,
+) -> draft_proxy.DraftProxy {
+  let company_id = gid("Company", 1)
+  let location_id = gid("CompanyLocation", 1)
+  let proxy =
+    seed_company(
+      draft_proxy.new(),
+      contacts: [],
+      locations: [location_id],
+      roles: [],
+    )
+  let assignments =
+    numbered_ids("CompanyLocationStaffMemberAssignment", assignment_count)
+    |> list.map(empty_assignment)
+  let location =
+    B2BCompanyLocationRecord(
+      id: location_id,
+      cursor: None,
+      company_id: company_id,
+      data: dict.from_list([
+        #("id", StorePropertyString(location_id)),
+        #("name", StorePropertyString("HQ")),
+        #("roleAssignments", StorePropertyList([])),
+        #("staffMemberAssignments", StorePropertyList(assignments)),
+      ]),
+    )
+  let #(_, seeded_store) =
+    store.upsert_staged_b2b_company_location(proxy.store, location)
   proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
@@ -361,6 +531,80 @@ pub fn b2b_contact_create_and_update_reject_duplicate_email_and_phone_test() {
     phone_update_json,
     "\"field\":[\"input\",\"phone\"],\"message\":\"Phone number has already been taken.\",\"code\":\"TAKEN\"",
   )
+}
+
+pub fn b2b_contact_create_and_customer_assignment_enforce_company_contact_cap_test() {
+  let proxy = seed_contact_cap_company(10_000)
+
+  let #(Response(status: create_status, body: create_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyContactCreate(companyId: \"gid://shopify/Company/1\", input: { email: \"cap@example.com\" }) { companyContact { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"companyContact\":null")
+  assert string.contains(create_json, "\"field\":[\"companyId\"]")
+  assert string.contains(create_json, "\"code\":\"LIMIT_REACHED\"")
+
+  let #(Response(status: assign_status, body: assign_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyAssignCustomerAsContact(companyId: \"gid://shopify/Company/1\", customerId: \"gid://shopify/Customer/1\") { companyContact { id } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"companyContact\":null")
+  assert string.contains(assign_json, "\"field\":[\"companyId\"]")
+  assert string.contains(assign_json, "\"code\":\"LIMIT_REACHED\"")
+}
+
+pub fn b2b_location_create_enforces_company_location_cap_test() {
+  let proxy = seed_location_cap_company(10_000)
+
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1\", input: { name: \"Overflow\" }) { companyLocation { id } userErrors { field message code } } }",
+    )
+  assert status == 200
+  let payload = json.to_string(body)
+  assert string.contains(payload, "\"companyLocation\":null")
+  assert string.contains(payload, "\"field\":[\"companyId\"]")
+  assert string.contains(payload, "\"code\":\"LIMIT_REACHED\"")
+}
+
+pub fn b2b_contact_role_assignment_enforces_contact_assignment_cap_test() {
+  let proxy = seed_role_assignment_cap_company(50)
+
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyContactAssignRole(companyContactId: \"gid://shopify/CompanyContact/1\", companyContactRoleId: \"gid://shopify/CompanyContactRole/1\", companyLocationId: \"gid://shopify/CompanyLocation/1\") { companyContactRoleAssignment { id } userErrors { field message code } } }",
+    )
+  assert status == 200
+  let payload = json.to_string(body)
+  assert string.contains(payload, "\"companyContactRoleAssignment\":null")
+  assert string.contains(payload, "\"field\":[\"companyContactId\"]")
+  assert string.contains(payload, "\"code\":\"LIMIT_REACHED\"")
+}
+
+pub fn b2b_staff_assignment_enforces_location_staff_cap_test() {
+  let proxy = seed_staff_assignment_cap_company(10)
+
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignStaffMembers(companyLocationId: \"gid://shopify/CompanyLocation/1\", staffMemberIds: [\"gid://shopify/StaffMember/11\"]) { companyLocationStaffMemberAssignments { id } userErrors { field message code } } }",
+    )
+  assert status == 200
+  let payload = json.to_string(body)
+  assert string.contains(
+    payload,
+    "\"companyLocationStaffMemberAssignments\":[]",
+  )
+  assert string.contains(payload, "\"field\":[\"staffMemberIds\"]")
+  assert string.contains(payload, "\"code\":\"LIMIT_REACHED\"")
 }
 
 pub fn b2b_business_customer_user_error_code_snapshot_test() {
