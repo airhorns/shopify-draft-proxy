@@ -1243,10 +1243,7 @@ fn build_webhook_from_create_input(
         read_optional_string_array(input, "metafieldNamespaces"),
         [],
       ),
-      filter: case read_optional_string(input, "filter") {
-        Some(s) -> Some(s)
-        None -> Some("")
-      },
+      filter: read_optional_string(input, "filter"),
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
       endpoint: Some(endpoint_from_uri(uri)),

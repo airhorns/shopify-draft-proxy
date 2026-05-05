@@ -5034,7 +5034,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["paymentReminderSend", "PaymentReminderSend"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages a local payment reminder intent for PaymentSchedule GIDs and records it in meta state/logs. Runtime support never sends customer email upstream; delivery can only happen later through explicit commit replay of the original raw mutation.",
+        "Stages a local payment reminder intent only for locally known overdue PaymentSchedule GIDs whose schedule is unpaid and whose owner order is open. Runtime support never sends customer email upstream; delivery can only happen later through explicit commit replay of the original raw mutation.",
       ),
     ),
     RegistryEntry(

@@ -1,0 +1,13 @@
+query B2BLocationAddressManagementReadSharedDelete($companyLocationId: ID!) {
+  companyLocation(id: $companyLocationId) {
+    id
+    billingAddress {
+      id
+      address1
+    }
+    shippingAddress {
+      id
+      address1
+    }
+  }
+}

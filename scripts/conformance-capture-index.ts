@@ -141,6 +141,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The active Shopify Admin 2026-04 schema exposes CompanyContact phone/locale input validation but not note/notes fields, so note-to-notes behavior remains runtime-test-backed.',
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-location-address-management',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-location-address-management-conformance.mts',
+    purpose:
+      'B2B location name fallback, duplicate address-type validation, shared billing/shipping address delete readback, and location-delete role-assignment cascade.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-location-address-management.json`,
+      'config/parity-specs/b2b/b2b-location-address-management.json',
+      'config/parity-requests/b2b/b2b-location-address-management-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company with contact, locations, and addresses; deletes the company during scenario cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
