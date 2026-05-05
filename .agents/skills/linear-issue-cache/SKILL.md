@@ -41,11 +41,13 @@ gitignored.
 ## Prerequisites
 
 1. **qmd CLI** on `PATH`. Install with:
+
    ```bash
    bun install -g @tobilu/qmd
    # or, if mise is available:
    # mise use -g npm:@tobilu/qmd
    ```
+
    Verify with `qmd --version`.
 
 2. **`LINEAR_API_KEY`** in the environment (or a `.env` file at repo
@@ -142,20 +144,20 @@ Each issue file looks like:
 
 ```markdown
 ---
-identifier: "SHOP-1234"
-title: "Add metafield definition pin limit conformance"
-url: "https://linear.app/.../SHOP-1234"
-state: "Backlog"
-state_type: "backlog"
-team: "SHOP"
-team_name: "Shopify"
-project: "Conformance expansion"
+identifier: 'SHOP-1234'
+title: 'Add metafield definition pin limit conformance'
+url: 'https://linear.app/.../SHOP-1234'
+state: 'Backlog'
+state_type: 'backlog'
+team: 'SHOP'
+team_name: 'Shopify'
+project: 'Conformance expansion'
 priority: 3
 comment_count: 4
-last_comment_at: "2026-03-29T..."
-created_at: "2026-01-04T..."
-updated_at: "2026-04-02T..."
-labels: ["conformance", "metafields"]
+last_comment_at: '2026-03-29T...'
+created_at: '2026-01-04T...'
+updated_at: '2026-04-02T...'
+labels: ['conformance', 'metafields']
 ---
 
 # SHOP-1234: Add metafield definition pin limit conformance
