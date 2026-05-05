@@ -31,9 +31,13 @@ fn empty_headers() -> dict.Dict(String, String) {
 }
 
 fn graphql_request(query: String) -> Request {
+  graphql_request_for_version(query, "2025-01")
+}
+
+fn graphql_request_for_version(query: String, api_version: String) -> Request {
   Request(
     method: "POST",
-    path: "/admin/api/2025-01/graphql.json",
+    path: "/admin/api/" <> api_version <> "/graphql.json",
     headers: empty_headers(),
     body: "{\"query\":\"" <> query <> "\"}",
   )
@@ -2142,7 +2146,7 @@ pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
     == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"on_hand\",\"delta\":2,\"ledgerDocumentUri\":\"ledger://har-568/on-hand\",\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
 }
 
-pub fn inventory_quantity_mutations_recompute_product_stock_fields_test() {
+pub fn inventory_adjust_quantities_preserves_product_total_inventory_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
   let adjust_query =
@@ -2162,7 +2166,61 @@ pub fn inventory_quantity_mutations_recompute_product_stock_fields_test() {
     )
   assert read_status == 200
   assert json.to_string(read_body)
-    == "{\"data\":{\"product\":{\"totalVariants\":1,\"hasOnlyDefaultVariant\":true,\"hasOutOfStockVariants\":true,\"tracksInventory\":true,\"totalInventory\":0,\"variants\":{\"nodes\":[{\"inventoryQuantity\":0,\"inventoryItem\":{\"tracked\":true}}]}}}}"
+    == "{\"data\":{\"product\":{\"totalVariants\":1,\"hasOnlyDefaultVariant\":true,\"hasOutOfStockVariants\":true,\"tracksInventory\":true,\"totalInventory\":1,\"variants\":{\"nodes\":[{\"inventoryQuantity\":0,\"inventoryItem\":{\"tracked\":true}}]}}}}"
+}
+
+pub fn inventory_adjust_quantities_recomputes_product_total_inventory_for_202604_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"available\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: -1, changeFromQuantity: 1 }] }) @idempotent(key: \\\"har-742-adjust\\\") { inventoryAdjustmentGroup { changes { name delta item { id } location { id } } } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version(adjust_query, "2026-04"),
+    )
+  assert adjust_status == 200
+  assert json.to_string(adjust_body)
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"available\",\"delta\":-1,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\"}},{\"name\":\"on_hand\",\"delta\":-1,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\"}}]},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version(
+        "query { product(id: \\\"gid://shopify/Product/tracked\\\") { totalInventory variants(first: 5) { nodes { inventoryQuantity } } } }",
+        "2026-04",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"totalInventory\":0,\"variants\":{\"nodes\":[{\"inventoryQuantity\":0}]}}}}"
+}
+
+pub fn non_available_inventory_adjust_preserves_product_total_inventory_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_total_inventory(0),
+    )
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"incoming\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", ledgerDocumentUri: \\\"ledger://incoming/test\\\", delta: 2 }] }) { inventoryAdjustmentGroup { changes { name delta ledgerDocumentUri item { id } location { id } } } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(adjust_query))
+  assert adjust_status == 200
+  assert json.to_string(adjust_body)
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"incoming\",\"delta\":2,\"ledgerDocumentUri\":\"ledger://incoming/test\",\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\"}}]},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/tracked\\\") { totalInventory variants(first: 5) { nodes { inventoryQuantity inventoryItem { inventoryLevels(first: 5) { nodes { quantities(names: [\\\"available\\\", \\\"incoming\\\", \\\"on_hand\\\"]) { name quantity } } } } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"totalInventory\":0,\"variants\":{\"nodes\":[{\"inventoryQuantity\":1,\"inventoryItem\":{\"inventoryLevels\":{\"nodes\":[{\"quantities\":[{\"name\":\"available\",\"quantity\":1},{\"name\":\"on_hand\",\"quantity\":1},{\"name\":\"incoming\",\"quantity\":2},{\"name\":\"reserved\",\"quantity\":0}]}]}}}]}}}}"
 }
 
 pub fn inventory_deactivate_unknown_level_returns_item_error_test() {
@@ -2684,6 +2742,22 @@ fn tracked_inventory_level() -> InventoryLevelRecord {
 
 fn tracked_inventory_store() -> store.Store {
   tracked_inventory_store_with_levels([tracked_inventory_level()])
+}
+
+fn tracked_inventory_store_with_total_inventory(
+  total_inventory: Int,
+) -> store.Store {
+  tracked_inventory_store()
+  |> store.upsert_base_products([
+    ProductRecord(
+      ..default_product(),
+      id: "gid://shopify/Product/tracked",
+      title: "Tracked Product",
+      handle: "tracked-product",
+      total_inventory: Some(total_inventory),
+      tracks_inventory: Some(True),
+    ),
+  ])
 }
 
 fn tracked_inventory_store_with_levels(

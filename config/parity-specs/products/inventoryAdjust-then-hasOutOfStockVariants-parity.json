@@ -66,11 +66,6 @@
         "reason": "The proxy uses an empty location name when a location baseline is unavailable during local replay."
       },
       {
-        "path": "$.product.totalInventory",
-        "matcher": "any-number",
-        "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities; the captured Shopify product aggregate remained stale immediately after the inventory adjustment."
-      },
-      {
         "path": "$.product.variants.nodes[0].inventoryItem.inventoryLevels.nodes[0].quantities[2]",
         "ignore": true,
         "regrettable": true,
