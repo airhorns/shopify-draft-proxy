@@ -347,6 +347,7 @@ pub fn metafield_definition_unpin_compacts_pinned_positions_test() {
   assert listing
     == "{\"data\":{\"metafieldDefinitions\":{\"nodes\":[{\"key\":\"pin_3\",\"pinnedPosition\":2},{\"key\":\"pin_1\",\"pinnedPosition\":1}]}}}"
 }
+
 pub fn non_product_owner_definition_lifecycle_test() {
   let proxy = draft_proxy.new()
   let create_customer =
