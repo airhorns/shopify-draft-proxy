@@ -664,6 +664,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-create-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-create-validation-conformance.ts',
+    purpose:
+      'Metaobject definition type length/format validation, app namespace resolution, case-insensitive duplicates, and field key validation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-create-validation.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-create-validation.json',
+      'config/parity-requests/metaobjects/metaobject-definition-create-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Validation branches create no records; successful app-prefixed and duplicate-case setup definitions are deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-references',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-reference-conformance.ts',
