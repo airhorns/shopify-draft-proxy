@@ -304,6 +304,72 @@ pub fn web_pixel_duplicate_create_returns_taken_error_test() {
     == "{\"data\":{\"webPixelCreate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"TAKEN\",\"field\":null,\"message\":\"Web pixel is taken.\"}]}}}"
 }
 
+pub fn script_tag_create_validates_src_without_staging_test() {
+  let too_long_src = "https://example.test/" <> string.repeat("a", times: 260)
+  let query =
+    "mutation { missing: scriptTagCreate(input: {}) { scriptTag { id } userErrors { __typename code field message } } blank: scriptTagCreate(input: { src: \"   \" }) { scriptTag { id } userErrors { __typename code field message } } invalid: scriptTagCreate(input: { src: \"not-a-url\" }) { scriptTag { id } userErrors { __typename code field message } } tooLong: scriptTagCreate(input: { src: \""
+    <> too_long_src
+    <> "\" }) { scriptTag { id } userErrors { __typename code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"missing\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"BLANK\",\"field\":[\"input\",\"src\"],\"message\":\"Source can't be blank\"}]},\"blank\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"BLANK\",\"field\":[\"input\",\"src\"],\"message\":\"Source can't be blank\"}]},\"invalid\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"input\",\"src\"],\"message\":\"Source is invalid\"}]},\"tooLong\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"TOO_LONG\",\"field\":[\"input\",\"src\"],\"message\":\"Source is too long (maximum is 255 characters)\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "scriptTag",
+    )
+    |> list.length
+    == 0
+}
+
+pub fn script_tag_create_defaults_display_scope_to_online_store_test() {
+  let query =
+    "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\" }) { scriptTag { id src displayScope cache } userErrors { code field message } } }"
+  let #(body, proxy) = run_graphql(proxy(), query)
+  assert body
+    == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ONLINE_STORE\",\"cache\":false},\"userErrors\":[]}}}"
+
+  let state = read_state(proxy)
+  assert string.contains(state, "\"displayScope\":\"online_store\"")
+}
+
+pub fn script_tag_create_rejects_invalid_display_scope_test() {
+  let query =
+    "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\", displayScope: \"FOO\" }) { scriptTag { id } userErrors { __typename code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INCLUSION\",\"field\":[\"input\",\"displayScope\"],\"message\":\"Display scope is not included in the list\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "scriptTag",
+    )
+    |> list.length
+    == 0
+}
+
+pub fn script_tag_update_validates_changed_fields_only_test() {
+  let create_query =
+    "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\", displayScope: ALL }) { scriptTag { id src displayScope } userErrors { code field message } } }"
+  let #(create_body, proxy) = run_graphql(proxy(), create_query)
+  assert create_body
+    == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ALL\"},\"userErrors\":[]}}}"
+
+  let invalid_update =
+    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { src: \"ftp://cdn.example.test/app.js\" }) { scriptTag { id src displayScope } userErrors { __typename code field message } } }"
+  let #(invalid_body, proxy) = run_graphql(proxy, invalid_update)
+  assert invalid_body
+    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"input\",\"src\"],\"message\":\"Source is invalid\"}]}}}"
+
+  let valid_update =
+    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { cache: true }) { scriptTag { id src displayScope cache } userErrors { code field message } } }"
+  let #(valid_body, _) = run_graphql(proxy, valid_update)
+  assert valid_body
+    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ALL\",\"cache\":true},\"userErrors\":[]}}}"
+}
+
 pub fn web_pixel_create_without_settings_needs_configuration_test() {
   let query =
     "mutation { webPixelCreate(webPixel: {}) { webPixel { id status settings } userErrors { __typename code field message } } }"
