@@ -75,6 +75,14 @@ type UserError {
   UserError(field: Option(List(String)), message: String, code: Option(String))
 }
 
+type PaymentTermsSchedulePlan {
+  PaymentTermsSchedulePlan(
+    issued_at: Option(String),
+    due_at: Option(String),
+    include_schedule: Bool,
+  )
+}
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -3341,18 +3349,40 @@ fn create_payment_terms(store, identity, field, fragments, variables) {
               let amount =
                 payment_terms_owner_money(store, owner_id)
                 |> option.unwrap(default_payment_terms_money())
-              let #(record, next_identity) =
-                build_payment_terms(identity, owner_id, attrs, None, amount)
-              payment_terms_result(
-                store.upsert_staged_payment_terms(store, record),
-                next_identity,
-                field,
-                fragments,
-                "paymentTermsCreate",
-                Some(record),
-                [],
-                [record.id],
-              )
+              case
+                build_payment_terms(
+                  identity,
+                  owner_id,
+                  attrs,
+                  None,
+                  amount,
+                  ["paymentTermsAttributes"],
+                  payment_terms_creation_unsuccessful_code,
+                )
+              {
+                Ok(#(record, next_identity)) ->
+                  payment_terms_result(
+                    store.upsert_staged_payment_terms(store, record),
+                    next_identity,
+                    field,
+                    fragments,
+                    "paymentTermsCreate",
+                    Some(record),
+                    [],
+                    [record.id],
+                  )
+                Error(error) ->
+                  payment_terms_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "paymentTermsCreate",
+                    None,
+                    [error],
+                    [],
+                  )
+              }
             }
             False ->
               payment_terms_result(
@@ -3434,24 +3464,40 @@ fn update_payment_terms(store, identity, field, fragments, variables) {
                 payment_terms_owner_money(store, current.owner_id)
                 |> option.or(payment_terms_record_money(current))
                 |> option.unwrap(default_payment_terms_money())
-              let #(record, next_identity) =
+              case
                 build_payment_terms(
                   identity,
                   current.owner_id,
                   attrs,
                   Some(current.id),
                   amount,
+                  ["input", "paymentTermsAttributes"],
+                  payment_terms_update_unsuccessful_code,
                 )
-              payment_terms_result(
-                store.upsert_staged_payment_terms(store, record),
-                next_identity,
-                field,
-                fragments,
-                "paymentTermsUpdate",
-                Some(record),
-                [],
-                [record.id],
-              )
+              {
+                Ok(#(record, next_identity)) ->
+                  payment_terms_result(
+                    store.upsert_staged_payment_terms(store, record),
+                    next_identity,
+                    field,
+                    fragments,
+                    "paymentTermsUpdate",
+                    Some(record),
+                    [],
+                    [record.id],
+                  )
+                Error(error) ->
+                  payment_terms_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "paymentTermsUpdate",
+                    None,
+                    [error],
+                    [],
+                  )
+              }
             }
             None ->
               payment_terms_result(
@@ -3578,40 +3624,51 @@ fn build_payment_terms(
   attrs: Dict(String, root_field.ResolvedValue),
   existing_id: Option(String),
   amount: Money,
-) -> #(PaymentTermsRecord, SyntheticIdentityRegistry) {
+  field_prefix: List(String),
+  unsuccessful_code: String,
+) -> Result(#(PaymentTermsRecord, SyntheticIdentityRegistry), UserError) {
+  use template <- result.try(resolve_payment_terms_template(
+    attrs,
+    field_prefix,
+    unsuccessful_code,
+  ))
+  use schedule_plan <- result.try(resolve_payment_terms_schedule(
+    attrs,
+    template,
+    unsuccessful_code,
+  ))
   let #(id, identity_after_terms) = case existing_id {
     Some(value) -> #(value, identity)
     None -> synthetic_identity.make_synthetic_gid(identity, "PaymentTerms")
   }
-  let #(schedule_id, next_identity) =
-    synthetic_identity.make_synthetic_gid(
-      identity_after_terms,
-      "PaymentSchedule",
-    )
-  let template =
-    read_string_field(attrs, "paymentTermsTemplateId")
-    |> option.then(find_payment_terms_template)
-    |> option.unwrap(
-      payment_terms_templates()
-      |> list.first
-      |> result.unwrap(PaymentTermsTemplateRecord(
-        "gid://shopify/PaymentTermsTemplate/4",
-        "Net 30",
-        "Within 30 days",
-        Some(30),
-        "NET",
-        "Net 30",
-      )),
-    )
-  let schedule_attrs = first_schedule_attrs(attrs)
-  let issued_at = read_string_field(schedule_attrs, "issuedAt")
-  let due_at =
-    read_string_field(schedule_attrs, "dueAt")
-    |> option.or(case template.due_in_days, issued_at {
-      Some(days), Some(issued) -> add_days(issued, days)
-      _, _ -> None
-    })
-  #(
+  let #(payment_schedules, next_identity) = case
+    schedule_plan.include_schedule
+  {
+    True -> {
+      let #(schedule_id, next_identity) =
+        synthetic_identity.make_synthetic_gid(
+          identity_after_terms,
+          "PaymentSchedule",
+        )
+      #(
+        [
+          PaymentScheduleRecord(
+            id: schedule_id,
+            due_at: schedule_plan.due_at,
+            issued_at: schedule_plan.issued_at,
+            completed_at: None,
+            due: Some(False),
+            amount: Some(amount),
+            balance_due: Some(amount),
+            total_balance: Some(amount),
+          ),
+        ],
+        next_identity,
+      )
+    }
+    False -> #([], identity_after_terms)
+  }
+  Ok(#(
     PaymentTermsRecord(
       id: id,
       owner_id: owner_id,
@@ -3621,23 +3678,130 @@ fn build_payment_terms(
       payment_terms_name: template.name,
       payment_terms_type: template.payment_terms_type,
       translated_name: template.translated_name,
-      payment_schedules: [
-        PaymentScheduleRecord(
-          id: schedule_id,
-          due_at: due_at,
-          issued_at: case template.payment_terms_type {
-            "FIXED" -> None
-            _ -> issued_at
-          },
-          completed_at: None,
-          due: Some(False),
-          amount: Some(amount),
-          balance_due: Some(amount),
-          total_balance: Some(amount),
-        ),
-      ],
+      payment_schedules: payment_schedules,
     ),
     next_identity,
+  ))
+}
+
+fn resolve_payment_terms_template(
+  attrs: Dict(String, root_field.ResolvedValue),
+  field_prefix: List(String),
+  unsuccessful_code: String,
+) -> Result(PaymentTermsTemplateRecord, UserError) {
+  case read_string_field(attrs, "paymentTermsTemplateId") {
+    Some(template_id) ->
+      case find_payment_terms_template(template_id) {
+        Some(template) -> Ok(template)
+        None ->
+          Error(UserError(
+            field: None,
+            message: "Could not find payment terms template.",
+            code: Some(unsuccessful_code),
+          ))
+      }
+    None ->
+      Error(UserError(
+        field: Some(list.append(field_prefix, ["paymentTermsTemplateId"])),
+        message: "Payment terms template is required.",
+        code: Some("REQUIRED"),
+      ))
+  }
+}
+
+fn resolve_payment_terms_schedule(
+  attrs: Dict(String, root_field.ResolvedValue),
+  template: PaymentTermsTemplateRecord,
+  unsuccessful_code: String,
+) -> Result(PaymentTermsSchedulePlan, UserError) {
+  let schedule_attrs = first_schedule_attrs(attrs)
+  let issued_at = read_string_field(schedule_attrs, "issuedAt")
+  let due_at = read_string_field(schedule_attrs, "dueAt")
+  case template.payment_terms_type {
+    "FIXED" -> fixed_payment_terms_schedule(due_at, unsuccessful_code)
+    "NET" ->
+      net_payment_terms_schedule(
+        due_at,
+        issued_at,
+        template.due_in_days,
+        unsuccessful_code,
+      )
+    "RECEIPT" -> event_payment_terms_schedule(due_at, unsuccessful_code)
+    "FULFILLMENT" -> event_payment_terms_schedule(due_at, unsuccessful_code)
+    _ ->
+      Ok(PaymentTermsSchedulePlan(
+        issued_at: issued_at,
+        due_at: due_at,
+        include_schedule: True,
+      ))
+  }
+}
+
+fn fixed_payment_terms_schedule(
+  due_at: Option(String),
+  unsuccessful_code: String,
+) -> Result(PaymentTermsSchedulePlan, UserError) {
+  case due_at {
+    Some(due_at) ->
+      Ok(PaymentTermsSchedulePlan(
+        issued_at: None,
+        due_at: Some(due_at),
+        include_schedule: True,
+      ))
+    None -> Error(required_due_date_payment_terms_error(unsuccessful_code))
+  }
+}
+
+fn net_payment_terms_schedule(
+  due_at: Option(String),
+  issued_at: Option(String),
+  due_in_days: Option(Int),
+  unsuccessful_code: String,
+) -> Result(PaymentTermsSchedulePlan, UserError) {
+  let resolved_due_at =
+    due_at
+    |> option.or(case due_in_days, issued_at {
+      Some(days), Some(issued) -> add_days(issued, days)
+      _, _ -> None
+    })
+  case resolved_due_at {
+    Some(resolved_due_at) ->
+      Ok(PaymentTermsSchedulePlan(
+        issued_at: issued_at,
+        due_at: Some(resolved_due_at),
+        include_schedule: True,
+      ))
+    None -> Error(required_due_date_payment_terms_error(unsuccessful_code))
+  }
+}
+
+fn event_payment_terms_schedule(
+  due_at: Option(String),
+  unsuccessful_code: String,
+) -> Result(PaymentTermsSchedulePlan, UserError) {
+  case due_at {
+    Some(_) ->
+      Error(UserError(
+        field: None,
+        message: "A due date cannot be set with event payment terms.",
+        code: Some(unsuccessful_code),
+      ))
+    None ->
+      Ok(PaymentTermsSchedulePlan(
+        issued_at: None,
+        due_at: None,
+        include_schedule: False,
+      ))
+  }
+}
+
+fn required_due_date_payment_terms_error(
+  unsuccessful_code: String,
+) -> UserError {
+  UserError(
+    field: None,
+    message: "A due date is required with fixed or net payment terms.",
+    code: Some(unsuccessful_code),
   )
 }
 
