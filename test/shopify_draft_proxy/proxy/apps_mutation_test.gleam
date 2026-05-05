@@ -231,7 +231,7 @@ pub fn revoke_access_scopes_removes_granted_test() {
     == ["read_products"]
 }
 
-pub fn revoke_access_scopes_unknown_emits_user_error_test() {
+pub fn revoke_access_scopes_unknown_app_id_test() {
   let body =
     run_mutation(
       seeded_with_installation(),

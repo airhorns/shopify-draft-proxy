@@ -326,7 +326,7 @@
         "appUninstall returns the staged app object."
       ],
       "downstreamReads": [
-        "currentAppInstallation.accessScopes excludes locally revoked scopes.",
+        "currentAppInstallation.accessScopes remains unchanged after a failed required-scope revocation.",
         "currentAppInstallation returns null after staged appUninstall."
       ]
     },
