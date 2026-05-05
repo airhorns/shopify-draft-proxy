@@ -1,0 +1,45 @@
+mutation OnlineStoreIntegrationDeleteNotFoundCodes {
+  webPixelDelete(id: "gid://shopify/WebPixel/9999999999") {
+    deletedWebPixelId
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  scriptTagDelete(id: "gid://shopify/ScriptTag/9999999999") {
+    deletedScriptTagId
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  themeDelete(id: "gid://shopify/OnlineStoreTheme/9999999999") {
+    deletedThemeId
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  serverPixelDelete {
+    deletedServerPixelId
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  mobilePlatformApplicationDelete(id: "gid://shopify/MobilePlatformApplication/9999999999") {
+    deletedMobilePlatformApplicationId
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}
