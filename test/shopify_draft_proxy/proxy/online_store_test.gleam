@@ -545,3 +545,100 @@ pub fn theme_publish_rejects_demo_locked_or_archived_theme_test() {
   assert json.to_string(read_body)
     == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"DEMO\"},\"themes\":{\"nodes\":[]}}}"
 }
+
+pub fn theme_files_upsert_uses_body_checksum_size_and_validates_filename_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"HAR 585 Theme\") { theme { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"themeCreate\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+
+  let first =
+    "mutation { themeFilesUpsert(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ filename: \"templates/index.json\", body: { type: TEXT, value: \"hello\" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(first))
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[{\"filename\":\"templates/index.json\",\"checksumMd5\":\"5d41402abc4b2a76b9719d911017c592\",\"size\":5,\"body\":{\"content\":\"hello\"}}],\"userErrors\":[]}}}"
+
+  let second =
+    "mutation { themeFilesUpsert(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ filename: \"templates/index.json\", body: { type: TEXT, value: \"hello world\" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } } }"
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(second))
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[{\"filename\":\"templates/index.json\",\"checksumMd5\":\"5eb63bbbe01eeed093cb22bb8f5acdc3\",\"size\":11,\"body\":{\"content\":\"hello world\"}}],\"userErrors\":[]}}}"
+
+  let invalid =
+    "mutation { themeFilesUpsert(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ filename: \"evil/path.liquid\", body: { type: TEXT, value: \"ignored\" } }]) { upsertedThemeFiles { filename } userErrors { field message code } } }"
+  let #(Response(status: invalid_status, body: invalid_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(invalid))
+  assert invalid_status == 200
+  assert json.to_string(invalid_body)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Filename is invalid\",\"code\":\"INVALID\"}]}}}"
+
+  let read =
+    "query { theme(id: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\") { files(first: 10) { nodes { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"files\":{\"nodes\":[{\"filename\":\"templates/index.json\",\"checksumMd5\":\"5eb63bbbe01eeed093cb22bb8f5acdc3\",\"size\":11,\"body\":{\"content\":\"hello world\"}}]}}}}"
+}
+
+pub fn theme_files_copy_and_delete_validate_local_file_lifecycle_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"HAR 585 Theme\") { theme { id } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+  let upsert =
+    "mutation { themeFilesUpsert(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ filename: \"assets/app.js\", body: { type: TEXT, value: \"console.log(1)\" } }]) { upsertedThemeFiles { filename } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(upsert))
+
+  let missing_copy =
+    "mutation { themeFilesCopy(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ srcFilename: \"assets/missing.js\", dstFilename: \"assets/copy.js\" }]) { copiedThemeFiles { filename } userErrors { field message code } } }"
+  let #(
+    Response(status: missing_copy_status, body: missing_copy_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(missing_copy))
+  assert missing_copy_status == 200
+  assert json.to_string(missing_copy_body)
+    == "{\"data\":{\"themeFilesCopy\":{\"copiedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"srcFilename\"],\"message\":\"File not found\",\"code\":\"NOT_FOUND\"}]}}}"
+
+  let copy =
+    "mutation { themeFilesCopy(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ srcFilename: \"assets/app.js\", dstFilename: \"assets/copy.js\" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } } }"
+  let #(Response(status: copy_status, body: copy_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(copy))
+  assert copy_status == 200
+  assert json.to_string(copy_body)
+    == "{\"data\":{\"themeFilesCopy\":{\"copiedThemeFiles\":[{\"filename\":\"assets/copy.js\",\"checksumMd5\":\"6114f5adc373accd7b2051bd87078f62\",\"size\":14,\"body\":{\"content\":\"console.log(1)\"}}],\"userErrors\":[]}}}"
+
+  let required_delete =
+    "mutation { themeFilesDelete(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [\"config/settings_data.json\", \"config/settings_schema.json\"]) { deletedThemeFiles { filename } userErrors { field message code } } }"
+  let #(
+    Response(status: required_delete_status, body: required_delete_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(required_delete))
+  assert required_delete_status == 200
+  assert json.to_string(required_delete_body)
+    == "{\"data\":{\"themeFilesDelete\":{\"deletedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\",\"0\"],\"message\":\"File is required and can't be deleted\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"1\"],\"message\":\"File is required and can't be deleted\",\"code\":\"INVALID\"}]}}}"
+
+  let delete_copy =
+    "mutation { themeFilesDelete(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [\"assets/copy.js\"]) { deletedThemeFiles { filename } userErrors { field message code } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(delete_copy))
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"themeFilesDelete\":{\"deletedThemeFiles\":[{\"filename\":\"assets/copy.js\"}],\"userErrors\":[]}}}"
+
+  let read =
+    "query { theme(id: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\") { files(first: 10) { nodes { filename } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"files\":{\"nodes\":[{\"filename\":\"assets/app.js\"}]}}}}"
+}
