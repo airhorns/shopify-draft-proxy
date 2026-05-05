@@ -23,7 +23,8 @@
         "expectedDifferences": [
           {
             "path": "$.customerCreate.customer.id",
-            "matcher": "shopify-gid:Customer"
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages customerCreate locally and returns a stable synthetic Customer GID instead of Shopify's live ID."
           }
         ]
       },
@@ -34,11 +35,13 @@
         "expectedDifferences": [
           {
             "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.id",
-            "matcher": "shopify-gid:StoreCreditAccount"
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
           },
           {
             "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.owner.id",
-            "matcher": "shopify-gid:Customer"
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
           }
         ],
         "proxyRequest": {
@@ -109,11 +112,13 @@
         "expectedDifferences": [
           {
             "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.id",
-            "matcher": "shopify-gid:StoreCreditAccount"
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the second-currency store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
           },
           {
             "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.owner.id",
-            "matcher": "shopify-gid:Customer"
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
           }
         ],
         "proxyRequest": {
@@ -151,11 +156,13 @@
         "expectedDifferences": [
           {
             "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.id",
-            "matcher": "shopify-gid:StoreCreditAccount"
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
           },
           {
             "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.owner.id",
-            "matcher": "shopify-gid:Customer"
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
           }
         ],
         "proxyRequest": {
@@ -178,11 +185,13 @@
         "expectedDifferences": [
           {
             "path": "$.storeCreditAccountDebit.storeCreditAccountTransaction.account.id",
-            "matcher": "shopify-gid:StoreCreditAccount"
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
           },
           {
             "path": "$.storeCreditAccountDebit.storeCreditAccountTransaction.account.owner.id",
-            "matcher": "shopify-gid:Customer"
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
           }
         ],
         "proxyRequest": {
@@ -205,23 +214,28 @@
         "expectedDifferences": [
           {
             "path": "$.customer.id",
-            "matcher": "shopify-gid:Customer"
+            "matcher": "shopify-gid:Customer",
+            "reason": "The downstream read sees the proxy-created synthetic Customer GID."
           },
           {
             "path": "$.customer.storeCreditAccounts.nodes[0].id",
-            "matcher": "shopify-gid:StoreCreditAccount"
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The downstream nested account read sees the proxy-created synthetic StoreCreditAccount GID."
           },
           {
             "path": "$.customer.storeCreditAccounts.nodes[1].id",
-            "matcher": "shopify-gid:StoreCreditAccount"
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The downstream nested second-currency account read sees the proxy-created synthetic StoreCreditAccount GID."
           },
           {
             "path": "$.storeCreditAccount.id",
-            "matcher": "shopify-gid:StoreCreditAccount"
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The downstream direct account read sees the proxy-created synthetic StoreCreditAccount GID."
           },
           {
             "path": "$.storeCreditAccount.owner.id",
-            "matcher": "shopify-gid:Customer"
+            "matcher": "shopify-gid:Customer",
+            "reason": "The downstream direct account owner references the proxy-created synthetic Customer GID."
           }
         ],
         "proxyRequest": {
