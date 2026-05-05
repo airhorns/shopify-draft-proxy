@@ -120,6 +120,108 @@ pub fn web_presence_create_domain_root_urls_resolve_primary_domain_test() {
   assert string.contains(serialized, "\"subfolderSuffix\":null")
 }
 
+pub fn web_presence_create_accepts_shopify_i18n_locale_codes_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"pt-BR\", \"zh-CN\"], subfolderSuffix: \"fr\" }) { webPresence { subfolderSuffix defaultLocale { locale primary } alternateLocales { locale primary } } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(
+    serialized,
+    "\"defaultLocale\":{\"locale\":\"fr-CA\",\"primary\":true}",
+  )
+  assert string.contains(
+    serialized,
+    "\"alternateLocales\":[{\"locale\":\"pt-BR\",\"primary\":false},{\"locale\":\"zh-CN\",\"primary\":false}]",
+  )
+}
+
+pub fn web_presence_create_reports_invalid_alternate_locale_indexes_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"fr\", \"bogus\", \"pt-BR\", \"nope\"], subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\",\"1\"],\"message\":\"Invalid locale codes: bogus\",\"code\":\"INVALID\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\",\"3\"],\"message\":\"Invalid locale codes: nope\",\"code\":\"INVALID\"",
+  )
+  assert !string.contains(serialized, "\"alternateLocales\",\"0\"")
+  assert !string.contains(serialized, "\"alternateLocales\",\"2\"")
+}
+
+pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {
+  let #(Response(status: mutex_status, body: mutex_body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", domainId: \"gid://shopify/Domain/1000\", subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: missing_status, body: missing_body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: short_status, body: short_body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"x\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: script_status, body: script_body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"Latn\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+
+  assert mutex_status == 200
+  assert missing_status == 200
+  assert short_status == 200
+  assert script_status == 200
+  assert string.contains(
+    json.to_string(mutex_body),
+    "\"code\":\"CANNOT_HAVE_SUBFOLDER_AND_DOMAIN\"",
+  )
+  assert string.contains(
+    json.to_string(missing_body),
+    "\"code\":\"REQUIRES_DOMAIN_OR_SUBFOLDER\"",
+  )
+  assert string.contains(
+    json.to_string(short_body),
+    "\"code\":\"SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS\"",
+  )
+  assert string.contains(
+    json.to_string(script_body),
+    "\"code\":\"SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE\"",
+  )
+}
+
+pub fn web_presence_create_reports_unknown_domain_only_when_not_stored_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", domainId: \"gid://shopify/Domain/9999\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"domainId\"],\"message\":\"Domain does not exist\",\"code\":\"DOMAIN_NOT_FOUND\"",
+  )
+}
+
 fn seeded_proxy() -> DraftProxy {
   let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
   let seeded_store = store.upsert_base_shop(proxy.store, acme_shop())
