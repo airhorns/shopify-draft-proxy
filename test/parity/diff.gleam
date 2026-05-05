@@ -557,6 +557,11 @@ fn value_matches(value: JsonValue, matcher: String) -> Bool {
         JString(s) -> is_shopify_gid(s, ty)
         _ -> False
       }
+    "regex:^" <> prefix ->
+      case value {
+        JString(s) -> string.starts_with(s, prefix)
+        _ -> False
+      }
     "shop-policy-url-base:" <> base ->
       case value {
         JString(s) -> is_shop_policy_url(s, base)
