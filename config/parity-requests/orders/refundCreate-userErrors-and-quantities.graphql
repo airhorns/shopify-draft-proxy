@@ -1,0 +1,28 @@
+mutation RefundCreateUserErrorsAndQuantities($input: RefundInput!) {
+  refundCreate(input: $input) {
+    refund {
+      id
+      createdAt
+      updatedAt
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    order {
+      id
+      totalRefundedSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
