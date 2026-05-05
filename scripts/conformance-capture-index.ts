@@ -1047,6 +1047,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-edit-fields-and-state-machine',
+    scriptPath: 'scripts/capture-location-edit-fields-and-state-machine-conformance.mts',
+    purpose:
+      'locationEdit editable fields, typed userErrors, location-owned metafields, read-after-write, and fulfillsOnlineOrders state-machine branches.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-edit-fields-and-state-machine.json`,
+      'config/parity-specs/store-properties/location-edit-fields-and-state-machine.json',
+      'config/parity-requests/store-properties/location-edit-fields-and-state-machine*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable locations, temporarily disables/restores pre-existing online-fulfilling locations for the only-online rejection branch, then deactivates/deletes the disposable locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-activate-deactivate-lifecycle',
     scriptPath: 'scripts/capture-location-activate-deactivate-lifecycle-conformance.mts',
     purpose:
@@ -1344,6 +1360,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'payments',
+    captureId: 'payment-customization-metafields-and-handle-update',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-customization-metafields-conformance.ts',
+    purpose:
+      'paymentCustomizationCreate/paymentCustomizationUpdate metafield persistence, functionHandle input update, and downstream paymentCustomization readback.',
+    requiredAuthScopes: ['read_payment_customizations', 'write_payment_customizations', 'shopifyFunctions read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-customization-metafields-and-handle-update.json`,
+      'config/parity-specs/payments/payment-customization-metafields-and-handle-update.json',
+      'config/parity-requests/payments/payment-customization-metafields-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable payment customization, captures create/update/read behavior, then deletes the payment customization.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The active 2026-04 PaymentCustomization output type does not expose functionHandle, so parity compares Shopify’s resolved functionId and runtime tests cover local functionHandle projection.',
+  },
+  {
     domain: 'admin-platform',
     captureId: 'admin-platform',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -1572,6 +1607,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable customers and validation-only gift cards, records failing notification responses, deactivates gift cards, and deletes customers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
+    captureId: 'gift-card-transaction-validation',
+    scriptPath: 'scripts/capture-gift-card-transaction-validation-conformance.ts',
+    purpose:
+      'Gift-card credit/debit transaction validation for expired, deactivated, mismatched-currency, processedAt bounds, and typed success payloads.',
+    requiredAuthScopes: [
+      'read_gift_cards',
+      'write_gift_cards',
+      'read_gift_card_transactions',
+      'write_gift_card_transactions',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-transaction-validation.json`,
+      'config/parity-specs/gift-cards/gift-card-transaction-validation.json',
+      'config/parity-requests/gift-cards/gift-card-transaction-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable active, expired, and deactivated gift cards; deactivates any setup cards not already deactivated during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

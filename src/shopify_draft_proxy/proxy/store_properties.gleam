@@ -14,7 +14,8 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Argument, type Directive, type Selection, Argument, Directive, Field,
-  SelectionSet, StringValue, VariableValue,
+  FragmentDefinition, FragmentSpread, InlineFragment, SelectionSet, StringValue,
+  VariableValue,
 }
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
@@ -25,9 +26,10 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   SrcObject, SrcString, default_connection_page_info_options,
   default_connection_window_options, default_selected_field_options,
   get_document_fragments, get_field_response_key, get_selected_child_fields,
-  paginate_connection_items, project_graphql_value, serialize_connection,
-  src_object,
+  paginate_connection_items, project_graphql_field_value, project_graphql_value,
+  serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome,
 }
@@ -41,13 +43,15 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type PaymentSettingsRecord, type ShopAddressRecord,
+  type CapturedJsonValue, type PaymentSettingsRecord,
+  type ProductMetafieldRecord, type ShopAddressRecord,
   type ShopBundlesFeatureRecord, type ShopCartTransformEligibleOperationsRecord,
   type ShopCartTransformFeatureRecord, type ShopDomainRecord,
   type ShopFeaturesRecord, type ShopPlanRecord, type ShopPolicyRecord,
   type ShopRecord, type ShopResourceLimitsRecord,
   type StorePropertyMutationPayloadRecord, type StorePropertyRecord,
-  type StorePropertyValue, PaymentSettingsRecord, ShopAddressRecord,
+  type StorePropertyValue, CapturedArray, CapturedObject, CapturedString,
+  PaymentSettingsRecord, ProductMetafieldRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
   ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
@@ -115,6 +119,14 @@ type GenericMutationResult {
     staged_resource_ids: List(String),
     top_level_errors: List(Json),
     should_log: Bool,
+  )
+}
+
+type LocationEditUserError {
+  LocationEditUserError(
+    field: List(String),
+    message: String,
+    code: Option(String),
   )
 }
 
@@ -609,7 +621,8 @@ fn serialize_location_root(
       }
   }
   case location {
-    Some(record) -> project_store_property_record(record, field, fragments)
+    Some(record) ->
+      serialize_location_record(store, record, field, fragments, variables)
     None -> json.null()
   }
 }
@@ -632,7 +645,13 @@ fn serialize_location_by_identifier_result(
               store.get_effective_store_property_location_by_id(store, id)
             {
               Some(record) ->
-                project_store_property_record(record, field, fragments)
+                serialize_location_record(
+                  store,
+                  record,
+                  field,
+                  fragments,
+                  variables,
+                )
               None -> json.null()
             },
             errors: [],
@@ -657,7 +676,7 @@ fn serialize_locations_root(
     paginate_store_records(locations, field, variables, fn(record, _index) {
       record.cursor |> option.unwrap(record.id)
     })
-  serialize_store_record_connection(field, window, fragments)
+  serialize_location_connection(field, window, fragments, variables, store)
 }
 
 fn paginate_store_records(
@@ -675,10 +694,12 @@ fn paginate_store_records(
   )
 }
 
-fn serialize_store_record_connection(
+fn serialize_location_connection(
   field: Selection,
   window: ConnectionWindow(StorePropertyRecord),
   fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  store: Store,
 ) -> Json {
   serialize_connection(
     field,
@@ -690,10 +711,12 @@ fn serialize_store_record_connection(
         record.cursor |> option.unwrap(record.id)
       },
       serialize_node: fn(record, selection, _index) {
-        project_graphql_value(
-          store_property_data_to_source(record.data),
-          selected_selections(selection),
+        serialize_location_record(
+          store,
+          record,
+          selection,
           fragments,
+          variables,
         )
       },
       selected_field_options: default_selected_field_options(),
@@ -767,13 +790,192 @@ pub fn serialize_location_node_by_id(
 ) -> Json {
   case store.get_effective_store_property_location_by_id(store, id) {
     Some(record) ->
+      serialize_location_selections(
+        store,
+        record,
+        selections,
+        fragments,
+        dict.new(),
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_location_record(
+  store: Store,
+  record: StorePropertyRecord,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let selections = selected_location_child_fields(field, fragments)
+  case location_has_direct_metafield_selection(selections) {
+    True ->
+      serialize_location_selections(
+        store,
+        record,
+        selections,
+        fragments,
+        variables,
+      )
+    False ->
       project_graphql_value(
         store_property_data_to_source(record.data),
         selections,
         fragments,
       )
+  }
+}
+
+fn selected_location_child_fields(
+  field: Selection,
+  fragments: FragmentMap,
+) -> List(Selection) {
+  selected_selections(field)
+  |> expand_location_fragment_selections(fragments)
+}
+
+fn expand_location_fragment_selections(
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> List(Selection) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(..) -> [selection]
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        expand_location_fragment_selections(inner, fragments)
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) -> expand_location_fragment_selections(inner, fragments)
+          _ -> []
+        }
+    }
+  })
+}
+
+fn location_has_direct_metafield_selection(
+  selections: List(Selection),
+) -> Bool {
+  list.any(selections, fn(selection) {
+    case selection {
+      Field(name: name, ..) ->
+        name.value == "metafield" || name.value == "metafields"
+      _ -> False
+    }
+  })
+}
+
+fn serialize_location_selections(
+  store: Store,
+  record: StorePropertyRecord,
+  selections: List(Selection),
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let source = store_property_data_to_source(record.data)
+  json.object(
+    list.map(selections, fn(selection) {
+      let key = get_field_response_key(selection)
+      case selection {
+        Field(name: name, ..) ->
+          case name.value {
+            "metafield" -> #(
+              key,
+              serialize_location_metafield(
+                store,
+                record.id,
+                selection,
+                variables,
+              ),
+            )
+            "metafields" -> #(
+              key,
+              serialize_location_metafields_connection(
+                store,
+                record.id,
+                selection,
+                variables,
+              ),
+            )
+            _ -> #(
+              key,
+              project_graphql_field_value(source, selection, fragments),
+            )
+          }
+        _ -> #(key, json.null())
+      }
+    }),
+  )
+}
+
+fn serialize_location_metafield(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let namespace = read_string_argument(field, variables, "namespace")
+  let key = read_string_argument(field, variables, "key")
+  let found =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.find(fn(metafield) {
+      metafield.namespace == option.unwrap(namespace, "")
+      && metafield.key == option.unwrap(key, "")
+    })
+    |> option.from_result
+  case found {
+    Some(metafield) ->
+      metafields.serialize_metafield_selection(
+        product_metafield_to_core(metafield),
+        field,
+        default_selected_field_options(),
+      )
     None -> json.null()
   }
+}
+
+fn serialize_location_metafields_connection(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let namespace = read_string_argument(field, variables, "namespace")
+  let records =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.filter(fn(metafield) {
+      case namespace {
+        Some(ns) -> metafield.namespace == ns
+        None -> True
+      }
+    })
+    |> list.map(product_metafield_to_core)
+  metafields.serialize_metafields_connection(
+    records,
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn product_metafield_to_core(
+  record: ProductMetafieldRecord,
+) -> metafields.MetafieldRecordCore {
+  metafields.MetafieldRecordCore(
+    id: record.id,
+    namespace: record.namespace,
+    key: record.key,
+    type_: record.type_,
+    value: record.value,
+    compare_digest: record.compare_digest,
+    json_value: record.json_value,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    owner_type: record.owner_type,
+  )
 }
 
 fn store_property_value_to_source(value: StorePropertyValue) -> SourceValue {
@@ -1173,7 +1375,14 @@ fn stage_location_mutation(
     "locationAdd" ->
       stage_location_add(store, identity, field, fragments, variables)
     "locationEdit" ->
-      stage_location_edit(store, identity, field, fragments, variables)
+      stage_location_edit(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+        upstream,
+      )
     "locationActivate" | "locationDeactivate" ->
       case
         admin_api_version_at_least(request_path, "2026-04")
@@ -1340,43 +1549,79 @@ fn stage_location_edit(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> GenericMutationResult {
   let args = graphql_helpers.field_args(field, variables)
   let id = read_string(args, "id")
   case id {
-    Some(location_id) ->
+    Some(location_id) -> {
+      // Pattern 2: edit needs the prior Location row so partial address/name
+      // inputs merge locally without forwarding the supported mutation.
+      let store = hydrate_location_if_missing(store, upstream, location_id)
       case
         store.get_effective_store_property_location_by_id(store, location_id)
       {
         Some(record) -> {
           let input = read_object(args, "input")
-          let next_data = case
-            input |> option.then(fn(values) { read_string(values, "name") })
-          {
-            Some(name) ->
-              dict.insert(record.data, "name", StorePropertyString(name))
-            None -> record.data
+          let input_values = option.unwrap(input, dict.new())
+          let errors = validate_location_edit_input(store, record, input_values)
+          case errors {
+            [_, ..] ->
+              location_edit_result(
+                store,
+                identity,
+                field,
+                fragments,
+                variables,
+                None,
+                errors,
+                [],
+                False,
+              )
+            [] -> {
+              let #(next_data, changed) =
+                apply_location_edit_data(record.data, input_values)
+              let changed =
+                changed
+                || !list.is_empty(read_object_list(input_values, "metafields"))
+              let #(next_data, next_identity) = case changed {
+                True -> {
+                  let #(now, identity_after_timestamp) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  #(
+                    dict.insert(
+                      next_data,
+                      "updatedAt",
+                      StorePropertyString(now),
+                    ),
+                    identity_after_timestamp,
+                  )
+                }
+                False -> #(next_data, identity)
+              }
+              let next_record = StorePropertyRecord(..record, data: next_data)
+              let #(_, location_store) =
+                store.upsert_staged_store_property_location(store, next_record)
+              let #(metafield_store, final_identity, metafield_ids) =
+                apply_location_edit_metafields(
+                  location_store,
+                  next_identity,
+                  location_id,
+                  input_values,
+                )
+              location_edit_result(
+                metafield_store,
+                final_identity,
+                field,
+                fragments,
+                variables,
+                Some(next_record),
+                [],
+                [location_id, ..metafield_ids],
+                True,
+              )
+            }
           }
-          let next_record = StorePropertyRecord(..record, data: next_data)
-          let #(_, next_store) =
-            store.upsert_staged_store_property_location(store, next_record)
-          let payload_source =
-            src_object([
-              #("location", store_property_data_to_source(next_record.data)),
-              #("userErrors", SrcList([])),
-            ])
-          GenericMutationResult(
-            payload: project_graphql_value(
-              payload_source,
-              selected_children(field),
-              fragments,
-            ),
-            store: next_store,
-            identity: identity,
-            staged_resource_ids: [location_id],
-            top_level_errors: [],
-            should_log: True,
-          )
         }
         None ->
           location_user_error_result(
@@ -1388,9 +1633,10 @@ fn stage_location_edit(
             "userErrors",
             "id",
             "Location not found.",
-            None,
+            Some("NOT_FOUND"),
           )
       }
+    }
     None ->
       location_user_error_result(
         store,
@@ -1401,9 +1647,450 @@ fn stage_location_edit(
         "userErrors",
         "id",
         "Location not found.",
-        None,
+        Some("NOT_FOUND"),
       )
   }
+}
+
+fn location_edit_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  location: Option(StorePropertyRecord),
+  errors: List(LocationEditUserError),
+  staged_resource_ids: List(String),
+  should_log: Bool,
+) -> GenericMutationResult {
+  let payload =
+    json.object(
+      list.map(selected_children(field), fn(selection) {
+        let key = get_field_response_key(selection)
+        case selection {
+          Field(name: name, ..) ->
+            case name.value {
+              "location" -> #(key, case location {
+                Some(record) ->
+                  serialize_location_record(
+                    store,
+                    record,
+                    selection,
+                    fragments,
+                    variables,
+                  )
+                None -> json.null()
+              })
+              "userErrors" -> #(
+                key,
+                project_graphql_field_value(
+                  src_object([
+                    #(
+                      "userErrors",
+                      SrcList(list.map(errors, location_edit_error_source)),
+                    ),
+                  ]),
+                  selection,
+                  fragments,
+                ),
+              )
+              _ -> #(key, json.null())
+            }
+          _ -> #(key, json.null())
+        }
+      }),
+    )
+  GenericMutationResult(
+    payload: payload,
+    store: store,
+    identity: identity,
+    staged_resource_ids: staged_resource_ids,
+    top_level_errors: [],
+    should_log: should_log,
+  )
+}
+
+fn location_edit_error_source(error: LocationEditUserError) -> SourceValue {
+  src_object([
+    #("field", SrcList(list.map(error.field, SrcString))),
+    #("message", SrcString(error.message)),
+    #("code", graphql_helpers.option_string_source(error.code)),
+  ])
+}
+
+fn validate_location_edit_input(
+  store: Store,
+  record: StorePropertyRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(LocationEditUserError) {
+  []
+  |> list.append(validate_location_edit_name(input))
+  |> list.append(validate_location_edit_address(record, input))
+  |> list.append(validate_location_edit_fulfills_online_orders(
+    store,
+    record,
+    input,
+  ))
+  |> list.append(validate_location_edit_metafields(store, record, input))
+}
+
+fn validate_location_edit_name(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(LocationEditUserError) {
+  case read_string(input, "name") {
+    Some(name) ->
+      case string.trim(name) {
+        "" -> [
+          LocationEditUserError(
+            field: ["input", "name"],
+            message: "Add a location name",
+            code: Some("BLANK"),
+          ),
+        ]
+        _ -> []
+      }
+    None -> []
+  }
+}
+
+fn validate_location_edit_address(
+  record: StorePropertyRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(LocationEditUserError) {
+  let address = merged_location_address(record, input)
+  case address {
+    None -> []
+    Some(fields) ->
+      [
+        required_location_address_error(fields, "countryCode", "Add a country"),
+        required_location_address_error(
+          fields,
+          "address1",
+          "Add a street for this address",
+        ),
+        required_location_address_error(fields, "city", "Add a city"),
+        required_location_address_error(
+          fields,
+          "zip",
+          "Add a postal / ZIP code",
+        ),
+      ]
+      |> list.filter_map(fn(error) {
+        case error {
+          Some(value) -> Ok(value)
+          None -> Error(Nil)
+        }
+      })
+  }
+}
+
+fn required_location_address_error(
+  fields: Dict(String, StorePropertyValue),
+  key: String,
+  message: String,
+) -> Option(LocationEditUserError) {
+  case dict.get(fields, key) {
+    Ok(StorePropertyString(_)) -> None
+    _ ->
+      Some(LocationEditUserError(
+        field: ["input", "address", key],
+        message: message,
+        code: Some("BLANK"),
+      ))
+  }
+}
+
+fn validate_location_edit_fulfills_online_orders(
+  store: Store,
+  record: StorePropertyRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(LocationEditUserError) {
+  case read_bool(input, "fulfillsOnlineOrders") {
+    Some(False) ->
+      case location_bool_field(record, "fulfillsOnlineOrders", True) {
+        False -> []
+        True ->
+          case location_bool_field(record, "isFulfillmentService", False) {
+            True -> [
+              LocationEditUserError(
+                field: ["input", "fulfillsOnlineOrders"],
+                message: "Cannot modify the online order fulfillment preference for fulfillment service locations.",
+                code: Some(
+                  "CANNOT_MODIFY_ONLINE_ORDER_FULFILLMENT_FOR_FS_LOCATION",
+                ),
+              ),
+            ]
+            False ->
+              case location_bool_field(record, "hasUnfulfilledOrders", False) {
+                True -> [
+                  LocationEditUserError(
+                    field: ["input", "fulfillsOnlineOrders"],
+                    message: "Cannot disable online order fulfillment while the location has pending fulfillment orders.",
+                    code: Some("CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"),
+                  ),
+                ]
+                False ->
+                  case
+                    is_only_active_online_fulfilling_location(store, record)
+                    || location_bound_to_delivery_profile(store, record.id)
+                  {
+                    True -> [
+                      LocationEditUserError(
+                        field: ["input"],
+                        message: "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.",
+                        code: Some("CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"),
+                      ),
+                    ]
+                    False -> []
+                  }
+              }
+          }
+      }
+    _ -> []
+  }
+}
+
+fn validate_location_edit_metafields(
+  store: Store,
+  record: StorePropertyRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(LocationEditUserError) {
+  let existing_count =
+    store.get_effective_metafields_by_owner_id(store, record.id)
+    |> list.length
+  read_object_list(input, "metafields")
+  |> list.index_map(fn(metafield_input, index) {
+    validate_location_edit_metafield(metafield_input, existing_count + index)
+  })
+  |> list.flatten
+}
+
+fn validate_location_edit_metafield(
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(LocationEditUserError) {
+  []
+  |> list.append(validate_location_edit_metafield_required(
+    input,
+    index,
+    "key",
+    "Key is required.",
+  ))
+  |> list.append(validate_location_edit_metafield_required(
+    input,
+    index,
+    "value",
+    "Value is required.",
+  ))
+  |> list.append(validate_location_edit_metafield_type(input, index))
+}
+
+fn validate_location_edit_metafield_required(
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+  key: String,
+  message: String,
+) -> List(LocationEditUserError) {
+  case read_string(input, key) {
+    Some(value) ->
+      case string.trim(value) {
+        "" -> [blank_location_metafield_error(index, key, message)]
+        _ -> []
+      }
+    None -> [blank_location_metafield_error(index, key, message)]
+  }
+}
+
+fn blank_location_metafield_error(
+  index: Int,
+  key: String,
+  message: String,
+) -> LocationEditUserError {
+  LocationEditUserError(
+    field: ["input", "metafields", int.to_string(index), key],
+    message: message,
+    code: Some("BLANK"),
+  )
+}
+
+fn validate_location_edit_metafield_type(
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(LocationEditUserError) {
+  case read_string(input, "type") {
+    Some(type_) ->
+      case list.contains(metafields.valid_type_names(), type_) {
+        True -> []
+        False -> [
+          LocationEditUserError(
+            field: ["input", "metafields", int.to_string(index), "type"],
+            message: "Type must be one of the following: "
+              <> metafields.valid_type_names_message()
+              <> ".",
+            code: Some("INVALID_TYPE"),
+          ),
+        ]
+      }
+    None -> [
+      LocationEditUserError(
+        field: ["input", "metafields", int.to_string(index), "type"],
+        message: "Type can't be blank",
+        code: Some("BLANK"),
+      ),
+    ]
+  }
+}
+
+fn apply_location_edit_data(
+  data: Dict(String, StorePropertyValue),
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(Dict(String, StorePropertyValue), Bool) {
+  let #(data, changed) = case read_string(input, "name") {
+    Some(name) -> #(dict.insert(data, "name", StorePropertyString(name)), True)
+    None -> #(data, False)
+  }
+  let #(data, changed) = case read_bool(input, "fulfillsOnlineOrders") {
+    Some(value) -> #(
+      dict.insert(data, "fulfillsOnlineOrders", StorePropertyBool(value)),
+      True,
+    )
+    None -> #(data, changed)
+  }
+  let #(data, changed) = case merged_location_address_from_data(data, input) {
+    Some(address) -> #(
+      dict.insert(data, "address", StorePropertyObject(address)),
+      True,
+    )
+    None -> #(data, changed)
+  }
+  #(data, changed)
+}
+
+fn apply_location_edit_metafields(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  owner_id: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let inputs = read_object_list(input, "metafields")
+  case inputs {
+    [] -> #(store, identity, [])
+    _ -> {
+      let existing = store.get_effective_metafields_by_owner_id(store, owner_id)
+      let #(metafields_for_owner, changed, next_identity) =
+        upsert_location_metafields(owner_id, inputs, existing, identity)
+      let next_store =
+        store.replace_staged_metafields_for_owner(
+          store,
+          owner_id,
+          metafields_for_owner,
+        )
+      #(next_store, next_identity, list.map(changed, fn(record) { record.id }))
+    }
+  }
+}
+
+fn upsert_location_metafields(
+  owner_id: String,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+  existing: List(ProductMetafieldRecord),
+  identity: SyntheticIdentityRegistry,
+) -> #(
+  List(ProductMetafieldRecord),
+  List(ProductMetafieldRecord),
+  SyntheticIdentityRegistry,
+) {
+  list.fold(inputs, #(existing, [], identity), fn(acc, input) {
+    let #(current, changed, current_identity) = acc
+    let namespace = read_string(input, "namespace") |> option.unwrap("custom")
+    let key = read_string(input, "key") |> option.unwrap("")
+    let type_ = read_string(input, "type")
+    let raw_value = read_string(input, "value")
+    let found =
+      current
+      |> list.find(fn(metafield) {
+        metafield.namespace == namespace && metafield.key == key
+      })
+      |> option.from_result
+    let type_ =
+      type_
+      |> option.or(case found {
+        Some(record) -> record.type_
+        None -> None
+      })
+    let value = metafields.normalize_metafield_value(type_, raw_value)
+    let #(id, identity_after_id) = case found {
+      Some(record) -> #(record.id, current_identity)
+      None ->
+        synthetic_identity.make_synthetic_gid(current_identity, "Metafield")
+    }
+    let #(created_at, identity_after_created) = case found {
+      Some(record) -> #(
+        option.unwrap(record.created_at, "2024-01-01T00:00:00Z"),
+        identity_after_id,
+      )
+      None -> synthetic_identity.make_synthetic_timestamp(identity_after_id)
+    }
+    let #(updated_at, identity_after_updated) = case found {
+      Some(record) ->
+        case value == record.value && type_ == record.type_ {
+          True -> #(
+            option.unwrap(record.updated_at, created_at),
+            identity_after_created,
+          )
+          False ->
+            synthetic_identity.make_synthetic_timestamp(identity_after_created)
+        }
+      None -> #(created_at, identity_after_created)
+    }
+    let core =
+      ProductMetafieldRecord(
+        id: id,
+        owner_id: owner_id,
+        namespace: namespace,
+        key: key,
+        type_: type_,
+        value: value,
+        compare_digest: None,
+        json_value: metafields.parse_metafield_json_value(type_, value),
+        created_at: Some(created_at),
+        updated_at: Some(updated_at),
+        owner_type: Some("LOCATION"),
+      )
+    let record = case found {
+      Some(existing_record)
+        if value == existing_record.value && type_ == existing_record.type_
+      ->
+        ProductMetafieldRecord(
+          ..core,
+          compare_digest: existing_record.compare_digest,
+        )
+      _ ->
+        ProductMetafieldRecord(
+          ..core,
+          compare_digest: Some(
+            metafields.make_metafield_compare_digest(product_metafield_to_core(
+              core,
+            )),
+          ),
+        )
+    }
+    let next = replace_metafield_by_identity(current, namespace, key, record)
+    #(next, list.append(changed, [record]), identity_after_updated)
+  })
+}
+
+fn replace_metafield_by_identity(
+  records: List(ProductMetafieldRecord),
+  namespace: String,
+  key: String,
+  record: ProductMetafieldRecord,
+) -> List(ProductMetafieldRecord) {
+  let without =
+    list.filter(records, fn(candidate) {
+      !{ candidate.namespace == namespace && candidate.key == key }
+    })
+  list.append(without, [record])
 }
 
 fn stage_location_activate(
@@ -2851,6 +3538,16 @@ fn read_string(
   }
 }
 
+fn read_bool(
+  values: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Option(Bool) {
+  case dict.get(values, key) {
+    Ok(root_field.BoolVal(value)) -> Some(value)
+    _ -> None
+  }
+}
+
 fn read_object(
   values: Dict(String, root_field.ResolvedValue),
   key: String,
@@ -2858,6 +3555,121 @@ fn read_object(
   case dict.get(values, key) {
     Ok(root_field.ObjectVal(value)) -> Some(value)
     _ -> None
+  }
+}
+
+fn read_object_list(
+  values: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(values, key) {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.ObjectVal(fields) -> Ok(fields)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn read_string_argument(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case root_field.get_field_arguments(field, variables) {
+    Ok(args) -> read_string(args, name)
+    Error(_) -> None
+  }
+}
+
+fn merged_location_address(
+  record: StorePropertyRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, StorePropertyValue)) {
+  merged_location_address_from_data(record.data, input)
+}
+
+fn merged_location_address_from_data(
+  data: Dict(String, StorePropertyValue),
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, StorePropertyValue)) {
+  let existing = case dict.get(data, "address") {
+    Ok(StorePropertyObject(fields)) -> Some(fields)
+    _ -> None
+  }
+  let address_input = read_object(input, "address")
+  case existing, address_input {
+    None, None -> None
+    _, _ -> {
+      let base = option.unwrap(existing, dict.new())
+      let values = option.unwrap(address_input, dict.new())
+      Some(
+        base
+        |> insert_optional_address_string(values, "address1")
+        |> insert_optional_address_string(values, "address2")
+        |> insert_optional_address_string(values, "city")
+        |> insert_optional_address_string(values, "phone")
+        |> insert_optional_address_string(values, "zip")
+        |> insert_optional_address_string(values, "countryCode")
+        |> insert_optional_address_string(values, "provinceCode")
+        |> maybe_insert_country_name(values),
+      )
+    }
+  }
+}
+
+fn insert_optional_address_string(
+  fields: Dict(String, StorePropertyValue),
+  values: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Dict(String, StorePropertyValue) {
+  case read_string(values, key) {
+    Some(value) -> dict.insert(fields, key, StorePropertyString(value))
+    None -> fields
+  }
+}
+
+fn maybe_insert_country_name(
+  fields: Dict(String, StorePropertyValue),
+  values: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, StorePropertyValue) {
+  case read_string(values, "countryCode") {
+    Some("CA") -> dict.insert(fields, "country", StorePropertyString("Canada"))
+    Some("US") ->
+      dict.insert(fields, "country", StorePropertyString("United States"))
+    _ -> fields
+  }
+}
+
+fn location_bound_to_delivery_profile(
+  store: Store,
+  location_id: String,
+) -> Bool {
+  store.list_effective_delivery_profiles(store)
+  |> list.any(fn(profile) {
+    profile.merchant_owned
+    && captured_json_contains_string(profile.data, location_id)
+  })
+}
+
+fn captured_json_contains_string(
+  value: CapturedJsonValue,
+  needle: String,
+) -> Bool {
+  case value {
+    CapturedString(value) -> value == needle
+    CapturedArray(items) ->
+      list.any(items, fn(item) { captured_json_contains_string(item, needle) })
+    CapturedObject(fields) ->
+      list.any(fields, fn(pair) {
+        let #(_, child) = pair
+        captured_json_contains_string(child, needle)
+      })
+    _ -> False
   }
 }
 

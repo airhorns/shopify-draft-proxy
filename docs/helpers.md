@@ -19,6 +19,7 @@ Shared helpers for owner-scoped metafield serializers and staging input handling
 - owner-scoped metafield normalization
 - metafield input parsing and `(namespace, key)` replacement semantics
 - singular `metafield(...)` and connection-style `metafields(...)` serialization
+- captured Admin metafield type-name list/message used by mutation validators that need Shopify-like `INVALID_TYPE` payloads
 
 Use this module before adding product-, customer-, order-, or metaobject-local metafield helpers. Owner-specific validation, store placement, and captured Shopify quirks belong in the resource module that owns them.
 
