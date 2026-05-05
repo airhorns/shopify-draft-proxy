@@ -1,0 +1,195 @@
+{
+  "scenarioId": "functions-validation-create-error-shape",
+  "capturedAt": "2026-05-05T23:20:51.207Z",
+  "source": "live-shopify-and-cassette-backed-local-runtime",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "validationCreate userError shape evidence for unknown Function id, wrong Function API type, missing Function identifier, and multiple Function identifiers.",
+  "functionRead": {
+    "query": "query ReadValidationCreateErrorShapeFunctions {\n  shopifyFunctions(first: 50) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        __typename\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "__typename": "App",
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validationCreateErrorShape": {
+    "query": "mutation FunctionsValidationCreateErrorShape(\n  $unknownFunctionId: String!\n  $cartFunctionId: String!\n  $cartFunctionHandle: String!\n) {\n  unknownFunction: validationCreate(\n    validation: { functionId: $unknownFunctionId, title: \"Unknown function id shape\" }\n  ) {\n    validation {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  apiMismatch: validationCreate(\n    validation: { functionId: $cartFunctionId, title: \"Wrong API shape\" }\n  ) {\n    validation {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  missingIdentifier: validationCreate(validation: {}) {\n    validation {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n  multipleIdentifiers: validationCreate(\n    validation: {\n      functionId: $cartFunctionId\n      functionHandle: $cartFunctionHandle\n      title: \"Multiple identifiers shape\"\n    }\n  ) {\n    validation {\n      id\n    }\n    userErrors {\n      code\n      field\n      message\n    }\n  }\n}\n",
+    "variables": {
+      "unknownFunctionId": "01900000-0000-7000-8000-000000000000",
+      "cartFunctionId": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+      "cartFunctionHandle": "conformance-cart-transform"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "unknownFunction": {
+            "validation": null,
+            "userErrors": [
+              {
+                "code": "NOT_FOUND",
+                "field": ["validation", "functionId"],
+                "message": "Extension not found."
+              }
+            ]
+          },
+          "apiMismatch": {
+            "validation": null,
+            "userErrors": [
+              {
+                "code": "FUNCTION_DOES_NOT_IMPLEMENT",
+                "field": ["validation", "functionId"],
+                "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}]."
+              }
+            ]
+          },
+          "missingIdentifier": {
+            "validation": null,
+            "userErrors": [
+              {
+                "code": "MISSING_FUNCTION_IDENTIFIER",
+                "field": ["validation", "functionHandle"],
+                "message": "Either function_id or function_handle must be provided."
+              }
+            ]
+          },
+          "multipleIdentifiers": {
+            "validation": null,
+            "userErrors": [
+              {
+                "code": "MULTIPLE_FUNCTION_IDENTIFIERS",
+                "field": ["validation"],
+                "message": "Only one of function_id or function_handle can be provided, not both."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 40,
+            "actualQueryCost": 40,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "01900000-0000-7000-8000-000000000000"
+      },
+      "query": "query FunctionHydrateById($id: String!) { shopifyFunction(id: $id) { id title handle apiType description appKey app { __typename id title handle apiKey }  } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "019dd44b-127f-724b-a49c-70fc98ff4d72"
+      },
+      "query": "query FunctionHydrateById($id: String!) { shopifyFunction(id: $id) { id title handle apiType description appKey app { __typename id title handle apiKey }  } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+              "title": "conformance-cart-transform",
+              "handle": "conformance-cart-transform",
+              "apiType": "cart_transform",
+              "description": "conformance-cart-transform",
+              "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+              "app": {
+                "__typename": "App",
+                "id": "gid://shopify/App/347082227713",
+                "title": "hermes-conformance-products",
+                "handle": "hermes-conformance-products",
+                "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": {
+    "liveUserErrorEvidence": "All four validationCreate userError branches are captured live from Shopify on the conformance shop.",
+    "localRuntimeEvidence": "The upstream cassette contains only ShopifyFunction hydration reads required for the proxy to evaluate the same Function references in LiveHybrid mode."
+  }
+}

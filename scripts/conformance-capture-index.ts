@@ -2270,6 +2270,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'functions',
+    captureId: 'functions-validation-create-error-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-validation-create-error-shape-conformance.ts',
+    purpose:
+      'validationCreate unknown Function id, wrong Function API, missing Function identifier, and multiple Function identifier userError shapes.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for validationCreate userError capture',
+      'released conformance-cart-transform Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-validation-create-error-shape.json`,
+      'config/parity-specs/functions/functions-validation-create-error-shape.json',
+    ],
+    cleanupBehavior:
+      'Captures validationCreate userErrors only; all branches return validation null and no live resources are created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
     captureId: 'functions-validation-update-defaults',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-functions-validation-update-defaults-conformance.ts',
