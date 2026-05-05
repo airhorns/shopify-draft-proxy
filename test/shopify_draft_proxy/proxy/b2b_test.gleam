@@ -1529,7 +1529,7 @@ pub fn b2b_contact_revoke_role_rejects_wrong_contact_assignment_test() {
       proxy,
       "mutation { companyContactRevokeRole(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", companyContactRoleAssignmentId: \""
         <> foreign_assignment_id
-        <> "\") { revokedCompanyContactRoleAssignmentId userErrors { field message code detail } } }",
+        <> "\") { revokedCompanyContactRoleAssignmentId userErrors { field message code } } }",
     )
   assert revoke_status == 200
   let revoke_json = json.to_string(revoke_body)
@@ -1541,11 +1541,8 @@ pub fn b2b_contact_revoke_role_rejects_wrong_contact_assignment_test() {
     revoke_json,
     "\"field\":[\"companyContactRoleAssignmentId\"]",
   )
-  assert string.contains(revoke_json, "\"code\":\"INVALID_INPUT\"")
-  assert string.contains(
-    revoke_json,
-    "\"detail\":\"contact_does_not_match_company\"",
-  )
+  assert string.contains(revoke_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+  assert string.contains(revoke_json, "The role assignment doesn't exist.")
 
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(
@@ -1573,8 +1570,8 @@ pub fn b2b_contact_revoke_roles_validates_ids_or_revoke_all_test() {
     )
   assert revoke_status == 200
   let revoke_json = json.to_string(revoke_body)
-  assert string.contains(revoke_json, "\"revokedRoleAssignmentIds\":[]")
-  assert string.contains(revoke_json, "\"field\":[\"roleAssignmentIds\"]")
+  assert string.contains(revoke_json, "\"revokedRoleAssignmentIds\":null")
+  assert string.contains(revoke_json, "\"field\":null")
   assert string.contains(revoke_json, "\"code\":\"INVALID_INPUT\"")
 
   let #(Response(status: read_status, body: read_body, ..), _) =
@@ -1617,7 +1614,7 @@ pub fn b2b_contact_revoke_roles_keeps_partial_success_scoped_test() {
         <> valid_assignment_id
         <> "\", \""
         <> foreign_assignment_id
-        <> "\"]) { revokedRoleAssignmentIds userErrors { field message code detail } } }",
+        <> "\"]) { revokedRoleAssignmentIds userErrors { field message code } } }",
     )
   assert revoke_status == 200
   let revoke_json = json.to_string(revoke_body)
@@ -1626,11 +1623,8 @@ pub fn b2b_contact_revoke_roles_keeps_partial_success_scoped_test() {
     "\"revokedRoleAssignmentIds\":[\"" <> valid_assignment_id <> "\"]",
   )
   assert string.contains(revoke_json, "\"field\":[\"roleAssignmentIds\",\"1\"]")
-  assert string.contains(revoke_json, "\"code\":\"INVALID_INPUT\"")
-  assert string.contains(
-    revoke_json,
-    "\"detail\":\"contact_does_not_match_company\"",
-  )
+  assert string.contains(revoke_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+  assert string.contains(revoke_json, "Resource requested does not exist.")
 
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(

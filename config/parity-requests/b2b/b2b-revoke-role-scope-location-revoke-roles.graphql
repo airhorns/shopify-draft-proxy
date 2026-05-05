@@ -1,0 +1,10 @@
+mutation HAR762LocationRevokeRoles($companyLocationId: ID!, $rolesToRevoke: [ID!]!) {
+  companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $rolesToRevoke) {
+    revokedRoleAssignmentIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

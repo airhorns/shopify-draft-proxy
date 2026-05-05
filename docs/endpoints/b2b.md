@@ -135,16 +135,16 @@ strict replayable parity evidence.
 
 HAR-762 extends those role-assignment guardrails to revoke-role mutation roots.
 `companyContactRevokeRole` validates the parent contact before looking at the
-assignment and returns `INVALID_INPUT` with
-`detail: "contact_does_not_match_company"` when the assignment exists on a
-different contact. `companyContactRevokeRoles` rejects empty
-`roleAssignmentIds` unless `revokeAll` is true, validates the parent contact,
-and reports per-index ownership errors while still revoking valid IDs.
-`companyLocationRevokeRoles` validates the parent location and reports
-per-index `RESOURCE_NOT_FOUND` errors for assignments outside that location.
-Focused runtime tests cover these branches and the no-cross-scope-mutation
-invariant; no new passive parity scenarios were added without fresh capture
-evidence.
+assignment and returns Shopify's public `RESOURCE_NOT_FOUND` userError when the
+assignment is not scoped to that contact. `companyContactRevokeRoles` rejects
+empty `roleAssignmentIds` unless `revokeAll` is true with Shopify's null
+`field` / null `revokedRoleAssignmentIds` payload, validates the parent contact,
+and reports per-index `RESOURCE_NOT_FOUND` ownership errors while still
+revoking valid IDs. `companyLocationRevokeRoles` validates the parent location
+and reports per-index `RESOURCE_NOT_FOUND` errors for assignments outside that
+location. Focused runtime tests and the 2026-04
+`b2b-revoke-role-scope-preconditions` capture cover these branches and the
+no-cross-scope-mutation invariant.
 
 HAR-754 aligns bulk B2B resolver `userErrors.field` paths with Shopify's
 string-indexed list paths. Bulk company/contact/location deletes, role

@@ -1,0 +1,12 @@
+mutation HAR762ContactAssignRoles($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {
+  companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {
+    roleAssignments {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

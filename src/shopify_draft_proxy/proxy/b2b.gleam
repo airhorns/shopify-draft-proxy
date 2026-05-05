@@ -61,8 +61,6 @@ const external_id_invalid_chars_detail = "external_id_contains_invalid_chars"
 
 const external_id_invalid_chars_message = "External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\\/?<>_-~,.;:'`\""
 
-const contact_does_not_match_company_detail = "contact_does_not_match_company"
-
 const company_contact_maximum_cap = 10_000
 
 pub type B2BError {
@@ -96,6 +94,7 @@ type Payload {
     deleted_address_id: Option(String),
     revoked_company_contact_role_assignment_id: Option(String),
     revoked_role_assignment_ids: List(String),
+    revoked_role_assignment_ids_null: Bool,
     deleted_company_location_staff_member_assignment_ids: List(String),
     removed_company_contact_id: Option(String),
     user_errors: List(UserError),
@@ -422,6 +421,7 @@ fn empty_payload(errors: List(UserError)) -> Payload {
     deleted_address_id: None,
     revoked_company_contact_role_assignment_id: None,
     revoked_role_assignment_ids: [],
+    revoked_role_assignment_ids_null: False,
     deleted_company_location_staff_member_assignment_ids: [],
     removed_company_contact_id: None,
     user_errors: errors,
@@ -1913,6 +1913,14 @@ fn resource_not_found(field: List(String)) {
   user_error(
     Some(field),
     "Resource requested does not exist.",
+    user_error_code.resource_not_found,
+  )
+}
+
+fn role_assignment_not_found_at(field: List(String)) {
+  user_error(
+    Some(field),
+    "The role assignment doesn't exist.",
     user_error_code.resource_not_found,
   )
 }
@@ -4704,39 +4712,7 @@ fn location_role_assignment(
   |> find_role_assignment(id)
 }
 
-fn role_assignment_exists(store: Store, id: String) -> Bool {
-  let contact_match =
-    store.list_effective_b2b_company_contacts(store)
-    |> list.any(fn(contact) { contact_role_assignment(contact, id) != None })
-  contact_match
-  || {
-    store.list_effective_b2b_company_locations(store)
-    |> list.any(fn(location) { location_role_assignment(location, id) != None })
-  }
-}
-
-fn contact_assignment_mismatch(field: List(String)) {
-  detailed_user_error(
-    Some(field),
-    "Invalid input.",
-    user_error_code.invalid_input,
-    contact_does_not_match_company_detail,
-  )
-}
-
-fn contact_revoke_role_error(
-  store: Store,
-  assignment_id: String,
-  field: List(String),
-) -> UserError {
-  case role_assignment_exists(store, assignment_id) {
-    True -> contact_assignment_mismatch(field)
-    False -> resource_not_found(field)
-  }
-}
-
 fn validate_contact_role_assignment_ids(
-  store: Store,
   contact: B2BCompanyContactRecord,
   ids: List(String),
 ) -> #(List(String), List(UserError)) {
@@ -4746,10 +4722,7 @@ fn validate_contact_role_assignment_ids(
     let field = ["roleAssignmentIds", int.to_string(index)]
     case contact_role_assignment(contact, id) {
       Some(_) -> #(list.append(valid_ids, [id]), errors)
-      None -> #(
-        valid_ids,
-        list.append(errors, [contact_revoke_role_error(store, id, field)]),
-      )
+      None -> #(valid_ids, list.append(errors, [resource_not_found(field)]))
     }
   })
 }
@@ -4839,7 +4812,7 @@ fn handle_contact_revoke_role(
                 None ->
                   RootResult(
                     empty_payload([
-                      contact_revoke_role_error(store, id, [
+                      role_assignment_not_found_at([
                         "companyContactRoleAssignmentId",
                       ]),
                     ]),
@@ -4889,13 +4862,12 @@ fn handle_contact_revoke_roles(
   case ids, revoke_all {
     [], False ->
       RootResult(
-        empty_payload([
-          user_error(
-            Some(["roleAssignmentIds"]),
-            "Invalid input.",
-            user_error_code.invalid_input,
-          ),
-        ]),
+        Payload(
+          ..empty_payload([
+            user_error(None, "Invalid input.", user_error_code.invalid_input),
+          ]),
+          revoked_role_assignment_ids_null: True,
+        ),
         store,
         identity,
         [],
@@ -4917,8 +4889,7 @@ fn handle_contact_revoke_roles(
                     |> list.map(source_id)
                   #(all_ids, [])
                 }
-                False ->
-                  validate_contact_role_assignment_ids(store, contact, ids)
+                False -> validate_contact_role_assignment_ids(contact, ids)
               }
               let #(store, revoked) =
                 revoke_role_assignments(store, valid_ids, None, None, False)
@@ -5686,7 +5657,11 @@ fn serialize_mutation_payload(
             )
             "revokedRoleAssignmentIds" -> #(
               key,
-              json.array(payload.revoked_role_assignment_ids, json.string),
+              case payload.revoked_role_assignment_ids_null {
+                True -> json.null()
+                False ->
+                  json.array(payload.revoked_role_assignment_ids, json.string)
+              },
             )
             "deletedCompanyLocationStaffMemberAssignmentIds" -> #(
               key,
