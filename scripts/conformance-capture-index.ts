@@ -692,6 +692,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metaobjects',
+    captureId: 'metaobject-bulk-delete-edge-cases',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-bulk-delete-edge-cases-conformance.ts',
+    purpose:
+      'Metaobject bulk delete empty ids, unknown type, known empty type, and exactly-one-of GraphQL validation edge cases.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-bulk-delete-edge-cases.json`,
+      'config/parity-specs/metaobjects/metaobject-bulk-delete-edge-cases.json',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable definition and row, deletes the row before the known-empty-type branch, then deletes the definition in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     captureId: 'inventory-adjustments',
     scriptPath: 'scripts/capture-inventory-adjustment-conformance.mts',
