@@ -331,7 +331,7 @@
       "variables": {
         "handle": "discount-local"
       },
-      "query": "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, apiType: \"discount\", handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+      "query": "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {

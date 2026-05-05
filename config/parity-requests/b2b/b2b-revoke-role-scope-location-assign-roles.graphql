@@ -1,0 +1,12 @@
+mutation B2BRevokeRoleScopeLocationAssignRoles($companyLocationId: ID!, $rolesToAssign: [CompanyLocationRoleAssign!]!) {
+  companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {
+    roleAssignments {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
