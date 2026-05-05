@@ -1,0 +1,50 @@
+{
+  "fixtureKind": "local-runtime-script-tag-create-validates-src",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T00:00:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable HAR-577 local-runtime fixture for Core ScriptTag src validation userErrors.",
+  "expected": {
+    "primary": {
+      "data": {
+        "blank": {
+          "scriptTag": null,
+          "userErrors": [
+            {
+              "code": "BLANK",
+              "field": ["input", "src"],
+              "message": "Source can't be blank"
+            }
+          ]
+        },
+        "tooLong": {
+          "scriptTag": null,
+          "userErrors": [
+            {
+              "code": "TOO_LONG",
+              "field": ["input", "src"],
+              "message": "Source is too long (maximum is 255 characters)"
+            }
+          ]
+        },
+        "invalid": {
+          "scriptTag": null,
+          "userErrors": [
+            {
+              "code": "INVALID",
+              "field": ["input", "src"],
+              "message": "Source is invalid"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "HAR-577 Core model behavior",
+    "notes": [
+      "The 2026-04 live Admin URL scalar rejects blank and non-URL inline literals before ScriptTag model validation, so this fixture records the ticket-required Core validation branch as local-runtime parity evidence."
+    ]
+  },
+  "upstreamCalls": []
+}
