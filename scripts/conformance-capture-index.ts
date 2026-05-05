@@ -1206,6 +1206,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'discounts',
+    captureId: 'discount-invalid-date-range-all-types',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-invalid-date-range-all-types-conformance.ts',
+    purpose:
+      'Discount startsAt/endsAt invalid date range validation guardrails across basic, BXGY, and free-shipping create inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-invalid-date-range-all-types.json`,
+      'config/parity-specs/discounts/discount-invalid-date-range-all-types.json',
+      'config/parity-requests/discounts/discount-invalid-date-range-*.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Live Shopify 2026-04 returns `Ends at needs to be after starts_at`, which differs from the HAR-595 issue text but is preserved for captured Admin API parity.',
+  },
+  {
     domain: 'apps',
     captureId: 'app-billing',
     scriptPath: 'scripts/capture-app-billing-conformance.ts',
