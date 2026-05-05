@@ -613,12 +613,12 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation InvalidCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message } } }",
+      "mutation InvalidCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message code } } }",
       dict.from_list([#("input", blank_input)]),
       empty_upstream_context(),
     )
   assert json.to_string(create_outcome.data)
-    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider name can't be blank\"}]}}}"
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider name can't be blank\",\"code\":\"CARRIER_SERVICE_CREATE_FAILED\"}]}}}"
 
   let unknown_update =
     root_field.ObjectVal(
@@ -635,19 +635,19 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation UnknownCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id } userErrors { field message } } }",
+      "mutation UnknownCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id } userErrors { field message code } } }",
       dict.from_list([#("input", unknown_update)]),
       empty_upstream_context(),
     )
   assert json.to_string(update_outcome.data)
-    == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"The carrier or app could not be found.\"}]}}}"
+    == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"The carrier or app could not be found.\",\"code\":\"CARRIER_SERVICE_UPDATE_FAILED\"}]}}}"
 
   let delete_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation UnknownDelete($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { field message } } }",
+      "mutation UnknownDelete($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { field message code } } }",
       dict.from_list([
         #(
           "id",
@@ -657,7 +657,7 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
       empty_upstream_context(),
     )
   assert json.to_string(delete_outcome.data)
-    == "{\"data\":{\"carrierServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The carrier or app could not be found.\"}]}}}"
+    == "{\"data\":{\"carrierServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The carrier or app could not be found.\",\"code\":\"CARRIER_SERVICE_DELETE_FAILED\"}]}}}"
 }
 
 pub fn shipping_settings_availability_filters_active_services_and_locations_test() {

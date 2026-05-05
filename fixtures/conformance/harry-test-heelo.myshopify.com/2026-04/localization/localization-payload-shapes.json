@@ -1,0 +1,1680 @@
+{
+  "capturedAt": "2026-05-05T07:16:46.564Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "localization-payload-shapes",
+  "setup": {
+    "request": {
+      "variables": {
+        "first": 3,
+        "resourceType": "PRODUCT",
+        "ids": ["gid://shopify/Product/999999999999999"]
+      }
+    },
+    "response": {
+      "data": {
+        "availableLocalesExcerpt": [
+          {
+            "isoCode": "af",
+            "name": "Afrikaans"
+          },
+          {
+            "isoCode": "ak",
+            "name": "Akan"
+          },
+          {
+            "isoCode": "sq",
+            "name": "Albanian"
+          },
+          {
+            "isoCode": "am",
+            "name": "Amharic"
+          },
+          {
+            "isoCode": "ar",
+            "name": "Arabic"
+          },
+          {
+            "isoCode": "hy",
+            "name": "Armenian"
+          },
+          {
+            "isoCode": "as",
+            "name": "Assamese"
+          },
+          {
+            "isoCode": "az",
+            "name": "Azerbaijani"
+          },
+          {
+            "isoCode": "bm",
+            "name": "Bambara"
+          },
+          {
+            "isoCode": "bn",
+            "name": "Bangla"
+          },
+          {
+            "isoCode": "eu",
+            "name": "Basque"
+          },
+          {
+            "isoCode": "be",
+            "name": "Belarusian"
+          },
+          {
+            "isoCode": "bs",
+            "name": "Bosnian"
+          },
+          {
+            "isoCode": "br",
+            "name": "Breton"
+          },
+          {
+            "isoCode": "bg",
+            "name": "Bulgarian"
+          },
+          {
+            "isoCode": "my",
+            "name": "Burmese"
+          },
+          {
+            "isoCode": "ca",
+            "name": "Catalan"
+          },
+          {
+            "isoCode": "ckb",
+            "name": "Central Kurdish"
+          },
+          {
+            "isoCode": "ce",
+            "name": "Chechen"
+          },
+          {
+            "isoCode": "zh-CN",
+            "name": "Chinese (Simplified)"
+          },
+          {
+            "isoCode": "zh-TW",
+            "name": "Chinese (Traditional)"
+          },
+          {
+            "isoCode": "kw",
+            "name": "Cornish"
+          },
+          {
+            "isoCode": "hr",
+            "name": "Croatian"
+          },
+          {
+            "isoCode": "cs",
+            "name": "Czech"
+          },
+          {
+            "isoCode": "da",
+            "name": "Danish"
+          },
+          {
+            "isoCode": "nl",
+            "name": "Dutch"
+          },
+          {
+            "isoCode": "dz",
+            "name": "Dzongkha"
+          },
+          {
+            "isoCode": "en",
+            "name": "English"
+          },
+          {
+            "isoCode": "eo",
+            "name": "Esperanto"
+          },
+          {
+            "isoCode": "et",
+            "name": "Estonian"
+          },
+          {
+            "isoCode": "ee",
+            "name": "Ewe"
+          },
+          {
+            "isoCode": "fo",
+            "name": "Faroese"
+          },
+          {
+            "isoCode": "fil",
+            "name": "Filipino"
+          },
+          {
+            "isoCode": "fi",
+            "name": "Finnish"
+          },
+          {
+            "isoCode": "fr",
+            "name": "French"
+          },
+          {
+            "isoCode": "ff",
+            "name": "Fulah"
+          },
+          {
+            "isoCode": "gl",
+            "name": "Galician"
+          },
+          {
+            "isoCode": "lg",
+            "name": "Ganda"
+          },
+          {
+            "isoCode": "ka",
+            "name": "Georgian"
+          },
+          {
+            "isoCode": "de",
+            "name": "German"
+          },
+          {
+            "isoCode": "el",
+            "name": "Greek"
+          },
+          {
+            "isoCode": "gu",
+            "name": "Gujarati"
+          },
+          {
+            "isoCode": "ha",
+            "name": "Hausa"
+          },
+          {
+            "isoCode": "he",
+            "name": "Hebrew"
+          },
+          {
+            "isoCode": "hi",
+            "name": "Hindi"
+          },
+          {
+            "isoCode": "hu",
+            "name": "Hungarian"
+          },
+          {
+            "isoCode": "is",
+            "name": "Icelandic"
+          },
+          {
+            "isoCode": "ig",
+            "name": "Igbo"
+          },
+          {
+            "isoCode": "id",
+            "name": "Indonesian"
+          },
+          {
+            "isoCode": "ia",
+            "name": "Interlingua"
+          },
+          {
+            "isoCode": "ga",
+            "name": "Irish"
+          },
+          {
+            "isoCode": "it",
+            "name": "Italian"
+          },
+          {
+            "isoCode": "ja",
+            "name": "Japanese"
+          },
+          {
+            "isoCode": "jv",
+            "name": "Javanese"
+          },
+          {
+            "isoCode": "kl",
+            "name": "Kalaallisut"
+          },
+          {
+            "isoCode": "kn",
+            "name": "Kannada"
+          },
+          {
+            "isoCode": "ks",
+            "name": "Kashmiri"
+          },
+          {
+            "isoCode": "kk",
+            "name": "Kazakh"
+          },
+          {
+            "isoCode": "km",
+            "name": "Khmer"
+          },
+          {
+            "isoCode": "ki",
+            "name": "Kikuyu"
+          },
+          {
+            "isoCode": "rw",
+            "name": "Kinyarwanda"
+          },
+          {
+            "isoCode": "ko",
+            "name": "Korean"
+          },
+          {
+            "isoCode": "ku",
+            "name": "Kurdish"
+          },
+          {
+            "isoCode": "ky",
+            "name": "Kyrgyz"
+          },
+          {
+            "isoCode": "lo",
+            "name": "Lao"
+          },
+          {
+            "isoCode": "lv",
+            "name": "Latvian"
+          },
+          {
+            "isoCode": "ln",
+            "name": "Lingala"
+          },
+          {
+            "isoCode": "lt",
+            "name": "Lithuanian"
+          },
+          {
+            "isoCode": "lu",
+            "name": "Luba-Katanga"
+          },
+          {
+            "isoCode": "lb",
+            "name": "Luxembourgish"
+          },
+          {
+            "isoCode": "mk",
+            "name": "Macedonian"
+          },
+          {
+            "isoCode": "mg",
+            "name": "Malagasy"
+          },
+          {
+            "isoCode": "ms",
+            "name": "Malay"
+          },
+          {
+            "isoCode": "ml",
+            "name": "Malayalam"
+          },
+          {
+            "isoCode": "mt",
+            "name": "Maltese"
+          },
+          {
+            "isoCode": "gv",
+            "name": "Manx"
+          },
+          {
+            "isoCode": "mr",
+            "name": "Marathi"
+          },
+          {
+            "isoCode": "mn",
+            "name": "Mongolian"
+          },
+          {
+            "isoCode": "mi",
+            "name": "Māori"
+          },
+          {
+            "isoCode": "ne",
+            "name": "Nepali"
+          },
+          {
+            "isoCode": "nd",
+            "name": "North Ndebele"
+          },
+          {
+            "isoCode": "se",
+            "name": "Northern Sami"
+          },
+          {
+            "isoCode": "no",
+            "name": "Norwegian"
+          },
+          {
+            "isoCode": "nb",
+            "name": "Norwegian (Bokmål)"
+          },
+          {
+            "isoCode": "nn",
+            "name": "Norwegian Nynorsk"
+          },
+          {
+            "isoCode": "or",
+            "name": "Odia"
+          },
+          {
+            "isoCode": "om",
+            "name": "Oromo"
+          },
+          {
+            "isoCode": "os",
+            "name": "Ossetic"
+          },
+          {
+            "isoCode": "ps",
+            "name": "Pashto"
+          },
+          {
+            "isoCode": "fa",
+            "name": "Persian"
+          },
+          {
+            "isoCode": "pl",
+            "name": "Polish"
+          },
+          {
+            "isoCode": "pt-BR",
+            "name": "Portuguese (Brazil)"
+          },
+          {
+            "isoCode": "pt-PT",
+            "name": "Portuguese (Portugal)"
+          },
+          {
+            "isoCode": "pa",
+            "name": "Punjabi"
+          },
+          {
+            "isoCode": "qu",
+            "name": "Quechua"
+          },
+          {
+            "isoCode": "ro",
+            "name": "Romanian"
+          },
+          {
+            "isoCode": "rm",
+            "name": "Romansh"
+          },
+          {
+            "isoCode": "rn",
+            "name": "Rundi"
+          },
+          {
+            "isoCode": "ru",
+            "name": "Russian"
+          },
+          {
+            "isoCode": "sg",
+            "name": "Sango"
+          },
+          {
+            "isoCode": "sa",
+            "name": "Sanskrit"
+          },
+          {
+            "isoCode": "sc",
+            "name": "Sardinian"
+          },
+          {
+            "isoCode": "gd",
+            "name": "Scottish Gaelic"
+          },
+          {
+            "isoCode": "sr",
+            "name": "Serbian"
+          },
+          {
+            "isoCode": "sn",
+            "name": "Shona"
+          },
+          {
+            "isoCode": "ii",
+            "name": "Sichuan Yi"
+          },
+          {
+            "isoCode": "sd",
+            "name": "Sindhi"
+          },
+          {
+            "isoCode": "si",
+            "name": "Sinhala"
+          },
+          {
+            "isoCode": "sk",
+            "name": "Slovak"
+          },
+          {
+            "isoCode": "sl",
+            "name": "Slovenian"
+          },
+          {
+            "isoCode": "so",
+            "name": "Somali"
+          },
+          {
+            "isoCode": "es",
+            "name": "Spanish"
+          },
+          {
+            "isoCode": "su",
+            "name": "Sundanese"
+          },
+          {
+            "isoCode": "sw",
+            "name": "Swahili"
+          },
+          {
+            "isoCode": "sv",
+            "name": "Swedish"
+          },
+          {
+            "isoCode": "tg",
+            "name": "Tajik"
+          },
+          {
+            "isoCode": "ta",
+            "name": "Tamil"
+          },
+          {
+            "isoCode": "tt",
+            "name": "Tatar"
+          },
+          {
+            "isoCode": "te",
+            "name": "Telugu"
+          },
+          {
+            "isoCode": "th",
+            "name": "Thai"
+          },
+          {
+            "isoCode": "bo",
+            "name": "Tibetan"
+          },
+          {
+            "isoCode": "ti",
+            "name": "Tigrinya"
+          },
+          {
+            "isoCode": "to",
+            "name": "Tongan"
+          },
+          {
+            "isoCode": "tr",
+            "name": "Turkish"
+          },
+          {
+            "isoCode": "tk",
+            "name": "Turkmen"
+          },
+          {
+            "isoCode": "uk",
+            "name": "Ukrainian"
+          },
+          {
+            "isoCode": "ur",
+            "name": "Urdu"
+          },
+          {
+            "isoCode": "ug",
+            "name": "Uyghur"
+          },
+          {
+            "isoCode": "uz",
+            "name": "Uzbek"
+          },
+          {
+            "isoCode": "vi",
+            "name": "Vietnamese"
+          },
+          {
+            "isoCode": "cy",
+            "name": "Welsh"
+          },
+          {
+            "isoCode": "fy",
+            "name": "Western Frisian"
+          },
+          {
+            "isoCode": "wo",
+            "name": "Wolof"
+          },
+          {
+            "isoCode": "xh",
+            "name": "Xhosa"
+          },
+          {
+            "isoCode": "yi",
+            "name": "Yiddish"
+          },
+          {
+            "isoCode": "yo",
+            "name": "Yoruba"
+          },
+          {
+            "isoCode": "zu",
+            "name": "Zulu"
+          }
+        ],
+        "allShopLocales": [
+          {
+            "locale": "de",
+            "name": "German",
+            "primary": false,
+            "published": true,
+            "marketWebPresences": []
+          },
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true,
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "subfolderSuffix": null
+              }
+            ]
+          }
+        ],
+        "publishedShopLocales": [
+          {
+            "locale": "de",
+            "name": "German",
+            "primary": false,
+            "published": true
+          },
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true
+          }
+        ],
+        "resources": {
+          "nodes": [
+            {
+              "resourceId": "gid://shopify/Product/9801098789170",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "The Inventory Not Tracked Snowboard",
+                  "digest": "43a0ee61d168b8330a4e71f9f034be6513b1729f9190950ae11f30b2d048c142",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "the-inventory-not-tracked-snowboard",
+                  "digest": "3f55cf19fa37be24cf8030bebc35e9483c6ff462e4164f6f1fa5a565fab81319",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "snowboard",
+                  "digest": "5bcb80d0681d6b5e42674b1b224318829266df06c58a0447d51ac6311fafae70",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ],
+              "translations": []
+            },
+            {
+              "resourceId": "gid://shopify/Product/9801098821938",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "Gift Card",
+                  "digest": "d3c9aefe7e3be067689e4e16535c784d35facd991451e437be45e2ecfe6e5302",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "body_html",
+                  "value": "This is a gift card for the store",
+                  "digest": "fddcdffec2595f07dea577102394e61dc3fde26cdf47aae02e022f516df0d4c0",
+                  "locale": "en",
+                  "type": "HTML"
+                },
+                {
+                  "key": "handle",
+                  "value": "gift-card",
+                  "digest": "c20076dda56ebe3a6ec4eb453335d4fcedc133d205d2d86d1a16e4c4c6e1d21e",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "giftcard",
+                  "digest": "598aa5e2d9557cce8e7ceff45cae23c3e5a4490c9f5738b240665c701d089e5c",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ],
+              "translations": []
+            },
+            {
+              "resourceId": "gid://shopify/Product/9801098854706",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "The Draft Snowboard",
+                  "digest": "135ec0a97967fb985fa5e13e99400d358f0cf77f74fb87f734bed8912e193843",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "the-draft-snowboard",
+                  "digest": "4ab70b5da9e620adc8081003d6b9fa4c44a0859f206905568e435b254a0afb17",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "snowboard",
+                  "digest": "5bcb80d0681d6b5e42674b1b224318829266df06c58a0447d51ac6311fafae70",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ],
+              "translations": []
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": true,
+            "hasPreviousPage": false
+          }
+        },
+        "byIds": {
+          "nodes": [],
+          "edges": [],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": null,
+            "endCursor": null
+          }
+        },
+        "missing": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 21,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "enable": {
+    "request": {
+      "variables": {
+        "locale": "fr",
+        "marketWebPresenceIds": ["gid://shopify/MarketWebPresence/62842765618"]
+      }
+    },
+    "response": {
+      "data": {
+        "shopLocaleEnable": {
+          "shopLocale": {
+            "locale": "fr",
+            "published": false,
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1985,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterEnable": {
+    "request": {
+      "variables": {}
+    },
+    "response": {
+      "data": {
+        "shopLocales": [
+          {
+            "locale": "de",
+            "marketWebPresences": []
+          },
+          {
+            "locale": "en",
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          },
+          {
+            "locale": "fr",
+            "marketWebPresences": [
+              {
+                "id": "gid://shopify/MarketWebPresence/62842765618",
+                "__typename": "MarketWebPresence",
+                "defaultLocale": {
+                  "locale": "en"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "disablePrimary": {
+    "request": {
+      "variables": {
+        "locale": "en"
+      }
+    },
+    "response": {
+      "data": {
+        "shopLocaleDisable": {
+          "locale": null,
+          "userErrors": [
+            {
+              "field": ["locale"],
+              "message": "The primary locale of your store can't be changed through this endpoint."
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "registerMixed": {
+    "request": {
+      "variables": {
+        "resourceId": "gid://shopify/Product/9801098789170",
+        "translations": [
+          {
+            "locale": "fr",
+            "key": "title",
+            "value": "HAR-711 payload shape 1777965405399",
+            "translatableContentDigest": "43a0ee61d168b8330a4e71f9f034be6513b1729f9190950ae11f30b2d048c142"
+          },
+          {
+            "locale": "fr",
+            "key": "title",
+            "value": "Invalid digest row",
+            "translatableContentDigest": "invalid-43a0ee61d168b8330a4e71f9f034be6513b1729f9190950ae11f30b2d048c142"
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [
+            {
+              "key": "title",
+              "value": "HAR-711 payload shape 1777965405399",
+              "locale": "fr",
+              "outdated": false,
+              "market": null
+            }
+          ],
+          "userErrors": [
+            {
+              "field": ["translations", "1", "translatableContentDigest"],
+              "message": "Translatable content hash is invalid",
+              "code": "INVALID_TRANSLATABLE_CONTENT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "preCaptureShopLocaleDisable": {
+      "data": {
+        "shopLocaleDisable": {
+          "locale": "fr",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "translationsRemove": {
+      "data": {
+        "translationsRemove": {
+          "translations": [
+            {
+              "key": "title"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "shopLocaleDisable": {
+      "data": {
+        "shopLocaleDisable": {
+          "locale": "fr",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationLocaleTranslationRead",
+      "variables": {
+        "first": 3,
+        "resourceType": "PRODUCT",
+        "ids": ["gid://shopify/Product/999999999999999"]
+      },
+      "query": "sha:hand-synthesized-from-setup-response",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "availableLocalesExcerpt": [
+              {
+                "isoCode": "af",
+                "name": "Afrikaans"
+              },
+              {
+                "isoCode": "ak",
+                "name": "Akan"
+              },
+              {
+                "isoCode": "sq",
+                "name": "Albanian"
+              },
+              {
+                "isoCode": "am",
+                "name": "Amharic"
+              },
+              {
+                "isoCode": "ar",
+                "name": "Arabic"
+              },
+              {
+                "isoCode": "hy",
+                "name": "Armenian"
+              },
+              {
+                "isoCode": "as",
+                "name": "Assamese"
+              },
+              {
+                "isoCode": "az",
+                "name": "Azerbaijani"
+              },
+              {
+                "isoCode": "bm",
+                "name": "Bambara"
+              },
+              {
+                "isoCode": "bn",
+                "name": "Bangla"
+              },
+              {
+                "isoCode": "eu",
+                "name": "Basque"
+              },
+              {
+                "isoCode": "be",
+                "name": "Belarusian"
+              },
+              {
+                "isoCode": "bs",
+                "name": "Bosnian"
+              },
+              {
+                "isoCode": "br",
+                "name": "Breton"
+              },
+              {
+                "isoCode": "bg",
+                "name": "Bulgarian"
+              },
+              {
+                "isoCode": "my",
+                "name": "Burmese"
+              },
+              {
+                "isoCode": "ca",
+                "name": "Catalan"
+              },
+              {
+                "isoCode": "ckb",
+                "name": "Central Kurdish"
+              },
+              {
+                "isoCode": "ce",
+                "name": "Chechen"
+              },
+              {
+                "isoCode": "zh-CN",
+                "name": "Chinese (Simplified)"
+              },
+              {
+                "isoCode": "zh-TW",
+                "name": "Chinese (Traditional)"
+              },
+              {
+                "isoCode": "kw",
+                "name": "Cornish"
+              },
+              {
+                "isoCode": "hr",
+                "name": "Croatian"
+              },
+              {
+                "isoCode": "cs",
+                "name": "Czech"
+              },
+              {
+                "isoCode": "da",
+                "name": "Danish"
+              },
+              {
+                "isoCode": "nl",
+                "name": "Dutch"
+              },
+              {
+                "isoCode": "dz",
+                "name": "Dzongkha"
+              },
+              {
+                "isoCode": "en",
+                "name": "English"
+              },
+              {
+                "isoCode": "eo",
+                "name": "Esperanto"
+              },
+              {
+                "isoCode": "et",
+                "name": "Estonian"
+              },
+              {
+                "isoCode": "ee",
+                "name": "Ewe"
+              },
+              {
+                "isoCode": "fo",
+                "name": "Faroese"
+              },
+              {
+                "isoCode": "fil",
+                "name": "Filipino"
+              },
+              {
+                "isoCode": "fi",
+                "name": "Finnish"
+              },
+              {
+                "isoCode": "fr",
+                "name": "French"
+              },
+              {
+                "isoCode": "ff",
+                "name": "Fulah"
+              },
+              {
+                "isoCode": "gl",
+                "name": "Galician"
+              },
+              {
+                "isoCode": "lg",
+                "name": "Ganda"
+              },
+              {
+                "isoCode": "ka",
+                "name": "Georgian"
+              },
+              {
+                "isoCode": "de",
+                "name": "German"
+              },
+              {
+                "isoCode": "el",
+                "name": "Greek"
+              },
+              {
+                "isoCode": "gu",
+                "name": "Gujarati"
+              },
+              {
+                "isoCode": "ha",
+                "name": "Hausa"
+              },
+              {
+                "isoCode": "he",
+                "name": "Hebrew"
+              },
+              {
+                "isoCode": "hi",
+                "name": "Hindi"
+              },
+              {
+                "isoCode": "hu",
+                "name": "Hungarian"
+              },
+              {
+                "isoCode": "is",
+                "name": "Icelandic"
+              },
+              {
+                "isoCode": "ig",
+                "name": "Igbo"
+              },
+              {
+                "isoCode": "id",
+                "name": "Indonesian"
+              },
+              {
+                "isoCode": "ia",
+                "name": "Interlingua"
+              },
+              {
+                "isoCode": "ga",
+                "name": "Irish"
+              },
+              {
+                "isoCode": "it",
+                "name": "Italian"
+              },
+              {
+                "isoCode": "ja",
+                "name": "Japanese"
+              },
+              {
+                "isoCode": "jv",
+                "name": "Javanese"
+              },
+              {
+                "isoCode": "kl",
+                "name": "Kalaallisut"
+              },
+              {
+                "isoCode": "kn",
+                "name": "Kannada"
+              },
+              {
+                "isoCode": "ks",
+                "name": "Kashmiri"
+              },
+              {
+                "isoCode": "kk",
+                "name": "Kazakh"
+              },
+              {
+                "isoCode": "km",
+                "name": "Khmer"
+              },
+              {
+                "isoCode": "ki",
+                "name": "Kikuyu"
+              },
+              {
+                "isoCode": "rw",
+                "name": "Kinyarwanda"
+              },
+              {
+                "isoCode": "ko",
+                "name": "Korean"
+              },
+              {
+                "isoCode": "ku",
+                "name": "Kurdish"
+              },
+              {
+                "isoCode": "ky",
+                "name": "Kyrgyz"
+              },
+              {
+                "isoCode": "lo",
+                "name": "Lao"
+              },
+              {
+                "isoCode": "lv",
+                "name": "Latvian"
+              },
+              {
+                "isoCode": "ln",
+                "name": "Lingala"
+              },
+              {
+                "isoCode": "lt",
+                "name": "Lithuanian"
+              },
+              {
+                "isoCode": "lu",
+                "name": "Luba-Katanga"
+              },
+              {
+                "isoCode": "lb",
+                "name": "Luxembourgish"
+              },
+              {
+                "isoCode": "mk",
+                "name": "Macedonian"
+              },
+              {
+                "isoCode": "mg",
+                "name": "Malagasy"
+              },
+              {
+                "isoCode": "ms",
+                "name": "Malay"
+              },
+              {
+                "isoCode": "ml",
+                "name": "Malayalam"
+              },
+              {
+                "isoCode": "mt",
+                "name": "Maltese"
+              },
+              {
+                "isoCode": "gv",
+                "name": "Manx"
+              },
+              {
+                "isoCode": "mr",
+                "name": "Marathi"
+              },
+              {
+                "isoCode": "mn",
+                "name": "Mongolian"
+              },
+              {
+                "isoCode": "mi",
+                "name": "Māori"
+              },
+              {
+                "isoCode": "ne",
+                "name": "Nepali"
+              },
+              {
+                "isoCode": "nd",
+                "name": "North Ndebele"
+              },
+              {
+                "isoCode": "se",
+                "name": "Northern Sami"
+              },
+              {
+                "isoCode": "no",
+                "name": "Norwegian"
+              },
+              {
+                "isoCode": "nb",
+                "name": "Norwegian (Bokmål)"
+              },
+              {
+                "isoCode": "nn",
+                "name": "Norwegian Nynorsk"
+              },
+              {
+                "isoCode": "or",
+                "name": "Odia"
+              },
+              {
+                "isoCode": "om",
+                "name": "Oromo"
+              },
+              {
+                "isoCode": "os",
+                "name": "Ossetic"
+              },
+              {
+                "isoCode": "ps",
+                "name": "Pashto"
+              },
+              {
+                "isoCode": "fa",
+                "name": "Persian"
+              },
+              {
+                "isoCode": "pl",
+                "name": "Polish"
+              },
+              {
+                "isoCode": "pt-BR",
+                "name": "Portuguese (Brazil)"
+              },
+              {
+                "isoCode": "pt-PT",
+                "name": "Portuguese (Portugal)"
+              },
+              {
+                "isoCode": "pa",
+                "name": "Punjabi"
+              },
+              {
+                "isoCode": "qu",
+                "name": "Quechua"
+              },
+              {
+                "isoCode": "ro",
+                "name": "Romanian"
+              },
+              {
+                "isoCode": "rm",
+                "name": "Romansh"
+              },
+              {
+                "isoCode": "rn",
+                "name": "Rundi"
+              },
+              {
+                "isoCode": "ru",
+                "name": "Russian"
+              },
+              {
+                "isoCode": "sg",
+                "name": "Sango"
+              },
+              {
+                "isoCode": "sa",
+                "name": "Sanskrit"
+              },
+              {
+                "isoCode": "sc",
+                "name": "Sardinian"
+              },
+              {
+                "isoCode": "gd",
+                "name": "Scottish Gaelic"
+              },
+              {
+                "isoCode": "sr",
+                "name": "Serbian"
+              },
+              {
+                "isoCode": "sn",
+                "name": "Shona"
+              },
+              {
+                "isoCode": "ii",
+                "name": "Sichuan Yi"
+              },
+              {
+                "isoCode": "sd",
+                "name": "Sindhi"
+              },
+              {
+                "isoCode": "si",
+                "name": "Sinhala"
+              },
+              {
+                "isoCode": "sk",
+                "name": "Slovak"
+              },
+              {
+                "isoCode": "sl",
+                "name": "Slovenian"
+              },
+              {
+                "isoCode": "so",
+                "name": "Somali"
+              },
+              {
+                "isoCode": "es",
+                "name": "Spanish"
+              },
+              {
+                "isoCode": "su",
+                "name": "Sundanese"
+              },
+              {
+                "isoCode": "sw",
+                "name": "Swahili"
+              },
+              {
+                "isoCode": "sv",
+                "name": "Swedish"
+              },
+              {
+                "isoCode": "tg",
+                "name": "Tajik"
+              },
+              {
+                "isoCode": "ta",
+                "name": "Tamil"
+              },
+              {
+                "isoCode": "tt",
+                "name": "Tatar"
+              },
+              {
+                "isoCode": "te",
+                "name": "Telugu"
+              },
+              {
+                "isoCode": "th",
+                "name": "Thai"
+              },
+              {
+                "isoCode": "bo",
+                "name": "Tibetan"
+              },
+              {
+                "isoCode": "ti",
+                "name": "Tigrinya"
+              },
+              {
+                "isoCode": "to",
+                "name": "Tongan"
+              },
+              {
+                "isoCode": "tr",
+                "name": "Turkish"
+              },
+              {
+                "isoCode": "tk",
+                "name": "Turkmen"
+              },
+              {
+                "isoCode": "uk",
+                "name": "Ukrainian"
+              },
+              {
+                "isoCode": "ur",
+                "name": "Urdu"
+              },
+              {
+                "isoCode": "ug",
+                "name": "Uyghur"
+              },
+              {
+                "isoCode": "uz",
+                "name": "Uzbek"
+              },
+              {
+                "isoCode": "vi",
+                "name": "Vietnamese"
+              },
+              {
+                "isoCode": "cy",
+                "name": "Welsh"
+              },
+              {
+                "isoCode": "fy",
+                "name": "Western Frisian"
+              },
+              {
+                "isoCode": "wo",
+                "name": "Wolof"
+              },
+              {
+                "isoCode": "xh",
+                "name": "Xhosa"
+              },
+              {
+                "isoCode": "yi",
+                "name": "Yiddish"
+              },
+              {
+                "isoCode": "yo",
+                "name": "Yoruba"
+              },
+              {
+                "isoCode": "zu",
+                "name": "Zulu"
+              }
+            ],
+            "allShopLocales": [
+              {
+                "locale": "de",
+                "name": "German",
+                "primary": false,
+                "published": true,
+                "marketWebPresences": []
+              },
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true,
+                "marketWebPresences": [
+                  {
+                    "id": "gid://shopify/MarketWebPresence/62842765618",
+                    "subfolderSuffix": null
+                  }
+                ]
+              }
+            ],
+            "publishedShopLocales": [
+              {
+                "locale": "de",
+                "name": "German",
+                "primary": false,
+                "published": true
+              },
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true
+              }
+            ],
+            "resources": {
+              "nodes": [
+                {
+                  "resourceId": "gid://shopify/Product/9801098789170",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "The Inventory Not Tracked Snowboard",
+                      "digest": "43a0ee61d168b8330a4e71f9f034be6513b1729f9190950ae11f30b2d048c142",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "the-inventory-not-tracked-snowboard",
+                      "digest": "3f55cf19fa37be24cf8030bebc35e9483c6ff462e4164f6f1fa5a565fab81319",
+                      "locale": "en",
+                      "type": "URI"
+                    },
+                    {
+                      "key": "product_type",
+                      "value": "snowboard",
+                      "digest": "5bcb80d0681d6b5e42674b1b224318829266df06c58a0447d51ac6311fafae70",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    }
+                  ],
+                  "translations": []
+                },
+                {
+                  "resourceId": "gid://shopify/Product/9801098821938",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "Gift Card",
+                      "digest": "d3c9aefe7e3be067689e4e16535c784d35facd991451e437be45e2ecfe6e5302",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "body_html",
+                      "value": "This is a gift card for the store",
+                      "digest": "fddcdffec2595f07dea577102394e61dc3fde26cdf47aae02e022f516df0d4c0",
+                      "locale": "en",
+                      "type": "HTML"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "gift-card",
+                      "digest": "c20076dda56ebe3a6ec4eb453335d4fcedc133d205d2d86d1a16e4c4c6e1d21e",
+                      "locale": "en",
+                      "type": "URI"
+                    },
+                    {
+                      "key": "product_type",
+                      "value": "giftcard",
+                      "digest": "598aa5e2d9557cce8e7ceff45cae23c3e5a4490c9f5738b240665c701d089e5c",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    }
+                  ],
+                  "translations": []
+                },
+                {
+                  "resourceId": "gid://shopify/Product/9801098854706",
+                  "translatableContent": [
+                    {
+                      "key": "title",
+                      "value": "The Draft Snowboard",
+                      "digest": "135ec0a97967fb985fa5e13e99400d358f0cf77f74fb87f734bed8912e193843",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    },
+                    {
+                      "key": "handle",
+                      "value": "the-draft-snowboard",
+                      "digest": "4ab70b5da9e620adc8081003d6b9fa4c44a0859f206905568e435b254a0afb17",
+                      "locale": "en",
+                      "type": "URI"
+                    },
+                    {
+                      "key": "product_type",
+                      "value": "snowboard",
+                      "digest": "5bcb80d0681d6b5e42674b1b224318829266df06c58a0447d51ac6311fafae70",
+                      "locale": "en",
+                      "type": "SINGLE_LINE_TEXT_FIELD"
+                    }
+                  ],
+                  "translations": []
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": true,
+                "hasPreviousPage": false
+              }
+            },
+            "byIds": {
+              "nodes": [],
+              "edges": [],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": null,
+                "endCursor": null
+              }
+            },
+            "missing": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 21,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

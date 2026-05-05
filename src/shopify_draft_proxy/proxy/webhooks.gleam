@@ -24,6 +24,7 @@
 ////   a `{"errors": [...]}` envelope instead of `{"data": {...}}`.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -50,6 +51,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser.{
   type SearchQueryTerm, SearchQueryTermListOptions,
 }
@@ -706,6 +708,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   process_mutation_with_api_client(
     store,
@@ -713,7 +716,7 @@ pub fn process_mutation(
     request_path,
     document,
     variables,
-    None,
+    app_identity.read_requesting_api_client_id(upstream.headers),
   )
 }
 
@@ -961,10 +964,11 @@ fn handle_create(
       let input = read_webhook_subscription_input(args)
       let user_errors = case input {
         Some(input_dict) ->
-          validate_webhook_subscription_input(
+          validate_webhook_subscription_create_input(
             input_dict,
-            require_uri: True,
-            requesting_api_client_id: requesting_api_client_id,
+            topic,
+            store,
+            requesting_api_client_id,
           )
         None -> []
       }
@@ -1064,11 +1068,11 @@ fn handle_update(
         None -> None
       }
       let user_errors = case existing, input {
-        Some(_), Some(input_dict) ->
-          validate_webhook_subscription_input(
+        Some(existing_record), Some(input_dict) ->
+          validate_webhook_subscription_update_input(
             input_dict,
-            require_uri: False,
-            requesting_api_client_id: requesting_api_client_id,
+            existing_record,
+            requesting_api_client_id,
           )
         Some(_), None -> []
         None, _ -> [
@@ -1243,10 +1247,7 @@ fn build_webhook_from_create_input(
         read_optional_string_array(input, "metafieldNamespaces"),
         [],
       ),
-      filter: case read_optional_string(input, "filter") {
-        Some(s) -> Some(s)
-        None -> Some("")
-      },
+      filter: read_optional_string(input, "filter"),
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
       endpoint: Some(endpoint_from_uri(uri)),
@@ -1326,6 +1327,288 @@ fn validate_webhook_subscription_input(
   list.append(
     validate_webhook_uri_input(input, require_uri, requesting_api_client_id),
     validate_webhook_filter_input(input),
+  )
+}
+
+const webhook_subscription_name_max_length = 50
+
+fn validate_webhook_subscription_create_input(
+  input: Dict(String, root_field.ResolvedValue),
+  topic: Option(String),
+  store: Store,
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  let errors =
+    validate_webhook_subscription_input(
+      input,
+      require_uri: True,
+      requesting_api_client_id: requesting_api_client_id,
+    )
+    |> list.append(validate_webhook_topic_format_input(topic, input))
+    |> list.append(validate_webhook_name_input(input))
+
+  case errors {
+    [] -> validate_duplicate_webhook_subscription(topic, input, store)
+    _ -> errors
+  }
+}
+
+fn validate_webhook_subscription_update_input(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: WebhookSubscriptionRecord,
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  validate_webhook_subscription_input(
+    input,
+    require_uri: False,
+    requesting_api_client_id: requesting_api_client_id,
+  )
+  |> list.append(validate_webhook_topic_format(
+    existing.topic,
+    resolved_webhook_uri(existing, input),
+    resolved_webhook_format(existing, input),
+  ))
+  |> list.append(validate_webhook_name_input(input))
+}
+
+fn validate_webhook_topic_format_input(
+  topic: Option(String),
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  validate_webhook_topic_format(
+    topic,
+    normalize_uri_from_input(input),
+    normalize_webhook_format(read_optional_string(input, "format")),
+  )
+}
+
+fn validate_webhook_topic_format(
+  topic: Option(String),
+  uri: Option(String),
+  format: String,
+) -> List(UserError) {
+  case is_cloud_webhook_uri(uri) && format != "JSON" {
+    True -> [cloud_format_user_error()]
+    False -> {
+      let allowed = supported_webhook_formats(topic)
+      case list.contains(allowed, format) {
+        True -> []
+        False -> [unsupported_format_user_error(format, allowed)]
+      }
+    }
+  }
+}
+
+fn supported_webhook_formats(topic: Option(String)) -> List(String) {
+  case topic {
+    Some("BULK_OPERATIONS_FINISH")
+    | Some("COMPANIES_CREATE")
+    | Some("DISPUTES_CREATE")
+    | Some("PRODUCT_FEEDS_FULL_SYNC")
+    | Some("RETURNS_APPROVE")
+    | Some("SEGMENTS_CREATE")
+    | Some("SELLING_PLAN_GROUPS_CREATE") -> ["JSON"]
+    _ -> ["JSON", "XML"]
+  }
+}
+
+fn normalize_webhook_format(raw: Option(String)) -> String {
+  raw
+  |> option.unwrap("JSON")
+  |> string.trim
+  |> string.uppercase
+}
+
+fn resolved_webhook_format(
+  existing: WebhookSubscriptionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  case read_optional_string(input, "format") {
+    Some(raw) -> normalize_webhook_format(Some(raw))
+    None -> normalize_webhook_format(existing.format)
+  }
+}
+
+fn resolved_webhook_uri(
+  existing: WebhookSubscriptionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case normalize_uri_from_input(input) {
+    Some(uri) -> Some(uri)
+    None -> webhook_subscription_uri(existing)
+  }
+}
+
+fn is_cloud_webhook_uri(uri: Option(String)) -> Bool {
+  case uri {
+    Some(value) ->
+      string.starts_with(value, "pubsub://")
+      || string.starts_with(value, "arn:aws:events:")
+    None -> False
+  }
+}
+
+fn cloud_format_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "format"],
+    message: "Format can only be used with format: 'json'",
+  )
+}
+
+fn unsupported_format_user_error(
+  format: String,
+  allowed_formats: List(String),
+) -> UserError {
+  UserError(
+    field: ["webhookSubscription", "format"],
+    message: "Format '"
+      <> string.lowercase(format)
+      <> "' is invalid for this webhook topic. Allowed formats: "
+      <> allowed_formats_label(allowed_formats),
+  )
+}
+
+fn allowed_formats_label(allowed_formats: List(String)) -> String {
+  allowed_formats
+  |> list.map(string.lowercase)
+  |> string.join(", ")
+}
+
+fn validate_webhook_name_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "name") {
+    Some(name) -> validate_webhook_name(name)
+    None -> []
+  }
+}
+
+fn validate_webhook_name(name: String) -> List(UserError) {
+  case string.length(name) {
+    0 -> [
+      UserError(
+        field: ["webhookSubscription", "name"],
+        message: "Name is too short (minimum is 1 character)",
+      ),
+      invalid_webhook_name_user_error(),
+    ]
+    length if length > webhook_subscription_name_max_length -> [
+      UserError(
+        field: ["webhookSubscription", "name"],
+        message: "Name is too long (maximum is "
+          <> int.to_string(webhook_subscription_name_max_length)
+          <> " characters)",
+      ),
+    ]
+    _ ->
+      case is_valid_webhook_name(name) {
+        True -> []
+        False -> [invalid_webhook_name_user_error()]
+      }
+  }
+}
+
+fn invalid_webhook_name_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "name"],
+    message: "Name name field can only contain alphanumeric characters, underscores, and hyphens",
+  )
+}
+
+fn is_valid_webhook_name(name: String) -> Bool {
+  list.all(string.to_graphemes(name), fn(char) {
+    string.contains(
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
+      char,
+    )
+  })
+}
+
+fn validate_duplicate_webhook_subscription(
+  topic: Option(String),
+  input: Dict(String, root_field.ResolvedValue),
+  store: Store,
+) -> List(UserError) {
+  let uri = normalize_uri_from_input(input)
+  let format =
+    Some(normalize_webhook_format(read_optional_string(input, "format")))
+  let filter = Some(normalize_webhook_filter(input))
+  let address_errors = case
+    has_duplicate_webhook_subscription(store, topic, uri, format, filter)
+  {
+    True -> [duplicate_webhook_subscription_address_user_error()]
+    False -> []
+  }
+  list.append(
+    address_errors,
+    validate_duplicate_webhook_subscription_name(
+      store,
+      read_optional_string(input, "name"),
+    ),
+  )
+}
+
+fn has_duplicate_webhook_subscription(
+  store: Store,
+  topic: Option(String),
+  uri: Option(String),
+  format: Option(String),
+  filter: Option(String),
+) -> Bool {
+  store.list_effective_webhook_subscriptions(store)
+  |> list.any(fn(record) {
+    record.topic == topic
+    && webhook_subscription_uri(record) == uri
+    && normalized_record_format(record) == format
+    && normalized_record_filter(record) == filter
+  })
+}
+
+fn normalized_record_format(
+  record: WebhookSubscriptionRecord,
+) -> Option(String) {
+  Some(normalize_webhook_format(record.format))
+}
+
+fn normalized_record_filter(
+  record: WebhookSubscriptionRecord,
+) -> Option(String) {
+  Some(option.unwrap(record.filter, ""))
+}
+
+fn normalize_webhook_filter(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  read_optional_string(input, "filter")
+  |> option.unwrap("")
+}
+
+fn validate_duplicate_webhook_subscription_name(
+  store: Store,
+  name: Option(String),
+) -> List(UserError) {
+  case name {
+    Some(name) ->
+      case
+        store.list_effective_webhook_subscriptions(store)
+        |> list.any(fn(record) { record.name == Some(name) })
+      {
+        True -> [
+          UserError(
+            field: ["webhookSubscription", "name"],
+            message: "Name already exists, no duplicate allowed",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn duplicate_webhook_subscription_address_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address for this topic has already been taken",
   )
 }
 

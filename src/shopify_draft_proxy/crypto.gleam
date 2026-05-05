@@ -16,3 +16,8 @@
 @external(erlang, "crypto_ffi", "sha256_hex")
 @external(javascript, "./crypto_ffi.js", "sha256_hex")
 pub fn sha256_hex(input: String) -> String
+
+/// Compute the lowercase hex md5 of a string.
+@external(erlang, "crypto_ffi", "md5_hex")
+@external(javascript, "./crypto_ffi.js", "md5_hex")
+pub fn md5_hex(input: String) -> String

@@ -1,0 +1,21 @@
+#graphql
+mutation LocationAddDefaults($input: LocationAddInput!) {
+  locationAdd(input: $input) {
+    location {
+      id
+      name
+      fulfillsOnlineOrders
+      address {
+        address1
+        city
+        countryCode
+        zip
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

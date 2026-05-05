@@ -9,6 +9,7 @@ Shared helpers for GraphQL Admin proxy serializers.
 - cursor windowing, `nodes` / `edges` serialization, and selected `pageInfo` fields
 - selected-field lookup, alias-aware response keys, and connection envelope helpers
 - synthetic cursor generation for local and snapshot-backed connection responses
+- resolved argument readers for common scalar, object, and string-list input shapes
 
 Use this module for pagination and connection envelopes. Resource-specific sorting, filtering, cursor derivation, and node projection should stay in the owning domain module and pass explicit decisions into these helpers.
 

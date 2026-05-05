@@ -1933,21 +1933,15 @@ fn job_source(job_id: String, status: String) -> SourceValue {
 }
 
 pub fn process_mutation(
-  proxy: DraftProxy,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
-  let store = proxy.store
-  let identity = proxy.synthetic_identity
   case root_field.get_root_fields(document) {
-    Error(err) ->
-      mutation_helpers.parse_failed_outcome(
-        proxy.store,
-        proxy.synthetic_identity,
-        err,
-      )
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       handle_mutation_fields(
@@ -3708,6 +3702,10 @@ fn validate_customer_create(
 ) -> List(UserError) {
   let email = read_obj_string(input, "email")
   let phone = read_obj_string(input, "phone")
+  let id_errors = case dict.get(input, "id") {
+    Ok(root_field.NullVal) | Error(_) -> []
+    Ok(_) -> [UserError(["id"], "Cannot specify ID on creation", None)]
+  }
   let presence_errors = case email, phone {
     None, None -> [
       UserError(
@@ -3720,7 +3718,7 @@ fn validate_customer_create(
   }
   let local_errors = validate_customer_input_fields(store, input, None)
   list.append(
-    list.append(presence_errors, local_errors),
+    list.append(list.append(id_errors, presence_errors), local_errors),
     validate_upstream_duplicate_customer(input, local_errors, None, upstream),
   )
 }

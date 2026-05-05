@@ -1,0 +1,49 @@
+mutation B2BLocationAddressManagementCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      mainContact {
+        id
+        roleAssignments(first: 5) {
+          nodes {
+            id
+            companyLocation {
+              id
+            }
+          }
+        }
+      }
+      contacts(first: 5) {
+        nodes {
+          id
+          roleAssignments(first: 5) {
+            nodes {
+              id
+              companyLocation {
+                id
+              }
+            }
+          }
+        }
+      }
+      locations(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+      contactRoles(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

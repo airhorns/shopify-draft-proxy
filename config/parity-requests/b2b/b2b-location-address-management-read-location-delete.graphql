@@ -1,0 +1,16 @@
+query B2BLocationAddressManagementReadLocationDelete($companyContactId: ID!, $companyLocationId: ID!) {
+  companyContact(id: $companyContactId) {
+    id
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyLocation {
+          id
+        }
+      }
+    }
+  }
+  companyLocation(id: $companyLocationId) {
+    id
+  }
+}

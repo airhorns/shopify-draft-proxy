@@ -73,6 +73,27 @@ Practical rule:
 - do not add `online-store/page-body-script-scrubbed` as a captured parity spec until the Shopify behavior/source-of-truth disagreement is resolved; checking in the live fixture would assert the opposite of the ticketed behavior, while adding expected differences for `body` / `bodySummary` would mask the field under test.
 - keep local scrubber coverage in runtime tests, and re-probe Shopify before using this scenario as live fidelity evidence.
 
+## Current: B2B same-as-shipping exposes separate public address IDs in 2026-04
+
+HAR-623 captured B2B location/address management on Admin GraphQL 2026-04. A
+`companyLocationCreate` request with `billingSameAsShipping: true` and a
+shipping address returned both `billingAddress` and `shippingAddress`, but those
+two public `CompanyAddress` IDs were different. Deleting the captured
+shipping-side ID removed only `shippingAddress` on the downstream public read
+and left the billing-side public address visible. Earlier ticket/source notes
+described the internal same-as-shipping anchor as a shared address; the local
+runtime still keeps one shared local address ID so it can clear
+`billingSameAsShipping` and detach both sides when that shared anchor is deleted.
+
+Two nearby 2026-04 traps from the same capture:
+
+- `CompanyLocation.billingSameAsShipping` is not selectable in that public Admin
+  API schema, so the local flag invariant needs focused runtime coverage rather
+  than strict public read parity.
+- duplicate `companyLocationAssignAddress(addressTypes: [BILLING, BILLING])`
+  returns `addresses: null` and a single `INVALID_INPUT` userError with
+  `field: null` and message `Invalid input.`
+
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
 HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:
@@ -1993,6 +2014,7 @@ Observed live behavior on this host:
 - `inventoryActivate(inventoryItemId:, locationId:)` against a known second location now succeeds and creates a new `inventoryLevel` row for that location
 - important quirk: even when `inventoryActivate` was called with `available: 9`, the newly created second-location level still came back with `available: 0` / `on_hand: 0` / `incoming: 0`; the activation succeeded, but the provided quantity seed was ignored on this host
 - HAR-468 refreshed the lifecycle again against Admin GraphQL 2026-04. `inventoryDeactivate(inventoryLevelId: ...)` still fails with the minimum-one-location rule when called against the only active level, but once two active levels exist it succeeds and marks the targeted level inactive rather than deleting its row.
+- HAR-591 refreshed `inventoryDeactivate` validation on 2026-04 with real committed inventory from `orderCreate`, incoming inventory from an in-transit shipment, and reserved inventory from a ready transfer. Shopify returned `userErrors: []` for each non-zero quantity case as long as another active stocking location existed. A fabricated level for a missing item returned `The product couldn't be unstocked because the product was deleted.`, while a fabricated level for a known item returned `The product couldn't be unstocked because the location was deleted.`
 - The current 2026-04 live schema on this host exposes `includeInactive` on `InventoryItem.inventoryLevel(locationId:, includeInactive:)` and `InventoryItem.inventoryLevels(includeInactive:)`. It does **not** expose `includeInactive` on `InventoryLevel.quantities`; an attempted `quantities(names:, includeInactive:)` selection returned Shopify's `argumentNotAccepted` GraphQL error.
 - After successful deactivation, `inventoryItem.inventoryLevels(first:, includeInactive: true)`, `inventoryItem.inventoryLevel(locationId:, includeInactive: true)`, and top-level `inventoryLevel(id:)` kept returning the inactive level with `isActive: false` and preserved `available` / `on_hand` / `incoming` quantity rows. Reactivating the same inventory item/location returned the same inventory-level id with `isActive: true`, restored the preserved quantity rows, and updated the available quantity timestamp.
 - `inventoryBulkToggleActivation(... activate: true ...)` against an already-active location remains a no-op success, but against a known second location it now succeeds and adds a new zero-quantity level for that location
@@ -2005,6 +2027,7 @@ Practical rule for the proxy:
 
 - keep the earlier single-location blocker and validation branches — they are still part of the live family, not obsolete guesses
 - but do **not** keep treating cross-location success as externally blocked on this host anymore; it is now evidence-backed and should stay covered in runtime/tests/docs
+- do not reject direct `inventoryDeactivate` only because `committed`, `incoming`, or `reserved` is non-zero under the current 2026-04 contract; the live mutation allows it when another active level remains
 - model cross-location activation conservatively: creating a second level is correct, but do not trust `inventoryActivate(... available: N)` to seed non-zero quantities on the new level without fresher evidence
 - preserve inactive levels in local state for direct activation/deactivation so include-inactive reads and same-location reactivation can use the original id and quantities
 - for bulk deactivation, preserve the live response asymmetry: the mutation payload can return `inventoryItem` with the surviving levels while top-level `inventoryLevels` is an empty array
@@ -2508,6 +2531,7 @@ Captured validation behavior:
 - self-merge mutation returns payload `userErrors` with `field: null`, message `Customers IDs should not match`, and code `INVALID_CUSTOMER_ID`
 - an unknown second customer id returns payload `userErrors` at `['customerTwoId']` with code `INVALID_CUSTOMER_ID`
 - omitting the required second id returns a top-level `missingRequiredArguments` GraphQL error before mutation execution
+- blank literal `customerOneId` / `customerTwoId` strings return top-level `argumentLiteralsIncompatible` coercion errors with `typeName: CoercionError` and message `Invalid global id ''` for each blank ID before mutation execution
 
 Captured safe happy path for two synthetic customers:
 
@@ -3070,3 +3094,44 @@ Practical rule:
 
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
+
+## 76. `locationAdd` required input errors are parser-level, but country validation is topology-sensitive
+
+HAR-654 captured `locationAdd` on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- omitting inline `input.address` returns a top-level GraphQL error with `extensions.code: "missingRequiredInputObjectAttribute"` and no mutation payload
+- blank `input.name` returns a mutation-scoped userError with `field: ["input", "name"]` and `code: "BLANK"`
+- omitting `fulfillsOnlineOrders` creates a location whose mutation payload and immediate `location(id:)` read both show `fulfillsOnlineOrders: true`
+- explicitly passing `fulfillsOnlineOrders: false` is reflected in both the mutation payload and immediate read
+- a probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError; the location was deactivated and deleted immediately after capture
+
+Practical rule:
+
+- keep required-address and blank-name behavior aligned with the captured parser/userError shapes
+- keep the proxy's obvious non-ISO country-code rejection as a local guardrail requested by HAR-654, but treat exact Shopify country acceptance/rejection as store/topology-sensitive until a stricter live branch is captured
+
+## 77. B2B customer-as-contact validation codes are version/evidence-sensitive
+
+HAR-606 probed `companyAssignCustomerAsContact` on Admin GraphQL 2025-01 and
+2026-04 against `harry-test-heelo.myshopify.com` while fixing local customer
+resolution.
+
+Observed public Admin API behavior:
+
+- unknown customer IDs returned `field: ["customerId"]`, message
+  `Customer does not exist.`, and code `RESOURCE_NOT_FOUND`
+- assigning the same customer twice returned `field: ["companyId"]`, message
+  `Customer is already associated with a company contact.`, and code
+  `INVALID_INPUT`
+- assigning a customer with no email returned `field: ["companyId"]`, message
+  `Customer must have an email address.`, and code `INVALID_INPUT`
+
+Practical rule:
+
+- the local handler follows HAR-606's internal-source acceptance codes
+  (`CUSTOMER_NOT_FOUND`, `CUSTOMER_ALREADY_A_CONTACT`, and
+  `CUSTOMER_EMAIL_MUST_EXIST`) while preserving the observed field/message
+  shapes; re-record parity if Shopify's public Admin API starts returning those
+  more specific enum values

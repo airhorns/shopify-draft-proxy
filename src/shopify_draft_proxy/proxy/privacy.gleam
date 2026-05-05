@@ -17,7 +17,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, single_root_log_draft,
+  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
+  MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
@@ -34,14 +35,6 @@ pub type PrivacyError {
 
 type UserError {
   UserError(field: List(String), message: String, code: Option(String))
-}
-
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
-  )
 }
 
 pub fn is_privacy_mutation_root(name: String) -> Bool {

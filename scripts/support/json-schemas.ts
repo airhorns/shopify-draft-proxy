@@ -105,6 +105,7 @@ export const matcherSchema = z.union([
   z.string().regex(/^shopify-gid:[A-Za-z][A-Za-z0-9]*$/),
   z.string().regex(/^shop-policy-url-base:https:\/\/[^/\s]+(?:\/[^\s]*)?$/),
   z.string().regex(/^exact-string:.+$/),
+  z.string().regex(/^regex:\^.+$/),
 ]);
 export type Matcher = z.infer<typeof matcherSchema>;
 

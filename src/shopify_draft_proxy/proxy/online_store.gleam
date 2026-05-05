@@ -5,6 +5,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
@@ -42,6 +43,8 @@ const synthetic_shop_id: String = "gid://shopify/Shop/92891250994"
 const online_store_blogs_count_query: String = "query OnlineStoreBlogsCountHydrate { blogsCount { count precision } }"
 
 const online_store_pages_count_query: String = "query OnlineStorePagesCountHydrate { pagesCount { count precision } }"
+
+const online_store_comment_hydrate_query: String = "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }"
 
 pub type OnlineStoreError {
   ParseFailed(root_field.RootFieldError)
@@ -296,6 +299,17 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> MutationOutcome {
+  process_mutation_with_upstream(store, identity, document, variables, upstream)
+}
+
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -313,7 +327,13 @@ pub fn process_mutation(
         list.fold(fields, #([], initial), fn(acc, field) {
           let #(pairs, current) = acc
           let #(key, payload, next) =
-            handle_mutation_field(current, field, fragments, variables)
+            handle_mutation_field(
+              current,
+              field,
+              fragments,
+              variables,
+              upstream,
+            )
           let merged =
             MutationOutcome(
               ..next,
@@ -338,6 +358,7 @@ fn handle_mutation_field(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   case field {
@@ -423,8 +444,8 @@ fn handle_mutation_field(
             "deletedArticleId",
           )
         "commentApprove" | "commentSpam" | "commentNotSpam" ->
-          moderate_comment(outcome, field, variables, root)
-        "commentDelete" -> delete_comment(outcome, field, variables)
+          moderate_comment(outcome, field, variables, root, upstream)
+        "commentDelete" -> delete_comment(outcome, field, variables, upstream)
         "themeCreate" -> create_theme(outcome, field, fragments, variables)
         "themeUpdate" ->
           update_theme(outcome, field, fragments, variables, "themeUpdate")
@@ -1067,39 +1088,52 @@ fn moderate_comment(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
   root: String,
+  upstream: UpstreamContext,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let id = input_string(graphql_helpers.field_args(field, variables), "id")
-  let status = case root {
-    "commentApprove" -> "PUBLISHED"
-    "commentSpam" -> "SPAM"
-    _ -> "PENDING"
-  }
-  let #(comment, errors, store) = case id {
+  let target_status = comment_target_status(root)
+  let #(comment, errors, store, identity) = case id {
     Some(id) ->
-      case store.get_effective_online_store_content_by_id(outcome.store, id) {
-        Some(existing) if existing.kind == "comment" -> {
-          let data =
-            captured_object_insert(
-              existing.data,
-              "status",
-              CapturedString(status),
+      case get_effective_or_hydrated_comment(outcome.store, upstream, id) {
+        #(Some(existing), hydrated_store) -> {
+          case comment_status(existing) == "REMOVED" {
+            True -> #(
+              SrcNull,
+              [comment_removed_user_error()],
+              hydrated_store,
+              outcome.identity,
             )
-          let record = OnlineStoreContentRecord(..existing, data: data)
-          let #(_, next_store) =
-            store.upsert_staged_online_store_content(outcome.store, record)
-          #(content_payload_source(next_store, record), [], next_store)
+            False -> {
+              let #(record, identity) =
+                comment_record_with_status(
+                  existing,
+                  target_status,
+                  outcome.identity,
+                )
+              let #(_, next_store) =
+                store.upsert_staged_online_store_content(hydrated_store, record)
+              #(
+                content_payload_source(next_store, record),
+                [],
+                next_store,
+                identity,
+              )
+            }
+          }
         }
-        _ -> #(
+        #(None, hydrated_store) -> #(
           SrcNull,
-          [user_error(["id"], "Comment does not exist")],
-          outcome.store,
+          [comment_not_found_user_error()],
+          hydrated_store,
+          outcome.identity,
         )
       }
     None -> #(
       SrcNull,
-      [user_error(["id"], "Comment does not exist")],
+      [comment_not_found_user_error()],
       outcome.store,
+      outcome.identity,
     )
   }
   let payload =
@@ -1111,35 +1145,43 @@ fn moderate_comment(
       ]),
       dict.new(),
     )
-  #(key, payload, mutation_outcome(outcome, store, outcome.identity, root, []))
+  #(key, payload, mutation_outcome(outcome, store, identity, root, []))
 }
 
 fn delete_comment(
   outcome: MutationOutcome,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let id = input_string(graphql_helpers.field_args(field, variables), "id")
   let #(deleted, errors, store) = case id {
     Some(id) ->
-      case store.get_effective_online_store_content_by_id(outcome.store, id) {
-        Some(existing) if existing.kind == "comment" -> #(
-          SrcString(id),
-          [],
-          store.delete_staged_online_store_content(outcome.store, id),
-        )
-        _ -> #(
+      case get_effective_or_hydrated_comment(outcome.store, upstream, id) {
+        #(Some(existing), hydrated_store) -> {
+          case comment_status(existing) == "REMOVED" {
+            True -> #(SrcString(id), [], hydrated_store)
+            False -> {
+              let #(record, _) =
+                comment_record_with_status(
+                  existing,
+                  "REMOVED",
+                  outcome.identity,
+                )
+              let #(_, next_store) =
+                store.upsert_staged_online_store_content(hydrated_store, record)
+              #(SrcString(id), [], next_store)
+            }
+          }
+        }
+        #(None, hydrated_store) -> #(
           SrcNull,
-          [user_error(["id"], "Comment does not exist")],
-          outcome.store,
+          [comment_not_found_user_error()],
+          hydrated_store,
         )
       }
-    None -> #(
-      SrcNull,
-      [user_error(["id"], "Comment does not exist")],
-      outcome.store,
-    )
+    None -> #(SrcNull, [comment_not_found_user_error()], outcome.store)
   }
   let payload =
     project_payload_source(
@@ -1153,8 +1195,175 @@ fn delete_comment(
   #(
     key,
     payload,
-    mutation_outcome(outcome, store, outcome.identity, "commentDelete", []),
+    mutation_outcome(
+      outcome,
+      store,
+      outcome.identity,
+      "commentDelete",
+      case errors {
+        [] -> option_list(id)
+        _ -> []
+      },
+    ),
   )
+}
+
+fn get_effective_or_hydrated_comment(
+  store_in: Store,
+  upstream: UpstreamContext,
+  id: String,
+) -> #(Option(OnlineStoreContentRecord), Store) {
+  case store.get_effective_online_store_content_by_id(store_in, id) {
+    Some(existing) if existing.kind == "comment" -> #(Some(existing), store_in)
+    _ ->
+      case hydrate_comment(store_in, upstream, id) {
+        Some(next_store) -> #(
+          store.get_effective_online_store_content_by_id(next_store, id),
+          next_store,
+        )
+        None -> #(None, store_in)
+      }
+  }
+}
+
+fn hydrate_comment(
+  store_in: Store,
+  upstream: UpstreamContext,
+  id: String,
+) -> Option(Store) {
+  let variables = json.object([#("id", json.string(id))])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "OnlineStoreCommentHydrate",
+      online_store_comment_hydrate_query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      json_get(value, "data")
+      |> option.then(json_get(_, "comment"))
+      |> option.then(comment_record_from_commit)
+      |> option.map(fn(record) {
+        store.upsert_base_online_store_content(store_in, [record])
+      })
+    Error(_) -> None
+  }
+}
+
+fn comment_record_from_commit(
+  value: commit.JsonValue,
+) -> Option(OnlineStoreContentRecord) {
+  case json_get_string(value, "id") {
+    Some(id) ->
+      Some(OnlineStoreContentRecord(
+        id: id,
+        kind: "comment",
+        cursor: None,
+        parent_id: comment_parent_article_id(value),
+        created_at: json_get_string(value, "createdAt"),
+        updated_at: json_get_string(value, "updatedAt"),
+        data: captured_json_from_commit(value),
+      ))
+    None -> None
+  }
+}
+
+fn comment_parent_article_id(value: commit.JsonValue) -> Option(String) {
+  json_get(value, "article")
+  |> option.then(json_get_string(_, "id"))
+}
+
+fn comment_target_status(root: String) -> String {
+  case root {
+    "commentApprove" -> "PUBLISHED"
+    "commentSpam" -> "SPAM"
+    "commentNotSpam" -> "UNAPPROVED"
+    _ -> "UNAPPROVED"
+  }
+}
+
+fn comment_status(record: OnlineStoreContentRecord) -> String {
+  source_string_field(captured_to_source(record.data), "status", "")
+}
+
+fn comment_record_with_status(
+  existing: OnlineStoreContentRecord,
+  status: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(OnlineStoreContentRecord, SyntheticIdentityRegistry) {
+  let #(data, identity) =
+    comment_data_with_status(existing.data, status, identity)
+  #(OnlineStoreContentRecord(..existing, data: data), identity)
+}
+
+fn comment_data_with_status(
+  data: CapturedJsonValue,
+  status: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let source = captured_to_source(data)
+  let data = captured_object_insert(data, "status", CapturedString(status))
+  case status {
+    "PUBLISHED" -> {
+      let data = captured_object_insert(data, "isPublished", CapturedBool(True))
+      case source_optional_string_field(source, "publishedAt") {
+        Some(_) -> #(data, identity)
+        None -> {
+          let #(timestamp, identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          #(
+            captured_object_insert(
+              data,
+              "publishedAt",
+              CapturedString(timestamp),
+            ),
+            identity,
+          )
+        }
+      }
+    }
+    "REMOVED" | "SPAM" | "UNAPPROVED" -> #(
+      captured_object_insert(data, "isPublished", CapturedBool(False)),
+      identity,
+    )
+    _ -> #(data, identity)
+  }
+}
+
+fn comment_not_found_user_error() -> graphql_helpers.SourceValue {
+  user_error(["id"], "Comment does not exist")
+}
+
+fn comment_removed_user_error() -> graphql_helpers.SourceValue {
+  user_error_with_code(["id"], "Comment has been removed", "INVALID")
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn captured_json_from_commit(value: commit.JsonValue) -> CapturedJsonValue {
+  case value {
+    commit.JsonNull -> CapturedNull
+    commit.JsonBool(value) -> CapturedBool(value)
+    commit.JsonInt(value) -> CapturedInt(value)
+    commit.JsonFloat(value) -> CapturedFloat(value)
+    commit.JsonString(value) -> CapturedString(value)
+    commit.JsonArray(items) ->
+      CapturedArray(list.map(items, captured_json_from_commit))
+    commit.JsonObject(fields) ->
+      CapturedObject(
+        list.map(fields, fn(pair) {
+          #(pair.0, captured_json_from_commit(pair.1))
+        }),
+      )
+  }
 }
 
 fn create_theme(
@@ -1386,9 +1595,11 @@ fn theme_files_change(
     Some(_) -> []
     None -> [user_error(["themeId"], "Theme does not exist")]
   }
-  let files = case root {
-    "themeFilesDelete" -> []
-    _ -> make_theme_files(input_list(args, "files"))
+  let result = case existing, errors {
+    Some(theme), [] ->
+      theme_files_change_result(outcome.store, theme, args, root)
+    _, _ ->
+      ThemeFilesChangeResult(files: [], errors: errors, store: outcome.store)
   }
   let payload = case root {
     "themeFilesUpsert" ->
@@ -1400,8 +1611,8 @@ fn theme_files_change(
             #("done", SrcBool(True)),
           ]),
         ),
-        #("upsertedThemeFiles", SrcList(files)),
-        #("userErrors", user_errors_source(errors)),
+        #("upsertedThemeFiles", SrcList(result.files)),
+        #("userErrors", user_errors_source(result.errors)),
       ])
     "themeFilesCopy" ->
       src_object([
@@ -1412,8 +1623,8 @@ fn theme_files_change(
             #("done", SrcBool(True)),
           ]),
         ),
-        #("copiedThemeFiles", SrcList(files)),
-        #("userErrors", user_errors_source(errors)),
+        #("copiedThemeFiles", SrcList(result.files)),
+        #("userErrors", user_errors_source(result.errors)),
       ])
     _ ->
       src_object([
@@ -1424,15 +1635,113 @@ fn theme_files_change(
             #("done", SrcBool(True)),
           ]),
         ),
-        #("deletedThemeFiles", SrcList([])),
-        #("userErrors", user_errors_source(errors)),
+        #("deletedThemeFiles", SrcList(result.files)),
+        #("userErrors", user_errors_source(result.errors)),
       ])
   }
   #(
     key,
     project_payload_source(field, payload, dict.new()),
-    mutation_outcome(outcome, outcome.store, outcome.identity, root, []),
+    mutation_outcome(outcome, result.store, outcome.identity, root, []),
   )
+}
+
+type ThemeFilesChangeResult {
+  ThemeFilesChangeResult(
+    files: List(graphql_helpers.SourceValue),
+    errors: List(graphql_helpers.SourceValue),
+    store: Store,
+  )
+}
+
+fn theme_files_change_result(
+  store_in: Store,
+  theme: OnlineStoreIntegrationRecord,
+  args: Dict(String, root_field.ResolvedValue),
+  root: String,
+) -> ThemeFilesChangeResult {
+  case root {
+    "themeFilesUpsert" -> theme_files_upsert_result(store_in, theme, args)
+    "themeFilesCopy" -> theme_files_copy_result(store_in, theme, args)
+    _ -> theme_files_delete_result(store_in, theme, args)
+  }
+}
+
+fn theme_files_upsert_result(
+  store_in: Store,
+  theme: OnlineStoreIntegrationRecord,
+  args: Dict(String, root_field.ResolvedValue),
+) -> ThemeFilesChangeResult {
+  let inputs = input_list(args, "files")
+  let errors = theme_file_input_filename_errors(inputs, "filename")
+  case errors {
+    [] -> {
+      let files = make_theme_files(inputs)
+      let updated_files =
+        list.fold(files, theme_record_files(theme), replace_theme_file)
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(
+          store_in,
+          theme_with_files(theme, updated_files),
+        )
+      ThemeFilesChangeResult(files: files, errors: [], store: store)
+    }
+    _ -> ThemeFilesChangeResult(files: [], errors: errors, store: store_in)
+  }
+}
+
+fn theme_files_copy_result(
+  store_in: Store,
+  theme: OnlineStoreIntegrationRecord,
+  args: Dict(String, root_field.ResolvedValue),
+) -> ThemeFilesChangeResult {
+  let current_files = theme_record_files(theme)
+  let inputs = input_list(args, "files")
+  let errors =
+    theme_file_input_filename_errors(inputs, "dstFilename")
+    |> list.append(theme_file_copy_source_errors(inputs, current_files))
+  case errors {
+    [] -> {
+      let files = make_copied_theme_files(inputs, current_files)
+      let updated_files = list.fold(files, current_files, replace_theme_file)
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(
+          store_in,
+          theme_with_files(theme, updated_files),
+        )
+      ThemeFilesChangeResult(files: files, errors: [], store: store)
+    }
+    _ -> ThemeFilesChangeResult(files: [], errors: errors, store: store_in)
+  }
+}
+
+fn theme_files_delete_result(
+  store_in: Store,
+  theme: OnlineStoreIntegrationRecord,
+  args: Dict(String, root_field.ResolvedValue),
+) -> ThemeFilesChangeResult {
+  let filenames = input_string_values(input_list(args, "files"))
+  let errors = required_theme_file_delete_errors(filenames)
+  case errors {
+    [] -> {
+      let current_files = theme_record_files(theme)
+      let deleted_files =
+        list.filter(current_files, fn(file) {
+          list.contains(filenames, theme_file_filename(file))
+        })
+      let updated_files =
+        list.filter(current_files, fn(file) {
+          !list.contains(filenames, theme_file_filename(file))
+        })
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(
+          store_in,
+          theme_with_files(theme, updated_files),
+        )
+      ThemeFilesChangeResult(files: deleted_files, errors: [], store: store)
+    }
+    _ -> ThemeFilesChangeResult(files: [], errors: errors, store: store_in)
+  }
 }
 
 fn create_script_tag(
@@ -3640,7 +3949,7 @@ fn theme_files_connection(
 fn make_theme_files(
   files: List(root_field.ResolvedValue),
 ) -> List(graphql_helpers.SourceValue) {
-  list.map(files, fn(file) {
+  list.filter_map(files, fn(file) {
     case file {
       root_field.ObjectVal(fields) -> {
         let filename = option_string(input_string(fields, "filename"), "")
@@ -3648,23 +3957,246 @@ fn make_theme_files(
           graphql_helpers.read_arg_object(fields, "body")
           |> option.unwrap(dict.new())
         let content = option_string(input_string(body, "value"), "")
-        src_object([
-          #("__typename", SrcString("OnlineStoreThemeFile")),
-          #("filename", SrcString(filename)),
-          #("size", SrcInt(string.length(content))),
-          #("checksumMd5", SrcString("draft-proxy")),
-          #(
-            "body",
-            src_object([
-              #("__typename", SrcString("OnlineStoreThemeFileBodyText")),
-              #("content", SrcString(content)),
-            ]),
-          ),
-        ])
+        Ok(make_theme_file(filename, content))
       }
-      _ -> src_object([])
+      _ -> Error(Nil)
     }
   })
+}
+
+fn make_copied_theme_files(
+  files: List(root_field.ResolvedValue),
+  current_files: List(graphql_helpers.SourceValue),
+) -> List(graphql_helpers.SourceValue) {
+  list.filter_map(files, fn(file) {
+    case file {
+      root_field.ObjectVal(fields) -> {
+        let src = option_string(input_string(fields, "srcFilename"), "")
+        let dst = option_string(input_string(fields, "dstFilename"), "")
+        case find_theme_file(current_files, src) {
+          Some(source_file) ->
+            Ok(make_theme_file(dst, theme_file_content(source_file)))
+          None -> Error(Nil)
+        }
+      }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn make_theme_file(
+  filename: String,
+  content: String,
+) -> graphql_helpers.SourceValue {
+  src_object([
+    #("__typename", SrcString("OnlineStoreThemeFile")),
+    #("filename", SrcString(filename)),
+    #("size", SrcInt(string.byte_size(content))),
+    #("checksumMd5", SrcString(crypto.md5_hex(content))),
+    #(
+      "body",
+      src_object([
+        #("__typename", SrcString("OnlineStoreThemeFileBodyText")),
+        #("content", SrcString(content)),
+      ]),
+    ),
+  ])
+}
+
+fn theme_record_files(
+  theme: OnlineStoreIntegrationRecord,
+) -> List(graphql_helpers.SourceValue) {
+  case source_field(captured_to_source(theme.data), "files", SrcList([])) {
+    SrcList(files) -> files
+    _ -> []
+  }
+}
+
+fn theme_with_files(
+  theme: OnlineStoreIntegrationRecord,
+  files: List(graphql_helpers.SourceValue),
+) -> OnlineStoreIntegrationRecord {
+  OnlineStoreIntegrationRecord(
+    ..theme,
+    data: captured_object_insert(
+      theme.data,
+      "files",
+      source_to_captured(SrcList(files)),
+    ),
+  )
+}
+
+fn replace_theme_file(
+  files: List(graphql_helpers.SourceValue),
+  file: graphql_helpers.SourceValue,
+) -> List(graphql_helpers.SourceValue) {
+  let filename = theme_file_filename(file)
+  list.filter(files, fn(existing) { theme_file_filename(existing) != filename })
+  |> list.append([file])
+}
+
+fn find_theme_file(
+  files: List(graphql_helpers.SourceValue),
+  filename: String,
+) -> Option(graphql_helpers.SourceValue) {
+  files
+  |> list.find(fn(file) { theme_file_filename(file) == filename })
+  |> option.from_result
+}
+
+fn theme_file_filename(file: graphql_helpers.SourceValue) -> String {
+  source_string_field(file, "filename", "")
+}
+
+fn theme_file_content(file: graphql_helpers.SourceValue) -> String {
+  case source_field(file, "body", SrcNull) {
+    SrcObject(fields) ->
+      case dict.get(fields, "content") {
+        Ok(SrcString(content)) -> content
+        _ -> ""
+      }
+    _ -> ""
+  }
+}
+
+fn theme_file_input_filename_errors(
+  files: List(root_field.ResolvedValue),
+  field_name: String,
+) -> List(graphql_helpers.SourceValue) {
+  files
+  |> list.index_map(fn(file, index) {
+    case file {
+      root_field.ObjectVal(fields) ->
+        case input_string(fields, field_name) {
+          Some(filename) ->
+            case valid_theme_file_filename(filename) {
+              True -> []
+              False -> [
+                theme_file_user_error(
+                  ["files", int.to_string(index), field_name],
+                  "Filename is invalid",
+                  "INVALID",
+                ),
+              ]
+            }
+          None -> [
+            theme_file_user_error(
+              ["files", int.to_string(index), field_name],
+              "Filename is invalid",
+              "INVALID",
+            ),
+          ]
+        }
+      _ -> [
+        theme_file_user_error(
+          ["files", int.to_string(index), field_name],
+          "Filename is invalid",
+          "INVALID",
+        ),
+      ]
+    }
+  })
+  |> list.flatten
+}
+
+fn theme_file_copy_source_errors(
+  files: List(root_field.ResolvedValue),
+  current_files: List(graphql_helpers.SourceValue),
+) -> List(graphql_helpers.SourceValue) {
+  files
+  |> list.index_map(fn(file, index) {
+    case file {
+      root_field.ObjectVal(fields) ->
+        case input_string(fields, "srcFilename") {
+          Some(filename) ->
+            case find_theme_file(current_files, filename) {
+              Some(_) -> []
+              None -> [
+                theme_file_user_error(
+                  ["files", int.to_string(index), "srcFilename"],
+                  "File not found",
+                  "NOT_FOUND",
+                ),
+              ]
+            }
+          None -> [
+            theme_file_user_error(
+              ["files", int.to_string(index), "srcFilename"],
+              "File not found",
+              "NOT_FOUND",
+            ),
+          ]
+        }
+      _ -> [
+        theme_file_user_error(
+          ["files", int.to_string(index), "srcFilename"],
+          "File not found",
+          "NOT_FOUND",
+        ),
+      ]
+    }
+  })
+  |> list.flatten
+}
+
+fn required_theme_file_delete_errors(
+  filenames: List(String),
+) -> List(graphql_helpers.SourceValue) {
+  filenames
+  |> list.index_map(fn(filename, index) {
+    case filename {
+      "config/settings_data.json" | "config/settings_schema.json" -> [
+        theme_file_user_error(
+          ["files", int.to_string(index)],
+          "File is required and can't be deleted",
+          "INVALID",
+        ),
+      ]
+      _ -> []
+    }
+  })
+  |> list.flatten
+}
+
+fn input_string_values(values: List(root_field.ResolvedValue)) -> List(String) {
+  list.filter_map(values, fn(value) {
+    case value {
+      root_field.StringVal(value) -> Ok(value)
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn valid_theme_file_filename(filename: String) -> Bool {
+  case string.split(filename, "/") {
+    [directory, basename] ->
+      basename != ""
+      && list.contains(
+        [
+          "templates",
+          "sections",
+          "snippets",
+          "layout",
+          "config",
+          "locales",
+          "assets",
+        ],
+        directory,
+      )
+    _ -> False
+  }
+}
+
+fn theme_file_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  src_object([
+    #("field", SrcList(list.map(field, SrcString))),
+    #("message", SrcString(message)),
+    #("code", SrcString(code)),
+  ])
 }
 
 fn content_gid_type(kind: String) -> String {

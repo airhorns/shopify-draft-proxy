@@ -3582,7 +3582,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["bulkOperationRunQuery", "BulkOperationRunQuery"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-264: stages supported products/productVariants query exports locally, writes completed BulkOperation jobs plus JSONL result records, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, groupObjects, and unsupported nested connection shapes without runtime Shopify passthrough.",
+        "HAR-264: stages supported products/productVariants query exports locally, writes completed BulkOperation jobs plus JSONL result records, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, and unsupported nested connection shapes without runtime Shopify passthrough. HAR-721 accepts explicit true/false and omitted groupObjects arguments without changing local export semantics.",
       ),
     ),
     RegistryEntry(
@@ -5034,7 +5034,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["paymentReminderSend", "PaymentReminderSend"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages a local payment reminder intent for PaymentSchedule GIDs and records it in meta state/logs. Runtime support never sends customer email upstream; delivery can only happen later through explicit commit replay of the original raw mutation.",
+        "Stages a local payment reminder intent only for locally known overdue PaymentSchedule GIDs whose schedule is unpaid and whose owner order is open. Runtime support never sends customer email upstream; delivery can only happen later through explicit commit replay of the original raw mutation.",
       ),
     ),
     RegistryEntry(
