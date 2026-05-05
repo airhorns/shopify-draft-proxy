@@ -1,0 +1,13 @@
+mutation MetafieldsSetInputValidation($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

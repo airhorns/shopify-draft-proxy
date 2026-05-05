@@ -1,0 +1,54 @@
+mutation CustomerPaymentMethodShopPayGuards(
+  $targetCustomerId: ID!
+  $blankBillingAddress: MailingAddressInput!
+  $encryptedDuplicationData: String!
+) {
+  creditCardDuplication: customerPaymentMethodGetDuplicationData(
+    customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card"
+    targetShopId: "gid://shopify/Shop/target"
+    targetCustomerId: $targetCustomerId
+  ) {
+    encryptedDuplicationData
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  sameShopDuplication: customerPaymentMethodGetDuplicationData(
+    customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-shop-pay"
+    targetShopId: "gid://shopify/Shop/source"
+    targetCustomerId: $targetCustomerId
+  ) {
+    encryptedDuplicationData
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  creditCardUpdateUrl: customerPaymentMethodGetUpdateUrl(
+    customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card"
+  ) {
+    updatePaymentMethodUrl
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  blankBillingAddressCreate: customerPaymentMethodCreateFromDuplicationData(
+    customerId: $targetCustomerId
+    billingAddress: $blankBillingAddress
+    encryptedDuplicationData: $encryptedDuplicationData
+  ) {
+    customerPaymentMethod {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

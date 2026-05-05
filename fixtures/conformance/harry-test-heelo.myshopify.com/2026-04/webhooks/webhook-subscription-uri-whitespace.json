@@ -1,0 +1,128 @@
+{
+  "capturedAt": "2026-05-05T17:10:06.070Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "HAR-730 captures webhookSubscriptionCreate URI whitespace validation.",
+    "Current Shopify 2026-04 trims leading/trailing whitespace from otherwise-valid HTTPS uri input, while whitespace-only uri is treated as blank.",
+    "Any webhook subscription created by the trimmed HTTPS case is deleted during cleanup; the script does not trigger webhook delivery."
+  ],
+  "deliveryPolicy": {
+    "deliveriesTriggeredByScript": false
+  },
+  "cases": {
+    "createWhitespaceOnlyUri": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "   ",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createUriWithLeadingWhitespace": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "  https://example.com/h  ",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1928361935154",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-05-05T17:10:05Z",
+                "updatedAt": "2026-05-05T17:10:05Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/h"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "createUriWithLeadingWhitespace": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928361935154"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1928361935154",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

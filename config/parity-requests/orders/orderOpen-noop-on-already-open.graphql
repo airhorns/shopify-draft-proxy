@@ -1,0 +1,14 @@
+mutation OrderOpenNoopOnAlreadyOpen($input: OrderOpenInput!) {
+  orderOpen(input: $input) {
+    order {
+      id
+      closed
+      closedAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

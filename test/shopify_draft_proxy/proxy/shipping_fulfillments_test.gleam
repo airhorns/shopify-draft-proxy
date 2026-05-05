@@ -30,6 +30,7 @@ fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
     id: id,
     name: Some(name),
     type_: Some("BOX"),
+    box_type: None,
     default: default,
     weight: Some(ShippingPackageWeightRecord(
       value: Some(1.0),
@@ -43,6 +44,13 @@ fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
     )),
     created_at: "2026-04-27T00:00:00.000Z",
     updated_at: "2026-04-27T00:00:00.000Z",
+  )
+}
+
+fn flat_rate_package(id: String) -> ShippingPackageRecord {
+  ShippingPackageRecord(
+    ..package(id, "Carrier flat-rate box", False),
+    box_type: Some("FLAT_RATE"),
   )
 }
 
@@ -223,6 +231,11 @@ fn delivery_profile_lifecycle_store() -> store.Store {
       vendor: None,
       product_type: None,
       tags: [],
+      price_range_min: None,
+      price_range_max: None,
+      total_variants: None,
+      has_only_default_variant: None,
+      has_out_of_stock_variants: None,
       total_inventory: None,
       tracks_inventory: None,
       created_at: None,
@@ -408,7 +421,7 @@ pub fn shipping_package_update_stages_local_record_test() {
       seeded_store(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
-      "mutation UpdatePackage($id: ID!, $shippingPackage: CustomShippingPackageInput!) { shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } } }",
+      "mutation UpdatePackage($id: ID!, $shippingPackage: CustomShippingPackageInput!) { shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } } }",
       variables,
       empty_upstream_context(),
     )
@@ -422,6 +435,66 @@ pub fn shipping_package_update_stages_local_record_test() {
     )
   assert updated.name == Some("Updated box")
   assert updated.updated_at == "2024-01-01T00:00:00.000Z"
+}
+
+pub fn shipping_package_update_rejects_flat_rate_box_test() {
+  let package_id = "gid://shopify/ShippingPackage/10"
+  let variables =
+    mutation_vars(
+      package_id,
+      root_field.ObjectVal(
+        dict.from_list([
+          #(
+            "dimensions",
+            root_field.ObjectVal(
+              dict.from_list([
+                #("length", root_field.FloatVal(999.0)),
+                #("width", root_field.FloatVal(8.0)),
+                #("height", root_field.FloatVal(4.0)),
+                #("unit", root_field.StringVal("CENTIMETERS")),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    )
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      store.upsert_base_shipping_packages(store.new(), [
+        flat_rate_package(package_id),
+      ]),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "mutation UpdatePackage($id: ID!, $shippingPackage: CustomShippingPackageInput!) { shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } } }",
+      variables,
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"shippingPackageUpdate\":{\"userErrors\":[{\"field\":[\"shippingPackage\"],\"message\":\"Custom shipping box is not updatable\",\"code\":\"CUSTOM_SHIPPING_BOX_NOT_UPDATABLE\"}]}}}"
+  let assert Some(unchanged) =
+    store.get_effective_shipping_package_by_id(outcome.store, package_id)
+  let assert Some(dimensions) = unchanged.dimensions
+  assert dimensions.length == Some(10.0)
+}
+
+pub fn shipping_package_state_restore_round_trips_box_type_test() {
+  let package_id = "gid://shopify/ShippingPackage/10"
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: store.upsert_base_shipping_packages(store.new(), [
+        flat_rate_package(package_id),
+      ]),
+    )
+  let dumped =
+    json.to_string(draft_proxy.dump_state(proxy, "2026-05-05T00:00:00.000Z"))
+  assert string.contains(dumped, "\"boxType\":\"FLAT_RATE\"")
+
+  let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
+  let assert Some(restored_package) =
+    store.get_effective_shipping_package_by_id(restored.store, package_id)
+  assert restored_package.box_type == Some("FLAT_RATE")
 }
 
 pub fn shipping_package_make_default_clears_previous_default_test() {
@@ -613,12 +686,12 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation InvalidCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message } } }",
+      "mutation InvalidCarrier($input: DeliveryCarrierServiceCreateInput!) { carrierServiceCreate(input: $input) { carrierService { id } userErrors { field message code } } }",
       dict.from_list([#("input", blank_input)]),
       empty_upstream_context(),
     )
   assert json.to_string(create_outcome.data)
-    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider name can't be blank\"}]}}}"
+    == "{\"data\":{\"carrierServiceCreate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"Shipping rate provider name can't be blank\",\"code\":\"CARRIER_SERVICE_CREATE_FAILED\"}]}}}"
 
   let unknown_update =
     root_field.ObjectVal(
@@ -635,19 +708,19 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation UnknownCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id } userErrors { field message } } }",
+      "mutation UnknownCarrier($input: DeliveryCarrierServiceUpdateInput!) { carrierServiceUpdate(input: $input) { carrierService { id } userErrors { field message code } } }",
       dict.from_list([#("input", unknown_update)]),
       empty_upstream_context(),
     )
   assert json.to_string(update_outcome.data)
-    == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"The carrier or app could not be found.\"}]}}}"
+    == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"The carrier or app could not be found.\",\"code\":\"CARRIER_SERVICE_UPDATE_FAILED\"}]}}}"
 
   let delete_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation UnknownDelete($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { field message } } }",
+      "mutation UnknownDelete($id: ID!) { carrierServiceDelete(id: $id) { deletedId userErrors { field message code } } }",
       dict.from_list([
         #(
           "id",
@@ -657,7 +730,7 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
       empty_upstream_context(),
     )
   assert json.to_string(delete_outcome.data)
-    == "{\"data\":{\"carrierServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The carrier or app could not be found.\"}]}}}"
+    == "{\"data\":{\"carrierServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The carrier or app could not be found.\",\"code\":\"CARRIER_SERVICE_DELETE_FAILED\"}]}}}"
 }
 
 pub fn shipping_settings_availability_filters_active_services_and_locations_test() {
@@ -2111,6 +2184,190 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
     )
   assert json.to_string(progress_cancel.data)
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
+}
+
+pub fn fulfillment_order_move_validation_direct_handler_test() {
+  let active_location_id = "gid://shopify/Location/move-active"
+  let inactive_location_id = "gid://shopify/Location/move-inactive"
+  let closed_order_id = "gid://shopify/FulfillmentOrder/move-closed"
+  let accepted_order_id = "gid://shopify/FulfillmentOrder/move-accepted"
+  let progress_order_id = "gid://shopify/FulfillmentOrder/move-progress"
+  let success_order_id = "gid://shopify/FulfillmentOrder/move-success"
+  let unknown_location_order_id =
+    "gid://shopify/FulfillmentOrder/move-unknown-location"
+  let inactive_location_order_id =
+    "gid://shopify/FulfillmentOrder/move-inactive-location"
+  let base_store =
+    store.new()
+    |> store.upsert_base_store_property_location(location(
+      active_location_id,
+      "Move active location",
+      True,
+      False,
+    ))
+    |> store.upsert_base_store_property_location(location(
+      inactive_location_id,
+      "Move inactive location",
+      False,
+      False,
+    ))
+    |> store.upsert_base_fulfillment_orders([
+      fulfillment_order_record(closed_order_id, "CLOSED", "UNSUBMITTED"),
+      fulfillment_order_record(accepted_order_id, "OPEN", "ACCEPTED"),
+      fulfillment_order_record(progress_order_id, "OPEN", "UNSUBMITTED"),
+      fulfillment_order_record(success_order_id, "OPEN", "UNSUBMITTED"),
+      fulfillment_order_record(unknown_location_order_id, "OPEN", "UNSUBMITTED"),
+      fulfillment_order_record(
+        inactive_location_order_id,
+        "OPEN",
+        "UNSUBMITTED",
+      ),
+    ])
+
+  let move_mutation =
+    "
+    mutation Move($id: ID!, $newLocationId: ID!) {
+      fulfillmentOrderMove(id: $id, newLocationId: $newLocationId) {
+        movedFulfillmentOrder {
+          id
+          assignedLocation {
+            name
+            location {
+              id
+              name
+            }
+          }
+        }
+        originalFulfillmentOrder {
+          id
+        }
+        remainingFulfillmentOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+
+  let closed_move =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      move_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(closed_order_id)),
+        #("newLocationId", root_field.StringVal(active_location_id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(closed_move.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":null,\"originalFulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Cannot change location.\",\"code\":null}]}}}"
+
+  let accepted_move =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      move_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(accepted_order_id)),
+        #("newLocationId", root_field.StringVal(active_location_id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(accepted_move.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":null,\"originalFulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order is not actionable.\",\"code\":null}]}}}"
+
+  let progress_mutation =
+    "
+    mutation Progress($id: ID!) {
+      fulfillmentOrderReportProgress(id: $id, progressReport: { reasonNotes: \"manual progress\" }) {
+        fulfillmentOrder {
+          id
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let progress_report =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      progress_mutation,
+      dict.from_list([#("id", root_field.StringVal(progress_order_id))]),
+      empty_upstream_context(),
+    )
+  let progress_move =
+    shipping_fulfillments.process_mutation(
+      progress_report.store,
+      progress_report.identity,
+      "/admin/api/2026-04/graphql.json",
+      move_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(progress_order_id)),
+        #("newLocationId", root_field.StringVal(active_location_id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(progress_move.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":null,\"originalFulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot move a fulfillment order that has had progress reported. To move a fulfillment order that has had progress reported, the fulfillment order must first be marked as open resolving the ongoing progress state.\",\"code\":\"CANNOT_MOVE_FULFILLMENT_ORDER_WITH_REPORTED_PROGRESS\"}]}}}"
+
+  let unknown_location_move =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      move_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(unknown_location_order_id)),
+        #(
+          "newLocationId",
+          root_field.StringVal("gid://shopify/Location/999999999"),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(unknown_location_move.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":null,\"originalFulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Location not found.\",\"code\":null}]}}}"
+
+  let inactive_location_move =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      move_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(inactive_location_order_id)),
+        #("newLocationId", root_field.StringVal(inactive_location_id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(inactive_location_move.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":null,\"originalFulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Location not found.\",\"code\":null}]}}}"
+
+  let success_move =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      move_mutation,
+      dict.from_list([
+        #("id", root_field.StringVal(success_order_id)),
+        #("newLocationId", root_field.StringVal(active_location_id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(success_move.data)
+    == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"assignedLocation\":{\"name\":\"Move active location\",\"location\":{\"id\":\"gid://shopify/Location/move-active\",\"name\":\"Move active location\"}}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/move-success\"},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
 }
 
 fn fulfillment_order_record(

@@ -1,0 +1,279 @@
+{
+  "variables": {
+    "input": {
+      "id": "gid://shopify/Order/8728862196018"
+    }
+  },
+  "setup": {
+    "orderCreate": {
+      "query": "mutation OrderLifecycleNoopCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        \n  id\n  closed\n  closedAt\n  updatedAt\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-588-already-closed-1777959011468@example.com",
+          "note": "HAR-588 order lifecycle no-op already-closed",
+          "tags": ["har-588", "order-lifecycle-noop", "already-closed"],
+          "test": true,
+          "currency": "USD",
+          "lineItems": [
+            {
+              "title": "HAR-588 already-closed custom item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "har-588-already-closed-1777959011468"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "1.00",
+                  "currencyCode": "USD"
+                }
+              }
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8728862196018",
+              "closed": false,
+              "closedAt": null,
+              "updatedAt": "2026-05-05T05:30:11Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "firstClose": {
+      "query": "mutation OrderCloseNoopOnAlreadyClosed($input: OrderCloseInput!) {\n    orderClose(input: $input) {\n      order {\n        \n  id\n  closed\n  closedAt\n  updatedAt\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8728862196018"
+        }
+      },
+      "response": {
+        "data": {
+          "orderClose": {
+            "order": {
+              "id": "gid://shopify/Order/8728862196018",
+              "closed": true,
+              "closedAt": "2026-05-05T05:30:12Z",
+              "updatedAt": "2026-05-05T05:30:12Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "beforeNoopRead": {
+      "query": "query OrderLifecycleNoopRead($id: ID!) {\n    order(id: $id) {\n      \n  id\n  closed\n  closedAt\n  updatedAt\n\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8728862196018"
+      },
+      "response": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/8728862196018",
+            "closed": true,
+            "closedAt": "2026-05-05T05:30:12Z",
+            "updatedAt": "2026-05-05T05:30:12Z"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "query": "mutation OrderCloseNoopOnAlreadyClosed($input: OrderCloseInput!) {\n    orderClose(input: $input) {\n      order {\n        \n  id\n  closed\n  closedAt\n  updatedAt\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+    "response": {
+      "data": {
+        "orderClose": {
+          "order": {
+            "id": "gid://shopify/Order/8728862196018",
+            "closed": true,
+            "closedAt": "2026-05-05T05:30:12Z",
+            "updatedAt": "2026-05-05T05:30:12Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/8728862196018"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8728862196018",
+          "closed": true,
+          "closedAt": "2026-05-05T05:30:12Z",
+          "updatedAt": "2026-05-05T05:30:12Z"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "open": {
+      "query": "mutation OrderOpenNoopOnAlreadyOpen($input: OrderOpenInput!) {\n    orderOpen(input: $input) {\n      order {\n        \n  id\n  closed\n  closedAt\n  updatedAt\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8728862196018"
+        }
+      },
+      "response": {
+        "data": {
+          "orderOpen": {
+            "order": {
+              "id": "gid://shopify/Order/8728862196018",
+              "closed": false,
+              "closedAt": null,
+              "updatedAt": "2026-05-05T05:30:14Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cancel": {
+      "query": "mutation OrderLifecycleNoopCleanup($orderId: ID!, $reason: OrderCancelReason!, $notifyCustomer: Boolean!, $restock: Boolean!) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n        done\n      }\n      orderCancelUserErrors {\n        field\n        message\n        code\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8728862196018",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "data": {
+          "orderCancel": {
+            "job": {
+              "id": "gid://shopify/Job/f5428865-1e0a-4390-adec-8d9ecdbbddf3",
+              "done": false
+            },
+            "orderCancelUserErrors": [],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8728862196018"
+      },
+      "query": "hand-synthesized from HAR-588 beforeNoopRead for redundant orderClose Pattern 2 order hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8728862196018",
+              "closed": true,
+              "closedAt": "2026-05-05T05:30:12Z",
+              "updatedAt": "2026-05-05T05:30:12Z"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

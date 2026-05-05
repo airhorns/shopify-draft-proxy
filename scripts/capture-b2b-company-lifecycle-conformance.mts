@@ -122,6 +122,15 @@ const revokeMainContactDocument = `#graphql
   }
 `;
 
+const contactDeleteDocument = `#graphql
+  mutation B2BCompanyLifecycleContactDelete($companyContactId: ID!) {
+    companyContactDelete(companyContactId: $companyContactId) {
+      deletedCompanyContactId
+      userErrors { field message code }
+    }
+  }
+`;
+
 const readAfterMainContactDocument = `#graphql
   query B2BCompanyLifecycleReadAfterMainContact($companyId: ID!) {
     company(id: $companyId) {
@@ -212,6 +221,16 @@ function assertSuccessful(result: ConformanceGraphqlResult, root: string, label:
   }
 }
 
+function assertUserError(result: ConformanceGraphqlResult, root: string, label: string): void {
+  if (result.status < 200 || result.status >= 300 || result.payload.errors) {
+    throw new Error(`${label} returned top-level errors: ${JSON.stringify(result, null, 2)}`);
+  }
+  const userErrors = readUserErrors(result.payload, root);
+  if (userErrors.length === 0) {
+    throw new Error(`${label} did not return userErrors: ${JSON.stringify(result, null, 2)}`);
+  }
+}
+
 function recordOperation(query: string, variables: JsonRecord, result: ConformanceGraphqlResult): RecordedOperation {
   return {
     request: {
@@ -233,6 +252,17 @@ async function runRequired(
 ): Promise<RecordedOperation> {
   const result = await runGraphqlRequest(query, variables);
   assertSuccessful(result, root, label);
+  return recordOperation(query, variables, result);
+}
+
+async function runExpectedUserError(
+  query: string,
+  variables: JsonRecord,
+  root: string,
+  label: string,
+): Promise<RecordedOperation> {
+  const result = await runGraphqlRequest(query, variables);
+  assertUserError(result, root, label);
   return recordOperation(query, variables, result);
 }
 
@@ -389,6 +419,28 @@ try {
     'company downstream read after main-contact lifecycle',
   );
 
+  const assignMainContactBeforeDelete = await runRequired(
+    assignMainContactDocument,
+    assignMainContactVariables,
+    'companyAssignMainContact',
+    'companyAssignMainContact before main-contact delete',
+  );
+
+  const deleteMainContactVariables = { companyContactId: secondaryContactId };
+  const deleteMainContact = await runRequired(
+    contactDeleteDocument,
+    deleteMainContactVariables,
+    'companyContactDelete',
+    'companyContactDelete clears main contact',
+  );
+
+  const readAfterMainContactDelete = await runRequired(
+    readAfterMainContactDocument,
+    readAfterMainContactVariables,
+    'company',
+    'company downstream read after deleting main contact',
+  );
+
   const bulkCompanyCreateVariables = {
     input: {
       company: {
@@ -407,6 +459,21 @@ try {
     bulkCompanyCreate.response,
     ['data', 'companyCreate', 'company', 'id'],
     'companyCreate setup for companiesDelete',
+  );
+
+  const wrongCompanyAssignMainContactVariables = {
+    companyId: bulkCompanyId,
+    companyContactId: readStringAtPath(
+      companyCreate.response,
+      ['data', 'companyCreate', 'company', 'mainContact', 'id'],
+      'companyCreate main contact for wrong-company assignment',
+    ),
+  };
+  const wrongCompanyAssignMainContact = await runExpectedUserError(
+    assignMainContactDocument,
+    wrongCompanyAssignMainContactVariables,
+    'companyAssignMainContact',
+    'companyAssignMainContact wrong-company validation',
   );
 
   const companiesDeleteVariables = { companyIds: [bulkCompanyId] };
@@ -464,9 +531,10 @@ try {
     capturedAt: new Date().toISOString(),
     storeDomain,
     apiVersion,
+    upstreamCalls: [],
     intent: {
-      ticket: 'HAR-445',
-      plan: 'Create disposable B2B companies and a customer; record company update, customer-as-contact assignment, main-contact assignment/revocation, bulk delete, explicit delete, and post-delete empty reads.',
+      tickets: ['HAR-445', 'HAR-618'],
+      plan: 'Create disposable B2B companies and a customer; record company update, customer-as-contact assignment, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
     },
     proxyVariables: {
       mainCompanyQuery,
@@ -479,7 +547,11 @@ try {
     assignMainContact,
     revokeMainContact,
     readAfterMainContact,
+    assignMainContactBeforeDelete,
+    deleteMainContact,
+    readAfterMainContactDelete,
     bulkCompanyCreate,
+    wrongCompanyAssignMainContact,
     companiesDelete,
     bulkReadAfterDelete,
     companyDelete,

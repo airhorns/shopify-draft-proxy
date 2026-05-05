@@ -1,0 +1,15 @@
+mutation CustomerPaymentMethodRemoteCreatePaypalBlank {
+  customerPaymentMethodRemoteCreate(
+    customerId: "gid://shopify/Customer/1"
+    remoteReference: { paypalPaymentMethod: {} }
+  ) {
+    customerPaymentMethod {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

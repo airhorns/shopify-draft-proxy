@@ -1,0 +1,127 @@
+{
+  "scenarioId": "discount-update-edge-cases",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountRedeemCodeBulkAdd",
+    "discountCodeBasicUpdate",
+    "discountCodeBxgyCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-update-edge-cases.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-update-edge-cases-basic-create.graphql",
+    "variablesCapturePath": "$.variables.createBasic"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "basic-create-setup",
+        "capturePath": "$.createBasic.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBasicCreate.userErrors"]
+      },
+      {
+        "name": "redeem-code-bulk-add-setup",
+        "capturePath": "$.bulkAdd.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountRedeemCodeBulkAdd.bulkCreation.codesCount",
+          "$.discountRedeemCodeBulkAdd.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-edge-cases-bulk-add.graphql",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "codes": {
+              "fromCapturePath": "$.variables.bulkAdd.codes"
+            }
+          }
+        }
+      },
+      {
+        "name": "bulk-rule-code-change-rejection",
+        "capturePath": "$.bulkCodeChange.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBasicUpdate.userErrors"],
+        "expectedDifferences": [
+          {
+            "path": "$[0].code",
+            "matcher": "exact-string:INVALID",
+            "reason": "The live 2026-04 store still returns null here, but HAR-605 is explicitly scoped to the Shopify update-only code path whose DiscountUserError default is INVALID."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-edge-cases-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.variables.bulkCodeChange.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "bxgy-create-setup",
+        "capturePath": "$.createBxgy.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountCodeBxgyCreate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeBxgyCreate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-edge-cases-bxgy-create.graphql",
+          "variablesCapturePath": "$.variables.createBxgy"
+        }
+      },
+      {
+        "name": "bxgy-to-basic-transition",
+        "capturePath": "$.bxgyToBasic.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.__typename",
+          "$.discountCodeBasicUpdate.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-edge-cases-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "bxgy-create-setup",
+              "path": "$.data.discountCodeBxgyCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.variables.bxgyToBasic.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-update-invalid-error",
+        "capturePath": "$.unknownUpdate.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBasicUpdate.userErrors"],
+        "expectedDifferences": [
+          {
+            "path": "$[0].code",
+            "matcher": "exact-string:INVALID",
+            "reason": "The live 2026-04 store still returns null here, but HAR-605 is explicitly scoped to the Shopify update-only code path whose DiscountUserError default is INVALID."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-update-edge-cases-unknown-update.graphql",
+          "variablesCapturePath": "$.variables.unknownUpdate"
+        }
+      }
+    ]
+  },
+  "notes": "Live 2026-04 evidence for discountCodeBasicUpdate update-only edge cases. The capture waits for a redeem-code bulk-add lookup to become visible before attempting the code change, verifies BXGY-to-basic coercion through __typename, and records the unknown-id branch. The local proxy intentionally emits INVALID for the update-only error codes per HAR-605's internal Shopify source note even though the current public conformance store still returned null for those code fields."
+}

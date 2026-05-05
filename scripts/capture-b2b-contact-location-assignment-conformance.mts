@@ -403,6 +403,11 @@ async function runRequired(
   return recordOperation(query, variables, result);
 }
 
+async function runRecorded(query: string, variables: JsonRecord): Promise<RecordedOperation> {
+  const result = await runGraphqlRequest(query, variables);
+  return recordOperation(query, variables, result);
+}
+
 async function runCleanup(
   query: string,
   variables: JsonRecord,
@@ -600,6 +605,11 @@ try {
     'companyLocationAssignAddress assignment',
   );
 
+  const taxUpdateUnknownEnum = await runRecorded(taxUpdateDocument, {
+    companyLocationId: mainLocationId,
+    exemptionsToAssign: ['NOT_A_REAL_EXEMPTION'],
+  });
+
   const taxUpdate = await runRequired(
     taxUpdateDocument,
     {
@@ -701,6 +711,7 @@ try {
     assignContactRoles,
     assignLocationRoles,
     assignAddress,
+    taxUpdateUnknownEnum,
     taxUpdate,
     contactUpdate,
     locationUpdate,
@@ -712,6 +723,7 @@ try {
     readAfterRevoke,
     companyDelete,
     cleanup,
+    upstreamCalls: [],
   };
 
   const outputPath = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'b2b', `${scenarioId}.json`);

@@ -84,7 +84,7 @@
           "storefrontAccessToken": {
             "id": "gid://shopify/StorefrontAccessToken/5?shopify-draft-proxy=synthetic",
             "title": "Headless preview",
-            "accessToken": "shpat_redacted"
+            "accessToken": "shpat_5ceddc5ce1576036"
           },
           "userErrors": []
         },

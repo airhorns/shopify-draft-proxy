@@ -1,0 +1,263 @@
+{
+  "scenarioId": "payment-customization-metafields-and-handle-update",
+  "capturedAt": "2026-05-05T04:35:18.725Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "functionCatalog": {
+    "data": {
+      "shopifyFunctions": {
+        "nodes": [
+          {
+            "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "title": "conformance-payment-customization",
+            "handle": "conformance-payment-customization",
+            "apiType": "payment_customization"
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 7,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "selectedFunction": {
+    "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+    "title": "conformance-payment-customization",
+    "handle": "conformance-payment-customization",
+    "apiType": "payment_customization"
+  },
+  "operations": {
+    "paymentCustomizationCreate": {
+      "query": "#graphql\n  mutation PaymentCustomizationMetafieldsCreate($input: PaymentCustomizationInput!) {\n    paymentCustomizationCreate(paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n    metafields(first: 5) {\n      edges {\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "HAR-666 payment customization 1777955717944",
+          "enabled": true,
+          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+          "metafields": [
+            {
+              "namespace": "$app:har666",
+              "key": "probe",
+              "type": "single_line_text_field",
+              "value": "baz"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationCreate": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/163774770",
+              "title": "HAR-666 payment customization 1777955717944",
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "metafields": {
+                "edges": [
+                  {
+                    "node": {
+                      "id": "gid://shopify/Metafield/43093549973810",
+                      "namespace": "app--347082227713--har666",
+                      "key": "probe",
+                      "type": "single_line_text_field",
+                      "value": "baz",
+                      "createdAt": "2026-05-05T04:35:18Z",
+                      "updatedAt": "2026-05-05T04:35:18Z"
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentCustomizationUpdateMetafields": {
+      "query": "#graphql\n  mutation PaymentCustomizationMetafieldsUpdate($id: ID!, $input: PaymentCustomizationInput!) {\n    paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n    metafields(first: 5) {\n      edges {\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/163774770",
+        "input": {
+          "title": "HAR-666 payment customization updated 1777955717944",
+          "metafields": [
+            {
+              "namespace": "$app:har666",
+              "key": "probe",
+              "type": "single_line_text_field",
+              "value": "qux"
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationUpdate": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/163774770",
+              "title": "HAR-666 payment customization updated 1777955717944",
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "metafields": {
+                "edges": [
+                  {
+                    "node": {
+                      "id": "gid://shopify/Metafield/43093549973810",
+                      "namespace": "app--347082227713--har666",
+                      "key": "probe",
+                      "type": "single_line_text_field",
+                      "value": "qux",
+                      "createdAt": "2026-05-05T04:35:18Z",
+                      "updatedAt": "2026-05-05T04:35:18Z"
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentCustomizationUpdateHandle": {
+      "query": "#graphql\n  mutation PaymentCustomizationMetafieldsUpdate($id: ID!, $input: PaymentCustomizationInput!) {\n    paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n    metafields(first: 5) {\n      edges {\n        node {\n          id\n          namespace\n          key\n          type\n          value\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/163774770",
+        "input": {
+          "functionHandle": "conformance-payment-customization"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationUpdate": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/163774770",
+              "title": "HAR-666 payment customization updated 1777955717944",
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+              "metafields": {
+                "edges": [
+                  {
+                    "node": {
+                      "id": "gid://shopify/Metafield/43093549973810",
+                      "namespace": "app--347082227713--har666",
+                      "key": "probe",
+                      "type": "single_line_text_field",
+                      "value": "qux",
+                      "createdAt": "2026-05-05T04:35:18Z",
+                      "updatedAt": "2026-05-05T04:35:18Z"
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 15,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "afterUpdates": {
+      "query": "#graphql\n  query PaymentCustomizationMetafieldsRead($id: ID!) {\n    paymentCustomization(id: $id) {\n      id\n      title\n      functionId\n      metafields(first: 5) {\n        edges {\n          node {\n            id\n            namespace\n            key\n            type\n            value\n            createdAt\n            updatedAt\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/163774770"
+      },
+      "response": {
+        "data": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/163774770",
+            "title": "HAR-666 payment customization updated 1777955717944",
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "metafields": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/Metafield/43093549973810",
+                    "namespace": "app--347082227713--har666",
+                    "key": "probe",
+                    "type": "single_line_text_field",
+                    "value": "qux",
+                    "createdAt": "2026-05-05T04:35:18Z",
+                    "updatedAt": "2026-05-05T04:35:18Z"
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 6,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "paymentCustomizationDelete": {
+      "data": {
+        "paymentCustomizationDelete": {
+          "deletedId": "gid://shopify/PaymentCustomization/163774770",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": "Captured against a disposable PaymentCustomization. Shopify Admin 2026-04 accepts functionHandle as update input but does not expose paymentCustomization.functionHandle as a selected output field, so the capture proves the persisted Function reference through functionId."
+}

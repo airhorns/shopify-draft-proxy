@@ -1,0 +1,84 @@
+{
+  "scenarioId": "location-delete-state-and-scope",
+  "operationNames": ["locationDelete", "locations"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "scope-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-delete-state-and-scope.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-delete-state-and-scope.graphql",
+    "variablesCapturePath": "$.workflow.inactiveNoInventoryDelete.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "inactive-no-inventory-delete-success",
+        "capturePath": "$.workflow.inactiveNoInventoryDelete.response.payload.data.locationDelete",
+        "proxyPath": "$.data.locationDelete"
+      },
+      {
+        "name": "locations-after-successful-delete",
+        "capturePath": "$.workflow.locationsAfterInactiveNoInventoryDelete.response.payload.data.locations.edges",
+        "proxyPath": "$.data.locations.edges",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-state-and-scope-read-back.graphql",
+          "variablesCapturePath": "$.workflow.locationsAfterInactiveNoInventoryDelete.variables"
+        }
+      },
+      {
+        "name": "active-no-inventory-delete-error",
+        "capturePath": "$.workflow.activeNoInventoryDelete.response.payload.data.locationDelete",
+        "proxyPath": "$.data.locationDelete",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-state-and-scope.graphql",
+          "variablesCapturePath": "$.workflow.activeNoInventoryDelete.variables"
+        }
+      },
+      {
+        "name": "active-inventory-delete-errors",
+        "capturePath": "$.workflow.activeInventoryDelete.response.payload.data.locationDelete",
+        "proxyPath": "$.data.locationDelete",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-state-and-scope.graphql",
+          "variablesCapturePath": "$.workflow.activeInventoryDelete.variables"
+        }
+      },
+      {
+        "name": "primary-location-delete-errors",
+        "capturePath": "$.workflow.primaryLocationDelete.response.payload.data.locationDelete",
+        "proxyPath": "$.data.locationDelete",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-state-and-scope.graphql",
+          "variablesCapturePath": "$.workflow.primaryLocationDelete.variables"
+        }
+      },
+      {
+        "name": "fulfillment-service-location-delete-scope-error",
+        "capturePath": "$.workflow.fulfillmentServiceLocationDelete.response.payload.data.locationDelete",
+        "proxyPath": "$.data.locationDelete",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-delete-state-and-scope.graphql",
+          "variablesCapturePath": "$.workflow.fulfillmentServiceLocationDelete.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-663 records public Admin API 2026-04 locationDelete state/scope guards. The capture covers inactive no-inventory merchant-managed success with locations read-back, active no-inventory, active stocked inventory, primary stocked/pending location, and fulfillment-service-managed scope behavior. The public Admin API did not permit constructing an inactive stocked location for live capture; runtime tests cover that fixture state directly."
+}

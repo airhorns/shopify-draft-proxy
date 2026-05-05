@@ -1,0 +1,408 @@
+{
+  "capturedAt": "2026-05-05T09:47:00.196Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "namespaces": {
+    "customer": "har691_customer_mosg29v6",
+    "order": "har691_order_mosg29v6",
+    "company": "har691_company_mosg29v6"
+  },
+  "captures": [
+    {
+      "label": "metafieldDefinitionCreate CUSTOMER",
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionNonProductCreate($definition: MetafieldDefinitionInput!) {\n    metafieldDefinitionCreate(definition: $definition) {\n      createdDefinition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type { name category }\n        description\n        validations { name value }\n        pinnedPosition\n        validationStatus\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "name": "HAR-691 Loyalty Tier",
+            "namespace": "har691_customer_mosg29v6",
+            "key": "tier",
+            "ownerType": "CUSTOMER",
+            "type": "single_line_text_field",
+            "description": "Temporary HAR-691 customer definition",
+            "validations": [
+              {
+                "name": "max",
+                "value": "32"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206538015026",
+              "name": "HAR-691 Loyalty Tier",
+              "namespace": "har691_customer_mosg29v6",
+              "key": "tier",
+              "ownerType": "CUSTOMER",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Temporary HAR-691 customer definition",
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "32"
+                }
+              ],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionCreate ORDER",
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionNonProductCreate($definition: MetafieldDefinitionInput!) {\n    metafieldDefinitionCreate(definition: $definition) {\n      createdDefinition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type { name category }\n        description\n        validations { name value }\n        pinnedPosition\n        validationStatus\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "name": "HAR-691 Order Channel",
+            "namespace": "har691_order_mosg29v6",
+            "key": "channel",
+            "ownerType": "ORDER",
+            "type": "single_line_text_field",
+            "description": "Temporary HAR-691 order definition",
+            "validations": [
+              {
+                "name": "max",
+                "value": "24"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206538047794",
+              "name": "HAR-691 Order Channel",
+              "namespace": "har691_order_mosg29v6",
+              "key": "channel",
+              "ownerType": "ORDER",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Temporary HAR-691 order definition",
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "24"
+                }
+              ],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionCreate COMPANY",
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionNonProductCreate($definition: MetafieldDefinitionInput!) {\n    metafieldDefinitionCreate(definition: $definition) {\n      createdDefinition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type { name category }\n        description\n        validations { name value }\n        pinnedPosition\n        validationStatus\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "name": "HAR-691 Company Segment",
+            "namespace": "har691_company_mosg29v6",
+            "key": "segment",
+            "ownerType": "COMPANY",
+            "type": "single_line_text_field",
+            "description": "Temporary HAR-691 company definition",
+            "validations": [
+              {
+                "name": "max",
+                "value": "40"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206538080562",
+              "name": "HAR-691 Company Segment",
+              "namespace": "har691_company_mosg29v6",
+              "key": "segment",
+              "ownerType": "COMPANY",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Temporary HAR-691 company definition",
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "40"
+                }
+              ],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionUpdate CUSTOMER",
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionNonProductUpdate($definition: MetafieldDefinitionUpdateInput!) {\n    metafieldDefinitionUpdate(definition: $definition) {\n      updatedDefinition {\n        id\n        name\n        namespace\n        key\n        ownerType\n        type { name category }\n        description\n        validations { name value }\n        pinnedPosition\n        validationStatus\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "definition": {
+            "name": "HAR-691 Loyalty Tier Updated",
+            "namespace": "har691_customer_mosg29v6",
+            "key": "tier",
+            "ownerType": "CUSTOMER",
+            "description": "Updated temporary HAR-691 customer definition",
+            "validations": [
+              {
+                "name": "max",
+                "value": "64"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionUpdate": {
+            "updatedDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206538015026",
+              "name": "HAR-691 Loyalty Tier Updated",
+              "namespace": "har691_customer_mosg29v6",
+              "key": "tier",
+              "ownerType": "CUSTOMER",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Updated temporary HAR-691 customer definition",
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "64"
+                }
+              ],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinition read CUSTOMER by id",
+      "request": {
+        "query": "#graphql\n  query MetafieldDefinitionNonProductRead($id: ID!) {\n    metafieldDefinition(id: $id) {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type { name category }\n      description\n      validations { name value }\n      pinnedPosition\n      validationStatus\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206538015026"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206538015026",
+            "name": "HAR-691 Loyalty Tier Updated",
+            "namespace": "har691_customer_mosg29v6",
+            "key": "tier",
+            "ownerType": "CUSTOMER",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "description": "Updated temporary HAR-691 customer definition",
+            "validations": [
+              {
+                "name": "max",
+                "value": "64"
+              }
+            ],
+            "pinnedPosition": null,
+            "validationStatus": "ALL_VALID"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionDelete CUSTOMER",
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionNonProductDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      deletedDefinition { ownerType namespace key }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206538015026",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206538015026",
+            "deletedDefinition": {
+              "ownerType": "CUSTOMER",
+              "namespace": "har691_customer_mosg29v6",
+              "key": "tier"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionNonProductDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      deletedDefinition { ownerType namespace key }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206538047794",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206538047794",
+            "deletedDefinition": {
+              "ownerType": "ORDER",
+              "namespace": "har691_order_mosg29v6",
+              "key": "channel"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\n  mutation MetafieldDefinitionNonProductDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      deletedDefinition { ownerType namespace key }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206538080562",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206538080562",
+            "deletedDefinition": {
+              "ownerType": "COMPANY",
+              "namespace": "har691_company_mosg29v6",
+              "key": "segment"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

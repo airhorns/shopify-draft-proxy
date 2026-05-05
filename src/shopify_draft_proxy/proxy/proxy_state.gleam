@@ -50,11 +50,19 @@ pub type ReadMode {
   Live
 }
 
+/// How the proxy handles unsupported mutation roots that would otherwise
+/// fall back to upstream passthrough in live-hybrid mode.
+pub type UnsupportedMutationMode {
+  PassthroughUnsupportedMutations
+  RejectUnsupportedMutations
+}
+
 /// Sanitised configuration the proxy was constructed with. Mirrors the
 /// fields of `AppConfig` that surface through `GET /__meta/config`.
 pub type Config {
   Config(
     read_mode: ReadMode,
+    unsupported_mutation_mode: UnsupportedMutationMode,
     port: Int,
     shopify_admin_origin: String,
     snapshot_path: Option(String),
@@ -90,6 +98,7 @@ pub type DraftProxy {
 pub fn default_config() -> Config {
   Config(
     read_mode: Snapshot,
+    unsupported_mutation_mode: PassthroughUnsupportedMutations,
     port: 4000,
     shopify_admin_origin: "https://shopify.com",
     snapshot_path: None,

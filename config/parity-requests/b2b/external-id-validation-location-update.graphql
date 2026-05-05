@@ -1,0 +1,14 @@
+mutation B2BExternalIdValidationLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
+  companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
+    companyLocation {
+      id
+      name
+      externalId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

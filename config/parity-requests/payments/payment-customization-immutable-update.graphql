@@ -1,0 +1,14 @@
+mutation PaymentCustomizationImmutableUpdate($id: ID!, $input: PaymentCustomizationInput!) {
+  paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+    paymentCustomization {
+      id
+      title
+      functionId
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

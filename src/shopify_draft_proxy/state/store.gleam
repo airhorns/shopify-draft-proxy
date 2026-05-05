@@ -12,6 +12,7 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order
+import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/shopify/resource_ids
@@ -47,10 +48,11 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectRecord, type OnlineStoreContentRecord,
   type OnlineStoreIntegrationRecord, type OrderMandatePaymentRecord,
   type OrderRecord, type PaymentCustomizationRecord,
-  type PaymentReminderSendRecord, type PaymentTermsRecord, type PriceListRecord,
-  type ProductCollectionRecord, type ProductFeedRecord, type ProductMediaRecord,
-  type ProductMetafieldRecord, type ProductOperationRecord,
-  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
+  type PaymentReminderSendRecord, type PaymentScheduleRecord,
+  type PaymentTermsRecord, type PriceListRecord, type ProductCollectionRecord,
+  type ProductFeedRecord, type ProductMediaRecord, type ProductMetafieldRecord,
+  type ProductOperationRecord, type ProductOptionRecord,
+  type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductVariantRecord,
   type PublicationRecord, type ReverseDeliveryRecord,
   type ReverseFulfillmentOrderRecord, type SavedSearchRecord, type SegmentRecord,
@@ -494,6 +496,7 @@ pub type StagedState {
     deleted_marketing_activity_ids: Dict(String, Bool),
     deleted_marketing_event_ids: Dict(String, Bool),
     deleted_marketing_engagement_ids: Dict(String, Bool),
+    marketing_delete_all_external_in_flight: Bool,
     validations: Dict(String, ValidationRecord),
     validation_order: List(String),
     deleted_validation_ids: Dict(String, Bool),
@@ -1022,6 +1025,7 @@ pub fn empty_staged_state() -> StagedState {
     deleted_marketing_activity_ids: dict.new(),
     deleted_marketing_event_ids: dict.new(),
     deleted_marketing_engagement_ids: dict.new(),
+    marketing_delete_all_external_in_flight: False,
     validations: dict.new(),
     validation_order: [],
     deleted_validation_ids: dict.new(),
@@ -4673,6 +4677,55 @@ pub fn list_effective_markets(store: Store) -> List(MarketRecord) {
   )
 }
 
+fn market_localization_key(
+  resource_id: String,
+  market_id: String,
+  key: String,
+) -> String {
+  resource_id <> "::" <> market_id <> "::" <> key
+}
+
+pub fn upsert_staged_market_localizations(
+  store: Store,
+  records: List(MarketLocalizationRecord),
+) -> Store {
+  let staged = store.staged_state
+  let next_bucket =
+    list.fold(records, staged.market_localizations, fn(acc, record) {
+      dict.insert(
+        acc,
+        market_localization_key(
+          record.resource_id,
+          record.market_id,
+          record.key,
+        ),
+        record,
+      )
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(..staged, market_localizations: next_bucket),
+  )
+}
+
+pub fn list_effective_market_localizations(
+  store: Store,
+  resource_id: String,
+) -> List(MarketLocalizationRecord) {
+  dict.merge(
+    store.base_state.market_localizations,
+    store.staged_state.market_localizations,
+  )
+  |> dict.values
+  |> list.filter(fn(record) { record.resource_id == resource_id })
+  |> list.sort(fn(left, right) {
+    case string.compare(left.market_id, right.market_id) {
+      order.Eq -> string.compare(left.key, right.key)
+      other -> other
+    }
+  })
+}
+
 pub fn upsert_staged_market(
   store: Store,
   record: MarketRecord,
@@ -7876,6 +7929,15 @@ pub fn stage_delete_all_external_marketing_activities(
         }
       },
     )
+  let staged = next_store.staged_state
+  let next_store =
+    Store(
+      ..next_store,
+      staged_state: StagedState(
+        ..staged,
+        marketing_delete_all_external_in_flight: True,
+      ),
+    )
   #(list.reverse(ids), next_store)
 }
 
@@ -7956,6 +8018,11 @@ pub fn has_staged_marketing_records(store: Store) -> Bool {
   || !list.is_empty(dict.keys(
     store.staged_state.deleted_marketing_engagement_ids,
   ))
+  || store.staged_state.marketing_delete_all_external_in_flight
+}
+
+pub fn has_marketing_delete_all_external_in_flight(store: Store) -> Bool {
+  store.staged_state.marketing_delete_all_external_in_flight
 }
 
 pub fn stage_marketing_engagement(
@@ -10171,6 +10238,44 @@ pub fn upsert_staged_payment_terms(
   )
 }
 
+pub fn upsert_base_payment_terms(
+  store: Store,
+  record: PaymentTermsRecord,
+) -> Store {
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..store.base_state,
+      payment_terms: dict.insert(
+        store.base_state.payment_terms,
+        record.id,
+        record,
+      ),
+      payment_terms_owner_ids: dict.insert(
+        store.base_state.payment_terms_owner_ids,
+        record.owner_id,
+        True,
+      ),
+      payment_terms_by_owner_id: dict.insert(
+        store.base_state.payment_terms_by_owner_id,
+        record.owner_id,
+        record.id,
+      ),
+      deleted_payment_terms_ids: dict.delete(
+        store.base_state.deleted_payment_terms_ids,
+        record.id,
+      ),
+    ),
+    staged_state: StagedState(
+      ..store.staged_state,
+      deleted_payment_terms_ids: dict.delete(
+        store.staged_state.deleted_payment_terms_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
 pub fn delete_staged_payment_terms(store: Store, id: String) -> Store {
   let owner_id = case get_effective_payment_terms_by_id(store, id) {
     Some(record) -> Some(record.owner_id)
@@ -10246,6 +10351,36 @@ pub fn get_effective_payment_terms_by_owner_id(
   }
 }
 
+pub fn get_effective_payment_schedule_by_id(
+  store: Store,
+  schedule_id: String,
+) -> Option(#(PaymentTermsRecord, PaymentScheduleRecord)) {
+  let candidates =
+    list.append(
+      dict.values(store.staged_state.payment_terms),
+      dict.values(store.base_state.payment_terms),
+    )
+    |> list.filter_map(fn(record) {
+      case get_effective_payment_terms_by_id(store, record.id) {
+        Some(effective) -> Ok(effective)
+        None -> Error(Nil)
+      }
+    })
+
+  candidates
+  |> list.find_map(fn(terms) {
+    terms.payment_schedules
+    |> list.find_map(fn(schedule) {
+      case schedule.id == schedule_id {
+        True -> Ok(#(terms, schedule))
+        False -> Error(Nil)
+      }
+    })
+    |> result.map_error(fn(_) { Nil })
+  })
+  |> option.from_result
+}
+
 pub fn stage_store_credit_account(
   store: Store,
   record: StoreCreditAccountRecord,
@@ -10296,12 +10431,54 @@ pub fn get_effective_store_credit_account_by_id(
   }
   case found {
     Some(account) ->
-      case get_effective_customer_by_id(store, account.customer_id) {
-        Some(_) -> Some(account)
-        None -> None
+      case store_credit_account_owner_exists(store, account.customer_id) {
+        True -> Some(account)
+        False -> None
       }
     None -> None
   }
+}
+
+pub fn get_effective_store_credit_account_by_owner_id(
+  store: Store,
+  owner_id: String,
+) -> Option(StoreCreditAccountRecord) {
+  find_effective_store_credit_account(store, fn(account) {
+    account.customer_id == owner_id
+  })
+}
+
+pub fn get_effective_store_credit_account_by_owner_id_and_currency(
+  store: Store,
+  owner_id: String,
+  currency_code: String,
+) -> Option(StoreCreditAccountRecord) {
+  find_effective_store_credit_account(store, fn(account) {
+    account.customer_id == owner_id
+    && account.balance.currency_code == currency_code
+  })
+}
+
+fn find_effective_store_credit_account(
+  store: Store,
+  predicate: fn(StoreCreditAccountRecord) -> Bool,
+) -> Option(StoreCreditAccountRecord) {
+  dict.keys(dict.merge(
+    store.base_state.store_credit_accounts,
+    store.staged_state.store_credit_accounts,
+  ))
+  |> list.sort(string_compare)
+  |> list.find_map(fn(id) {
+    case get_effective_store_credit_account_by_id(store, id) {
+      Some(account) ->
+        case predicate(account) {
+          True -> Ok(account)
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
 }
 
 pub fn list_effective_store_credit_accounts_for_customer(
@@ -10340,6 +10517,21 @@ pub fn list_effective_store_credit_account_transactions(
       other -> other
     }
   })
+}
+
+fn store_credit_account_owner_exists(store: Store, owner_id: String) -> Bool {
+  case string.starts_with(owner_id, "gid://shopify/CompanyLocation/") {
+    True ->
+      case get_effective_b2b_company_location_by_id(store, owner_id) {
+        Some(_) -> True
+        None -> False
+      }
+    False ->
+      case get_effective_customer_by_id(store, owner_id) {
+        Some(_) -> True
+        None -> False
+      }
+  }
 }
 
 pub fn upsert_base_customer_account_pages(

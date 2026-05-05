@@ -1,0 +1,990 @@
+{
+  "scenarioId": "metaobject-field-validation-matrix",
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectCreate", "metaobjectUpdate", "metaobject"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-field-validation-matrix.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-definition-create.graphql",
+    "variablesCapturePath": "$.definitionCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-685 strict metaobject field value validation parity. Captured create/update branches compare only userErrors so failing branches do not depend on live IDs. Shopify 2026-04 coerces scalar boolean input like \"hello\"; that branch is retained as captured behavior while list/scalar validation errors cover the strict custom-data types.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "definition-create-setup",
+        "capturePath": "$.definitionCreate.response.data.metaobjectDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metaobjectDefinitionCreate.userErrors"
+      },
+      {
+        "name": "setup-metaobject-create",
+        "capturePath": "$.setupMetaobjectCreate.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.setupMetaobjectCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-number-integer-max",
+        "capturePath": "$.invalidCreateCases.number-integer-max.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.number-integer-max.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-number-integer-max",
+        "capturePath": "$.invalidUpdateCases.number-integer-max.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.number-integer-max.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-number-decimal-invalid",
+        "capturePath": "$.invalidCreateCases.number-decimal-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.number-decimal-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-number-decimal-invalid",
+        "capturePath": "$.invalidUpdateCases.number-decimal-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.number-decimal-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-boolean-coercion",
+        "capturePath": "$.invalidCreateCases.boolean-coercion.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.boolean-coercion.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-boolean-coercion",
+        "capturePath": "$.invalidUpdateCases.boolean-coercion.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.boolean-coercion.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-date-invalid",
+        "capturePath": "$.invalidCreateCases.date-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.date-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-date-invalid",
+        "capturePath": "$.invalidUpdateCases.date-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.date-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-date-time-invalid",
+        "capturePath": "$.invalidCreateCases.date-time-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.date-time-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-date-time-invalid",
+        "capturePath": "$.invalidUpdateCases.date-time-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.date-time-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-dimension-invalid",
+        "capturePath": "$.invalidCreateCases.dimension-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.dimension-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-dimension-invalid",
+        "capturePath": "$.invalidUpdateCases.dimension-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.dimension-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-volume-invalid",
+        "capturePath": "$.invalidCreateCases.volume-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.volume-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-volume-invalid",
+        "capturePath": "$.invalidUpdateCases.volume-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.volume-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-weight-invalid",
+        "capturePath": "$.invalidCreateCases.weight-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.weight-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-weight-invalid",
+        "capturePath": "$.invalidUpdateCases.weight-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.weight-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-rating-scale-max",
+        "capturePath": "$.invalidCreateCases.rating-scale-max.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.rating-scale-max.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-rating-scale-max",
+        "capturePath": "$.invalidUpdateCases.rating-scale-max.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.rating-scale-max.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-color-invalid",
+        "capturePath": "$.invalidCreateCases.color-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.color-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-color-invalid",
+        "capturePath": "$.invalidUpdateCases.color-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.color-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-url-invalid",
+        "capturePath": "$.invalidCreateCases.url-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.url-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-url-invalid",
+        "capturePath": "$.invalidUpdateCases.url-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.url-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-product-reference-invalid",
+        "capturePath": "$.invalidCreateCases.product-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.product-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-product-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.product-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.product-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-variant-reference-invalid",
+        "capturePath": "$.invalidCreateCases.variant-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.variant-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-variant-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.variant-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.variant-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-collection-reference-invalid",
+        "capturePath": "$.invalidCreateCases.collection-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.collection-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-collection-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.collection-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.collection-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-customer-reference-invalid",
+        "capturePath": "$.invalidCreateCases.customer-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.customer-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-customer-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.customer-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.customer-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-company-reference-invalid",
+        "capturePath": "$.invalidCreateCases.company-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.company-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-company-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.company-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.company-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-metaobject-reference-invalid",
+        "capturePath": "$.invalidCreateCases.metaobject-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.metaobject-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-metaobject-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.metaobject-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.metaobject-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-single-line-text-max",
+        "capturePath": "$.invalidCreateCases.single-line-text-max.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.single-line-text-max.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-single-line-text-max",
+        "capturePath": "$.invalidUpdateCases.single-line-text-max.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.single-line-text-max.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-number-integer-max",
+        "capturePath": "$.invalidCreateCases.list-number-integer-max.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-number-integer-max.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-number-integer-max",
+        "capturePath": "$.invalidUpdateCases.list-number-integer-max.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-number-integer-max.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-number-decimal-invalid",
+        "capturePath": "$.invalidCreateCases.list-number-decimal-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-number-decimal-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-number-decimal-invalid",
+        "capturePath": "$.invalidUpdateCases.list-number-decimal-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-number-decimal-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-date-invalid",
+        "capturePath": "$.invalidCreateCases.list-date-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-date-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-date-invalid",
+        "capturePath": "$.invalidUpdateCases.list-date-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-date-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-date-time-invalid",
+        "capturePath": "$.invalidCreateCases.list-date-time-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-date-time-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-date-time-invalid",
+        "capturePath": "$.invalidUpdateCases.list-date-time-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-date-time-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-dimension-invalid",
+        "capturePath": "$.invalidCreateCases.list-dimension-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-dimension-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-dimension-invalid",
+        "capturePath": "$.invalidUpdateCases.list-dimension-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-dimension-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-volume-invalid",
+        "capturePath": "$.invalidCreateCases.list-volume-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-volume-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-volume-invalid",
+        "capturePath": "$.invalidUpdateCases.list-volume-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-volume-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-weight-invalid",
+        "capturePath": "$.invalidCreateCases.list-weight-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-weight-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-weight-invalid",
+        "capturePath": "$.invalidUpdateCases.list-weight-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-weight-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-rating-scale-max",
+        "capturePath": "$.invalidCreateCases.list-rating-scale-max.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-rating-scale-max.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-rating-scale-max",
+        "capturePath": "$.invalidUpdateCases.list-rating-scale-max.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-rating-scale-max.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-color-invalid",
+        "capturePath": "$.invalidCreateCases.list-color-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-color-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-color-invalid",
+        "capturePath": "$.invalidUpdateCases.list-color-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-color-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-url-invalid",
+        "capturePath": "$.invalidCreateCases.list-url-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-url-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-url-invalid",
+        "capturePath": "$.invalidUpdateCases.list-url-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-url-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-product-reference-invalid",
+        "capturePath": "$.invalidCreateCases.list-product-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-product-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-product-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.list-product-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-product-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-variant-reference-invalid",
+        "capturePath": "$.invalidCreateCases.list-variant-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-variant-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-variant-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.list-variant-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-variant-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-collection-reference-invalid",
+        "capturePath": "$.invalidCreateCases.list-collection-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-collection-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-collection-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.list-collection-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-collection-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-customer-reference-invalid",
+        "capturePath": "$.invalidCreateCases.list-customer-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-customer-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-customer-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.list-customer-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-customer-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-company-reference-invalid",
+        "capturePath": "$.invalidCreateCases.list-company-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-company-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-company-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.list-company-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-company-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-list-metaobject-reference-invalid",
+        "capturePath": "$.invalidCreateCases.list-metaobject-reference-invalid.response.data.metaobjectCreate.userErrors",
+        "proxyPath": "$.data.metaobjectCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-create.graphql",
+          "variablesCapturePath": "$.invalidCreateCases.list-metaobject-reference-invalid.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-list-metaobject-reference-invalid",
+        "capturePath": "$.invalidUpdateCases.list-metaobject-reference-invalid.response.data.metaobjectUpdate.userErrors",
+        "proxyPath": "$.data.metaobjectUpdate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-field-validation-matrix-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-metaobject-create",
+              "path": "$.data.metaobjectCreate.metaobject.id"
+            },
+            "metaobject": {
+              "fromCapturePath": "$.invalidUpdateCases.list-metaobject-reference-invalid.request.variables.metaobject"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

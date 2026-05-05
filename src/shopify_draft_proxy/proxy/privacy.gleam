@@ -17,7 +17,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, single_root_log_draft,
+  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
+  MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
@@ -34,14 +35,6 @@ pub type PrivacyError {
 
 type UserError {
   UserError(field: List(String), message: String, code: Option(String))
-}
-
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
-  )
 }
 
 pub fn is_privacy_mutation_root(name: String) -> Bool {
@@ -230,7 +223,7 @@ fn opt_out_new_customer(
       display_name: Some(email),
       email: Some(email),
       legacy_resource_id: gid_tail(id),
-      locale: None,
+      locale: Some("en"),
       note: None,
       can_delete: Some(True),
       verified_email: Some(True),
@@ -238,7 +231,7 @@ fn opt_out_new_customer(
       tax_exempt: Some(False),
       tax_exemptions: [],
       state: Some("DISABLED"),
-      tags: [],
+      tags: ["created-by-dns-form"],
       number_of_orders: Some("0"),
       amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
       default_email_address: Some(CustomerDefaultEmailAddressRecord(
@@ -251,6 +244,7 @@ fn opt_out_new_customer(
       email_marketing_consent: None,
       sms_marketing_consent: None,
       default_address: None,
+      account_activation_token: None,
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
     )
@@ -326,7 +320,11 @@ fn fetch_upstream_customer_by_email(
   customerByIdentifier(identifier: $identifier) {
     id
     email
+    locale
+    verifiedEmail
     dataSaleOptOut
+    state
+    tags
     defaultEmailAddress { emailAddress }
   }
 }
@@ -384,18 +382,18 @@ fn customer_record_from_upstream_node(
         display_name: Some(email),
         email: Some(email),
         legacy_resource_id: gid_tail(id),
-        locale: None,
+        locale: json_get_string(node, "locale"),
         note: None,
         can_delete: Some(True),
-        verified_email: Some(True),
+        verified_email: json_get_bool(node, "verifiedEmail"),
         data_sale_opt_out: option.unwrap(
           json_get_bool(node, "dataSaleOptOut"),
           False,
         ),
         tax_exempt: Some(False),
         tax_exemptions: [],
-        state: Some("DISABLED"),
-        tags: [],
+        state: json_get_string(node, "state") |> option.or(Some("DISABLED")),
+        tags: json_get_string_list(node, "tags"),
         number_of_orders: Some("0"),
         amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
         default_email_address: Some(CustomerDefaultEmailAddressRecord(
@@ -408,6 +406,7 @@ fn customer_record_from_upstream_node(
         email_marketing_consent: None,
         sms_marketing_consent: None,
         default_address: None,
+        account_activation_token: None,
         created_at: None,
         updated_at: None,
       ))
@@ -451,6 +450,19 @@ fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
   case json_get(value, key) {
     Some(commit.JsonBool(b)) -> Some(b)
     _ -> None
+  }
+}
+
+fn json_get_string_list(value: commit.JsonValue, key: String) -> List(String) {
+  case json_get(value, key) {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          commit.JsonString(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
   }
 }
 

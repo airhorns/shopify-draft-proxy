@@ -1,0 +1,624 @@
+{
+  "capturedAt": "2026-05-05T17:33:17.418Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "accessScopes": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "variables": {
+    "createBasic": {
+      "input": {
+        "title": "HAR-605 bulk rule 1778002393771",
+        "code": "HAR605BULK1778002393771",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "all": true
+          }
+        }
+      }
+    },
+    "bulkAdd": {
+      "discountId": "gid://shopify/DiscountCodeNode/1640428962098",
+      "codes": [
+        {
+          "code": "HAR605BULK1778002393771_1"
+        },
+        {
+          "code": "HAR605BULK1778002393771_2"
+        },
+        {
+          "code": "HAR605BULK1778002393771_3"
+        },
+        {
+          "code": "HAR605BULK1778002393771_4"
+        },
+        {
+          "code": "HAR605BULK1778002393771_5"
+        }
+      ]
+    },
+    "bulkCodeChange": {
+      "id": "gid://shopify/DiscountCodeNode/1640428962098",
+      "input": {
+        "title": "HAR-605 bulk renamed 1778002393771",
+        "code": "HAR605BULKNEW1778002393771",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.2
+          },
+          "items": {
+            "all": true
+          }
+        }
+      }
+    },
+    "createBxgy": {
+      "input": {
+        "title": "HAR-605 BXGY 1778002393771",
+        "code": "HAR605BXGY1778002393771",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": {
+          "all": "ALL"
+        },
+        "customerBuys": {
+          "value": {
+            "quantity": "1"
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10177504608562"]
+            }
+          }
+        },
+        "customerGets": {
+          "value": {
+            "discountOnQuantity": {
+              "quantity": "1",
+              "effect": {
+                "percentage": 0.5
+              }
+            }
+          },
+          "items": {
+            "products": {
+              "productsToAdd": ["gid://shopify/Product/10177504641330"]
+            }
+          }
+        }
+      }
+    },
+    "bxgyToBasic": {
+      "id": "gid://shopify/DiscountCodeNode/1640428994866",
+      "input": {
+        "title": "HAR-605 coerced basic 1778002393771",
+        "code": "HAR605BXGY1778002393771",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.25
+          },
+          "items": {
+            "all": true
+          }
+        }
+      }
+    },
+    "unknownUpdate": {
+      "id": "gid://shopify/DiscountCodeNode/0",
+      "input": {
+        "title": "HAR-605 unknown 1778002393771",
+        "code": "HAR605UNKNOWN1778002393771",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "all": true
+          }
+        }
+      }
+    }
+  },
+  "requests": {
+    "createBasic": {
+      "query": "mutation DiscountUpdateEdgeBasicCreate($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "HAR-605 bulk rule 1778002393771",
+          "code": "HAR605BULK1778002393771",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "bulkAdd": {
+      "query": "mutation DiscountUpdateEdgeBulkAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {\n  discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {\n    bulkCreation {\n      codesCount\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "discountId": "gid://shopify/DiscountCodeNode/1640428962098",
+        "codes": [
+          {
+            "code": "HAR605BULK1778002393771_1"
+          },
+          {
+            "code": "HAR605BULK1778002393771_2"
+          },
+          {
+            "code": "HAR605BULK1778002393771_3"
+          },
+          {
+            "code": "HAR605BULK1778002393771_4"
+          },
+          {
+            "code": "HAR605BULK1778002393771_5"
+          }
+        ]
+      }
+    },
+    "basicUpdate": {
+      "query": "mutation DiscountUpdateEdgeBasicUpdate($id: ID!, $input: DiscountCodeBasicInput!) {\n  discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n"
+    },
+    "createBxgy": {
+      "query": "mutation DiscountUpdateEdgeBxgyCreate($input: DiscountCodeBxgyInput!) {\n  discountCodeBxgyCreate(bxgyCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n      codeDiscount {\n        __typename\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "input": {
+          "title": "HAR-605 BXGY 1778002393771",
+          "code": "HAR605BXGY1778002393771",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerBuys": {
+            "value": {
+              "quantity": "1"
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10177504608562"]
+              }
+            }
+          },
+          "customerGets": {
+            "value": {
+              "discountOnQuantity": {
+                "quantity": "1",
+                "effect": {
+                  "percentage": 0.5
+                }
+              }
+            },
+            "items": {
+              "products": {
+                "productsToAdd": ["gid://shopify/Product/10177504641330"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownUpdate": {
+      "query": "mutation DiscountUpdateEdgeUnknownUpdate($id: ID!, $input: DiscountCodeBasicInput!) {\n  discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/0",
+        "input": {
+          "title": "HAR-605 unknown 1778002393771",
+          "code": "HAR605UNKNOWN1778002393771",
+          "startsAt": "2026-04-25T00:00:00Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "query": "#graphql\n  mutation DiscountUpdateEdgeDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      #graphql\n  userErrors {\n    field\n    message\n    code\n    extraInfo\n  }\n\n    }\n  }\n"
+    }
+  },
+  "createBasic": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicCreate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640428962098"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkAdd": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountRedeemCodeBulkAdd": {
+          "bulkCreation": {
+            "codesCount": 5
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterBulkAdd": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "codeDiscountNodeByCode": {
+          "id": "gid://shopify/DiscountCodeNode/1640428962098"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkCodeChange": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicUpdate": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Cannot update the code of a bulk discount.",
+              "code": null,
+              "extraInfo": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "createBxgy": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBxgyCreate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640428994866",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBxgy"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bxgyToBasic": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicUpdate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640428994866",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "unknownUpdate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicUpdate": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Discount does not exist",
+              "code": null,
+              "extraInfo": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640428994866",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "discountCodeDelete": {
+            "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640428962098",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10177504641330",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10177504608562",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

@@ -1,0 +1,42 @@
+{
+  "scenarioId": "functions-validation-create-validation",
+  "operationNames": ["validationCreate", "validations"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "functions-validation-create"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/functions/functions-validation-create-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-validation-create-validation-stage.graphql",
+    "variables": {}
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-data",
+        "capturePath": "$.primary.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "validations-connection-data",
+        "capturePath": "$.validationsConnection.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-create-validation-read.graphql",
+          "variables": {}
+        }
+      }
+    ]
+  },
+  "notes": "HAR-698 executable parity coverage for validationCreate defaults, active-validation cap, Function API-type rejection, and validation-owned metafield persistence. The mutation aliases preserve the ticket-required legs ValidationCreateMinimal, ValidationCreateMaxActive, ValidationCreateApiMismatch, and ValidationCreateWithMetafields, while operationNames uses registry root names required by conformance discovery. The local-runtime cassette hydrates a VALIDATION Function and a CART_TRANSFORM Function without runtime Shopify writes; strict comparison covers the mutation payloads and a downstream validations connection read."
+}

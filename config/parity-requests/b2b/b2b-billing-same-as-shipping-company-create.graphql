@@ -1,0 +1,18 @@
+mutation B2BBillingSameAsShippingCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      locations(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

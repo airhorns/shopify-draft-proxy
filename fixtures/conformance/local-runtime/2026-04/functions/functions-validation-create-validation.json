@@ -1,0 +1,311 @@
+{
+  "scenarioId": "functions-validation-create-validation",
+  "capturedAt": "2026-05-05T17:45:00.000Z",
+  "source": "local-runtime",
+  "apiVersion": "2026-04",
+  "summary": "Executable local parity fixture for HAR-698 validationCreate defaults, active cap, Function eligibility, and metafield persistence.",
+  "primary": {
+    "response": {
+      "data": {
+        "minimal": {
+          "validation": {
+            "id": "gid://shopify/Validation/2",
+            "enable": false,
+            "blockOnFailure": false,
+            "title": null
+          },
+          "userErrors": []
+        },
+        "active1": {
+          "validation": {
+            "id": "gid://shopify/Validation/3",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 1"
+          },
+          "userErrors": []
+        },
+        "active2": {
+          "validation": {
+            "id": "gid://shopify/Validation/4",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 2"
+          },
+          "userErrors": []
+        },
+        "active3": {
+          "validation": {
+            "id": "gid://shopify/Validation/5",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 3"
+          },
+          "userErrors": []
+        },
+        "active4": {
+          "validation": {
+            "id": "gid://shopify/Validation/6",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 4"
+          },
+          "userErrors": []
+        },
+        "active5": {
+          "validation": {
+            "id": "gid://shopify/Validation/7",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 5"
+          },
+          "userErrors": []
+        },
+        "active6": {
+          "validation": {
+            "id": "gid://shopify/Validation/8",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 6"
+          },
+          "userErrors": []
+        },
+        "active7": {
+          "validation": {
+            "id": "gid://shopify/Validation/9",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 7"
+          },
+          "userErrors": []
+        },
+        "active8": {
+          "validation": {
+            "id": "gid://shopify/Validation/10",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 8"
+          },
+          "userErrors": []
+        },
+        "active9": {
+          "validation": {
+            "id": "gid://shopify/Validation/11",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 9"
+          },
+          "userErrors": []
+        },
+        "active10": {
+          "validation": {
+            "id": "gid://shopify/Validation/12",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 10"
+          },
+          "userErrors": []
+        },
+        "maxActive": {
+          "validation": null,
+          "userErrors": [
+            {
+              "field": ["enable"],
+              "message": "Cannot have more than 10 active validation functions.",
+              "code": "MAX_VALIDATIONS_ACTIVATED"
+            }
+          ]
+        },
+        "apiMismatch": {
+          "validation": null,
+          "userErrors": [
+            {
+              "field": ["functionId"],
+              "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
+              "code": "FUNCTION_DOES_NOT_IMPLEMENT"
+            }
+          ]
+        },
+        "withMetafields": {
+          "validation": {
+            "id": "gid://shopify/Validation/13",
+            "enable": false,
+            "blockOnFailure": false,
+            "title": "With metafields",
+            "metafields": {
+              "nodes": [
+                {
+                  "namespace": "custom",
+                  "key": "mode",
+                  "value": "strict"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "validationsConnection": {
+    "response": {
+      "data": {
+        "validations": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Validation/2",
+              "enable": false,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/3",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/4",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/5",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/6",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/7",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/8",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/9",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/10",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/11",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/12",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/13",
+              "enable": false,
+              "metafields": {
+                "nodes": [
+                  {
+                    "namespace": "custom",
+                    "key": "mode",
+                    "value": "strict"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "runtimeContract": {
+    "supportedMutationsStageLocally": true,
+    "validationCreateDefaultsEnableFalse": true,
+    "validationCreateEnforcesActiveCap": true,
+    "validationCreateChecksFunctionApiType": true,
+    "validationCreatePersistsMetafields": true,
+    "externalShopifyFunctionsExecuted": false
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "validation-alpha",
+        "apiType": "VALIDATION"
+      },
+      "query": "hand-synthesized ShopifyFunction lookup for validation create fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/validation-alpha",
+                  "title": "Validation Alpha",
+                  "handle": "validation-alpha",
+                  "apiType": "VALIDATION"
+                },
+                {
+                  "id": "gid://shopify/ShopifyFunction/cart-beta",
+                  "title": "Cart Beta",
+                  "handle": "cart-beta",
+                  "apiType": "CART_TRANSFORM"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateById",
+      "variables": {
+        "id": "gid://shopify/ShopifyFunction/cart-beta"
+      },
+      "query": "hand-synthesized ShopifyFunction lookup for validation create API mismatch fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunction": {
+              "id": "gid://shopify/ShopifyFunction/cart-beta",
+              "title": "Cart Beta",
+              "handle": "cart-beta",
+              "apiType": "CART_TRANSFORM"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

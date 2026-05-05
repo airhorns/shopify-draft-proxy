@@ -1,0 +1,126 @@
+{
+  "capturedAt": "2026-05-05T04:20:00.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenario": "app-subscription-line-item-update-validation",
+  "notes": [
+    "Executable local-runtime evidence for HAR-643 appSubscriptionLineItemUpdate validation branches.",
+    "Live billing mutation capture against harry-test-heelo.myshopify.com on 2026-05-05 returned userErrors [{ field: null, message: \"Custom apps cannot use the Billing API\" }] from appSubscriptionCreate, so the required usage+recurring subscription setup cannot currently be captured against Shopify with this conformance app.",
+    "Runtime behavior is also covered by test/shopify_draft_proxy/proxy/apps_mutation_test.gleam."
+  ],
+  "operationNames": ["appSubscriptionCreate", "appSubscriptionLineItemUpdate"],
+  "upstreamCalls": [],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "subscriptionCreate": {
+          "data": {
+            "appSubscriptionCreate": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "name": "Local plan",
+                "status": "ACTIVE",
+                "test": true,
+                "trialDays": 7,
+                "lineItems": [
+                  {
+                    "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                    "plan": {
+                      "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": {
+                          "amount": "5",
+                          "currencyCode": "USD"
+                        },
+                        "balanceUsed": {
+                          "amount": "0.0",
+                          "currencyCode": "USD"
+                        },
+                        "interval": "EVERY_30_DAYS",
+                        "terms": "usage terms"
+                      }
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                    "plan": {
+                      "pricingDetails": {
+                        "__typename": "AppRecurringPricing"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "validation": {
+          "data": {
+            "recurring": {
+              "appSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["cappedAmount"],
+                  "message": "Only usage-pricing line items support cappedAmount updates"
+                }
+              ]
+            },
+            "currencyMismatch": {
+              "appSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["cappedAmount"],
+                  "message": "Capped amount currency mismatch. Expected USD"
+                }
+              ]
+            },
+            "nonIncreasing": {
+              "appSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["cappedAmount"],
+                  "message": "The capped amount must be greater than the existing capped amount"
+                }
+              ]
+            },
+            "success": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "lineItems": [
+                  {
+                    "id": "gid://shopify/AppSubscriptionLineItem/usage",
+                    "plan": {
+                      "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": {
+                          "amount": "10",
+                          "currencyCode": "USD"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/AppSubscriptionLineItem/recurring",
+                    "plan": {
+                      "pricingDetails": {
+                        "__typename": "AppRecurringPricing",
+                        "price": {
+                          "amount": "1",
+                          "currencyCode": "USD"
+                        }
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    }
+  }
+}

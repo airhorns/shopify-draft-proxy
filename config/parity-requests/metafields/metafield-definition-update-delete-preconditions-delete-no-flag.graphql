@@ -1,0 +1,15 @@
+mutation MetafieldDefinitionUpdateDeletePreconditionsDeleteNoFlag($id: ID!) {
+  metafieldDefinitionDelete(id: $id) {
+    deletedDefinitionId
+    deletedDefinition {
+      ownerType
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

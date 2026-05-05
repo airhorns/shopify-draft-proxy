@@ -1,0 +1,19 @@
+mutation RemoveFromReturnQuantityValidation($returnId: ID!, $returnLineItems: [ReturnLineItemRemoveFromReturnInput!]) {
+  removeFromReturn(returnId: $returnId, returnLineItems: $returnLineItems) {
+    return {
+      id
+      totalQuantity
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

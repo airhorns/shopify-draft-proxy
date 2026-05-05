@@ -1,0 +1,67 @@
+{
+  "fixtureKind": "local-runtime-online-store-integration-delete-not-found-codes",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T00:00:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable HAR-581 local-runtime fixture for Shopify-like NOT_FOUND userError codes on absent Online Store integration delete roots.",
+  "expected": {
+    "response": {
+      "data": {
+        "webPixelDelete": {
+          "deletedWebPixelId": null,
+          "userErrors": [
+            {
+              "__typename": "WebPixelUserError",
+              "code": "NOT_FOUND",
+              "field": ["id"],
+              "message": "Pixel not found"
+            }
+          ]
+        },
+        "scriptTagDelete": {
+          "deletedScriptTagId": null,
+          "userErrors": [
+            {
+              "__typename": "ScriptTagUserError",
+              "code": "NOT_FOUND",
+              "field": ["id"],
+              "message": "Script tag not found"
+            }
+          ]
+        },
+        "themeDelete": {
+          "deletedThemeId": null,
+          "userErrors": [
+            {
+              "__typename": "ThemeUserError",
+              "code": "NOT_FOUND",
+              "field": ["id"],
+              "message": "Theme not found"
+            }
+          ]
+        },
+        "serverPixelDelete": {
+          "deletedServerPixelId": null,
+          "userErrors": [
+            {
+              "code": "NOT_FOUND",
+              "field": ["id"],
+              "message": "Server pixel not found"
+            }
+          ]
+        },
+        "mobilePlatformApplicationDelete": {
+          "deletedMobilePlatformApplicationId": null,
+          "userErrors": [
+            {
+              "code": "NOT_FOUND",
+              "field": ["id"],
+              "message": "Mobile platform application not found"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

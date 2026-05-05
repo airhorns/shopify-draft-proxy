@@ -25,7 +25,7 @@
     "payload-shape",
     "downstream-read-parity",
     "side-effect-boundary",
-    "credential-redaction"
+    "credential-return-on-create"
   ],
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/online-store/online-store-integrations-local-staging.json"
@@ -47,5 +47,5 @@
       }
     ]
   },
-  "notes": "HAR-372 covers online-store presentation and integration roots with executable local-runtime parity evidence. The generic parity runner exercises the local proxy request for representative create/update-style side-effect-safe staging, while tests/integration/online-store-integrations-flow.test.ts covers the full local lifecycle matrix, downstream reads, deletion, validation/userErrors, meta log/state, redaction, and no upstream fetch. Live 2026-04 probe evidence confirmed theme and storefront-access-token read shape; missing read scopes for script tags, pixels, and mobile platform applications are documented in docs/endpoints/online-store.md."
+  "notes": "HAR-372 covers online-store presentation and integration roots with executable local-runtime parity evidence. HAR-584 updates the storefront access token create slice to return a deterministic shpat_ token on the create response. The generic parity runner exercises the local proxy request for representative create/update-style side-effect-safe staging, while tests/integration/online-store-integrations-flow.test.ts covers the full local lifecycle matrix, downstream reads, deletion, validation/userErrors, meta log/state, redaction, and no upstream fetch. Live 2026-04 probe evidence confirmed theme and storefront-access-token read shape; missing read scopes for script tags, pixels, and mobile platform applications are documented in docs/endpoints/online-store.md."
 }

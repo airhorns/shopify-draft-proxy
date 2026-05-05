@@ -1,0 +1,87 @@
+{
+  "scenarioId": "functions-cart-transform-create-validation",
+  "operationNames": ["cartTransformCreate", "cartTransforms"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "live-capture",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "function-identifier-validation"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-cart-transform-create-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-setup.graphql",
+    "variablesCapturePath": "$.cartTransformCreateSetup.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cart-transform-create-setup",
+        "capturePath": "$.cartTransformCreateSetup.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.cartTransform.id",
+            "matcher": "shopify-gid:CartTransform",
+            "reason": "The proxy stages a deterministic synthetic CartTransform ID for the setup create."
+          }
+        ]
+      },
+      {
+        "name": "cart-transform-create-conflict",
+        "capturePath": "$.cartTransformCreateConflict.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-conflict.graphql",
+          "variablesCapturePath": "$.cartTransformCreateConflict.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-transform-create-api-mismatch",
+        "capturePath": "$.cartTransformCreateApiMismatch.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-api-mismatch.graphql",
+          "variablesCapturePath": "$.cartTransformCreateApiMismatch.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-transform-create-both-identifiers",
+        "capturePath": "$.cartTransformCreateBoth.response.payload.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-both.graphql",
+          "variablesCapturePath": "$.cartTransformCreateBoth.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "cart-transforms-after-validation",
+        "capturePath": "$.cartTransformsAfterValidation.response.payload.data.cartTransforms",
+        "proxyPath": "$.data.cartTransforms",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-cart-transform-create-validation-read.graphql",
+          "variablesCapturePath": "$.cartTransformsAfterValidation.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:CartTransform",
+            "reason": "The proxy read returns the deterministic synthetic CartTransform ID created by the setup mutation."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-696 executable parity for cartTransformCreate Function identifier validation. The scenario request documents retain the ticket-specified GraphQL operation names CartTransformCreateConflict, CartTransformCreateApiMismatch, CartTransformCreateBoth, and CartTransforms, while this operationNames list uses registry root names required by conformance discovery. Duplicate and API-mismatch payloads are grounded in the prior live HAR-416 functions capture; the exact both-identifiers payload was freshly captured live on 2026-05-05. The current live store no longer exposes the released validation/cart-transform Function handles, so the fixture records that re-recording blocker while preserving the existing live evidence and a cassette-backed local replay."
+}

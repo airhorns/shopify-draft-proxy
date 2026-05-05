@@ -1,0 +1,158 @@
+{
+  "scenarioId": "payment-customization-update-immutable-function",
+  "capturedAt": "2026-05-05T13:56:02.827Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "functionCatalog": {
+    "data": {
+      "shopifyFunctions": {
+        "nodes": [
+          {
+            "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+            "title": "conformance-payment-customization",
+            "handle": "conformance-payment-customization",
+            "apiType": "payment_customization"
+          }
+        ]
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 7,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "selectedFunction": {
+    "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+    "title": "conformance-payment-customization",
+    "handle": "conformance-payment-customization",
+    "apiType": "payment_customization"
+  },
+  "replacementFunctionId": "gid://shopify/ShopifyFunction/HAR629DifferentFunction",
+  "operations": {
+    "paymentCustomizationCreate": {
+      "query": "#graphql\n  mutation PaymentCustomizationImmutableCreate($input: PaymentCustomizationInput!) {\n    paymentCustomizationCreate(paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "HAR-629 immutable function 1777989362325",
+          "enabled": true,
+          "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationCreate": {
+            "paymentCustomization": {
+              "id": "gid://shopify/PaymentCustomization/164233522",
+              "title": "HAR-629 immutable function 1777989362325",
+              "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "paymentCustomizationUpdateImmutable": {
+      "query": "#graphql\n  mutation PaymentCustomizationImmutableUpdate($id: ID!, $input: PaymentCustomizationInput!) {\n    paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {\n      #graphql\n  paymentCustomization {\n    id\n    title\n    functionId\n  }\n  userErrors {\n    field\n    code\n    message\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/164233522",
+        "input": {
+          "functionId": "gid://shopify/ShopifyFunction/HAR629DifferentFunction"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentCustomizationUpdate": {
+            "paymentCustomization": null,
+            "userErrors": [
+              {
+                "field": ["paymentCustomization", "functionId"],
+                "code": "FUNCTION_ID_CANNOT_BE_CHANGED",
+                "message": "Function ID cannot be changed."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "reads": {
+    "afterImmutableUpdate": {
+      "query": "#graphql\n  query PaymentCustomizationImmutableRead($id: ID!) {\n    paymentCustomization(id: $id) {\n      id\n      title\n      functionId\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/PaymentCustomization/164233522"
+      },
+      "response": {
+        "data": {
+          "paymentCustomization": {
+            "id": "gid://shopify/PaymentCustomization/164233522",
+            "title": "HAR-629 immutable function 1777989362325",
+            "functionId": "019dc65a-306d-784c-a67e-269f27b6613f"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "paymentCustomizationDelete": {
+      "data": {
+        "paymentCustomizationDelete": {
+          "deletedId": "gid://shopify/PaymentCustomization/164233522",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [],
+  "notes": "Captured against a disposable PaymentCustomization. Shopify rejects replacement functionId input with FUNCTION_ID_CANNOT_BE_CHANGED and leaves the stored functionId unchanged."
+}

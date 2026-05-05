@@ -1,0 +1,581 @@
+{
+  "capturedAt": "2026-05-05T11:17:20.073Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "HAR-724 captures public webhookSubscriptionCreate/update cloud URI validation branches.",
+    "The setup webhook uses an example.com HTTP URI and is deleted before the fixture is written.",
+    "Current Admin GraphQL UserError has field/message only; MERCHANT_WEBHOOK_ERROR is not exposed as a selectable code field on this schema."
+  ],
+  "requestingApiClientId": "347082227713",
+  "upstreamCalls": [],
+  "setup": {
+    "create": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-cloud-uri-validation-1777979835966",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1928258978098",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "includeFields": [],
+                "metafieldNamespaces": [],
+                "filter": null,
+                "createdAt": "2026-05-05T11:17:16Z",
+                "updatedAt": "2026-05-05T11:17:16Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-cloud-uri-validation-1777979835966"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928258978098"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1928258978098",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "createPubsubNoTopicRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "pubsub://my-project",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address protocol pubsub:// is not supported"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createPubsubBadProjectRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "pubsub://-bad:topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid GCP project id."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createPubsubBadTopicRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "pubsub://valid-project:goog-prefixed",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid GCP topic id."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createArnMalformedRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "arn:aws:events:bogus",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid AWS ARN"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createArnWrongApiClientRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createKafkaRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "kafka://broker/topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address protocol kafka:// is not supported"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid kafka topic"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updatePubsubNoTopicRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928258978098",
+        "webhookSubscription": {
+          "uri": "pubsub://my-project",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address protocol pubsub:// is not supported"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updatePubsubBadProjectRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928258978098",
+        "webhookSubscription": {
+          "uri": "pubsub://-bad:topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid GCP project id."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updatePubsubBadTopicRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928258978098",
+        "webhookSubscription": {
+          "uri": "pubsub://valid-project:goog-prefixed",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid GCP topic id."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateArnMalformedRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928258978098",
+        "webhookSubscription": {
+          "uri": "arn:aws:events:bogus",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid AWS ARN"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateArnWrongApiClientRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928258978098",
+        "webhookSubscription": {
+          "uri": "arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is invalid"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateKafkaRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928258978098",
+        "webhookSubscription": {
+          "uri": "kafka://broker/topic",
+          "format": "JSON"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address protocol kafka:// is not supported"
+                },
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address is not a valid kafka topic"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

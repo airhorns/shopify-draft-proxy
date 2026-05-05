@@ -37,10 +37,12 @@ import parity/spec.{
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
 }
-import shopify_draft_proxy/proxy/draft_proxy.{type DraftProxy, type Response}
+import shopify_draft_proxy/proxy/draft_proxy.{type Response}
 import shopify_draft_proxy/proxy/operation_registry
 import shopify_draft_proxy/proxy/operation_registry_data
-import shopify_draft_proxy/proxy/proxy_state.{Config, LiveHybrid, Request}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, Config, LiveHybrid, PassthroughUnsupportedMutations, Request,
+}
 import simplifile
 
 pub type RunError {
@@ -164,6 +166,7 @@ pub fn run_with_config(
     primary_vars,
     "<primary>",
     parsed.proxy_request.api_version,
+    parsed.proxy_request.headers,
     config.debug,
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
@@ -223,6 +226,7 @@ fn build_proxy(
       let proxy =
         draft_proxy.with_config(Config(
           read_mode: LiveHybrid,
+          unsupported_mutation_mode: PassthroughUnsupportedMutations,
           port: 4000,
           shopify_admin_origin: capture_shopify_admin_origin(capture),
           snapshot_path: None,
@@ -539,6 +543,7 @@ fn actual_response_for(
             variables,
             target.name,
             request.api_version,
+            request.headers,
             config.debug,
           ))
           use value <- result.try(parse_response_body(response))
@@ -800,6 +805,7 @@ fn execute(
   variables: JsonValue,
   context: String,
   api_version: Option(String),
+  headers: List(#(String, String)),
   debug: Bool,
 ) -> Result(#(Response, DraftProxy, ExecutedOperation), RunError) {
   let body = build_graphql_body(document, variables)
@@ -808,7 +814,7 @@ fn execute(
     Request(
       method: "POST",
       path: "/admin/api/" <> version <> "/graphql.json",
-      headers: dict.new(),
+      headers: dict.from_list(headers),
       body: body,
     )
   let executed = parse_executed_operation(document)
