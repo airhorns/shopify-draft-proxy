@@ -1,0 +1,15 @@
+mutation MediaFileCreateValidationBranches($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files {
+      id
+      alt
+      createdAt
+      fileStatus
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

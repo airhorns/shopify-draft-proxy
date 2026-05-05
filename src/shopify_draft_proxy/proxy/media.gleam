@@ -813,20 +813,9 @@ fn validate_file_input(
   index: Int,
 ) -> List(FilesUserError) {
   let original_source = read_string_field(input, "originalSource")
-  let alt = read_string_field(input, "alt")
   let source_errors = case original_source {
-    Some(value) if value != "" ->
-      case is_valid_url(value) {
-        True -> []
-        False -> [
-          FilesUserError(
-            ["files", int.to_string(index), "originalSource"],
-            "Image URL is invalid",
-            "INVALID",
-          ),
-        ]
-      }
-    _ -> [
+    Some(value) -> validate_original_source(value, index)
+    None -> [
       FilesUserError(
         ["files", int.to_string(index), "originalSource"],
         "Original source is required",
@@ -834,21 +823,157 @@ fn validate_file_input(
       ),
     ]
   }
-  let alt_errors = case alt {
-    Some(value) ->
-      case string.length(value) > 512 {
+  source_errors
+  |> list.append(validate_references_to_add(input, index))
+  |> list.append(validate_create_filename_extension(input, index))
+  |> list.append(validate_duplicate_resolution_mode(input, index))
+}
+
+fn validate_original_source(value: String, index: Int) -> List(FilesUserError) {
+  case value {
+    "" -> [
+      FilesUserError(
+        ["files", int.to_string(index), "originalSource"],
+        "originalSource is too short (minimum is 1)",
+        "INVALID",
+      ),
+    ]
+    _ ->
+      case string.length(value) > 2048 {
         True -> [
           FilesUserError(
-            ["files", int.to_string(index), "alt"],
-            "The alt value exceeds the maximum limit of 512 characters.",
-            "ALT_VALUE_LIMIT_EXCEEDED",
+            ["files", int.to_string(index), "originalSource"],
+            "originalSource is too long (maximum is 2048)",
+            "INVALID",
+          ),
+        ]
+        False -> validate_original_source_url(value, index)
+      }
+  }
+}
+
+fn validate_original_source_url(
+  value: String,
+  index: Int,
+) -> List(FilesUserError) {
+  case is_valid_url(value) {
+    True -> []
+    False -> [
+      FilesUserError(
+        ["files", int.to_string(index), "originalSource"],
+        "File URL is invalid",
+        case has_non_http_uri_scheme(value) {
+          True -> "INVALID_IMAGE_SOURCE_URL"
+          False -> "INVALID"
+        },
+      ),
+    ]
+  }
+}
+
+fn validate_references_to_add(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(FilesUserError) {
+  case list.length(read_string_list_field(input, "referencesToAdd")) > 1 {
+    True -> [
+      FilesUserError(
+        ["files", int.to_string(index), "referencesToAdd"],
+        "Too many product ids specified.",
+        "TOO_MANY_PRODUCT_IDS_SPECIFIED",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn validate_create_filename_extension(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(FilesUserError) {
+  case
+    read_string_field(input, "originalSource"),
+    read_string_field(input, "filename")
+  {
+    Some(source), Some(filename) if source != "" && filename != "" -> {
+      let source_extension = file_extension(source)
+      let filename_extension = file_extension(filename)
+      case source_extension != filename_extension {
+        True -> [
+          FilesUserError(
+            ["files", int.to_string(index), "filename"],
+            "Provided filename extension must match original source.",
+            "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE",
           ),
         ]
         False -> []
       }
+    }
+    _, _ -> []
+  }
+}
+
+fn validate_duplicate_resolution_mode(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(FilesUserError) {
+  case read_string_field(input, "duplicateResolutionMode") {
+    Some("REPLACE" as mode) ->
+      validate_non_append_duplicate_mode(input, index, mode)
+    Some("RAISE_ERROR" as mode) ->
+      validate_non_append_duplicate_mode(input, index, mode)
     _ -> []
   }
-  list.append(source_errors, alt_errors)
+}
+
+fn validate_non_append_duplicate_mode(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+  mode: String,
+) -> List(FilesUserError) {
+  let content_type = read_string_field(input, "contentType")
+  case duplicate_mode_allowed(mode, content_type) {
+    False -> [
+      FilesUserError(
+        ["files", int.to_string(index), "duplicateResolutionMode"],
+        "Duplicate resolution mode '"
+          <> mode
+          <> "' is not supported for '"
+          <> duplicate_media_type_name(content_type)
+          <> "' media type.",
+        "INVALID_DUPLICATE_MODE_FOR_TYPE",
+      ),
+    ]
+    True ->
+      case mode, read_string_field(input, "filename") {
+        "REPLACE", Some(filename) if filename != "" -> []
+        "REPLACE", _ -> [
+          FilesUserError(
+            ["files", int.to_string(index), "filename"],
+            "Missing filename argument when attempting to use REPLACE duplicate mode.",
+            "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE",
+          ),
+        ]
+        _, _ -> []
+      }
+  }
+}
+
+fn duplicate_mode_allowed(mode: String, content_type: Option(String)) -> Bool {
+  case mode, content_type {
+    "REPLACE", Some("IMAGE") -> True
+    "RAISE_ERROR", Some("IMAGE") -> True
+    "RAISE_ERROR", Some("FILE") -> True
+    _, _ -> False
+  }
+}
+
+fn duplicate_media_type_name(content_type: Option(String)) -> String {
+  case content_type {
+    Some("FILE") -> "GENERIC_FILE"
+    Some(value) -> value
+    None -> "MISSING"
+  }
 }
 
 fn validate_file_update_input(
@@ -2058,6 +2183,42 @@ fn read_string_list_field(
 
 fn is_valid_url(value: String) -> Bool {
   string.starts_with(value, "https://") || string.starts_with(value, "http://")
+}
+
+fn has_non_http_uri_scheme(value: String) -> Bool {
+  case string.split_once(value, on: ":") {
+    Ok(#(scheme, _)) if scheme != "" -> scheme != "http" && scheme != "https"
+    _ -> False
+  }
+}
+
+fn file_extension(value: String) -> String {
+  let path =
+    value
+    |> before_delimiter("?")
+    |> before_delimiter("#")
+  let last_segment =
+    path
+    |> string.split("/")
+    |> reverse_strings
+    |> list.find(fn(part) { part != "" })
+    |> option.from_result
+    |> option.unwrap("")
+  case string.split(last_segment, ".") {
+    [_] -> ""
+    parts ->
+      case list.last(parts) {
+        Ok(extension) -> "." <> extension
+        Error(_) -> ""
+      }
+  }
+}
+
+fn before_delimiter(value: String, delimiter: String) -> String {
+  case string.split_once(value, on: delimiter) {
+    Ok(#(before, _)) -> before
+    Error(_) -> value
+  }
 }
 
 fn non_empty_string(value: String) -> Option(String) {
