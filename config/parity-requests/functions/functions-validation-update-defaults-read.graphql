@@ -1,0 +1,8 @@
+query ValidationUpdateDefaultsRead($id: ID!) {
+  validation(id: $id) {
+    id
+    title
+    enabled
+    blockOnFailure
+  }
+}

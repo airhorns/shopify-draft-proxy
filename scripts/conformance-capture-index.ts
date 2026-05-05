@@ -2111,6 +2111,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'functions',
+    captureId: 'functions-validation-update-defaults',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-validation-update-defaults-conformance.ts',
+    purpose:
+      'validationUpdate omitted enable/blockOnFailure default resets, downstream readback, and unknown-id userError shape.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for disposable validationCreate/update/delete lifecycle capture',
+      'released conformance-validation Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-validation-update-defaults.json`,
+      'config/parity-specs/functions/functions-validation-update-defaults.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable validation through conformance-validation, updates it, reads it back, captures the missing-id branch, then deletes the disposable validation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'payments',
     captureId: 'finance-risk',
     scriptPath: 'scripts/capture-finance-risk-conformance.ts',
