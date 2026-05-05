@@ -1,0 +1,368 @@
+{
+  "scenarioId": "b2b-company-update-customer-since",
+  "capturedAt": "2026-05-05T21:36:53.274Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-760",
+    "plan": "Record Shopify rejecting companyUpdate customerSince when present as a timestamp, alongside another update field, and as null; each rejected update is followed by a read proving the company record stayed unchanged."
+  },
+  "setupCompany": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCustomerSinceCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        customerSince\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-760 customerSince 1778017011251",
+            "customerSince": "2024-01-01T00:00:00Z"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5438701874",
+            "name": "HAR-760 customerSince 1778017011251",
+            "customerSince": "2024-01-01T00:00:00Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateCustomerSinceOnly": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCustomerSinceCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        customerSince\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438701874",
+        "input": {
+          "customerSince": "2020-01-01T00:00:00Z"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "customerSince"],
+              "message": "This field may only be set on creation.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterOnly": {
+    "request": {
+      "query": "#graphql\n  query B2BCustomerSinceCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      name\n      customerSince\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438701874"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "name": "HAR-760 customerSince 1778017011251",
+          "customerSince": "2024-01-01T00:00:00Z"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateCustomerSinceWithName": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCustomerSinceCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        customerSince\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438701874",
+        "input": {
+          "name": "HAR-760 changed name",
+          "customerSince": "2020-02-01T00:00:00Z"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "customerSince"],
+              "message": "This field may only be set on creation.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterMixed": {
+    "request": {
+      "query": "#graphql\n  query B2BCustomerSinceCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      name\n      customerSince\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438701874"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "name": "HAR-760 customerSince 1778017011251",
+          "customerSince": "2024-01-01T00:00:00Z"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1999,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateCustomerSinceNull": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCustomerSinceCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        customerSince\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438701874",
+        "input": {
+          "customerSince": null
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "customerSince"],
+              "message": "This field may only be set on creation.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterNull": {
+    "request": {
+      "query": "#graphql\n  query B2BCustomerSinceCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      name\n      customerSince\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438701874"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "name": "HAR-760 customerSince 1778017011251",
+          "customerSince": "2024-01-01T00:00:00Z"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 1,
+          "actualQueryCost": 1,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete:gid://shopify/Company/5438701874": {
+      "request": {
+        "query": "#graphql\n  mutation B2BCustomerSinceCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5438701874"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5438701874",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "B2BCustomerSinceCompanyRead",
+      "variables": {},
+      "query": "query B2BCustomerSinceCompanyRead($companyId: ID!) {\n  company(id: $companyId) {\n    name\n    customerSince\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $companyId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 35
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "B2BCustomerSinceCompanyRead",
+      "variables": {},
+      "query": "query B2BCustomerSinceCompanyRead($companyId: ID!) {\n  company(id: $companyId) {\n    name\n    customerSince\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $companyId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 35
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "operationName": "B2BCustomerSinceCompanyRead",
+      "variables": {},
+      "query": "query B2BCustomerSinceCompanyRead($companyId: ID!) {\n  company(id: $companyId) {\n    name\n    customerSince\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $companyId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 35
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -2883,58 +2883,85 @@ fn handle_company_update(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let #(input, validation_errors) =
-            validate_company_input(read_object(args, "input"), ["input"])
-          let validation_errors =
-            validation_errors
-            |> list.append(
-              validate_duplicate_company_external_id(
-                store,
-                input,
-                Some(company_id),
-                ["input"],
-              ),
-            )
-          let name = case dict.get(input, "name") {
-            Ok(root_field.StringVal(value)) -> value
-            _ -> source_string(data_get(company.data, "name"))
-          }
-          case validation_errors, string.trim(name) {
-            [_, ..], _ ->
-              RootResult(empty_payload(validation_errors), store, identity, [])
-            [], "" ->
-              RootResult(
-                empty_payload([
-                  user_error(
-                    Some(["input", "name"]),
-                    "Name can't be blank",
-                    user_error_code.blank,
+          let raw_input = read_object(args, "input")
+          case reject_customer_since_update(raw_input) {
+            [_, ..] as errors ->
+              RootResult(empty_payload(errors), store, identity, [])
+            [] -> {
+              let #(input, validation_errors) =
+                validate_company_input(raw_input, ["input"])
+              let validation_errors =
+                validation_errors
+                |> list.append(
+                  validate_duplicate_company_external_id(
+                    store,
+                    input,
+                    Some(company_id),
+                    ["input"],
                   ),
-                ]),
-                store,
-                identity,
-                [],
-              )
-            _, _ -> {
-              let #(now, identity) = timestamp(identity)
-              let updated =
-                B2BCompanyRecord(
-                  ..company,
-                  data: company_data_from_input(input, now, company.data),
                 )
-              let #(updated, store) = stage_company(store, updated)
-              RootResult(
-                Payload(..empty_payload([]), company: Some(updated)),
-                store,
-                identity,
-                [updated.id],
-              )
+              let name = case dict.get(input, "name") {
+                Ok(root_field.StringVal(value)) -> value
+                _ -> source_string(data_get(company.data, "name"))
+              }
+              case validation_errors, string.trim(name) {
+                [_, ..], _ ->
+                  RootResult(
+                    empty_payload(validation_errors),
+                    store,
+                    identity,
+                    [],
+                  )
+                [], "" ->
+                  RootResult(
+                    empty_payload([
+                      user_error(
+                        Some(["input", "name"]),
+                        "Name can't be blank",
+                        user_error_code.blank,
+                      ),
+                    ]),
+                    store,
+                    identity,
+                    [],
+                  )
+                _, _ -> {
+                  let #(now, identity) = timestamp(identity)
+                  let updated =
+                    B2BCompanyRecord(
+                      ..company,
+                      data: company_data_from_input(input, now, company.data),
+                    )
+                  let #(updated, store) = stage_company(store, updated)
+                  RootResult(
+                    Payload(..empty_payload([]), company: Some(updated)),
+                    store,
+                    identity,
+                    [updated.id],
+                  )
+                }
+              }
             }
           }
         }
         None -> not_found_result(store, identity, "company", ["companyId"])
       }
     None -> not_found_result(store, identity, "company", ["companyId"])
+  }
+}
+
+fn reject_customer_since_update(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "customerSince") {
+    Ok(_) -> [
+      user_error(
+        Some(["input", "customerSince"]),
+        "This field may only be set on creation.",
+        user_error_code.invalid_input,
+      ),
+    ]
+    Error(_) -> []
   }
 }
 

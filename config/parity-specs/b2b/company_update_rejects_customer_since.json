@@ -1,0 +1,116 @@
+{
+  "scenarioId": "b2b-company-update-customer-since",
+  "operationNames": ["companyCreate", "companyUpdate", "company"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-company-update-customer-since.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-company-update-customer-since-create.graphql",
+    "variablesCapturePath": "$.setupCompany.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "HAR-760 live parity evidence that Shopify rejects companyUpdate customerSince when present as a timestamp, alongside another update field, or as null, and leaves the company name/customerSince unchanged after each rejection.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-update-customer-since-only",
+        "capturePath": "$.updateCustomerSinceOnly.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-update-customer-since-update.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.updateCustomerSinceOnly.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-read-after-customer-since-only",
+        "capturePath": "$.readAfterOnly.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-update-customer-since-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-update-customer-since-with-name",
+        "capturePath": "$.updateCustomerSinceWithName.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-update-customer-since-update.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.updateCustomerSinceWithName.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-read-after-customer-since-with-name",
+        "capturePath": "$.readAfterMixed.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-update-customer-since-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-update-customer-since-null",
+        "capturePath": "$.updateCustomerSinceNull.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-update-customer-since-update.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.updateCustomerSinceNull.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-read-after-customer-since-null",
+        "capturePath": "$.readAfterNull.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-update-customer-since-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

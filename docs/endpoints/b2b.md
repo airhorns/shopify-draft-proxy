@@ -295,3 +295,12 @@ external IDs returning Shopify's observable `TAKEN` code, so the proxy emits
 DB-conflict enum names. Update mutations use the same checks while allowing the
 current record to retain its own unchanged external ID. Executable parity specs
 cover charset, too-long, duplicate-company, and duplicate-location branches.
+
+HAR-760 adds the captured create-only `customerSince` guard for
+`companyUpdate`. Shopify 2026-04 accepts `customerSince` on `companyCreate` but
+rejects `companyUpdate(input.customerSince)` whenever the key is present,
+including `null`, with `INVALID_INPUT`, field `["input", "customerSince"]`, and
+message `This field may only be set on creation.` The checked-in parity
+scenario records timestamp-only, mixed `name` plus `customerSince`, and
+`customerSince: null` updates; each rejected update is followed by a company
+read proving the original `name` and `customerSince` stayed unchanged.
