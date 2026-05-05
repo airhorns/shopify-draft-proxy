@@ -1245,6 +1245,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-lifecycle-noop',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-lifecycle-noop-conformance.mts',
+    purpose:
+      'Redundant orderClose on an already-closed order and orderOpen on a never-closed order preserve closedAt/updatedAt while returning silent-success payloads.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderClose-noop-on-already-closed.json`,
+      `${CAPTURE_ROOT}orderOpen-noop-on-already-open.json`,
+      'config/parity-specs/orders/orderClose-noop-on-already-closed.json',
+      'config/parity-specs/orders/orderOpen-noop-on-already-open.json',
+      'config/parity-requests/orders/orderClose-noop-on-already-closed.graphql',
+      'config/parity-requests/orders/orderOpen-noop-on-already-open.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable test orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'order-edit-lifecycle-user-errors',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-order-edit-lifecycle-user-errors-conformance.mts',
