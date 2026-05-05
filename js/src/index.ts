@@ -17,4 +17,5 @@ export {
   type DraftProxyStateDump,
   type DraftProxyStateSnapshot,
   type ReadMode,
+  type UnsupportedMutationMode,
 } from './types.js';
