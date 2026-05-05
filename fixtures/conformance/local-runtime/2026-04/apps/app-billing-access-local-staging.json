@@ -31,7 +31,7 @@
               "appSubscription": {
                 "id": "gid://shopify/AppSubscription/expected",
                 "name": "Local plan",
-                "status": "PENDING",
+                "status": "ACTIVE",
                 "test": true,
                 "trialDays": 7,
                 "lineItems": [
@@ -66,7 +66,7 @@
               "appPurchaseOneTime": {
                 "id": "gid://shopify/AppPurchaseOneTime/expected",
                 "name": "Import package",
-                "status": "PENDING",
+                "status": "ACTIVE",
                 "test": true,
                 "price": {
                   "amount": "10",
@@ -196,7 +196,7 @@
                 "nodes": [
                   {
                     "name": "Import package",
-                    "status": "PENDING",
+                    "status": "ACTIVE",
                     "price": {
                       "amount": "10",
                       "currencyCode": "USD"
@@ -310,8 +310,8 @@
     },
     "billingLifecycle": {
       "mutationPayloads": [
-        "appSubscriptionCreate returns a PENDING staged subscription, usage line item, empty userErrors, and a synthetic confirmationUrl.",
-        "appPurchaseOneTimeCreate returns a PENDING staged one-time purchase, empty userErrors, and a synthetic confirmationUrl.",
+        "appSubscriptionCreate returns an ACTIVE staged test subscription, usage line item, empty userErrors, and a synthetic confirmationUrl.",
+        "appPurchaseOneTimeCreate returns an ACTIVE staged test one-time purchase, empty userErrors, and a synthetic confirmationUrl.",
         "appSubscriptionLineItemUpdate returns the staged subscription and a synthetic confirmationUrl.",
         "appUsageRecordCreate returns a staged usage record linked to the staged usage line item.",
         "appSubscriptionTrialExtend updates staged trialDays.",
@@ -321,7 +321,7 @@
       "downstreamReads": [
         "currentAppInstallation.allSubscriptions reads the staged subscription and usage record.",
         "currentAppInstallation.oneTimePurchases reads the staged one-time purchase.",
-        "currentAppInstallation.activeSubscriptions stays empty for pending/cancelled local billing."
+        "currentAppInstallation.activeSubscriptions includes active test subscriptions until they are cancelled."
       ]
     },
     "accessAndInstall": {

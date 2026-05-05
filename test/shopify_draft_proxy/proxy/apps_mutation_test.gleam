@@ -273,7 +273,13 @@ pub fn purchase_create_returns_confirmation_url_test() {
   // The synthetic gid for the purchase is #1. Confirmation url uses the
   // trailing segment + "ApplicationCharge" + signature.
   assert body
-    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":{\"id\":\"gid://shopify/AppPurchaseOneTime/1\",\"name\":\"Pro\",\"status\":\"PENDING\",\"price\":{\"amount\":\"19.00\",\"currencyCode\":\"USD\"},\"test\":true},\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/1/ApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"userErrors\":[]}}}"
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":{\"id\":\"gid://shopify/AppPurchaseOneTime/1\",\"name\":\"Pro\",\"status\":\"ACTIVE\",\"price\":{\"amount\":\"19.00\",\"currencyCode\":\"USD\"},\"test\":true},\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/1/ApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"userErrors\":[]}}}"
+  let assert Some(purchase) =
+    store.get_effective_app_one_time_purchase_by_id(
+      outcome.store,
+      "gid://shopify/AppPurchaseOneTime/1",
+    )
+  assert purchase.status == "ACTIVE"
   // The installation tracks the new purchase id.
   let assert Some(install) =
     store.get_effective_app_installation_by_id(
@@ -286,15 +292,33 @@ pub fn purchase_create_returns_confirmation_url_test() {
 // ----------- appSubscriptionCreate -----------
 
 pub fn subscription_create_with_recurring_line_item_test() {
-  let body =
-    run_mutation(
+  let outcome =
+    run_mutation_outcome(
       seeded_with_installation(),
-      "mutation { appSubscriptionCreate(name: \"Pro\", lineItems: [{ plan: { appRecurringPricingDetails: { price: { amount: \"10.00\", currencyCode: USD }, interval: EVERY_30_DAYS } } }]) { appSubscription { id name status lineItems { id plan { pricingDetails { __typename ... on AppRecurringPricing { interval price { amount } } } } } } confirmationUrl userErrors { field message } } }",
+      "mutation { appSubscriptionCreate(name: \"Pro\", lineItems: [{ plan: { appRecurringPricingDetails: { price: { amount: \"10.00\", currencyCode: USD }, interval: EVERY_30_DAYS } } }], test: true) { appSubscription { id name status currentPeriodEnd lineItems { id plan { pricingDetails { __typename ... on AppRecurringPricing { interval price { amount } } } } } } confirmationUrl userErrors { field message } } }",
     )
+  let body = json.to_string(outcome.data)
   // First synthetic gid → AppSubscription/1; line item base id #2 with
   // ?v=1&index=1 query suffix; trailing_segment strips that for the URL.
   assert body
-    == "{\"data\":{\"appSubscriptionCreate\":{\"appSubscription\":{\"id\":\"gid://shopify/AppSubscription/1\",\"name\":\"Pro\",\"status\":\"PENDING\",\"lineItems\":[{\"id\":\"gid://shopify/AppSubscriptionLineItem/2?v=1&index=1\",\"plan\":{\"pricingDetails\":{\"__typename\":\"AppRecurringPricing\",\"interval\":\"EVERY_30_DAYS\",\"price\":{\"amount\":\"10.00\"}}}}]},\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/1/RecurringApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"userErrors\":[]}}}"
+    == "{\"data\":{\"appSubscriptionCreate\":{\"appSubscription\":{\"id\":\"gid://shopify/AppSubscription/1\",\"name\":\"Pro\",\"status\":\"ACTIVE\",\"currentPeriodEnd\":\"2024-01-31T00:00:00.000Z\",\"lineItems\":[{\"id\":\"gid://shopify/AppSubscriptionLineItem/2?v=1&index=1\",\"plan\":{\"pricingDetails\":{\"__typename\":\"AppRecurringPricing\",\"interval\":\"EVERY_30_DAYS\",\"price\":{\"amount\":\"10.00\"}}}}]},\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/1/RecurringApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"userErrors\":[]}}}"
+  let assert Some(subscription) =
+    store.get_effective_app_subscription_by_id(
+      outcome.store,
+      "gid://shopify/AppSubscription/1",
+    )
+  assert subscription.status == "ACTIVE"
+  assert subscription.current_period_end == Some("2024-01-31T00:00:00.000Z")
+  let assert Some(install) = store.get_current_app_installation(outcome.store)
+  assert install.active_subscription_ids == ["gid://shopify/AppSubscription/1"]
+  let assert Ok(readback) =
+    apps.process(
+      outcome.store,
+      "{ currentAppInstallation { activeSubscriptions { id status currentPeriodEnd } } }",
+      dict.new(),
+    )
+  assert json.to_string(readback)
+    == "{\"data\":{\"currentAppInstallation\":{\"activeSubscriptions\":[{\"id\":\"gid://shopify/AppSubscription/1\",\"status\":\"ACTIVE\",\"currentPeriodEnd\":\"2024-01-31T00:00:00.000Z\"}]}}}"
 }
 
 pub fn subscription_create_with_usage_line_item_test() {
