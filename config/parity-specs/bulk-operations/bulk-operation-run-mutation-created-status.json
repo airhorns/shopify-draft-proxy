@@ -1,0 +1,32 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-created-status",
+  "operationNames": ["bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-test-backed-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-created-status.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam", "js/test/http-adapter.test.ts"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-created-status.graphql",
+    "variablesCapturePath": "$.missingUpload.run.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-750 captures Shopify's immediate CREATED response for a valid bulkOperationRunMutation upload and the missing-staged-upload branch returning bulkOperation: null with NO_SUCH_FILE. The generic parity runner cannot replay the multipart staged-upload byte handoff without a multi-request upload step, so this spec strictly compares the executable missing-upload branch and points to runtime tests for the valid-upload CREATED response plus deterministic terminal read/result artifact behavior.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "run-mutation-missing-upload-bulk-operation-null",
+        "capturePath": "$.missingUpload.run.response.data.bulkOperationRunMutation.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation"
+      },
+      {
+        "name": "run-mutation-missing-upload-user-errors",
+        "capturePath": "$.missingUpload.run.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors"
+      }
+    ]
+  }
+}

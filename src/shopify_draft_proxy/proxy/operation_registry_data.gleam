@@ -3585,7 +3585,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["bulkOperationRunQuery", "BulkOperationRunQuery"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-264: stages supported products/productVariants query exports locally, writes completed BulkOperation jobs plus JSONL result records, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, and unsupported nested connection shapes without runtime Shopify passthrough. HAR-721 accepts explicit true/false and omitted groupObjects arguments without changing local export semantics.",
+        "HAR-264/HAR-750: stages supported products/productVariants query exports locally, returns Shopify's immediate CREATED BulkOperation shape from the mutation response, writes terminal BulkOperation jobs plus JSONL result records for subsequent reads, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, and unsupported nested connection shapes without runtime Shopify passthrough. HAR-721 accepts explicit true/false and omitted groupObjects arguments without changing local export semantics.",
       ),
     ),
     RegistryEntry(
@@ -3597,7 +3597,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["bulkOperationRunMutation", "BulkOperationRunMutation"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-265: stages mutation imports locally only for single-root product inner mutations that are already locally implemented. Uploaded JSONL variables must come from the proxy's staged upload handoff; unsupported inner roots create an explicit failed local BulkOperation and are not sent upstream at runtime. Commit replay is preserved as ordered inner mutation log entries with the outer bulk request attached as metadata.",
+        "HAR-265/HAR-750: stages mutation imports locally only for single-root product inner mutations that are already locally implemented, returns Shopify's immediate CREATED BulkOperation shape for valid submissions, and materializes terminal local BulkOperation/result JSONL state for subsequent reads. Uploaded JSONL variables must come from the proxy's staged upload handoff; missing uploads and unsupported inner roots return userErrors with bulkOperation: null and are not sent upstream at runtime. Commit replay is preserved as ordered inner mutation log entries with the outer bulk request attached as metadata.",
       ),
     ),
     RegistryEntry(

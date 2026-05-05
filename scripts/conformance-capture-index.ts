@@ -2543,6 +2543,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-created-status',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-created-status-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation immediate CREATED response for valid uploaded JSONL plus no-such-file null-operation branch.',
+    requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-mutation-created-status.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-created-status.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-created-status.graphql',
+    ],
+    cleanupBehavior:
+      'Uploads one JSONL file, submits one productCreate bulk mutation, waits for terminal status, and deletes the created product when the result JSONL exposes its id.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-in-progress-throttle',
     environment: { SHOPIFY_CONFORMANCE_BULK_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-bulk-operation-in-progress-conformance.ts',
