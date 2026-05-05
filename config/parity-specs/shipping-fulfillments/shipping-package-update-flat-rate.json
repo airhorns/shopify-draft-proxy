@@ -1,0 +1,33 @@
+{
+  "scenarioId": "shipping-package-update-flat-rate",
+  "operationNames": ["shippingPackageUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["captured-vs-proxy-request", "local-state-parity", "shipping-package-error-code"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2025-01/shipping-fulfillments/shipping-package-update-flat-rate.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/shipping-package-update-flat-rate.graphql",
+    "variablesCapturePath": "$.update.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable local-runtime parity for HAR-569: the cassette hydrates a carrier-supplied FLAT_RATE shipping package because Admin GraphQL 2025-01 exposes no package read root in the captured schema, then the proxy must reject shippingPackageUpdate locally with CUSTOM_SHIPPING_BOX_NOT_UPDATABLE and leave staged package state empty.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "shipping-package-flat-rate-update-payload",
+        "capturePath": "$.update.response.data.shippingPackageUpdate",
+        "proxyPath": "$.data.shippingPackageUpdate"
+      },
+      {
+        "name": "shipping-package-flat-rate-update-state",
+        "capturePath": "$.update.state",
+        "proxyStatePath": "$",
+        "selectedPaths": ["$.stagedState.shippingPackages"]
+      }
+    ]
+  }
+}

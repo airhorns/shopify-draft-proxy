@@ -5993,7 +5993,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["shippingPackageUpdate", "ShippingPackageUpdate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages normalized custom shipping package name, type, default flag, weight, and dimensions updates for known package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape.",
+        "Locally stages normalized custom shipping package name, type, default flag, weight, and dimensions updates for known non-FLAT_RATE package IDs. Carrier-supplied FLAT_RATE boxes return CUSTOM_SHIPPING_BOX_NOT_UPDATABLE userErrors without staging; unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape.",
       ),
     ),
     RegistryEntry(
