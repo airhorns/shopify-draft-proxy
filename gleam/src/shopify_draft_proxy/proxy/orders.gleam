@@ -70,6 +70,14 @@ pub type MutationOutcome {
   )
 }
 
+type OrderEditUserError {
+  OrderEditUserError(
+    field_path: List(String),
+    message: String,
+    code: Option(String),
+  )
+}
+
 pub fn is_orders_query_root(name: String) -> Bool {
   list.contains(
     [
@@ -5533,19 +5541,57 @@ fn handle_order_edit_begin_mutation(
         |> option.then(fn(id) { store.get_order_by_id(hydrated_store, id) })
       case order {
         Some(order) -> {
-          let #(calculated_order, next_identity) =
-            build_calculated_order_from_order(order, identity)
-          let next_store =
-            stage_order_edit_session(hydrated_store, order, calculated_order)
-          let payload =
-            serialize_order_edit_begin_payload(
-              field,
-              calculated_order,
-              fragments,
-            )
-          #(key, payload, next_store, next_identity, [], [], [])
+          case order_edit_order_not_editable(order) {
+            True -> {
+              let payload =
+                serialize_order_edit_error_payload(field, [
+                  order_edit_invalid_user_error(
+                    ["base"],
+                    "The order cannot be edited.",
+                  ),
+                ])
+              #(key, payload, hydrated_store, identity, [], [], [])
+            }
+            False -> {
+              case order_has_open_order_edit_session(order) {
+                True -> {
+                  let payload =
+                    serialize_order_edit_error_payload(field, [
+                      order_edit_invalid_user_error(
+                        ["id"],
+                        "An edit is already in progress for this order",
+                      ),
+                    ])
+                  #(key, payload, hydrated_store, identity, [], [], [])
+                }
+                False -> {
+                  let #(calculated_order, next_identity) =
+                    build_calculated_order_from_order(order, identity)
+                  let next_store =
+                    stage_order_edit_session(
+                      hydrated_store,
+                      order,
+                      calculated_order,
+                    )
+                  let payload =
+                    serialize_order_edit_begin_payload(
+                      field,
+                      calculated_order,
+                      fragments,
+                    )
+                  #(key, payload, next_store, next_identity, [], [], [])
+                }
+              }
+            }
+          }
         }
-        None -> #(key, json.null(), store, identity, [], [], [])
+        None -> {
+          let payload =
+            serialize_order_edit_error_payload(field, [
+              order_edit_invalid_user_error(["id"], "The order does not exist."),
+            ])
+          #(key, payload, hydrated_store, identity, [], [], [])
+        }
       }
     }
   }
@@ -5585,63 +5631,84 @@ fn handle_order_edit_add_variant_mutation(
       let args = field_arguments(field, variables)
       let calculated_order_id = read_string(args, "id")
       let variant_id = read_string(args, "variantId")
-      let hydrated_store = case variant_id {
-        Some(id) -> maybe_hydrate_product_variant_by_id(store, id, upstream)
-        None -> store
-      }
-      let variant =
-        variant_id
-        |> option.then(fn(id) {
-          store.get_effective_variant_by_id(hydrated_store, id)
-        })
-      case variant {
-        Some(variant) -> {
-          let product =
-            store.get_effective_product_by_id(
-              hydrated_store,
-              variant.product_id,
-            )
-          let quantity = read_int(args, "quantity", 1)
-          let session_id =
-            calculated_order_id
-            |> option.map(order_edit_session_id_from_calculated_id)
-            |> option.unwrap("")
-          let #(calculated_line_item, next_identity) =
-            build_added_calculated_line_item(
-              variant,
-              product,
-              quantity,
-              identity,
-            )
-          let #(next_store, calculated_order) =
-            update_order_edit_session_with_line_item(
-              hydrated_store,
-              calculated_order_id,
-              calculated_line_item,
-            )
-          let payload =
-            serialize_order_edit_add_variant_payload(
-              field,
-              calculated_line_item,
-              calculated_order,
-              session_id,
-              fragments,
-            )
-          #(key, payload, next_store, next_identity, [], [], [])
-        }
+      case find_order_edit_session(store, calculated_order_id) {
         None -> {
-          let payload = case variant_id {
-            Some(id) ->
-              case draft_order_gid_tail(id) == "0" {
-                True ->
-                  serialize_order_edit_add_variant_invalid_variant_payload(
-                    field,
-                  )
-                False -> json.null()
-              }
-            _ -> json.null()
+          let payload =
+            serialize_order_edit_error_payload(field, [
+              order_edit_invalid_user_error(
+                ["id"],
+                "The calculated order does not exist.",
+              ),
+            ])
+          #(key, payload, store, identity, [], [], [])
+        }
+        Some(_) -> {
+          let hydrated_store = case variant_id {
+            Some(id) -> maybe_hydrate_product_variant_by_id(store, id, upstream)
+            None -> store
           }
-          #(key, payload, hydrated_store, identity, [], [], [])
+          let variant =
+            variant_id
+            |> option.then(fn(id) {
+              store.get_effective_variant_by_id(hydrated_store, id)
+            })
+          case variant {
+            Some(variant) -> {
+              let product =
+                store.get_effective_product_by_id(
+                  hydrated_store,
+                  variant.product_id,
+                )
+              let quantity = read_int(args, "quantity", 1)
+              let session_id =
+                calculated_order_id
+                |> option.map(order_edit_session_id_from_calculated_id)
+                |> option.unwrap("")
+              let #(calculated_line_item, next_identity) =
+                build_added_calculated_line_item(
+                  variant,
+                  product,
+                  quantity,
+                  identity,
+                )
+              let #(next_store, calculated_order) =
+                update_order_edit_session_with_line_item(
+                  hydrated_store,
+                  calculated_order_id,
+                  calculated_line_item,
+                )
+              let payload =
+                serialize_order_edit_add_variant_payload(
+                  field,
+                  calculated_line_item,
+                  calculated_order,
+                  session_id,
+                  fragments,
+                )
+              #(key, payload, next_store, next_identity, [], [], [])
+            }
+            None -> {
+              let user_error = case variant_id {
+                Some(id) ->
+                  case draft_order_gid_tail(id) == "0" {
+                    True -> order_edit_invalid_variant_user_error()
+                    False ->
+                      order_edit_invalid_user_error(
+                        ["variantId"],
+                        "Variant does not exist",
+                      )
+                  }
+                _ ->
+                  order_edit_invalid_user_error(
+                    ["variantId"],
+                    "Variant does not exist",
+                  )
+              }
+              let payload =
+                serialize_order_edit_error_payload(field, [user_error])
+              #(key, payload, hydrated_store, identity, [], [], [])
+            }
+          }
         }
       }
     }
@@ -5681,40 +5748,63 @@ fn handle_order_edit_set_quantity_mutation(
       let args = field_arguments(field, variables)
       let calculated_order_id = read_string(args, "id")
       let quantity = read_int(args, "quantity", 0)
-      let line_item =
-        find_order_edit_session_line_item(
-          store,
-          calculated_order_id,
-          read_string(args, "lineItemId"),
-        )
-        |> option.or(
-          read_string(args, "lineItemId")
-          |> option.then(fn(id) {
-            find_order_edit_line_item_by_calculated_id(store, id)
-          }),
-        )
-      case line_item {
-        Some(line_item) -> {
-          let calculated_line_item =
-            build_set_quantity_calculated_line_item(line_item, quantity)
-          let #(next_store, calculated_order) =
-            update_order_edit_session_line_item_quantity(
+      case find_order_edit_session(store, calculated_order_id) {
+        None -> {
+          let payload =
+            serialize_order_edit_error_payload(field, [
+              order_edit_invalid_user_error(
+                ["id"],
+                "The calculated order does not exist.",
+              ),
+            ])
+          #(key, payload, store, identity, [], [], [])
+        }
+        Some(_) -> {
+          let line_item =
+            find_order_edit_session_line_item(
               store,
               calculated_order_id,
               read_string(args, "lineItemId"),
-              quantity,
             )
-          let payload =
-            serialize_order_edit_set_quantity_payload(
-              field,
-              calculated_line_item,
-              calculated_order,
-              calculated_order_id,
-              fragments,
+            |> option.or(
+              read_string(args, "lineItemId")
+              |> option.then(fn(id) {
+                find_order_edit_line_item_by_calculated_id(store, id)
+              }),
             )
-          #(key, payload, next_store, identity, [], [], [])
+          case line_item {
+            Some(line_item) -> {
+              let calculated_line_item =
+                build_set_quantity_calculated_line_item(line_item, quantity)
+              let #(next_store, calculated_order) =
+                update_order_edit_session_line_item_quantity(
+                  store,
+                  calculated_order_id,
+                  read_string(args, "lineItemId"),
+                  quantity,
+                )
+              let payload =
+                serialize_order_edit_set_quantity_payload(
+                  field,
+                  calculated_line_item,
+                  calculated_order,
+                  calculated_order_id,
+                  fragments,
+                )
+              #(key, payload, next_store, identity, [], [], [])
+            }
+            None -> {
+              let payload =
+                serialize_order_edit_error_payload(field, [
+                  order_edit_invalid_user_error(
+                    ["lineItemId"],
+                    "Line item does not exist",
+                  ),
+                ])
+              #(key, payload, store, identity, [], [], [])
+            }
+          }
         }
-        None -> #(key, json.null(), store, identity, [], [], [])
       }
     }
   }
@@ -5753,7 +5843,16 @@ fn handle_order_edit_commit_mutation(
       let args = field_arguments(field, variables)
       let calculated_order_id = read_string(args, "id")
       case find_order_edit_session(store, calculated_order_id) {
-        None -> #(key, json.null(), store, identity, [], [], [])
+        None -> {
+          let payload =
+            serialize_order_edit_error_payload(field, [
+              order_edit_invalid_user_error(
+                ["id"],
+                "The calculated order does not exist.",
+              ),
+            ])
+          #(key, payload, store, identity, [], [], [])
+        }
         Some(match) -> {
           let #(order, session) = match
           let #(timestamp, next_identity) =
@@ -9279,6 +9378,27 @@ fn order_edit_sessions(order: OrderRecord) -> List(CapturedJsonValue) {
   }
 }
 
+fn order_has_open_order_edit_session(order: OrderRecord) -> Bool {
+  case order_edit_sessions(order) {
+    [] -> False
+    [_, ..] -> True
+  }
+}
+
+fn order_edit_order_not_editable(order: OrderRecord) -> Bool {
+  case captured_string_field(order.data, "displayFinancialStatus") {
+    Some("REFUNDED") | Some("VOIDED") -> True
+    _ -> order_cancelled_at_is_set(order)
+  }
+}
+
+fn order_cancelled_at_is_set(order: OrderRecord) -> Bool {
+  case captured_object_field(order.data, "cancelledAt") {
+    Some(CapturedNull) | None -> False
+    Some(_) -> True
+  }
+}
+
 fn find_order_edit_session(
   store: Store,
   calculated_order_id: Option(String),
@@ -9943,8 +10063,9 @@ fn serialize_order_edit_add_variant_payload(
   json.object(entries)
 }
 
-fn serialize_order_edit_add_variant_invalid_variant_payload(
+fn serialize_order_edit_error_payload(
   field: Selection,
+  user_errors: List(OrderEditUserError),
 ) -> Json {
   let entries =
     list.map(selection_children(field), fn(child) {
@@ -9955,10 +10076,15 @@ fn serialize_order_edit_add_variant_invalid_variant_payload(
             "calculatedOrder" -> #(key, json.null())
             "calculatedLineItem" -> #(key, json.null())
             "orderEditSession" -> #(key, json.null())
+            "order" -> #(key, json.null())
+            "successMessages" -> #(
+              key,
+              json.array([], fn(message) { json.string(message) }),
+            )
             "userErrors" -> #(
               key,
-              json.array([order_edit_invalid_variant_user_error()], fn(error) {
-                error
+              json.array(user_errors, fn(error) {
+                serialize_order_edit_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
@@ -9969,16 +10095,41 @@ fn serialize_order_edit_add_variant_invalid_variant_payload(
   json.object(entries)
 }
 
-fn order_edit_invalid_variant_user_error() -> Json {
-  json.object([
-    #("field", json.array(["variantId"], json.string)),
-    #(
-      "message",
-      json.string(
-        "can't convert Integer[0] to a positive Integer to use as an untrusted id",
-      ),
-    ),
-  ])
+fn order_edit_invalid_user_error(
+  field_path: List(String),
+  message: String,
+) -> OrderEditUserError {
+  OrderEditUserError(
+    field_path: field_path,
+    message: message,
+    code: Some("INVALID"),
+  )
+}
+
+fn order_edit_invalid_variant_user_error() -> OrderEditUserError {
+  order_edit_invalid_user_error(
+    ["variantId"],
+    "can't convert Integer[0] to a positive Integer to use as an untrusted id",
+  )
+}
+
+fn serialize_order_edit_user_error(
+  field: Selection,
+  error: OrderEditUserError,
+) -> Json {
+  let code = case error.code {
+    Some(value) -> SrcString(value)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("field", SrcList(list.map(error.field_path, SrcString))),
+      #("message", SrcString(error.message)),
+      #("code", code),
+    ]),
+    selection_children(field),
+    dict.new(),
+  )
 }
 
 fn serialize_order_edit_set_quantity_payload(

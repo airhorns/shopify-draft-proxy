@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 206: HAR-625 B2B string validation guardrails
+## 2026-05-04 - Pass 207: HAR-625 B2B string validation guardrails
 
 Adds source-driven local validation for B2B free-text fields so supported
 company/contact/location mutations fail before staging values Shopify's B2B
@@ -46,6 +46,61 @@ Validation:
 - HTML sanitization is covered by runtime tests rather than a checked-in parity
   fixture until the live conformance target exhibits the ticketed
   `CONTAINS_HTML_TAGS` behavior.
+
+---
+
+## 2026-05-04 - Pass 206: HAR-562 order edit user-error payloads
+
+Aligns the Gleam order-edit handlers with Shopify's mutation payload contract
+for local user-error branches without sending supported mutations upstream.
+
+| Module / fixture                                                                                                                                                              | Change                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                                                                                                                            | Replaces `data.<root>: null` order-edit early-outs with selected payload objects containing nullable resource fields and `userErrors`, adds `INVALID` codes, blocks begin for refunded/voided/cancelled orders, rejects a second open session per order, and prioritizes missing calculated-order sessions before add/set target validation. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`                                                                                                                      | Adds focused coverage for missing begin order, refunded and locally cancelled begin orders, existing open session rejection, unknown variant, unknown calculated line item, missing calculated-order add/set/commit branches, and successful edit-session add/set flows.                                                                     |
+| `config/parity-specs/orders/orderEdit-lifecycle-userErrors.json` / `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-lifecycle-user-errors.json` | Adds captured strict parity evidence for order-edit missing-resource payload roots.                                                                                                                                                                                                                                                          |
+| `scripts/capture-order-edit-lifecycle-user-errors-conformance.mts` / `scripts/conformance-capture-index.ts`                                                                   | Registers the order-edit user-error capture path in the aggregate conformance index.                                                                                                                                                                                                                                                         |
+| `docs/endpoints/orders.md`                                                                                                                                                    | Updates order-edit coverage notes so concurrent-session, missing-resource, and unknown target user-error branches are no longer listed as open gaps.                                                                                                                                                                                         |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- orders_order_edit_begin_user_error_payload_shapes_test orders_order_edit_unknown_resource_user_error_payload_shapes_test orders_order_edit_add_variant_invalid_variant_payload_test orders_order_edit_set_quantity_payload_test orders_order_edit_begin_payload_test orders_order_edit_missing_id_validation_guardrails_test`
+  (853 passed)
+- `corepack pnpm conformance:probe`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm tsx scripts/capture-order-edit-lifecycle-user-errors-conformance.mts`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm parity:record orderEdit-lifecycle-userErrors`
+- `cd gleam && gleam test --target javascript -- parity_test` (853 passed)
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (870 passed after merging
+  `origin/main`)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 861 passed after merging `origin/main`)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm conformance:check` (1452 passed)
+- `corepack pnpm typecheck`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm test` (123 files passed; 2316 passed)
+- `corepack pnpm build`
+- `git diff --check`
+
+### Findings
+
+- The pre-fix begin-not-found branch returned `{"data":{"orderEditBegin":null}}`;
+  the new shared order-edit error serializer keeps the mutation root non-null
+  while preserving selected nullable fields.
+- Existing missing-`$id` GraphQL validation remains top-level
+  `INVALID_VARIABLE` behavior and is intentionally separate from mutation-scoped
+  `userErrors`.
+
+### Risks / open items
+
+- The new unknown-target messages are local approximations anchored to the
+  ticket's field/code acceptance criteria. Fresh live capture can tighten exact
+  wording later if Shopify exposes different translated text in the target shop.
 
 ---
 

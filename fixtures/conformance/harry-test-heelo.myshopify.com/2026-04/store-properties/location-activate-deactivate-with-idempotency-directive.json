@@ -1,0 +1,493 @@
+{
+  "capturedAt": "2026-05-05T00:12:18.708Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "createLocation": {
+      "name": "setupLocationAdd",
+      "query": "#graphql\n  #graphql\n  fragment LocationLifecycleFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  mutation LocationLifecycleFixtureAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        ...LocationLifecycleFields\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "HAR-649 lifecycle 20260505001218",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "1 Test St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112830054706",
+                "name": "HAR-649 lifecycle 20260505001218",
+                "isActive": true,
+                "activatable": true,
+                "deactivatable": true,
+                "fulfillsOnlineOrders": false,
+                "hasActiveInventory": false,
+                "hasUnfulfilledOrders": false,
+                "deletable": false,
+                "shipsInventory": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "hydrateLocation": {
+      "name": "locationHydrateForProxyCassette",
+      "query": "#graphql\n  query StorePropertiesLocationHydrate($id: ID!) {\n    location(id: $id) {\n      id\n      legacyResourceId\n      name\n      activatable\n      addressVerified\n      createdAt\n      deactivatable\n      deactivatedAt\n      deletable\n      fulfillsOnlineOrders\n      hasActiveInventory\n      hasUnfulfilledOrders\n      isActive\n      isFulfillmentService\n      shipsInventory\n      updatedAt\n      fulfillmentService {\n        id\n        handle\n        serviceName\n      }\n      address {\n        address1\n        address2\n        city\n        country\n        countryCode\n        formatted\n        latitude\n        longitude\n        phone\n        province\n        provinceCode\n        zip\n      }\n      suggestedAddresses {\n        address1\n        countryCode\n        formatted\n      }\n      metafield(namespace: \"custom\", key: \"hours\") {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      metafields(first: 3) {\n        nodes {\n          id\n          namespace\n          key\n          value\n          type\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      inventoryLevels(first: 3) {\n        nodes {\n          id\n          item {\n            id\n          }\n          location {\n            id\n            name\n          }\n          quantities(names: [\"available\", \"committed\", \"on_hand\"]) {\n            name\n            quantity\n            updatedAt\n          }\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112830054706"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112830054706",
+              "legacyResourceId": "112830054706",
+              "name": "HAR-649 lifecycle 20260505001218",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T00:12:18Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T00:12:19Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "1 Test St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["1 Test St", "Boston MA 02110", "United States"],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "1 Jess St",
+                  "countryCode": "US",
+                  "formatted": ["1 Jess St", "Boston MA 02130", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "workflow": {
+    "deactivateWithDirective": {
+      "name": "locationDeactivateWithIdempotencyDirective",
+      "query": "#graphql\n  #graphql\n  fragment LocationLifecycleFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  mutation LocationLifecycleDeactivateWithDirective($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        ...LocationLifecycleFields\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112830054706",
+        "idempotencyKey": "location-activate-deactivate-with-idempotency-directive-deactivate-20260505001218"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112830054706",
+                "name": "HAR-649 lifecycle 20260505001218",
+                "isActive": false,
+                "activatable": true,
+                "deactivatable": true,
+                "fulfillsOnlineOrders": false,
+                "hasActiveInventory": false,
+                "hasUnfulfilledOrders": false,
+                "deletable": true,
+                "shipsInventory": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterDeactivate": {
+      "name": "readAfterDeactivate",
+      "query": "#graphql\n  #graphql\n  fragment LocationLifecycleFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  query LocationLifecycleRead($id: ID!) {\n    location(id: $id) {\n      ...LocationLifecycleFields\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112830054706"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112830054706",
+              "name": "HAR-649 lifecycle 20260505001218",
+              "isActive": false,
+              "activatable": true,
+              "deactivatable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "deletable": true,
+              "shipsInventory": false
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activateWithDirective": {
+      "name": "locationActivateWithIdempotencyDirective",
+      "query": "#graphql\n  #graphql\n  fragment LocationLifecycleFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  mutation LocationLifecycleActivateWithDirective($locationId: ID!, $idempotencyKey: String!) {\n    locationActivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        ...LocationLifecycleFields\n      }\n      locationActivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112830054706",
+        "idempotencyKey": "location-activate-deactivate-with-idempotency-directive-activate-20260505001218"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationActivate": {
+              "location": {
+                "id": "gid://shopify/Location/112830054706",
+                "name": "HAR-649 lifecycle 20260505001218",
+                "isActive": true,
+                "activatable": true,
+                "deactivatable": true,
+                "fulfillsOnlineOrders": false,
+                "hasActiveInventory": false,
+                "hasUnfulfilledOrders": false,
+                "deletable": false,
+                "shipsInventory": false
+              },
+              "locationActivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "missingDirective202604": {
+      "name": "locationDeactivateMissingDirective202604",
+      "query": "#graphql\nmutation LocationDeactivateMissingIdempotencyKey($locationId: ID!) {\n  locationDeactivate(locationId: $locationId) {\n    location {\n      id\n      isActive\n    }\n    locationDeactivateUserErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112830054706"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "The @idempotent directive is required for this mutation but was not provided.",
+              "locations": [
+                {
+                  "line": 3,
+                  "column": 3
+                }
+              ],
+              "extensions": {
+                "code": "BAD_REQUEST"
+              },
+              "path": ["locationDeactivate"]
+            }
+          ],
+          "data": {
+            "locationDeactivate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deactivateWithoutDirective202601": {
+      "name": "locationDeactivateWithoutDirective202601",
+      "query": "#graphql\nmutation LocationDeactivateMissingIdempotencyKey($locationId: ID!) {\n  locationDeactivate(locationId: $locationId) {\n    location {\n      id\n      isActive\n    }\n    locationDeactivateUserErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112830054706"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112830054706",
+                "isActive": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanupDeactivate",
+      "query": "#graphql\n  #graphql\n  fragment LocationLifecycleFields on Location {\n    id\n    name\n    isActive\n    activatable\n    deactivatable\n    fulfillsOnlineOrders\n    hasActiveInventory\n    hasUnfulfilledOrders\n    deletable\n    shipsInventory\n  }\n\n\n  mutation LocationLifecycleDeactivateWithDirective($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        ...LocationLifecycleFields\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112830054706",
+        "idempotencyKey": "location-activate-deactivate-with-idempotency-directive-cleanup-deactivate"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112830054706",
+                "name": "HAR-649 lifecycle 20260505001218",
+                "isActive": false,
+                "activatable": true,
+                "deactivatable": true,
+                "fulfillsOnlineOrders": false,
+                "hasActiveInventory": false,
+                "hasUnfulfilledOrders": false,
+                "deletable": true,
+                "shipsInventory": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDelete",
+      "query": "#graphql\n  mutation LocationLifecycleFixtureDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112830054706"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/112830054706",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112830054706"
+      },
+      "query": "sha256:ea248641334bd3ee0ecf22c0f449600851cc8d565335993288dd884c86ed0063",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112830054706",
+              "legacyResourceId": "112830054706",
+              "name": "HAR-649 lifecycle 20260505001218",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T00:12:18Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T00:12:19Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "1 Test St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["1 Test St", "Boston MA 02110", "United States"],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "1 Jess St",
+                  "countryCode": "US",
+                  "formatted": ["1 Jess St", "Boston MA 02130", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -7,6 +7,7 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-lifecycle-validation.json"
   ],
   "proxyRequest": {
+    "apiVersion": "2026-04",
     "documentPath": "config/parity-requests/store-properties/location-activate-missing-idempotency-validation.graphql",
     "variablesCapturePath": "$.cases[0].variables"
   },
