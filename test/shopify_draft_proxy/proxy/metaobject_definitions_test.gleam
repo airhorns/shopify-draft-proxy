@@ -400,6 +400,92 @@ pub fn update_upsert_delete_and_bulk_delete_stage_locally_test() {
     == "{\"data\":{\"metaobjects\":{\"nodes\":[]},\"definition\":{\"metaobjectsCount\":0}}}"
 }
 
+pub fn metaobject_field_values_validate_and_coerce_by_type_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation {
+        metaobjectDefinitionCreate(definition: {
+          type: \"codex_field_validation\",
+          name: \"Codex Field Validation\",
+          fieldDefinitions: [
+            { key: \"dec\", name: \"Decimal\", type: \"number_decimal\", required: false },
+            { key: \"date\", name: \"Date\", type: \"date\", required: false },
+            { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: false, validations: [{ name: \"max\", value: \"3\" }] },
+            { key: \"list_int\", name: \"List Integer\", type: \"list.number_integer\", required: false },
+            { key: \"rating\", name: \"Rating\", type: \"rating\", required: false, validations: [{ name: \"scale_min\", value: \"1.0\" }, { name: \"scale_max\", value: \"5.0\" }] },
+            { key: \"num\", name: \"Number\", type: \"number_integer\", required: false },
+            { key: \"flag\", name: \"Flag\", type: \"boolean\", required: false }
+          ]
+        }) {
+          metaobjectDefinition { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+
+  let invalid_create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_field_validation\",
+          fields: [
+            { key: \"dec\", value: \"hello\" },
+            { key: \"date\", value: \"2024-99-01\" },
+            { key: \"title\", value: \"abcd\" },
+            { key: \"list_int\", value: \"[\\\"hello\\\"]\" },
+            { key: \"rating\", value: \"{\\\"value\\\":\\\"10\\\",\\\"scale_min\\\":\\\"1.0\\\",\\\"scale_max\\\":\\\"5.0\\\"}\" }
+          ]
+        }) {
+          metaobject { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(invalid_create.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"metaobject\",\"fields\",\"0\"],\"message\":\"Value must be a decimal.\",\"code\":\"INVALID_VALUE\",\"elementKey\":\"dec\",\"elementIndex\":null},{\"field\":[\"metaobject\",\"fields\",\"1\"],\"message\":\"Value must be in YYYY-MM-DD format.\",\"code\":\"INVALID_VALUE\",\"elementKey\":\"date\",\"elementIndex\":null},{\"field\":[\"metaobject\",\"fields\",\"2\"],\"message\":\"Value has a maximum length of 3.\",\"code\":\"INVALID_VALUE\",\"elementKey\":\"title\",\"elementIndex\":null},{\"field\":[\"metaobject\",\"fields\",\"3\"],\"message\":\"Value must be an integer.\",\"code\":\"INVALID_VALUE\",\"elementKey\":\"list_int\",\"elementIndex\":0},{\"field\":[\"metaobject\",\"fields\",\"4\"],\"message\":\"Value has a maximum of 5.0.\",\"code\":\"INVALID_VALUE\",\"elementKey\":\"rating\",\"elementIndex\":null}]}}}"
+
+  let coerced_create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation {
+        metaobjectCreate(metaobject: {
+          type: \"codex_field_validation\",
+          fields: [
+            { key: \"num\", value: \"hello\" },
+            { key: \"flag\", value: \"hello\" }
+          ]
+        }) {
+          metaobject { fields { key value jsonValue } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(coerced_create.data)
+    == "{\"data\":{\"metaobjectCreate\":{\"metaobject\":{\"fields\":[{\"key\":\"dec\",\"value\":null,\"jsonValue\":null},{\"key\":\"date\",\"value\":null,\"jsonValue\":null},{\"key\":\"title\",\"value\":null,\"jsonValue\":null},{\"key\":\"list_int\",\"value\":null,\"jsonValue\":null},{\"key\":\"rating\",\"value\":null,\"jsonValue\":null},{\"key\":\"num\",\"value\":\"0\",\"jsonValue\":0},{\"key\":\"flag\",\"value\":\"true\",\"jsonValue\":true}]},\"userErrors\":[]}}}"
+
+  let invalid_update =
+    run_mutation(
+      coerced_create.store,
+      coerced_create.identity,
+      "mutation {
+        metaobjectUpdate(
+          id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",
+          metaobject: { fields: [{ key: \"flag\", value: \"hello\" }] }
+        ) {
+          metaobject { id }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(invalid_update.data)
+    == "{\"data\":{\"metaobjectUpdate\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"metaobject\",\"fields\",\"0\"],\"message\":\"Value must be true or false.\",\"code\":\"INVALID_VALUE\",\"elementKey\":\"flag\",\"elementIndex\":null}]}}}"
+}
+
 pub fn bulk_delete_empty_ids_returns_empty_job_success_test() {
   let outcome =
     run_mutation(
