@@ -37,7 +37,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type LogDraft, type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -880,16 +880,6 @@ fn page_info_source(
 /// Outcome of an apps mutation. Mirrors the saved-search/webhook-subscription
 /// outcome shape: a JSON envelope (`{"data": ...}` or `{"errors": ...}`),
 /// the updated store and identity registry, and the staged GIDs.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload emitted on a mutation failure. Mirrors the apps
 /// `UserError` shape in TS: an optional `code` and a path that defaults
 /// to an empty list.
@@ -918,12 +908,12 @@ pub fn process_mutation(
   origin: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, AppsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         request_path,
@@ -932,7 +922,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
-      ))
+      )
     }
   }
 }

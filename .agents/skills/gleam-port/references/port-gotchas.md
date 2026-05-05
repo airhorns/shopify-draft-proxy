@@ -126,21 +126,37 @@ pageInfo, totalCount}`) — the parent's `project_graphql_value` walk
 
 ## Mutation log
 
-- **No log entry for top-level error mutations.** When AST validation
-  fires, the per-field handler short-circuits before
-  `record_mutation_log_entry` runs. TS records "failed" entries; the
-  Gleam port currently does not (per Pass 13 risks). Symmetric gap
-  with saved-searches' "failed" entries.
+- **Domains do not call `record_mutation_log_entry` directly.** Each
+  per-root handler returns one `mutation_helpers.LogDraft` per logical
+  entry it wants in the buffer (typically one per mutation root field,
+  including failed branches). The dispatcher accumulates them on
+  `MutationOutcome.log_drafts` and calls
+  `mutation_helpers.record_log_drafts(...)` once after the domain
+  returns, threading the synthetic-identity registry through the entry
+  id / `received_at` timestamp mints. A domain that forgets to build a
+  draft has its mutation invisible — the four-domain regression that
+  prompted this design (gift_cards / localization /
+  metafield_definitions / segments shipping no log entries) cannot
+  recur without a structurally-empty `log_drafts` list, which is much
+  easier to spot in code review than a missing per-handler call.
 - **`__meta/state` does not yet serialize most resource slices.** Only
   saved searches landed full meta-state coverage. Adding a slice is
   small; do it when a consumer needs offline introspection.
 
 ## Ergonomics
 
-- **Dispatcher signatures are starting to feel heavy** (5+ parameters,
-  domain mutation handlers take 7). Pass 6 flagged this. If the next
-  pass needs to add another parameter (operationName, request id,
-  fragments cache), consider lifting a `Dispatch` context record.
+- **Dispatcher signatures live behind two closure types.** `QueryHandler`
+  and `MutationHandler` (defined at the top of the dispatch table in
+  `draft_proxy.gleam`) name the unified shape every domain handler
+  resolves to. Per-domain `process_mutation` signatures vary slightly
+  (some take an `UpstreamContext`, `apps` takes only the origin string,
+  `customers` takes the whole proxy) — each one is wrapped in a small
+  `<domain>_mutation_handler` adapter closure that extracts what it
+  needs from `proxy` / `UpstreamContext` and lines up with
+  `MutationHandler`. If a future pass needs to thread another shared
+  parameter (operation name, request id, fragments cache), add it to
+  the closure type and update the adapters; do not pass it through every
+  domain's public `process_mutation`.
 - **Test setup for `Selection` values is tedious.** The cleanest way to
   build a real `Selection` in a test is to parse a query string
   (`first_root_field("{ root { ... } }")`) and pull the root field. No

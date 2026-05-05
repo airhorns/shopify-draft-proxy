@@ -41,9 +41,13 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, RequiredArgument, read_optional_string,
-  read_optional_string_array, single_root_log_draft,
-  validate_required_field_arguments, validate_required_id_argument,
+  type LogDraft, type MutationOutcome, MutationOutcome, RequiredArgument,
+  read_optional_string, read_optional_string_array, respond_to_query,
+  single_root_log_draft, validate_required_field_arguments,
+  validate_required_id_argument,
+}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
 }
 import shopify_draft_proxy/search_query_parser.{
   type SearchQueryTerm, SearchQueryTermListOptions,
@@ -351,6 +355,22 @@ pub fn process(
   Ok(graphql_helpers.wrap_data(data))
 }
 
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  respond_to_query(
+    proxy,
+    process(proxy.store, document, variables),
+    "Failed to handle webhooks query",
+  )
+}
+
 fn serialize_root_fields(
   store: Store,
   fields: List(Selection),
@@ -654,16 +674,6 @@ fn endpoint_to_source(
 /// Outcome of a webhook-subscription mutation. Mirrors the saved-search
 /// outcome shape: a JSON envelope (`{"data": ...}` or `{"errors": ...}`),
 /// the updated store and identity registry, and the staged GIDs.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload emitted on validation failure. Mirrors the
 /// `WebhookSubscriptionUserError` shape in TS.
 pub type UserError {
@@ -689,13 +699,13 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, WebhooksError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let operation_path = get_operation_path_label(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         request_path,
@@ -704,7 +714,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
-      ))
+      )
     }
   }
 }

@@ -36,7 +36,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection_with_field_serializers, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -1221,16 +1221,6 @@ fn serialize_membership_items(
 // ===========================================================================
 
 /// Outcome of a segments mutation.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload. Mirrors `SegmentUserError` (field+message only).
 pub type UserError {
   UserError(field: List(String), message: String)
@@ -1264,12 +1254,12 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, SegmentsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(store, identity, fields, fragments, variables))
+      handle_mutation_fields(store, identity, fields, fragments, variables)
     }
   }
 }

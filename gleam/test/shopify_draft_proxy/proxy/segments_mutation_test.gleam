@@ -8,6 +8,7 @@
 import gleam/dict
 import gleam/json
 import gleam/option.{None, Some}
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
@@ -18,9 +19,9 @@ import shopify_draft_proxy/state/types.{type SegmentRecord, SegmentRecord}
 fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
-) -> segments.MutationOutcome {
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
-  let assert Ok(outcome) =
+  let outcome =
     segments.process_mutation(
       store_in,
       identity,

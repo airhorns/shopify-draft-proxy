@@ -93,14 +93,15 @@ Every ported domain module exposes the same shape:
 pub type <Domain>Error { ParseFailed(root_field.RootFieldError) }
 pub fn is_<x>_query_root(name: String) -> Bool
 pub fn is_<x>_mutation_root(name: String) -> Bool   // if the domain mutates
-pub fn handle_<x>_query(store, document, variables) -> Result(Json, <Domain>Error)
-pub fn wrap_data(data: Json) -> Json
-pub fn process(store, document, variables) -> Result(Json, <Domain>Error)
+pub fn handle_query_request(proxy, request, parsed, query, primary_root_field, variables)
+  -> #(Response, DraftProxy)                          // dispatcher entrypoint
 pub fn process_mutation(store, identity, request_path, document, variables)
-  -> Result(MutationOutcome, <Domain>Error)   // if it mutates
+  -> mutation_helpers.MutationOutcome                 // if it mutates; takes upstream
+                                                      // context for domains that need it
 ```
 
-`MutationOutcome` (defined per-domain but with the same fields) is:
+`MutationOutcome` is defined once in `proxy/mutation_helpers.gleam` and shared
+across all domains:
 
 ```gleam
 pub type MutationOutcome {
@@ -109,9 +110,68 @@ pub type MutationOutcome {
     store: Store,
     identity: SyntheticIdentityRegistry,
     staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),                  // dispatcher records these
   )
 }
 ```
+
+A few domains take an additional `upstream_query.UpstreamContext` parameter
+(for read-before-write merges, app-origin lookups, etc.). The dispatch table
+in `draft_proxy.gleam` adapts each domain's `process_mutation` signature to
+the unified `MutationHandler` closure shape — see "Dispatcher wiring" below.
+
+#### Shared mutation helpers
+
+`proxy/mutation_helpers.gleam` provides the centralised pieces every domain
+should reuse rather than re-derive:
+
+- `MutationOutcome` and `LogDraft` records (above).
+- `parse_failed_outcome(store, identity, err)` builds the unreachable
+  parse-failure envelope so domain `process_mutation` returns a plain
+  `MutationOutcome` instead of a phantom `Result`.
+- `single_root_log_draft(...)` and `record_log_drafts(...)` — the dispatcher
+  records every `LogDraft` returned by domain handlers; domains should not
+  call `record_mutation_log_entry` themselves anymore.
+- `respond_to_query(proxy, result, error_message)` wraps a domain `process`
+  result into the dispatcher's `#(Response, DraftProxy)` shape, so each
+  domain's `handle_query_request` is a one-liner.
+- `validate_required_field_arguments`, `validate_required_id_argument`,
+  `validate_mutation_field_against_schema`, and the three error builders
+  (see "Mutation validation" below).
+
+#### Shared error response helpers
+
+`draft_proxy.gleam` exposes three internal helpers used everywhere the
+dispatcher needs to emit a Shopify-style envelope:
+
+- `error_envelope(errors)` builds `{"errors": [...]}` from already-built
+  error JSON objects.
+- `error_response(status, message)` builds a `Response` with a single
+  `{ message }` error.
+- `bad_request(message)` is `error_response(400, _)`.
+
+Use these — do not hand-roll `json.object([#("errors", ...)])` envelopes
+in dispatcher code paths.
+
+#### `option.lazy_or` for staged-then-base lookups
+
+The store already encapsulates "staged wins, base fallback" in
+`get_effective_*_by_id`. Where a domain still needs a two-step
+`Some(x) → Some(x); None → fallback` (e.g. lookup-by-id, then list-and-find
+by handle), use `option.lazy_or`:
+
+```gleam
+store.get_effective_shopify_function_by_id(store, reference)
+|> option.lazy_or(fn() {
+  store.list_effective_shopify_functions(store)
+  |> list.find(fn(record) { record.handle == Some(reference) || record.id == reference })
+  |> option.from_result
+})
+```
+
+Do not write the explicit `case staged { Some(x) -> Some(x); None -> ... }`
+form — and do not duplicate the staged-then-base branch when an
+`get_effective_*` helper already does it.
 
 ### Store slice for a collection resource
 
@@ -155,16 +215,55 @@ exists.
 
 ### Dispatcher wiring (per new domain)
 
-5 lines in `proxy/draft_proxy.gleam`:
+The dispatcher is a single-file table in `proxy/draft_proxy.gleam`. There is
+no `<Domain>Domain` enum anymore; resolution is "look the root field up in
+the dispatch table, hand back the matching handler closure".
 
-1. New `<Domain>Domain` variant on the local `Domain` type.
-2. Add the root to the explicit local dispatch table in
-   `local_query_dispatch_domain` and/or `local_mutation_dispatch_domain`.
-3. The registry decides whether a known root is implemented; the local dispatch
-   table decides whether this Gleam port can actually handle that root today.
-4. Dispatch arm in `route_query` / `route_mutation` calling
-   `<domain>.process(...)` / `<domain>.process_mutation(...)`.
-5. Import the new module.
+Two entrypoints, both returning `Option(<handler>)`:
+
+- `local_query_handler(name, query) -> Option(QueryHandler)` — most queries
+  resolve by root-field name, but a few branch on the selection set
+  (`shop` between `online_store` and `store_properties`, `customer` between
+  `payments` and `customers`, …). Add a new arm to the `case name` block
+  for fixed-name dispatch, or a tuple to the `first_matching_handler([...])`
+  fallback for predicate-driven dispatch.
+- `local_mutation_handler(name, query) -> Option(MutationHandler)` — same
+  shape on the mutation side. Each domain adapter is a small closure that
+  pulls `proxy.store`, `proxy.synthetic_identity`, and (where needed) the
+  `UpstreamContext` out of the inputs and forwards them to the domain's
+  `process_mutation`.
+
+The two handler closure types are:
+
+```gleam
+type QueryHandler =
+  fn(DraftProxy, Request, ParsedOperation, String, String,
+     Dict(String, root_field.ResolvedValue))
+  -> #(Response, DraftProxy)
+
+type MutationHandler =
+  fn(DraftProxy, String, String, Dict(String, root_field.ResolvedValue),
+     upstream_query.UpstreamContext)
+  -> mutation_helpers.MutationOutcome
+```
+
+To wire a new domain:
+
+1. Import the new module.
+2. Add a fixed-name arm to `local_query_handler` and/or
+   `local_mutation_handler`, or extend the predicate-driven
+   `first_matching_handler` list. Mutation handlers go through a per-domain
+   `<domain>_mutation_handler` adapter closure so each domain's varying
+   `process_mutation` signature lines up with the unified `MutationHandler`
+   shape.
+3. Add a dispatch arm in `route_query` / `route_mutation` if the domain
+   needs a non-default response shape. Most domains route through the
+   shared path that calls the closure returned by `*_handler_for(...)`.
+
+The registry decides whether a known root is implemented; the local
+dispatch table decides whether this Gleam port can actually handle that
+root today. `local_dispatch_supported(...)` answers the second question
+by calling `option.is_some(local_*_handler(...))`.
 
 ### Operation registry sync
 

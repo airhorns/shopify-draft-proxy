@@ -11,6 +11,8 @@ import gleam/dict
 import gleam/json
 import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/proxy/gift_cards
+import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -28,15 +30,16 @@ import shopify_draft_proxy/state/types.{
 fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
-) -> gift_cards.MutationOutcome {
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
-  let assert Ok(outcome) =
+  let outcome =
     gift_cards.process_mutation(
       store_in,
       identity,
       "/admin/api/2025-01/graphql.json",
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   outcome
 }
