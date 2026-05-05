@@ -1674,6 +1674,7 @@ fn shop_policy_json(record: types.ShopPolicyRecord) -> Json {
     #("url", json.string(record.url)),
     #("createdAt", json.string(record.created_at)),
     #("updatedAt", json.string(record.updated_at)),
+    #("migratedToHtml", json.bool(record.migrated_to_html)),
   ])
 }
 
@@ -2147,8 +2148,21 @@ fn online_store_integration_json(
     #("cursor", optional_string(record.cursor)),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
-    #("data", captured_json_value_json(record.data)),
+    #("data", captured_json_value_json(online_store_integration_data(record))),
   ])
+}
+
+fn online_store_integration_data(
+  record: types.OnlineStoreIntegrationRecord,
+) -> types.CapturedJsonValue {
+  case record.kind, record.data {
+    "webPixel", types.CapturedObject(fields) ->
+      types.CapturedObject(
+        fields
+        |> list.filter(fn(pair) { pair.0 != "webhookEndpointAddress" }),
+      )
+    _, data -> data
+  }
 }
 
 fn deleted_online_store_ids_json(
@@ -4826,6 +4840,7 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
   use url <- decode.field("url", decode.string)
   use created_at <- decode.field("createdAt", decode.string)
   use updated_at <- decode.field("updatedAt", decode.string)
+  use migrated_to_html <- optional_field("migratedToHtml", True, decode.bool)
   decode.success(types.ShopPolicyRecord(
     id: id,
     title: title,
@@ -4834,6 +4849,7 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
     url: url,
     created_at: created_at,
     updated_at: updated_at,
+    migrated_to_html: migrated_to_html,
   ))
 }
 

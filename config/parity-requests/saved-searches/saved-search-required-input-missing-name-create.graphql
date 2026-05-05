@@ -1,0 +1,14 @@
+mutation SavedSearchCreateMissingName {
+  savedSearchCreate(input: { resourceType: PRODUCT }) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

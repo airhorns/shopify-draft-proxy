@@ -1,0 +1,177 @@
+{
+  "capturedAt": "2026-05-05T09:21:47.630Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "H720-mosf5v8x",
+  "notes": [
+    "HAR-720 capture for saved-search name uniqueness.",
+    "Created disposable PRODUCT saved search A, attempted duplicate create with the same case-sensitive name, created disposable saved search B, then attempted to rename B to A.",
+    "Shopify returned savedSearch: null for duplicate create, and returned a non-null savedSearch echo with the existing name plus submitted valid query for duplicate update; both branches returned userErrors[{ field: [\"input\", \"name\"], message: \"Name has already been taken\" }].",
+    "The proxy parity runner stages the setup creates locally; no upstream cassette calls are required."
+  ],
+  "savedSearchCreateA": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "Conflict A H720-mosf5v8x",
+        "query": "title:H720-mosf5v8x-a"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4007534362930",
+            "legacyResourceId": "4007534362930",
+            "name": "Conflict A H720-mosf5v8x",
+            "query": "title:H720-mosf5v8x-a",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "title",
+                "value": "H720-mosf5v8x-a"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchCreateDuplicate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "Conflict A H720-mosf5v8x",
+        "query": "title:H720-mosf5v8x-duplicate"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchCreateB": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "Conflict B H720-mosf5v8x",
+        "query": "title:H720-mosf5v8x-b"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4007534395698",
+            "legacyResourceId": "4007534395698",
+            "name": "Conflict B H720-mosf5v8x",
+            "query": "title:H720-mosf5v8x-b",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "title",
+                "value": "H720-mosf5v8x-b"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchUpdateRenameConflict": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-name-uniqueness-update-conflict.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4007534395698",
+        "name": "Conflict A H720-mosf5v8x",
+        "query": "title:H720-mosf5v8x-rename-conflict"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4007534395698",
+            "name": "Conflict B H720-mosf5v8x",
+            "query": "title:H720-mosf5v8x-rename-conflict",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "title",
+                "value": "H720-mosf5v8x-rename-conflict"
+              }
+            ]
+          },
+          "userErrors": [
+            {
+              "field": ["input", "name"],
+              "message": "Name has already been taken"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

@@ -4146,6 +4146,8 @@ fn product_media_source(media: ProductMediaRecord) -> SourceValue {
         media.image_url |> option.or(media.preview_image_url),
       ),
     ),
+    #("mediaErrors", SrcList([])),
+    #("mediaWarnings", SrcList([])),
   ])
 }
 

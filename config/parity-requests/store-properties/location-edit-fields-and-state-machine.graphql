@@ -1,0 +1,49 @@
+#graphql
+fragment LocationEditFields on Location {
+  id
+  name
+  fulfillsOnlineOrders
+  updatedAt
+  address {
+    address1
+    address2
+    city
+    country
+    countryCode
+    provinceCode
+    zip
+  }
+  metafield(namespace: "custom", key: "har661") {
+    id
+    namespace
+    key
+    value
+    type
+  }
+  metafields(first: 5, namespace: "custom") {
+    nodes {
+      id
+      namespace
+      key
+      value
+      type
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+}
+
+mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {
+  locationEdit(id: $id, input: $input) {
+    location {
+      ...LocationEditFields
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
