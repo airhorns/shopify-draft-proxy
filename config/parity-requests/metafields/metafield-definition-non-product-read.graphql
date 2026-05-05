@@ -1,0 +1,20 @@
+query MetafieldDefinitionNonProductRead($id: ID!) {
+  metafieldDefinition(id: $id) {
+    id
+    name
+    namespace
+    key
+    ownerType
+    type {
+      name
+      category
+    }
+    description
+    validations {
+      name
+      value
+    }
+    pinnedPosition
+    validationStatus
+  }
+}

@@ -5,10 +5,12 @@ import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, Request, Response,
+  type DraftProxy, type Request, DraftProxy, Request, Response,
 }
 import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/types
+import shopify_draft_proxy/state/types.{
+  AccessScopeRecord, AppInstallationRecord, AppRecord,
+}
 
 const comment_id: String = "gid://shopify/Comment/har-587"
 
@@ -138,6 +140,156 @@ fn read_state(proxy: DraftProxy) -> String {
     draft_proxy.process_request(proxy, meta_state_request())
   assert status == 200
   json.to_string(body)
+}
+
+fn storefront_token_shape(token: String) -> Bool {
+  string.starts_with(token, "shpat_")
+  && string.length(token) == 22
+  && {
+    string.drop_start(token, 6)
+    |> string.to_graphemes
+    |> list.all(is_hex_character)
+  }
+}
+
+fn is_hex_character(char: String) -> Bool {
+  case char {
+    "0"
+    | "1"
+    | "2"
+    | "3"
+    | "4"
+    | "5"
+    | "6"
+    | "7"
+    | "8"
+    | "9"
+    | "a"
+    | "b"
+    | "c"
+    | "d"
+    | "e"
+    | "f" -> True
+    _ -> False
+  }
+}
+
+fn create_storefront_token_loop(
+  proxy: DraftProxy,
+  remaining: Int,
+) -> DraftProxy {
+  case remaining <= 0 {
+    True -> proxy
+    False -> {
+      let query =
+        "mutation { storefrontAccessTokenCreate(input: { title: \"Hydrogen\" }) { storefrontAccessToken { id } userErrors { code field message } } }"
+      let #(_, proxy) = run_graphql(proxy, query)
+      create_storefront_token_loop(proxy, remaining - 1)
+    }
+  }
+}
+
+fn proxy_with_current_app_scopes(scopes: List(String)) -> DraftProxy {
+  let app =
+    AppRecord(
+      id: "gid://shopify/App/1",
+      api_key: Some("local-app"),
+      handle: Some("local-app"),
+      title: Some("Local app"),
+      developer_name: Some("test-dev"),
+      embedded: Some(True),
+      previously_installed: Some(False),
+      requested_access_scopes: [],
+    )
+  let installation =
+    AppInstallationRecord(
+      id: "gid://shopify/AppInstallation/1",
+      app_id: app.id,
+      launch_url: None,
+      uninstall_url: None,
+      access_scopes: list.map(scopes, fn(handle) {
+        AccessScopeRecord(handle: handle, description: None)
+      }),
+      active_subscription_ids: [],
+      all_subscription_ids: [],
+      one_time_purchase_ids: [],
+      uninstalled_at: None,
+    )
+  let seeded_store =
+    store.upsert_base_app_installation(store.new(), installation, app)
+  DraftProxy(..proxy(), store: seeded_store)
+}
+
+pub fn storefront_access_token_create_returns_unique_token_scopes_and_shop_test() {
+  let query =
+    "mutation { storefrontAccessTokenCreate(input: { title: \"Hydrogen\" }) { storefrontAccessToken { id title accessToken accessScopes { handle } } shop { id } userErrors { code field message } } }"
+  let #(first, proxy) = run_graphql(proxy(), query)
+  assert first
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":{\"id\":\"gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic\",\"title\":\"Hydrogen\",\"accessToken\":\"shpat_bcc6fd83f41123b4\",\"accessScopes\":[{\"handle\":\"unauthenticated_read_product_listings\"},{\"handle\":\"unauthenticated_read_product_inventory\"}]},\"shop\":{\"id\":\"gid://shopify/Shop/92891250994\"},\"userErrors\":[]}}}"
+  assert storefront_token_shape("shpat_bcc6fd83f41123b4")
+
+  let #(second, _) = run_graphql(proxy, query)
+  assert second
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":{\"id\":\"gid://shopify/StorefrontAccessToken/3?shopify-draft-proxy=synthetic\",\"title\":\"Hydrogen\",\"accessToken\":\"shpat_43199f7763e24d2f\",\"accessScopes\":[{\"handle\":\"unauthenticated_read_product_listings\"},{\"handle\":\"unauthenticated_read_product_inventory\"}]},\"shop\":{\"id\":\"gid://shopify/Shop/92891250994\"},\"userErrors\":[]}}}"
+  assert first != second
+}
+
+pub fn storefront_access_token_create_filters_current_app_storefront_scopes_test() {
+  let seeded_proxy =
+    proxy_with_current_app_scopes([
+      "read_products",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_product_inventory",
+      "write_orders",
+    ])
+  let query =
+    "mutation { storefrontAccessTokenCreate(input: { title: \"Hydrogen\" }) { storefrontAccessToken { accessScopes { handle } } userErrors { code field message } } }"
+  let #(body, _) = run_graphql(seeded_proxy, query)
+  assert body
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":{\"accessScopes\":[{\"handle\":\"unauthenticated_read_customers\"},{\"handle\":\"unauthenticated_read_product_inventory\"}]},\"userErrors\":[]}}}"
+}
+
+pub fn storefront_access_token_create_blank_title_returns_blank_user_error_test() {
+  let query =
+    "mutation { storefrontAccessTokenCreate(input: { title: \"   \" }) { storefrontAccessToken { id } shop { id } userErrors { code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":null,\"shop\":{\"id\":\"gid://shopify/Shop/92891250994\"},\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"input\",\"title\"],\"message\":\"Title can't be blank\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "storefrontAccessToken",
+    )
+    |> list.length
+    == 0
+  let assert [log] = store.get_log(proxy.store)
+  assert log.status == store.Failed
+  assert log.staged_resource_ids == []
+}
+
+pub fn storefront_access_token_create_reaches_limit_at_100_tokens_test() {
+  let proxy = create_storefront_token_loop(proxy(), 100)
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "storefrontAccessToken",
+    )
+    |> list.length
+    == 100
+
+  let query =
+    "mutation { storefrontAccessTokenCreate(input: { title: \"One too many\" }) { storefrontAccessToken { id } userErrors { code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":null,\"userErrors\":[{\"code\":\"REACHED_LIMIT\",\"field\":[\"input\"],\"message\":\"apps.admin.graph_api_errors.storefront_access_token_create.reached_limit\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "storefrontAccessToken",
+    )
+    |> list.length
+    == 100
 }
 
 pub fn web_pixel_duplicate_create_returns_taken_error_test() {

@@ -26,6 +26,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   serialize_empty_connection, source_to_json, src_object,
 }
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
@@ -41,10 +42,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
   type B2BCompanyLocationRecord, type B2BCompanyRecord, type CustomerRecord,
-  type StorePropertyValue, B2BCompanyContactRecord, B2BCompanyContactRoleRecord,
-  B2BCompanyLocationRecord, B2BCompanyRecord, StorePropertyBool,
-  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
-  StorePropertyObject, StorePropertyString,
+  type ProductMetafieldRecord, type StorePropertyValue, B2BCompanyContactRecord,
+  B2BCompanyContactRoleRecord, B2BCompanyLocationRecord, B2BCompanyRecord,
+  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
+  StorePropertyNull, StorePropertyObject, StorePropertyString,
 }
 
 const domain = "b2b"
@@ -820,20 +821,101 @@ fn serialize_company(
               [role, ..] -> project_source(role_source(role), child, fragments)
               [] -> json.null()
             })
-            "orders" | "draftOrders" | "events" | "metafields" -> #(
+            "orders" | "draftOrders" | "events" -> #(
               key,
               serialize_empty_connection(
                 child,
                 default_selected_field_options(),
               ),
             )
+            "metafields" -> #(
+              key,
+              serialize_company_metafields_connection(
+                store,
+                company.id,
+                child,
+                variables,
+              ),
+            )
             "ordersCount" -> #(key, serialize_count(child, 0))
-            "metafield" -> #(key, json.null())
+            "metafield" -> #(
+              key,
+              serialize_company_metafield(store, company.id, child, variables),
+            )
             _ -> source_field(source, child, fragments)
           }
         _ -> #(key, json.null())
       }
     }),
+  )
+}
+
+fn serialize_company_metafield(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = graphql_helpers.field_args(field, variables)
+  let namespace = read_string(args, "namespace")
+  let key = read_string(args, "key")
+  let found =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.find(fn(metafield) {
+      metafield.namespace == option.unwrap(namespace, "")
+      && metafield.key == option.unwrap(key, "")
+    })
+    |> option.from_result
+  case found {
+    Some(metafield) ->
+      metafields.serialize_metafield_selection(
+        company_metafield_to_core(metafield),
+        field,
+        default_selected_field_options(),
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_company_metafields_connection(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = graphql_helpers.field_args(field, variables)
+  let namespace = read_string(args, "namespace")
+  let records =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.filter(fn(metafield) {
+      case namespace {
+        Some(ns) -> metafield.namespace == ns
+        None -> True
+      }
+    })
+    |> list.map(company_metafield_to_core)
+  metafields.serialize_metafields_connection(
+    records,
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn company_metafield_to_core(
+  record: ProductMetafieldRecord,
+) -> metafields.MetafieldRecordCore {
+  metafields.MetafieldRecordCore(
+    id: record.id,
+    namespace: record.namespace,
+    key: record.key,
+    type_: record.type_,
+    value: record.value,
+    compare_digest: record.compare_digest,
+    json_value: record.json_value,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    owner_type: record.owner_type,
   )
 }
 

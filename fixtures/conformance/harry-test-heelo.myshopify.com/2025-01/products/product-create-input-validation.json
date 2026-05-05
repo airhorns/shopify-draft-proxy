@@ -1,0 +1,98 @@
+{
+  "capturedAt": "2026-05-05T02:39:00.000Z",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scenarios": {
+    "blankTitle": {
+      "variables": {
+        "product": {
+          "title": ""
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["title"],
+                "message": "Title can't be blank"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "missingVendor": {
+      "variables": {
+        "product": {
+          "title": "x"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10176964952370",
+              "title": "x",
+              "vendor": "harry-test-heelo",
+              "productType": ""
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "tooLongVendor": {
+      "variables": {
+        "product": {
+          "title": "Valid",
+          "vendor": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["vendor"],
+                "message": "Vendor is too long (maximum is 255 characters)"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "tooLongProductType": {
+      "variables": {
+        "product": {
+          "title": "Valid",
+          "vendor": "v",
+          "productType": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": null,
+            "userErrors": [
+              {
+                "field": ["productType"],
+                "message": "Product type is too long (maximum is 255 characters)"
+              },
+              {
+                "field": ["customProductType"],
+                "message": "Custom product type is too long (maximum is 255 characters)"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "HAR-565 live probe: ProductCreate UserError does not expose a code field in 2025-01, and missing or blank vendor defaults to the shop name rather than returning a userError."
+  ],
+  "upstreamCalls": []
+}

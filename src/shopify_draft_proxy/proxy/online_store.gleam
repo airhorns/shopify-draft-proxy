@@ -2109,31 +2109,60 @@ fn create_storefront_token(
       "input",
     )
     |> option.unwrap(dict.new())
-  let #(record, identity) =
-    make_integration(outcome.identity, "storefrontAccessToken", [
-      #("__typename", SrcString("StorefrontAccessToken")),
-      #(
-        "title",
-        option_source(input_string(input, "title"), "Headless preview"),
-      ),
-      #("accessToken", SrcString("shpat_redacted")),
-      #("accessScopes", SrcList([])),
-    ])
-  let #(_, store) =
-    store.upsert_staged_online_store_integration(outcome.store, record)
-  integration_payload_result(
-    outcome,
-    field,
-    fragments,
-    variables,
-    "storefrontAccessTokenCreate",
-    "storefrontAccessToken",
-    Some(record),
-    [],
-    store,
-    identity,
-    [record.id],
-  )
+  case input_non_blank_string(input, "title") {
+    None ->
+      storefront_token_create_error_payload(outcome, field, fragments, [
+        user_error_with_code(
+          ["input", "title"],
+          "Title can't be blank",
+          "BLANK",
+        ),
+      ])
+    Some(title) ->
+      case storefront_token_limit_reached(outcome.store) {
+        True ->
+          storefront_token_create_error_payload(outcome, field, fragments, [
+            user_error_with_code(
+              ["input"],
+              "apps.admin.graph_api_errors.storefront_access_token_create.reached_limit",
+              "REACHED_LIMIT",
+            ),
+          ])
+        False -> {
+          let access_scopes = storefront_access_scope_sources(outcome.store)
+          let #(record, identity) =
+            make_integration(outcome.identity, "storefrontAccessToken", [
+              #("__typename", SrcString("StorefrontAccessToken")),
+              #("title", SrcString(title)),
+              #("accessToken", SrcString("shpat_redacted")),
+              #("accessScopes", SrcList(access_scopes)),
+            ])
+          let raw_token = synthetic_storefront_access_token(record.id)
+          let #(_, store) =
+            store.upsert_staged_online_store_integration(outcome.store, record)
+          let key = get_field_response_key(field)
+          let payload =
+            storefront_token_create_payload(
+              field,
+              fragments,
+              record,
+              raw_token,
+              [],
+            )
+          #(
+            key,
+            payload,
+            mutation_outcome(
+              outcome,
+              store,
+              identity,
+              "storefrontAccessTokenCreate",
+              [record.id],
+            ),
+          )
+        }
+      }
+  }
 }
 
 fn delete_storefront_token(
@@ -2381,6 +2410,74 @@ fn integration_payload_result(
   }
   let payload = mutation_payload(field, fragments, payload_key, value, errors)
   #(key, payload, mutation_outcome(outcome, store, identity, root, staged_ids))
+}
+
+fn storefront_token_create_error_payload(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(graphql_helpers.SourceValue),
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let payload =
+    storefront_token_create_payload(
+      field,
+      fragments,
+      empty_storefront_token_record(),
+      "",
+      errors,
+    )
+  #(
+    key,
+    payload,
+    mutation_outcome_with_status(
+      outcome,
+      outcome.store,
+      outcome.identity,
+      "storefrontAccessTokenCreate",
+      [],
+      store.Failed,
+      Some(
+        "Rejected storefrontAccessTokenCreate validation in shopify-draft-proxy.",
+      ),
+    ),
+  )
+}
+
+fn storefront_token_create_payload(
+  field: Selection,
+  fragments: FragmentMap,
+  record: OnlineStoreIntegrationRecord,
+  raw_token: String,
+  errors: List(graphql_helpers.SourceValue),
+) -> Json {
+  let token_source = case errors {
+    [] ->
+      base_source(captured_to_source(record.data), [
+        #("accessToken", SrcString(raw_token)),
+      ])
+    _ -> SrcNull
+  }
+  project_payload_source(
+    field,
+    src_object([
+      #("storefrontAccessToken", token_source),
+      #("shop", storefront_token_shop_source()),
+      #("userErrors", user_errors_source(errors)),
+    ]),
+    fragments,
+  )
+}
+
+fn empty_storefront_token_record() -> OnlineStoreIntegrationRecord {
+  OnlineStoreIntegrationRecord(
+    id: "",
+    kind: "storefrontAccessToken",
+    cursor: None,
+    created_at: None,
+    updated_at: None,
+    data: CapturedNull,
+  )
 }
 
 fn mutation_outcome(
@@ -3520,6 +3617,56 @@ fn web_pixel_status_source(
 
 fn same_current_app_web_pixel(record: OnlineStoreIntegrationRecord) -> Bool {
   current_app_key(captured_to_source(record.data)) == current_app_key(SrcNull)
+}
+
+fn storefront_token_limit_reached(store: Store) -> Bool {
+  store.list_effective_online_store_integrations(store, "storefrontAccessToken")
+  |> list.length
+  >= 100
+}
+
+fn storefront_access_scope_sources(
+  store: Store,
+) -> List(graphql_helpers.SourceValue) {
+  storefront_access_scope_handles(store)
+  |> list.map(access_scope_source)
+}
+
+fn storefront_access_scope_handles(store: Store) -> List(String) {
+  let handles = case store.get_current_app_installation(store) {
+    Some(installation) ->
+      installation.access_scopes
+      |> list.map(fn(scope) { scope.handle })
+      |> list.filter(is_storefront_access_scope)
+    None -> []
+  }
+  case handles {
+    [] -> default_storefront_access_scope_handles()
+    _ -> dedupe(handles)
+  }
+}
+
+fn is_storefront_access_scope(handle: String) -> Bool {
+  string.starts_with(handle, "unauthenticated_")
+}
+
+fn default_storefront_access_scope_handles() -> List(String) {
+  [
+    "unauthenticated_read_product_listings",
+    "unauthenticated_read_product_inventory",
+  ]
+}
+
+fn access_scope_source(handle: String) -> graphql_helpers.SourceValue {
+  src_object([#("handle", SrcString(handle)), #("description", SrcNull)])
+}
+
+fn synthetic_storefront_access_token(id: String) -> String {
+  "shpat_" <> string.slice(crypto.sha256_hex(id), 0, 16)
+}
+
+fn storefront_token_shop_source() -> graphql_helpers.SourceValue {
+  src_object([#("id", SrcString(synthetic_shop_id))])
 }
 
 fn current_app_key(source: graphql_helpers.SourceValue) -> Option(String) {
