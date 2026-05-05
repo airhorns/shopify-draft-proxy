@@ -5535,24 +5535,53 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
         Some(customer) -> {
-          let updated = CustomerRecord(..customer, state: Some("INVITED"))
-          let #(_, next_store) = store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerSendAccountInviteEmailPayload",
-              Some(updated),
-              None,
-              None,
+          let #(payload, next_store, staged_ids) = case
+            customer_account_invitable(customer)
+          {
+            True -> {
+              let updated = CustomerRecord(..customer, state: Some("INVITED"))
+              let #(_, next_store) = store.stage_update_customer(store, updated)
+              #(
+                customer_payload_json(
+                  next_store,
+                  "CustomerSendAccountInviteEmailPayload",
+                  Some(updated),
+                  None,
+                  None,
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                [id],
+              )
+            }
+            False -> #(
+              customer_payload_json(
+                store,
+                "CustomerSendAccountInviteEmailPayload",
+                Some(customer),
+                None,
+                None,
+                [
+                  UserError(
+                    ["customerId"],
+                    "Account already enabled",
+                    Some("ACCOUNT_ALREADY_ENABLED"),
+                  ),
+                ],
+                field,
+                fragments,
+              ),
+              store,
               [],
-              field,
-              fragments,
             )
+          }
           #(
             MutationFieldResult(
               get_field_response_key(field),
               payload,
-              [id],
+              staged_ids,
               "customerSendAccountInviteEmail",
             ),
             next_store,
@@ -5584,6 +5613,13 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
         "Customer can't be found",
         None,
       )
+  }
+}
+
+fn customer_account_invitable(customer: CustomerRecord) -> Bool {
+  case customer.state {
+    Some("DISABLED") | Some("INVITED") -> True
+    _ -> False
   }
 }
 
