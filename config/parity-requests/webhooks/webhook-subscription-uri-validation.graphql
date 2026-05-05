@@ -1,0 +1,50 @@
+mutation WebhookSubscriptionUriValidation(
+  $baselineTopic: WebhookSubscriptionTopic!
+  $baselineWebhookSubscription: WebhookSubscriptionInput!
+) {
+  createHttpUriRejected: webhookSubscriptionCreate(
+    topic: SHOP_UPDATE
+    webhookSubscription: { uri: "http://example.com/hook", format: JSON }
+  ) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  createInternalDomainRejected: webhookSubscriptionCreate(
+    topic: SHOP_UPDATE
+    webhookSubscription: { uri: "https://localhost:3000/hook", format: JSON }
+  ) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  createShopifyDomainRejected: webhookSubscriptionCreate(
+    topic: SHOP_UPDATE
+    webhookSubscription: { uri: "https://example.myshopify.com/hook", format: JSON }
+  ) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  baselineCreate: webhookSubscriptionCreate(topic: $baselineTopic, webhookSubscription: $baselineWebhookSubscription) {
+    webhookSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

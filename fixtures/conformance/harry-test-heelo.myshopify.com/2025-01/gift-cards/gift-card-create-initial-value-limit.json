@@ -1,0 +1,183 @@
+{
+  "capturedAt": "2026-05-05T21:59:56.907Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "HAR-767 captures giftCardCreate initialValue validation against giftCardConfiguration.issueLimit.",
+    "The captured shop issue limit is 3000.0 CAD; boundary uses the exact limit, overByCent adds $0.01, and wellOver uses 1000000.0.",
+    "The boundary success gift card is deactivated during cleanup. Rejected branches should not create gift-card records."
+  ],
+  "proxyVariables": {
+    "initialValueLimit": {
+      "boundary": "3000.0",
+      "overByCent": "3000.01",
+      "wellOver": "1000000.0"
+    }
+  },
+  "operations": {
+    "configurationRead": {
+      "label": "configurationRead",
+      "query": "#graphql\n  query GiftCardCreateConfiguration {\n    giftCardConfiguration {\n      issueLimit { amount currencyCode }\n      purchaseLimit { amount currencyCode }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "initialValueLimit": {
+      "label": "initialValueLimit",
+      "query": "#graphql\n  mutation GiftCardCreateInitialValueLimit(\n    $boundary: Decimal!\n    $overByCent: Decimal!\n    $wellOver: Decimal!\n  ) {\n    boundarySuccess: giftCardCreate(input: { initialValue: $boundary }) {\n      giftCard {\n        id\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    overByCent: giftCardCreate(input: { initialValue: $overByCent }) {\n      giftCard {\n        id\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n    wellOver: giftCardCreate(input: { initialValue: $wellOver }) {\n      giftCard {\n        id\n      }\n      userErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "boundary": "3000.0",
+        "overByCent": "3000.01",
+        "wellOver": "1000000.0"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "boundarySuccess": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654853800242",
+                "initialValue": {
+                  "amount": "3000.0",
+                  "currencyCode": "CAD"
+                },
+                "balance": {
+                  "amount": "3000.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "userErrors": []
+            },
+            "overByCent": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "initialValue"],
+                  "code": "GIFT_CARD_LIMIT_EXCEEDED",
+                  "message": "can't exceed $3,000.00 CAD"
+                }
+              ]
+            },
+            "wellOver": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "initialValue"],
+                  "code": "GIFT_CARD_LIMIT_EXCEEDED",
+                  "message": "can't exceed $3,000.00 CAD"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 30,
+              "actualQueryCost": 30,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDeactivate:boundarySuccess",
+      "query": "#graphql\n      mutation GiftCardCreateInitialValueLimitCleanup($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654853800242"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654853800242",
+                "enabled": false,
+                "deactivatedAt": "2026-05-05T21:59:56Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "GiftCardCreateConfiguration",
+      "variables": {},
+      "query": "#graphql\n  query GiftCardCreateConfiguration {\n    giftCardConfiguration {\n      issueLimit { amount currencyCode }\n      purchaseLimit { amount currencyCode }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,868 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": {
+    "blankSubject": {
+      "customerId": "gid://shopify/Customer/10582984818994",
+      "create": {
+        "variables": {
+          "input": {
+            "firstName": "Hermes",
+            "lastName": "blank-subject",
+            "tags": ["invite-validation"],
+            "email": "hermes-invite-blank-subject-1778019290909@example.com"
+          }
+        },
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582984818994",
+                "state": "DISABLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "invite": {
+        "variables": {
+          "customerId": "gid://shopify/Customer/10582984818994",
+          "email": {
+            "subject": ""
+          }
+        },
+        "response": {
+          "data": {
+            "customerSendAccountInviteEmail": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": ["email", "subject"],
+                  "message": "Subject can't be blank",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "readAfterInvite": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582984818994"
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582984818994",
+              "state": "DISABLED"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    "invalidTo": {
+      "customerId": "gid://shopify/Customer/10582984851762",
+      "create": {
+        "variables": {
+          "input": {
+            "firstName": "Hermes",
+            "lastName": "invalid-to",
+            "tags": ["invite-validation"],
+            "phone": "+14155550910"
+          }
+        },
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582984851762",
+                "state": "DISABLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "invite": {
+        "variables": {
+          "customerId": "gid://shopify/Customer/10582984851762",
+          "email": {
+            "subject": "Account invite",
+            "to": "not-an-email"
+          }
+        },
+        "response": {
+          "data": {
+            "customerSendAccountInviteEmail": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": ["email", "to"],
+                  "message": "To is invalid",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "readAfterInvite": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582984851762"
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582984851762",
+              "state": "DISABLED"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    "invalidFrom": {
+      "customerId": "gid://shopify/Customer/10582984884530",
+      "create": {
+        "variables": {
+          "input": {
+            "firstName": "Hermes",
+            "lastName": "invalid-from",
+            "tags": ["invite-validation"],
+            "email": "hermes-invite-invalid-from-1778019290909@example.com"
+          }
+        },
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582984884530",
+                "state": "DISABLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "invite": {
+        "variables": {
+          "customerId": "gid://shopify/Customer/10582984884530",
+          "email": {
+            "subject": "Account invite",
+            "from": "not-an-email"
+          }
+        },
+        "response": {
+          "data": {
+            "customerSendAccountInviteEmail": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": ["email", "from"],
+                  "message": "From Sender is invalid",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "readAfterInvite": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582984884530"
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582984884530",
+              "state": "DISABLED"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    "invalidBcc": {
+      "customerId": "gid://shopify/Customer/10582984917298",
+      "create": {
+        "variables": {
+          "input": {
+            "firstName": "Hermes",
+            "lastName": "invalid-bcc",
+            "tags": ["invite-validation"],
+            "email": "hermes-invite-invalid-bcc-1778019290909@example.com"
+          }
+        },
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582984917298",
+                "state": "DISABLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "invite": {
+        "variables": {
+          "customerId": "gid://shopify/Customer/10582984917298",
+          "email": {
+            "subject": "Account invite",
+            "bcc": ["bad", "ok@example.com"]
+          }
+        },
+        "response": {
+          "data": {
+            "customerSendAccountInviteEmail": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": ["email", "bcc"],
+                  "message": "Bcc bad is not a valid bcc address and ok@example.com is not a valid bcc address",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "readAfterInvite": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582984917298"
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582984917298",
+              "state": "DISABLED"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    "oversizedSubject": {
+      "customerId": "gid://shopify/Customer/10582984950066",
+      "create": {
+        "variables": {
+          "input": {
+            "firstName": "Hermes",
+            "lastName": "oversized-subject",
+            "tags": ["invite-validation"],
+            "email": "hermes-invite-oversized-subject-1778019290909@example.com"
+          }
+        },
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582984950066",
+                "state": "DISABLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "invite": {
+        "variables": {
+          "customerId": "gid://shopify/Customer/10582984950066",
+          "email": {
+            "subject": "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+          }
+        },
+        "response": {
+          "data": {
+            "customerSendAccountInviteEmail": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": ["customerId"],
+                  "message": "Error sending account invite to customer.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "readAfterInvite": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582984950066"
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582984950066",
+              "state": "DISABLED"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    "oversizedCustomMessage": {
+      "customerId": "gid://shopify/Customer/10582985015602",
+      "create": {
+        "variables": {
+          "input": {
+            "firstName": "Hermes",
+            "lastName": "oversized-custom-message",
+            "tags": ["invite-validation"],
+            "email": "hermes-invite-oversized-custom-message-1778019290909@example.com"
+          }
+        },
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582985015602",
+                "state": "DISABLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "invite": {
+        "variables": {
+          "customerId": "gid://shopify/Customer/10582985015602",
+          "email": {
+            "subject": "Account invite",
+            "customMessage": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+          }
+        },
+        "response": {
+          "data": {
+            "customerSendAccountInviteEmail": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": ["customerId"],
+                  "message": "Error sending account invite to customer.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "readAfterInvite": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582985015602"
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582985015602",
+              "state": "DISABLED"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      }
+    },
+    "htmlCustomMessage": {
+      "customerId": "gid://shopify/Customer/10582985048370",
+      "create": {
+        "variables": {
+          "input": {
+            "firstName": "Hermes",
+            "lastName": "html-custom-message",
+            "tags": ["invite-validation"],
+            "email": "hermes-invite-html-custom-message-1778019290909@example.com"
+          }
+        },
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582985048370",
+                "state": "DISABLED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "invite": {
+        "variables": {
+          "customerId": "gid://shopify/Customer/10582985048370",
+          "email": {
+            "subject": "Account invite",
+            "customMessage": "<script>alert(1)</script>"
+          }
+        },
+        "response": {
+          "data": {
+            "customerSendAccountInviteEmail": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": ["customerId"],
+                  "message": "Error sending account invite to customer.",
+                  "code": "INVALID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      },
+      "readAfterInvite": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582985048370"
+        },
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582985048370",
+              "state": "DISABLED"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "status": 200
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582985048370"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582985048370",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582985015602"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582985015602",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582984950066"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582984950066",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582984917298"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582984917298",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582984884530"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582984884530",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582984851762"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582984851762",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582984818994"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582984818994",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

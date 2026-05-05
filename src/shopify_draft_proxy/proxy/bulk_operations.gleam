@@ -300,6 +300,22 @@ fn bulk_operation_cursor(
   option.unwrap(operation.cursor, operation.id)
 }
 
+fn created_bulk_operation_response(
+  operation: BulkOperationRecord,
+) -> BulkOperationRecord {
+  BulkOperationRecord(
+    ..operation,
+    status: "CREATED",
+    error_code: None,
+    completed_at: None,
+    object_count: "0",
+    root_object_count: "0",
+    file_size: None,
+    url: None,
+    partial_data_url: None,
+  )
+}
+
 fn sort_bulk_operations(
   operations: List(BulkOperationRecord),
   sort_key: String,
@@ -616,7 +632,7 @@ fn handle_bulk_operation_run_query(
               key: key,
               payload: serialize_run_query_payload(
                 field,
-                Some(staged),
+                Some(created_bulk_operation_response(staged)),
                 [],
                 fragments,
               ),
@@ -655,48 +671,53 @@ fn build_run_query_jsonl(
             [root] ->
               case selected_bulk_query_node_fields(root, fragments) {
                 Some(node_fields) ->
-                  case root_field_name(root) {
-                    Some("products") -> {
-                      let products = store.list_effective_products(store)
-                      let root_count =
-                        local_or_upstream_products_count(
-                          products,
-                          root,
-                          upstream,
-                        )
-                      Ok(BulkQueryResult(
-                        result_jsonl: make_jsonl(
-                          list.map(products, fn(product) {
-                            project_graphql_value(
-                              product_export_source(product),
-                              node_fields,
-                              fragments,
+                  case find_in_progress_bulk_operation(store, "QUERY") {
+                    Some(operation) ->
+                      Error([operation_in_progress_error(operation, "query")])
+                    None ->
+                      case root_field_name(root) {
+                        Some("products") -> {
+                          let products = store.list_effective_products(store)
+                          let root_count =
+                            local_or_upstream_products_count(
+                              products,
+                              root,
+                              upstream,
                             )
-                          }),
-                        ),
-                        object_count: root_count,
-                        root_object_count: root_count,
-                      ))
-                    }
-                    Some("productVariants") -> {
-                      let variants =
-                        store.list_effective_product_variants(store)
-                      let root_count = list.length(variants)
-                      Ok(BulkQueryResult(
-                        result_jsonl: make_jsonl(
-                          list.map(variants, fn(variant) {
-                            project_graphql_value(
-                              product_variant_export_source(store, variant),
-                              node_fields,
-                              fragments,
-                            )
-                          }),
-                        ),
-                        object_count: root_count,
-                        root_object_count: root_count,
-                      ))
-                    }
-                    _ -> Error([no_connection_bulk_query_error()])
+                          Ok(BulkQueryResult(
+                            result_jsonl: make_jsonl(
+                              list.map(products, fn(product) {
+                                project_graphql_value(
+                                  product_export_source(product),
+                                  node_fields,
+                                  fragments,
+                                )
+                              }),
+                            ),
+                            object_count: root_count,
+                            root_object_count: root_count,
+                          ))
+                        }
+                        Some("productVariants") -> {
+                          let variants =
+                            store.list_effective_product_variants(store)
+                          let root_count = list.length(variants)
+                          Ok(BulkQueryResult(
+                            result_jsonl: make_jsonl(
+                              list.map(variants, fn(variant) {
+                                project_graphql_value(
+                                  product_variant_export_source(store, variant),
+                                  node_fields,
+                                  fragments,
+                                )
+                              }),
+                            ),
+                            object_count: root_count,
+                            root_object_count: root_count,
+                          ))
+                        }
+                        _ -> Error([no_connection_bulk_query_error()])
+                      }
                   }
                 None -> Error([no_connection_bulk_query_error()])
               }
@@ -1269,19 +1290,15 @@ fn handle_bulk_operation_run_mutation(
             validation_error,
           )
         Ok(_inner_root) ->
-          case store.get_staged_upload_content(store, path) {
-            None -> #(
+          case find_in_progress_bulk_operation(store, "MUTATION") {
+            Some(operation) -> #(
               MutationFieldResult(
                 key: key,
                 payload: serialize_run_mutation_payload(
                   field,
                   None,
                   [
-                    UserError(
-                      field: None,
-                      message: "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
-                      code: Some("NO_SUCH_FILE"),
-                    ),
+                    operation_in_progress_error(operation, "mutation"),
                   ],
                   fragments,
                 ),
@@ -1291,17 +1308,41 @@ fn handle_bulk_operation_run_mutation(
               store,
               identity,
             )
-            Some(content) ->
-              stage_supported_run_mutation(
-                store,
-                identity,
-                request_path,
-                field,
-                fragments,
-                key,
-                mutation_string,
-                content,
-              )
+            None ->
+              case store.get_staged_upload_content(store, path) {
+                None -> #(
+                  MutationFieldResult(
+                    key: key,
+                    payload: serialize_run_mutation_payload(
+                      field,
+                      None,
+                      [
+                        UserError(
+                          field: None,
+                          message: "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+                          code: Some("NO_SUCH_FILE"),
+                        ),
+                      ],
+                      fragments,
+                    ),
+                    staged_resource_ids: [],
+                    log_drafts: [],
+                  ),
+                  store,
+                  identity,
+                )
+                Some(content) ->
+                  stage_supported_run_mutation(
+                    store,
+                    identity,
+                    request_path,
+                    field,
+                    fragments,
+                    key,
+                    mutation_string,
+                    content,
+                  )
+              }
           }
       }
   }
@@ -1408,7 +1449,7 @@ fn stage_supported_run_mutation(
       key: key,
       payload: serialize_run_mutation_payload(
         field,
-        Some(operation),
+        Some(created_bulk_operation_response(operation)),
         [],
         fragments,
       ),
@@ -1737,20 +1778,19 @@ fn build_and_stage_mutation_operation(
   result_jsonl: String,
   object_count: Int,
 ) -> #(BulkOperationRecord, Store, SyntheticIdentityRegistry) {
-  let #(completed_at, identity_after_completed) =
-    synthetic_identity.make_synthetic_timestamp(identity)
   let #(operation_id, identity_after_id) =
-    synthetic_identity.make_synthetic_gid(
-      identity_after_completed,
-      "BulkOperation",
-    )
+    synthetic_identity.make_synthetic_gid(identity, "BulkOperation")
+  let #(created_at, identity_after_created) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let #(completed_at, identity_after_completed) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_created)
   let operation =
     BulkOperationRecord(
       id: operation_id,
       status: status,
       type_: "MUTATION",
       error_code: None,
-      created_at: completed_at,
+      created_at: created_at,
       completed_at: Some(completed_at),
       object_count: int.to_string(object_count),
       root_object_count: int.to_string(object_count),
@@ -1763,7 +1803,7 @@ fn build_and_stage_mutation_operation(
     )
   let #(staged, next_store) =
     store.stage_bulk_operation_result(store, operation, result_jsonl)
-  #(staged, next_store, identity_after_id)
+  #(staged, next_store, identity_after_completed)
 }
 
 fn variables_dict_decoder() -> decode.Decoder(
@@ -2121,6 +2161,32 @@ fn terminal_cancel_error(operation: BulkOperationRecord) -> UserError {
       <> string.lowercase(operation.status),
     code: None,
   )
+}
+
+fn operation_in_progress_error(
+  operation: BulkOperationRecord,
+  operation_kind: String,
+) -> UserError {
+  UserError(
+    field: None,
+    message: "A bulk "
+      <> operation_kind
+      <> " operation for this app and shop is already in progress: "
+      <> operation.id
+      <> ".",
+    code: Some("OPERATION_IN_PROGRESS"),
+  )
+}
+
+fn find_in_progress_bulk_operation(
+  store: Store,
+  operation_type: String,
+) -> Option(BulkOperationRecord) {
+  store.list_effective_bulk_operations(store)
+  |> list.find(fn(operation) {
+    operation.type_ == operation_type && !is_terminal_status(operation.status)
+  })
+  |> option.from_result
 }
 
 fn is_terminal_status(status: String) -> Bool {

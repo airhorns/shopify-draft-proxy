@@ -64,6 +64,24 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: Customer address Atlas validation normalizes some apparent conflicts
+
+HAR-776 captured Admin GraphQL 2025-01 customer address validation against
+`harry-test-heelo.myshopify.com`. Two branches contradicted the original ticket
+expectation:
+
+- `countryCode` / `countryCodeV2` wins over a conflicting display `country`.
+  `countryCode: US` plus `country: "Canada"` is accepted and returns
+  `country: "United States"`.
+- countries without Atlas zones, such as `SG`, ignore submitted province values
+  instead of returning a userError; Shopify returns `province: null` and
+  `provinceCode: null`.
+
+Unknown countries and country-specific province mismatches still return payload
+`userErrors` (`Country is invalid` / `Province is invalid`) and do not stage a
+local address. The executable evidence is
+`config/parity-specs/customers/customer_address_country_province_validation.json`.
+
 ## Current: Online-store body HTML is not scrubbed by Admin GraphQL
 
 HAR-741 resolves the HAR-561 source-of-truth mismatch: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned page/article bodies containing script blocks and event-handler attributes verbatim in create payloads and immediate detail reads.
@@ -95,6 +113,28 @@ Two nearby 2026-04 traps from the same capture:
 - duplicate `companyLocationAssignAddress(addressTypes: [BILLING, BILLING])`
   returns `addresses: null` and a single `INVALID_INPUT` userError with
   `field: null` and message `Invalid input.`
+
+## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
+
+HAR-755 is implemented from the Business Customers package guardrail that caps
+bulk action inputs at 50 entries before per-entry processing. A live feasibility
+probe against `harry-test-heelo.myshopify.com` on Admin GraphQL 2026-04 did not
+produce one clean parity fixture for that contract:
+
+- `companiesDelete(companyIds: <51 missing-style gids>)` returned
+  `LIMIT_REACHED`, but with message
+  `Exceeded max input size of 50. Consider using BulkOperation.` and
+  `deletedCompanyIds: null`.
+- `companyContactAssignRoles(rolesToAssign: <51 valid role specs>)` accepted
+  the request and created 51 role assignments on a disposable company.
+- `currentStaffMember` and `staffMembers` remain access denied for the current
+  conformance token, so valid staff-assignment bulk limit evidence cannot be
+  captured on this host.
+
+Practical rule: keep HAR-755 runtime coverage focused on the internal B2B
+request guard contract and avoid adding a checked-in parity spec for the public
+2026-04 probe until a future live target reproduces the intended branch across
+the affected roots.
 
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
@@ -2863,7 +2903,7 @@ Useful constraints:
 
 - `discountRedeemCodeBulkAdd` is narrow and locally stageable because an explicit code list can be appended to one known code discount and reflected in `codes`, `codesCount`, `codeDiscountNodeByCode`, and catalog reads.
 - The introspected delete root is `discountCodeRedeemCodeBulkDelete`; the older `discountRedeemCodeBulkDelete` name remains a compatibility match alias, but new tests and docs should use the introspected root.
-- Local redeem-code bulk delete supports explicit redeem-code IDs only. Search and saved-search selectors are intentionally refused locally because they can describe broad destructive writes and need separate conformance evidence before staging.
+- HAR-785 live 2026-04 validation capture for `discountCodeRedeemCodeBulkDelete` shows the base selector errors serialize as `field: null` in Admin GraphQL, despite the internal source helper naming the base field. The same capture shows unknown discounts return `field: ["discountId"]`, message `Code discount does not exist.`, and empty `ids` returns the generic `Something went wrong, please try again.` with `code: null`.
 - The broad code/automatic bulk roots stay unimplemented. Blank search and no-selector destructive inputs are locally refused; other unsupported selector shapes still use the unsupported passthrough escape hatch so the mutation log records the registered unimplemented operation.
 - Local job-like payloads are completed immediately because the in-memory state change has already happened. Keep this scoped to selected fields with stable evidence (`id`, `done`, `query`, and bulk creation counts) until live captures justify modeling asynchronous progress or failure details.
 

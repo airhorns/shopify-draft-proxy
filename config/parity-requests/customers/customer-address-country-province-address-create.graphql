@@ -1,0 +1,23 @@
+mutation CustomerAddressCountryProvinceAddressCreate(
+  $customerId: ID!
+  $address: MailingAddressInput!
+  $setAsDefault: Boolean
+) {
+  customerAddressCreate(customerId: $customerId, address: $address, setAsDefault: $setAsDefault) {
+    address {
+      id
+      address1
+      city
+      country
+      countryCodeV2
+      province
+      provinceCode
+      zip
+      formattedArea
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

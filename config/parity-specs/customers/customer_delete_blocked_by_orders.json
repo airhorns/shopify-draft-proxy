@@ -1,0 +1,103 @@
+{
+  "scenarioId": "customer_delete_blocked_by_orders",
+  "operationNames": ["customerCreate", "orderCreate", "customerDelete", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2025-01/customers/customer_delete_blocked_by_orders.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-customer-create.graphql",
+    "variablesCapturePath": "$.setup.customerCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-customer",
+        "capturePath": "$.expected.customerCreate.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors"
+      },
+      {
+        "name": "setup-order",
+        "capturePath": "$.expected.orderCreate.data.orderCreate.userErrors",
+        "proxyPath": "$.data.orderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-order-create.graphql",
+          "variables": {
+            "order": {
+              "email": "har-773-order@example.test",
+              "customerId": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "currency": "CAD",
+              "lineItems": [
+                {
+                  "title": "HAR-773 blocking line",
+                  "quantity": 1,
+                  "priceSet": {
+                    "shopMoney": {
+                      "amount": "9.99",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "blocked-delete",
+        "capturePath": "$.expected.customerDelete.data.customerDelete",
+        "proxyPath": "$.data.customerDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-delete.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "read-after-blocked-delete",
+        "capturePath": "$.expected.readAfterBlockedDelete.data.customer",
+        "proxyPath": "$.data.customer",
+        "expectedDifferences": [
+          {
+            "path": "$.orders.nodes[*].id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The local runtime allocates deterministic synthetic Order GIDs independently from the fixture label."
+          },
+          {
+            "path": "$.orders.pageInfo.startCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+          },
+          {
+            "path": "$.orders.pageInfo.endCursor",
+            "matcher": "any-string",
+            "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-773 executable local-runtime parity for Shopify's customerDelete order precondition. Live Shopify evidence from harry-test-heelo.myshopify.com on 2025-01 returned field [\"id\"] and message \"Customer can’t be deleted because they have associated orders\"; customerDelete.userErrors is public UserError, so selecting code is a GraphQL error and no code is pinned here. The replay creates a customer, creates a completed order for that customer, verifies customerDelete is blocked without deleting, and verifies a follow-up customer(id:) read still returns the customer and linked order."
+}

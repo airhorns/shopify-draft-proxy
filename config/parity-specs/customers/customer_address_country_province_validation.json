@@ -1,0 +1,166 @@
+{
+  "scenarioId": "customer-address-country-province-validation",
+  "operationNames": [
+    "customerCreate",
+    "customerUpdate",
+    "customerSet",
+    "customerAddressCreate",
+    "customerAddressUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-address-country-province-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-address-country-province-create.graphql",
+    "variablesCapturePath": "$.validControl.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for HAR-776: customer address inputs reject unknown countries and provinces that do not belong to the resolved country across CustomerInput and dedicated address mutations. Live Shopify normalizes countryCode over a conflicting country display name, and ignores province input for Singapore because the Atlas country has no zones; the local proxy follows that captured behavior rather than the original ticket assumption.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages customerCreate locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
+      },
+      {
+        "path": "$.customer.defaultAddress.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages CustomerInput addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "valid-control",
+        "capturePath": "$.validControl.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate"
+      },
+      {
+        "name": "address-create-unknown-country",
+        "capturePath": "$.addressCreateUnknownCountry.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-country-province-address-create.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "address": {
+              "address1": "5 Invalid Country",
+              "city": "Nowhere",
+              "countryCode": "ZZ",
+              "provinceCode": "ZZ"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "address-create-wrong-province-country",
+        "capturePath": "$.addressCreateWrongProvinceCountry.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-country-province-address-create.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "address": {
+              "address1": "6 Wrong Province",
+              "city": "Chicago",
+              "countryCode": "US",
+              "provinceCode": "ON"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "address-update-wrong-province-country",
+        "capturePath": "$.addressUpdateWrongProvinceCountry.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-country-province-address-update.graphql",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "addressId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.defaultAddress.id"
+            },
+            "address": { "countryCode": "US", "provinceCode": "ON" },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "customer-update-wrong-province-country",
+        "capturePath": "$.customerUpdateWrongProvinceCountry.response.data.customerUpdate",
+        "proxyPath": "$.data.customerUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-country-province-update.graphql",
+          "variables": {
+            "input": {
+              "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+              "addresses": [
+                {
+                  "address1": "7 Wrong Province",
+                  "city": "Chicago",
+                  "countryCode": "US",
+                  "provinceCode": "ON"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "customer-set-wrong-province-country",
+        "capturePath": "$.customerSetWrongProvinceCountry.response.data.customerSet",
+        "proxyPath": "$.data.customerSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-country-province-set.graphql",
+          "variables": {
+            "identifier": { "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" } },
+            "input": {
+              "email": { "fromCapturePath": "$.validControl.variables.input.email" },
+              "addresses": [
+                {
+                  "address1": "8 Wrong Province",
+                  "city": "Chicago",
+                  "countryCode": "US",
+                  "provinceCode": "ON"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "customer-create-unknown-country",
+        "capturePath": "$.customerCreateUnknownCountry.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-country-province-create.graphql",
+          "variablesCapturePath": "$.customerCreateUnknownCountry.variables"
+        }
+      },
+      {
+        "name": "customer-create-display-conflict-normalizes",
+        "capturePath": "$.customerCreateDisplayConflict.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-country-province-create.graphql",
+          "variablesCapturePath": "$.customerCreateDisplayConflict.variables"
+        }
+      },
+      {
+        "name": "customer-create-no-zone-province-ignored",
+        "capturePath": "$.customerCreateNoZoneProvince.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-country-province-create.graphql",
+          "variablesCapturePath": "$.customerCreateNoZoneProvince.variables"
+        }
+      }
+    ]
+  }
+}

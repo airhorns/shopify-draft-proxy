@@ -1,5 +1,5 @@
 query ValidationsConnection {
-  validations(first: 20) {
+  validations(first: 30) {
     nodes {
       id
       metafields(first: 5) {

@@ -19,14 +19,9 @@
     "targets": [
       {
         "name": "run-query-group-objects-true.bulkOperation",
-        "capturePath": "$.runs.runQueryGroupObjectsTrue.terminalOperation",
+        "capturePath": "$.runs.runQueryGroupObjectsTrue.run.response.data.bulkOperationRunQuery.bulkOperation",
         "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
         "expectedDifferences": [
-          {
-            "path": "$.completedAt",
-            "matcher": "iso-timestamp",
-            "reason": "The local proxy completes the synthetic export immediately with its own deterministic clock."
-          },
           {
             "path": "$.createdAt",
             "matcher": "iso-timestamp",
@@ -36,16 +31,6 @@
             "path": "$.id",
             "matcher": "shopify-gid:BulkOperation",
             "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
-          },
-          {
-            "path": "$.fileSize",
-            "matcher": "non-empty-string",
-            "reason": "Shopify reports the stored artifact size while the proxy reports the byte length of its generated local JSONL."
-          },
-          {
-            "path": "$.url",
-            "matcher": "non-empty-string",
-            "reason": "Shopify returns a signed storage URL while the proxy serves an in-memory local result URL."
           }
         ]
       },

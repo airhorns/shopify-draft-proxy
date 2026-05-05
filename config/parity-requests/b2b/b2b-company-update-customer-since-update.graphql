@@ -1,0 +1,14 @@
+mutation B2BCustomerSinceCompanyUpdate($companyId: ID!, $input: CompanyInput!) {
+  companyUpdate(companyId: $companyId, input: $input) {
+    company {
+      id
+      name
+      customerSince
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

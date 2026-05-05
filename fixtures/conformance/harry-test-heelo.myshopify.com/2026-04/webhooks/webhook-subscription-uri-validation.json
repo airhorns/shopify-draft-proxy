@@ -1,0 +1,166 @@
+{
+  "capturedAt": "2026-05-05T07:30:03.745Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "HAR-719 captures webhookSubscriptionCreate and webhookSubscriptionUpdate URI validation userErrors against live Shopify.",
+    "The baseline subscription is created only so the invalid update can target a real ID; it is deleted during cleanup.",
+    "No webhook delivery is intentionally triggered by this validation capture."
+  ],
+  "preCaptureCleanup": [
+    {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webhookSubscriptionDelete": {
+            "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1927961477426",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "primary": {
+    "documentPath": "config/parity-requests/webhooks/webhook-subscription-uri-validation.graphql",
+    "variables": {
+      "baselineTopic": "SHOP_UPDATE",
+      "baselineWebhookSubscription": {
+        "filter": "",
+        "format": "JSON",
+        "includeFields": ["id"],
+        "metafieldNamespaces": [],
+        "uri": "https://example.com/hermes-webhook-uri-validation-1777966202288"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "createHttpUriRejected": {
+            "webhookSubscription": null,
+            "userErrors": [
+              {
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address protocol http:// is not supported"
+              }
+            ]
+          },
+          "createInternalDomainRejected": {
+            "webhookSubscription": null,
+            "userErrors": [
+              {
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address cannot be a Shopify or an internal domain"
+              }
+            ]
+          },
+          "createShopifyDomainRejected": {
+            "webhookSubscription": null,
+            "userErrors": [
+              {
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address cannot be a Shopify or an internal domain"
+              }
+            ]
+          },
+          "baselineCreate": {
+            "webhookSubscription": {
+              "id": "gid://shopify/WebhookSubscription/1927972356402"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 40,
+            "actualQueryCost": 40,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1960,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateHttp": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+    "variables": {
+      "id": "gid://shopify/WebhookSubscription/1927972356402",
+      "webhookSubscription": {
+        "format": "JSON",
+        "includeFields": ["id"],
+        "metafieldNamespaces": [],
+        "uri": "http://example.com/hook"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webhookSubscriptionUpdate": {
+            "webhookSubscription": null,
+            "userErrors": [
+              {
+                "field": ["webhookSubscription", "callbackUrl"],
+                "message": "Address protocol http:// is not supported"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+    "variables": {
+      "id": "gid://shopify/WebhookSubscription/1927972356402"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "webhookSubscriptionDelete": {
+            "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1927972356402",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

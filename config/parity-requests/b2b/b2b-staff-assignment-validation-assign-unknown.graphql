@@ -1,0 +1,18 @@
+mutation B2BStaffAssignmentValidationAssignUnknown($companyLocationId: ID!, $staffMemberIds: [ID!]!) {
+  companyLocationAssignStaffMembers(companyLocationId: $companyLocationId, staffMemberIds: $staffMemberIds) {
+    companyLocationStaffMemberAssignments {
+      id
+      staffMember {
+        id
+      }
+      companyLocation {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

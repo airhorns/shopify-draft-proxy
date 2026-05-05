@@ -1,0 +1,77 @@
+{
+  "scenarioId": "b2b-staff-assign-unknown-user",
+  "operationNames": ["companyCreate", "companyLocationAssignStaffMembers", "companyLocation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-staff-assignment-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-staff-assignment-validation-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "HAR-761 executable parity coverage for companyLocationAssignStaffMembers unknown staff-member validation. The live fixture creates a disposable company location, records Shopify's per-index RESOURCE_NOT_FOUND response for an absent StaffMember ID, confirms no downstream staff assignment was created, and deletes the company. The same fixture records that staffMembers(first:) is still ACCESS_DENIED for this credential, so valid-staff partial-success assignment remains covered by focused runtime tests rather than a live staff-catalog parity target.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-setup",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different company location IDs."
+          }
+        ]
+      },
+      {
+        "name": "assign-unknown-staff-payload",
+        "capturePath": "$.assignUnknownStaff.response.data.companyLocationAssignStaffMembers",
+        "proxyPath": "$.data.companyLocationAssignStaffMembers",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-staff-assignment-validation-assign-unknown.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "staffMemberIds": {
+              "fromCapturePath": "$.assignUnknownStaff.request.variables.staffMemberIds"
+            }
+          }
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "read-after-unknown-staff",
+        "capturePath": "$.readAfterUnknownAssign.response.data.companyLocation",
+        "proxyPath": "$.data.companyLocation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-staff-assignment-validation-read-after-unknown.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy downstream read uses the locally staged company location ID."
+          }
+        ]
+      }
+    ]
+  }
+}

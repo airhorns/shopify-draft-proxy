@@ -64,5 +64,5 @@
       }
     ]
   },
-  "notes": "HAR-403 requested-change parity evidence for preserving known ShopifyFunction owner/app metadata. The local-runtime fixture seeds captured Function records with app ownership fields, then verifies validationCreate, validationUpdate, cartTransformCreate, shopifyFunction, and shopifyFunctions preserve and project that metadata without runtime Shopify writes. HAR-703 updates the validationUpdate leg so update edits preserve the existing Function binding instead of re-binding through functionHandle. Live app authorization and released Function eligibility remain tracked in HAR-416."
+  "notes": "HAR-403 requested-change parity evidence for preserving known ShopifyFunction owner/app metadata. The local-runtime fixture seeds captured Function records with app ownership fields, then verifies validationCreate, validationUpdate, cartTransformCreate, shopifyFunction, and shopifyFunctions preserve and project that metadata without runtime Shopify writes. HAR-703 updates the validationUpdate leg so update edits preserve the existing Function binding instead of re-binding through functionHandle. HAR-778 updates the title-only validationUpdate fixture to reflect Shopify's ValidationUpdateInput defaults: omitted enable and blockOnFailure reset to false. Live app authorization and released Function eligibility remain tracked in HAR-416."
 }

@@ -1,0 +1,10 @@
+mutation HAR754ContactRevokeRoles($companyContactId: ID!, $roleAssignmentIds: [ID!]!) {
+  companyContactRevokeRoles(companyContactId: $companyContactId, roleAssignmentIds: $roleAssignmentIds) {
+    revokedRoleAssignmentIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
