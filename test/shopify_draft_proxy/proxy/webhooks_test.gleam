@@ -2,6 +2,7 @@ import gleam/dict
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/state/store
@@ -673,6 +674,24 @@ fn run_mutation(store_in: store.Store, document: String) -> String {
   json.to_string(outcome.data)
 }
 
+fn run_mutation_with_api_client_id(
+  store_in: store.Store,
+  document: String,
+  api_client_id: String,
+) -> String {
+  let identity = synthetic_identity.new()
+  let outcome =
+    webhooks.process_mutation_with_headers(
+      store_in,
+      identity,
+      "/admin/api/2025-01/graphql.json",
+      document,
+      dict.new(),
+      dict.from_list([#("x-shopify-draft-proxy-api-client-id", api_client_id)]),
+    )
+  json.to_string(outcome.data)
+}
+
 fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
@@ -711,6 +730,63 @@ pub fn webhook_subscription_create_blank_uri_user_error_test() {
   // Empty URI → user-error; webhookSubscription is null
   assert body
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
+}
+
+pub fn webhook_subscription_create_rejects_pubsub_no_topic_test() {
+  assert_create_uri_rejected("pubsub://my-project", [
+    "Address protocol pubsub:// is not supported",
+    "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic",
+  ])
+}
+
+pub fn webhook_subscription_create_rejects_bad_pubsub_project_test() {
+  assert_create_uri_rejected("pubsub://-bad:topic", [
+    "Address is invalid",
+    "Address is not a valid GCP project id.",
+  ])
+}
+
+pub fn webhook_subscription_create_rejects_bad_pubsub_topics_test() {
+  assert_create_uri_rejected("pubsub://valid-project:goog-prefixed", [
+    "Address is invalid",
+    "Address is not a valid GCP topic id.",
+  ])
+  assert_create_uri_rejected("pubsub://valid-project:go", [
+    "Address is invalid",
+    "Address is not a valid GCP topic id.",
+  ])
+  assert_create_uri_rejected(
+    "pubsub://valid-project:a" <> string.repeat("b", times: 255),
+    ["Address is invalid", "Address is not a valid GCP topic id."],
+  )
+  assert_create_uri_rejected("pubsub://valid-project:bad/topic", [
+    "Address is invalid",
+    "Address is not a valid GCP topic id.",
+  ])
+}
+
+pub fn webhook_subscription_create_rejects_malformed_arn_test() {
+  assert_create_uri_rejected("arn:aws:events:bogus", [
+    "Address is invalid",
+    "Address is not a valid AWS ARN",
+  ])
+}
+
+pub fn webhook_subscription_create_rejects_wrong_eventbridge_api_client_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let body =
+    run_mutation_with_api_client_id(store.new(), document, "347082227713")
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is invalid\"},{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'\"}]}}}"
+}
+
+pub fn webhook_subscription_create_rejects_kafka_uri_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"kafka://broker/topic\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol kafka:// is not supported\"},{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is not a valid kafka topic\"}]}}}"
 }
 
 pub fn webhook_subscription_create_accepts_callback_url_alias_test() {
@@ -766,6 +842,46 @@ pub fn webhook_subscription_update_modifies_record_test() {
     == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new\"},\"userErrors\":[]}}}"
 }
 
+pub fn webhook_subscription_update_rejects_cloud_uri_validation_errors_test() {
+  assert_update_uri_rejected("pubsub://my-project", [
+    "Address protocol pubsub:// is not supported",
+    "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic",
+  ])
+  assert_update_uri_rejected("pubsub://abc:topic", [
+    "Address is invalid",
+    "Address is not a valid GCP project id.",
+  ])
+  assert_update_uri_rejected("pubsub://valid-project:goog-prefixed", [
+    "Address is invalid",
+    "Address is not a valid GCP topic id.",
+  ])
+  assert_update_uri_rejected("arn:aws:events:bogus", [
+    "Address is invalid",
+    "Address is not a valid AWS ARN",
+  ])
+}
+
+pub fn webhook_subscription_update_rejects_kafka_uri_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"kafka://broker/topic\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let body = run_mutation(seed_webhook_subscription(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol kafka:// is not supported\"},{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is not a valid kafka topic\"}]}}}"
+}
+
+pub fn webhook_subscription_update_rejects_wrong_eventbridge_api_client_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"arn:aws:events:us-east-1::event-source/aws.partner/shopify.com/1/source\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let body =
+    run_mutation_with_api_client_id(
+      seed_webhook_subscription(),
+      document,
+      "347082227713",
+    )
+  assert body
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is invalid\"},{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address is an AWS ARN and includes api_client_id '1' instead of '347082227713'\"}]}}}"
+}
+
 pub fn webhook_subscription_update_unknown_id_user_error_test() {
   let document =
     "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/999\", webhookSubscription: { uri: \"https://new\" }) { webhookSubscription { id } userErrors { field message } } }"
@@ -781,6 +897,54 @@ pub fn webhook_subscription_update_missing_id_top_level_error_test() {
   let body = run_mutation(store.new(), document)
   assert body
     == "{\"errors\":[{\"message\":\"Field 'webhookSubscriptionUpdate' is missing required arguments: id, webhookSubscription\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"webhookSubscriptionUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"webhookSubscriptionUpdate\",\"arguments\":\"id, webhookSubscription\"}}]}"
+}
+
+fn assert_create_uri_rejected(uri: String, messages: List(String)) {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \""
+    <> uri
+    <> "\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":"
+    <> user_errors_json(messages)
+    <> "}}}"
+}
+
+fn assert_update_uri_rejected(uri: String, messages: List(String)) {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \""
+    <> uri
+    <> "\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let body = run_mutation(seed_webhook_subscription(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":"
+    <> user_errors_json(messages)
+    <> "}}}"
+}
+
+fn user_errors_json(messages: List(String)) -> String {
+  "[" <> string.join(list.map(messages, user_error_json), ",") <> "]"
+}
+
+fn user_error_json(message: String) -> String {
+  "{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\""
+  <> message
+  <> "\"}"
+}
+
+fn seed_webhook_subscription() -> store.Store {
+  let r =
+    make_record(
+      "gid://shopify/WebhookSubscription/1",
+      Some("ORDERS_CREATE"),
+      Some("https://old"),
+      Some("JSON"),
+      Some("2024-01-01T00:00:00Z"),
+      Some("2024-01-01T00:00:00Z"),
+      Some(WebhookHttpEndpoint(callback_url: Some("https://old"))),
+    )
+  store.upsert_base_webhook_subscriptions(store.new(), [r])
 }
 
 pub fn webhook_subscription_delete_removes_record_test() {

@@ -83,6 +83,7 @@ export const parityProxyRequestSpecSchema = z.strictObject({
     .string()
     .regex(/^\d{4}-\d{2}$/u)
     .optional(),
+  headers: z.record(z.string(), z.string()).optional(),
   waitBeforeMs: z.number().int().nonnegative().optional(),
 });
 export type ProxyRequestSpec = z.infer<typeof parityProxyRequestSpecSchema>;

@@ -680,6 +680,12 @@ pub type UserError {
   UserError(field: List(String), message: String)
 }
 
+type UriInput {
+  UriAbsent
+  UriBlank
+  UriPresent(String)
+}
+
 /// Predicate matching `isWebhookSubscriptionMutationRoot`. Three
 /// top-level mutations the TS handler dispatches.
 pub fn is_webhook_subscription_mutation_root(name: String) -> Bool {
@@ -700,6 +706,42 @@ pub fn process_mutation(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
+  process_mutation_with_api_client(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    None,
+  )
+}
+
+pub fn process_mutation_with_headers(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  request_headers: Dict(String, String),
+) -> MutationOutcome {
+  process_mutation_with_api_client(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    read_requesting_api_client_id(request_headers),
+  )
+}
+
+fn process_mutation_with_api_client(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
@@ -714,6 +756,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        requesting_api_client_id,
       )
     }
   }
@@ -754,6 +797,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   let initial = #([], [], store, identity, [], [])
   let #(
@@ -786,6 +830,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                requesting_api_client_id,
               ))
             "webhookSubscriptionUpdate" ->
               Some(handle_update(
@@ -797,6 +842,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                requesting_api_client_id,
               ))
             "webhookSubscriptionDelete" ->
               Some(handle_delete(
@@ -869,6 +915,7 @@ fn handle_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let validation_errors =
@@ -913,14 +960,10 @@ fn handle_create(
       let input = read_webhook_subscription_input(args)
       let user_errors = case input {
         Some(input_dict) ->
-          case normalize_uri_from_input(input_dict) {
-            Some(_) -> []
-            None -> [
-              UserError(
-                field: ["webhookSubscription", "callbackUrl"],
-                message: "Address can't be blank",
-              ),
-            ]
+          case read_uri_input(input_dict) {
+            UriPresent(uri) ->
+              validate_webhook_subscription_uri(uri, requesting_api_client_id)
+            UriAbsent | UriBlank -> [blank_callback_url_user_error()]
           }
         None -> []
       }
@@ -975,6 +1018,7 @@ fn handle_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let validation_errors =
@@ -1019,7 +1063,15 @@ fn handle_update(
         None -> None
       }
       let user_errors = case existing {
-        Some(_) -> []
+        Some(_) ->
+          case input {
+            Some(input_dict) ->
+              validate_webhook_subscription_update_uri(
+                input_dict,
+                requesting_api_client_id,
+              )
+            None -> []
+          }
         None -> [
           UserError(
             field: ["id"],
@@ -1278,24 +1330,320 @@ fn normalize_uri_from_input(
   // are NOT real input fields and were stripped after the introspection
   // check; they were artifacts of the search-query alias list in this
   // module.)
-  read_first_string_field(input, ["uri", "callbackUrl"])
+  case read_uri_input(input) {
+    UriPresent(uri) -> Some(uri)
+    UriAbsent | UriBlank -> None
+  }
 }
 
-fn read_first_string_field(
+fn read_uri_input(input: Dict(String, root_field.ResolvedValue)) -> UriInput {
+  read_first_uri_field(input, ["uri", "callbackUrl"], False)
+}
+
+fn read_first_uri_field(
   input: Dict(String, root_field.ResolvedValue),
   names: List(String),
-) -> Option(String) {
+  seen_blank: Bool,
+) -> UriInput {
   case names {
-    [] -> None
+    [] ->
+      case seen_blank {
+        True -> UriBlank
+        False -> UriAbsent
+      }
     [name, ..rest] ->
       case dict.get(input, name) {
         Ok(root_field.StringVal(raw)) ->
           case string.trim(raw) {
-            "" -> read_first_string_field(input, rest)
-            trimmed -> Some(trimmed)
+            "" -> read_first_uri_field(input, rest, True)
+            trimmed -> UriPresent(trimmed)
           }
-        _ -> read_first_string_field(input, rest)
+        _ -> read_first_uri_field(input, rest, seen_blank)
       }
+  }
+}
+
+fn validate_webhook_subscription_update_uri(
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  case read_uri_input(input) {
+    UriAbsent -> []
+    UriBlank -> [blank_callback_url_user_error()]
+    UriPresent(uri) ->
+      validate_webhook_subscription_uri(uri, requesting_api_client_id)
+  }
+}
+
+fn validate_webhook_subscription_uri(
+  uri: String,
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  case string.starts_with(uri, "pubsub://") {
+    True -> validate_pubsub_uri(uri)
+    False ->
+      case string.starts_with(uri, "arn:aws:events:") {
+        True -> validate_eventbridge_arn(uri, requesting_api_client_id)
+        False ->
+          case string.starts_with(uri, "kafka://") {
+            True -> kafka_user_errors()
+            False -> []
+          }
+      }
+  }
+}
+
+fn validate_pubsub_uri(uri: String) -> List(UserError) {
+  let tail = string.drop_start(uri, 9)
+  case string.split_once(tail, ":") {
+    Ok(#(project, topic)) ->
+      case project, topic {
+        "", _ -> pubsub_format_user_errors()
+        _, "" -> pubsub_format_user_errors()
+        _, _ ->
+          case valid_gcp_project_id(project) {
+            False -> [invalid_address_user_error(), gcp_project_id_user_error()]
+            True ->
+              case valid_gcp_topic_id(topic) {
+                True -> []
+                False -> [
+                  invalid_address_user_error(),
+                  gcp_topic_id_user_error(),
+                ]
+              }
+          }
+      }
+    Error(_) -> pubsub_format_user_errors()
+  }
+}
+
+fn validate_eventbridge_arn(
+  uri: String,
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  let tail = string.drop_start(uri, 15)
+  case string.split_once(tail, "::event-source/aws.partner/shopify.com") {
+    Ok(#(region, after_domain)) ->
+      case valid_aws_region(region), eventbridge_source_tail(after_domain) {
+        True, Some(#(api_client_id, event_source_name)) ->
+          case all_digits(api_client_id) && event_source_name != "" {
+            True ->
+              case requesting_api_client_id {
+                Some(expected) if api_client_id != expected -> [
+                  invalid_address_user_error(),
+                  eventbridge_wrong_api_client_user_error(
+                    api_client_id,
+                    expected,
+                  ),
+                ]
+                _ -> []
+              }
+            False -> eventbridge_arn_user_errors()
+          }
+        _, _ -> eventbridge_arn_user_errors()
+      }
+    Error(_) -> eventbridge_arn_user_errors()
+  }
+}
+
+fn eventbridge_source_tail(tail: String) -> Option(#(String, String)) {
+  let source = case string.starts_with(tail, ".test/") {
+    True -> Some(string.drop_start(tail, 6))
+    False ->
+      case string.starts_with(tail, "/") {
+        True -> Some(string.drop_start(tail, 1))
+        False -> None
+      }
+  }
+  case source {
+    Some(rest) -> {
+      case string.split_once(rest, "/") {
+        Ok(#(api_client_id, event_source_name)) ->
+          Some(#(api_client_id, event_source_name))
+        Error(_) -> None
+      }
+    }
+    None -> None
+  }
+}
+
+fn valid_aws_region(region: String) -> Bool {
+  case string.split(region, on: "-") {
+    [country, zone, number] ->
+      string.length(country) == 2
+      && all_lowercase_alpha(country)
+      && zone != ""
+      && all_lowercase_alpha(zone)
+      && all_digits(number)
+    _ -> False
+  }
+}
+
+fn valid_gcp_project_id(project: String) -> Bool {
+  case all_digits(project) {
+    True -> True
+    False -> {
+      let length = string.length(project)
+      length >= 6
+      && length <= 30
+      && starts_with_lowercase_alpha(project)
+      && !string.ends_with(project, "-")
+      && all_gcp_project_chars(project)
+    }
+  }
+}
+
+fn valid_gcp_topic_id(topic: String) -> Bool {
+  let length = string.length(topic)
+  length >= 3
+  && length <= 255
+  && starts_with_alpha(topic)
+  && !string.starts_with(string.lowercase(topic), "goog")
+  && all_gcp_topic_chars(topic)
+}
+
+fn starts_with_lowercase_alpha(value: String) -> Bool {
+  case string.pop_grapheme(value) {
+    Ok(#(first, _)) -> is_lowercase_alpha(first)
+    Error(_) -> False
+  }
+}
+
+fn starts_with_alpha(value: String) -> Bool {
+  case string.pop_grapheme(value) {
+    Ok(#(first, _)) -> is_alpha(first)
+    Error(_) -> False
+  }
+}
+
+fn all_gcp_project_chars(value: String) -> Bool {
+  list.all(string.to_graphemes(value), fn(grapheme) {
+    is_lowercase_alpha(grapheme) || is_digit(grapheme) || grapheme == "-"
+  })
+}
+
+fn all_gcp_topic_chars(value: String) -> Bool {
+  list.all(string.to_graphemes(value), fn(grapheme) {
+    is_alpha(grapheme)
+    || is_digit(grapheme)
+    || string.contains("-_.~+%", grapheme)
+  })
+}
+
+fn all_lowercase_alpha(value: String) -> Bool {
+  list.all(string.to_graphemes(value), is_lowercase_alpha)
+}
+
+fn all_digits(value: String) -> Bool {
+  value != "" && list.all(string.to_graphemes(value), is_digit)
+}
+
+fn is_alpha(grapheme: String) -> Bool {
+  is_lowercase_alpha(grapheme)
+  || string.contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ", grapheme)
+}
+
+fn is_lowercase_alpha(grapheme: String) -> Bool {
+  string.contains("abcdefghijklmnopqrstuvwxyz", grapheme)
+}
+
+fn is_digit(grapheme: String) -> Bool {
+  string.contains("0123456789", grapheme)
+}
+
+fn blank_callback_url_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address can't be blank",
+  )
+}
+
+fn invalid_address_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is invalid",
+  )
+}
+
+fn pubsub_format_user_errors() -> List(UserError) {
+  [
+    UserError(
+      field: ["webhookSubscription", "callbackUrl"],
+      message: "Address protocol pubsub:// is not supported",
+    ),
+    UserError(
+      field: ["webhookSubscription", "callbackUrl"],
+      message: "Address is not a valid GCP pub/sub format. Format should be pubsub://project:topic",
+    ),
+  ]
+}
+
+fn gcp_project_id_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is not a valid GCP project id.",
+  )
+}
+
+fn gcp_topic_id_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is not a valid GCP topic id.",
+  )
+}
+
+fn eventbridge_arn_user_errors() -> List(UserError) {
+  [
+    invalid_address_user_error(),
+    UserError(
+      field: ["webhookSubscription", "callbackUrl"],
+      message: "Address is not a valid AWS ARN",
+    ),
+  ]
+}
+
+fn eventbridge_wrong_api_client_user_error(
+  actual: String,
+  expected: String,
+) -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is an AWS ARN and includes api_client_id '"
+      <> actual
+      <> "' instead of '"
+      <> expected
+      <> "'",
+  )
+}
+
+fn kafka_user_errors() -> List(UserError) {
+  [
+    UserError(
+      field: ["webhookSubscription", "callbackUrl"],
+      message: "Address protocol kafka:// is not supported",
+    ),
+    UserError(
+      field: ["webhookSubscription", "callbackUrl"],
+      message: "Address is not a valid kafka topic",
+    ),
+  ]
+}
+
+fn read_requesting_api_client_id(
+  request_headers: Dict(String, String),
+) -> Option(String) {
+  let found =
+    dict.to_list(request_headers)
+    |> list.find_map(fn(header) {
+      let #(name, value) = header
+      case string.lowercase(name) == "x-shopify-draft-proxy-api-client-id" {
+        True -> Ok(value)
+        False -> Error(Nil)
+      }
+    })
+  case found {
+    Ok(value) -> Some(value)
+    Error(_) -> None
   }
 }
 
