@@ -63,6 +63,10 @@ const external_id_invalid_chars_message = "External Id can only contain numbers,
 
 const company_contact_maximum_cap = 10_000
 
+const bulk_actions_max_size = 50
+
+const bulk_action_limit_reached_message = "Cannot perform more than 50 actions in a single request."
+
 const contains_html_tags_detail = "contains_html_tags"
 
 const invalid_locale_format_detail = "invalid_locale_format"
@@ -1441,6 +1445,18 @@ fn company_contact_cap_error() -> UserError {
     user_error_code.limit_reached,
     company_contact_max_cap_reached_detail,
   )
+}
+
+fn bulk_action_limit_reached_error(field: String) -> UserError {
+  user_error(
+    Some([field]),
+    bulk_action_limit_reached_message,
+    user_error_code.limit_reached,
+  )
+}
+
+fn bulk_action_limit_reached(items: List(a)) -> Bool {
+  list.length(items) > bulk_actions_max_size
 }
 
 fn company_contact_mutation_error(
@@ -3235,8 +3251,26 @@ fn handle_companies_delete(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let company_ids = read_string_list(args, "companyIds")
+  case bulk_action_limit_reached(company_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("companyIds")]),
+        store,
+        identity,
+        [],
+      )
+    False -> handle_companies_delete_under_limit(store, identity, company_ids)
+  }
+}
+
+fn handle_companies_delete_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  company_ids: List(String),
+) -> RootResult {
   let #(store, deleted, staged, errors) =
-    read_string_list(args, "companyIds")
+    company_ids
     |> list.index_map(fn(id, index) { #(id, index) })
     |> list.fold(#(store, [], [], []), fn(acc, entry) {
       let #(id, index) = entry
@@ -3667,8 +3701,26 @@ fn handle_contacts_delete(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let contact_ids = read_string_list(args, "companyContactIds")
+  case bulk_action_limit_reached(contact_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("companyContactIds")]),
+        store,
+        identity,
+        [],
+      )
+    False -> handle_contacts_delete_under_limit(store, identity, contact_ids)
+  }
+}
+
+fn handle_contacts_delete_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  contact_ids: List(String),
+) -> RootResult {
   let #(store, deleted, staged, errors) =
-    read_string_list(args, "companyContactIds")
+    contact_ids
     |> list.index_map(fn(id, index) { #(id, index) })
     |> list.fold(#(store, [], [], []), fn(acc, entry) {
       let #(id, index) = entry
@@ -4273,8 +4325,26 @@ fn handle_locations_delete(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let location_ids = read_string_list(args, "companyLocationIds")
+  case bulk_action_limit_reached(location_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("companyLocationIds")]),
+        store,
+        identity,
+        [],
+      )
+    False -> handle_locations_delete_under_limit(store, identity, location_ids)
+  }
+}
+
+fn handle_locations_delete_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  location_ids: List(String),
+) -> RootResult {
   let #(store, deleted, staged, errors) =
-    read_string_list(args, "companyLocationIds")
+    location_ids
     |> list.index_map(fn(id, index) { #(id, index) })
     |> list.fold(#(store, [], [], []), fn(acc, entry) {
       let #(id, index) = entry
@@ -4848,11 +4918,36 @@ fn handle_contact_assign_roles(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let roles_to_assign = read_object_list(args, "rolesToAssign")
+  case bulk_action_limit_reached(roles_to_assign) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("rolesToAssign")]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      handle_contact_assign_roles_under_limit(
+        store,
+        identity,
+        args,
+        roles_to_assign,
+      )
+  }
+}
+
+fn handle_contact_assign_roles_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  roles_to_assign,
+) -> RootResult {
   let #(assignments, errors, identity) =
     resolve_role_assignments(
       store,
       identity,
-      read_object_list(args, "rolesToAssign"),
+      roles_to_assign,
       read_string(args, "companyContactId"),
       None,
       Some("rolesToAssign"),
@@ -4878,11 +4973,36 @@ fn handle_location_assign_roles(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let roles_to_assign = read_object_list(args, "rolesToAssign")
+  case bulk_action_limit_reached(roles_to_assign) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("rolesToAssign")]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      handle_location_assign_roles_under_limit(
+        store,
+        identity,
+        args,
+        roles_to_assign,
+      )
+  }
+}
+
+fn handle_location_assign_roles_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  roles_to_assign,
+) -> RootResult {
   let #(assignments, errors, identity) =
     resolve_role_assignments(
       store,
       identity,
-      read_object_list(args, "rolesToAssign"),
+      roles_to_assign,
       None,
       read_string(args, "companyLocationId"),
       Some("rolesToAssign"),
@@ -5030,25 +5150,6 @@ fn filter_removed_assignments(
   })
 }
 
-fn missing_indexed_id_errors(
-  requested_ids: List(String),
-  found_ids: List(String),
-  field: String,
-) -> List(UserError) {
-  requested_ids
-  |> list.index_map(fn(id, index) { #(id, index) })
-  |> list.fold([], fn(errors, entry) {
-    let #(id, index) = entry
-    case list.contains(found_ids, id) {
-      True -> errors
-      False ->
-        list.append(errors, [
-          resource_not_found(indexed_field_path(field, index)),
-        ])
-    }
-  })
-}
-
 fn handle_contact_revoke_role(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -5087,18 +5188,45 @@ fn handle_contact_revoke_roles(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
-  let contact_id = read_string(args, "companyContactId")
-  let company_contact = get_effective_contact(contact_id, store)
   let revoke_all = case read_bool(args, "revokeAll") {
     Some(True) -> True
     _ -> False
   }
+  let role_assignment_ids = read_string_list(args, "roleAssignmentIds")
+  case bulk_action_limit_reached(role_assignment_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("roleAssignmentIds")]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      handle_contact_revoke_roles_under_limit(
+        store,
+        identity,
+        args,
+        revoke_all,
+        role_assignment_ids,
+      )
+  }
+}
+
+fn handle_contact_revoke_roles_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  revoke_all: Bool,
+  role_assignment_ids: List(String),
+) -> RootResult {
+  let contact_id = read_string(args, "companyContactId")
+  let company_contact = get_effective_contact(contact_id, store)
   case contact_id, company_contact {
     Some(_), Some(_) -> {
       let #(revoked, errors) =
         resolve_role_revocations(
           store,
-          read_string_list(args, "roleAssignmentIds"),
+          role_assignment_ids,
           "roleAssignmentIds",
           contact_id,
           None,
@@ -5136,6 +5264,31 @@ fn handle_location_revoke_roles(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let roles_to_revoke = read_string_list(args, "rolesToRevoke")
+  case bulk_action_limit_reached(roles_to_revoke) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("rolesToRevoke")]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      handle_location_revoke_roles_under_limit(
+        store,
+        identity,
+        args,
+        roles_to_revoke,
+      )
+  }
+}
+
+fn handle_location_revoke_roles_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  roles_to_revoke: List(String),
+) -> RootResult {
   let location_id = read_string(args, "companyLocationId")
   let company_location = get_effective_location(location_id, store)
   case location_id, company_location {
@@ -5143,7 +5296,7 @@ fn handle_location_revoke_roles(
       let #(revoked, errors) =
         resolve_role_revocations(
           store,
-          read_string_list(args, "rolesToRevoke"),
+          roles_to_revoke,
           "rolesToRevoke",
           None,
           location_id,
@@ -5434,13 +5587,33 @@ fn handle_assign_staff(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let staff_member_ids = read_string_list(args, "staffMemberIds")
+  case bulk_action_limit_reached(staff_member_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("staffMemberIds")]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      handle_assign_staff_under_limit(store, identity, args, staff_member_ids)
+  }
+}
+
+fn handle_assign_staff_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  staff_member_ids: List(String),
+) -> RootResult {
   case read_string(args, "companyLocationId") {
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
           let #(assignments, errors, identity) =
             list.index_fold(
-              read_string_list(args, "staffMemberIds"),
+              staff_member_ids,
               #([], [], identity),
               fn(acc, staff_id, index) {
                 let #(items, errors, current_identity) = acc
@@ -5561,6 +5734,27 @@ fn handle_remove_staff(
   args,
 ) -> RootResult {
   let ids = read_string_list(args, "companyLocationStaffMemberAssignmentIds")
+  case bulk_action_limit_reached(ids) {
+    True ->
+      RootResult(
+        empty_payload([
+          bulk_action_limit_reached_error(
+            "companyLocationStaffMemberAssignmentIds",
+          ),
+        ]),
+        store,
+        identity,
+        [],
+      )
+    False -> handle_remove_staff_under_limit(store, identity, ids)
+  }
+}
+
+fn handle_remove_staff_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  ids: List(String),
+) -> RootResult {
   let existing_ids = effective_staff_assignment_ids(store)
   let valid_ids = list.filter(ids, fn(id) { list.contains(existing_ids, id) })
   let errors =
