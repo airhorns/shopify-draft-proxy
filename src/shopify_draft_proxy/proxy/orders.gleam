@@ -10582,6 +10582,10 @@ type RequestedFulfillmentLineItem {
   RequestedFulfillmentLineItem(id: String, quantity: Option(Int))
 }
 
+const max_fulfillment_holds_per_api_client = 10
+
+const fulfillment_hold_handle_max_length = 64
+
 fn fulfillment_order_supported_actions(
   fulfillment_order: CapturedJsonValue,
 ) -> List(String) {
@@ -10832,6 +10836,190 @@ fn read_fulfillment_order_line_item_inputs(
   }
 }
 
+fn fulfillment_order_hold_input_from_variables(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case dict.get(variables, "fulfillmentHold") {
+    Ok(root_field.ObjectVal(input)) -> input
+    _ -> dict.new()
+  }
+}
+
+fn fulfillment_order_hold_handle(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  read_string(input, "handle") |> option.unwrap("")
+}
+
+fn fulfillment_order_hold_line_item_input_objects(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(input, "fulfillmentOrderLineItems") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.ObjectVal(item) -> Ok(item)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn fulfillment_order_hold_validation_errors(
+  fulfillment_order: CapturedJsonValue,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(#(Option(List(String)), String)) {
+  let input = fulfillment_order_hold_input_from_variables(variables)
+  let line_item_inputs = fulfillment_order_hold_line_item_input_objects(input)
+  let input_errors =
+    list.append(
+      fulfillment_order_hold_line_item_quantity_errors(line_item_inputs),
+      fulfillment_order_hold_duplicate_line_item_errors(line_item_inputs),
+    )
+  case input_errors {
+    [_, ..] -> input_errors
+    [] -> {
+      let handle = fulfillment_order_hold_handle(input)
+      case string.length(handle) > fulfillment_hold_handle_max_length {
+        True -> [
+          #(
+            Some(["fulfillmentHold", "handle"]),
+            "Handle is too long (maximum is 64 characters)",
+          ),
+        ]
+        False -> {
+          let existing_holds = order_fulfillment_holds(fulfillment_order)
+          case
+            !list.is_empty(line_item_inputs)
+            && captured_string_field(fulfillment_order, "status")
+            == Some("ON_HOLD")
+          {
+            True -> [
+              #(
+                Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
+                "The fulfillment order is not in a splittable state.",
+              ),
+            ]
+            False ->
+              case
+                fulfillment_order_has_duplicate_hold_handle(
+                  existing_holds,
+                  handle,
+                )
+              {
+                True -> [
+                  #(
+                    Some(["fulfillmentHold", "handle"]),
+                    "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
+                  ),
+                ]
+                False ->
+                  case
+                    fulfillment_order_active_requesting_app_holds(
+                      existing_holds,
+                    )
+                    >= max_fulfillment_holds_per_api_client
+                  {
+                    True -> [
+                      #(
+                        Some(["id"]),
+                        "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
+                      ),
+                    ]
+                    False -> []
+                  }
+              }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn fulfillment_order_hold_line_item_quantity_errors(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(#(Option(List(String)), String)) {
+  inputs
+  |> list.index_fold([], fn(errors, input, index) {
+    let invalid_message = case dict.get(input, "quantity") {
+      Ok(root_field.IntVal(quantity)) if quantity <= 0 ->
+        Some("You must select at least one item to place on partial hold.")
+      Ok(root_field.IntVal(_)) -> None
+      _ -> Some("The line item quantity is invalid.")
+    }
+    case invalid_message {
+      Some(message) ->
+        list.append(errors, [
+          #(
+            Some([
+              "fulfillmentHold",
+              "fulfillmentOrderLineItems",
+              int.to_string(index),
+              "quantity",
+            ]),
+            message,
+          ),
+        ])
+      None -> errors
+    }
+  })
+}
+
+fn fulfillment_order_hold_duplicate_line_item_errors(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(#(Option(List(String)), String)) {
+  let ids =
+    inputs
+    |> list.filter_map(fn(input) {
+      case read_string(input, "id") {
+        Some(id) -> Ok(id)
+        None -> Error(Nil)
+      }
+    })
+  case contains_duplicate_string(ids) {
+    True -> [
+      #(
+        Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
+        "must contain unique line item ids",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn contains_duplicate_string(values: List(String)) -> Bool {
+  case values {
+    [] -> False
+    [first, ..rest] ->
+      list.contains(rest, first) || contains_duplicate_string(rest)
+  }
+}
+
+fn fulfillment_order_has_duplicate_hold_handle(
+  holds: List(CapturedJsonValue),
+  handle: String,
+) -> Bool {
+  holds
+  |> list.any(fn(hold) {
+    fulfillment_hold_held_by_requesting_app(hold)
+    && { captured_string_field(hold, "handle") |> option.unwrap("") } == handle
+  })
+}
+
+fn fulfillment_order_active_requesting_app_holds(
+  holds: List(CapturedJsonValue),
+) -> Int {
+  holds
+  |> list.filter(fulfillment_hold_held_by_requesting_app)
+  |> list.length
+}
+
+fn fulfillment_hold_held_by_requesting_app(hold: CapturedJsonValue) -> Bool {
+  captured_bool_field(hold, "heldByRequestingApp") |> option.unwrap(True)
+}
+
 fn fulfillment_source_line_item_id(line_item: CapturedJsonValue) -> String {
   captured_string_field(line_item, "lineItemId")
   |> option.or({
@@ -10955,7 +11143,7 @@ fn split_fulfillment_order_line_items(
                     #("remainingQuantity", CapturedInt(selected_quantity)),
                     #(
                       "lineItemFulfillableQuantity",
-                      CapturedInt(selected_quantity),
+                      CapturedInt(remaining_quantity),
                     ),
                   ]),
                 ])
@@ -11002,6 +11190,20 @@ fn build_replacement_fulfillment_order(
     synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
   let #(updated_at, next_identity) =
     synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let supported_action_replacements = case
+    find_captured_replacement(replacements, "supportedActions")
+  {
+    Some(_) -> []
+    None -> [
+      #(
+        "supportedActions",
+        captured_supported_actions(computed_fulfillment_order_supported_actions(
+          Some("OPEN"),
+          line_items,
+        )),
+      ),
+    ]
+  }
   let replacement =
     fulfillment_order
     |> replace_fulfillment_order_line_items(line_items)
@@ -11013,7 +11215,7 @@ fn build_replacement_fulfillment_order(
         #("requestStatus", CapturedString("UNSUBMITTED")),
         #("fulfillmentHolds", CapturedArray([])),
       ],
-      replacements,
+      list.append(supported_action_replacements, replacements),
     ))
   #(replacement, next_identity)
 }
@@ -13012,33 +13214,61 @@ fn handle_fulfillment_order_lifecycle_mutation(
                       #(key, payload, store, identity, [], [], [])
                     }
                     _, _ -> {
-                      let #(values, next_order, next_identity) =
-                        apply_fulfillment_order_lifecycle(
-                          root_name,
-                          order,
+                      case
+                        root_name,
+                        fulfillment_order_hold_validation_errors(
                           fulfillment_order,
-                          identity,
-                          field,
                           variables,
                         )
-                      let next_store = store.stage_order(store, next_order)
-                      let payload =
-                        serialize_fulfillment_order_mutation_payload(
-                          field,
-                          values,
-                          [],
-                          fragments,
-                        )
-                      let draft = fulfillment_order_log_draft(root_name, [id])
-                      #(
-                        key,
-                        payload,
-                        next_store,
-                        next_identity,
-                        [next_order.id],
-                        [],
-                        [draft],
-                      )
+                      {
+                        "fulfillmentOrderHold", [_, ..] as user_errors -> {
+                          let payload =
+                            serialize_fulfillment_order_mutation_payload(
+                              field,
+                              [
+                                #("fulfillmentHold", Some(CapturedNull)),
+                                #("fulfillmentOrder", Some(CapturedNull)),
+                                #(
+                                  "remainingFulfillmentOrder",
+                                  Some(CapturedNull),
+                                ),
+                              ],
+                              user_errors,
+                              fragments,
+                            )
+                          #(key, payload, store, identity, [], [], [])
+                        }
+                        _, _ -> {
+                          let #(values, next_order, next_identity) =
+                            apply_fulfillment_order_lifecycle(
+                              root_name,
+                              order,
+                              fulfillment_order,
+                              identity,
+                              field,
+                              variables,
+                            )
+                          let next_store = store.stage_order(store, next_order)
+                          let payload =
+                            serialize_fulfillment_order_mutation_payload(
+                              field,
+                              values,
+                              [],
+                              fragments,
+                            )
+                          let draft =
+                            fulfillment_order_log_draft(root_name, [id])
+                          #(
+                            key,
+                            payload,
+                            next_store,
+                            next_identity,
+                            [next_order.id],
+                            [],
+                            [draft],
+                          )
+                        }
+                      }
                     }
                   }
                 }
@@ -13157,10 +13387,8 @@ fn apply_fulfillment_order_hold(
   OrderRecord,
   SyntheticIdentityRegistry,
 ) {
-  let fulfillment_hold_input = case dict.get(variables, "fulfillmentHold") {
-    Ok(root_field.ObjectVal(input)) -> input
-    _ -> dict.new()
-  }
+  let fulfillment_hold_input =
+    fulfillment_order_hold_input_from_variables(variables)
   let requested =
     read_fulfillment_order_line_item_inputs(fulfillment_hold_input)
   let #(selected_line_items, remaining_line_items, identity_after_split) =
@@ -13177,7 +13405,7 @@ fn apply_fulfillment_order_hold(
       #("id", CapturedString(hold_id)),
       #(
         "handle",
-        optional_captured_string(read_string(fulfillment_hold_input, "handle")),
+        CapturedString(fulfillment_order_hold_handle(fulfillment_hold_input)),
       ),
       #(
         "reason",
@@ -13196,27 +13424,38 @@ fn apply_fulfillment_order_hold(
       #("displayReason", CapturedString("Other")),
       #("heldByRequestingApp", CapturedBool(True)),
     ])
+  let fulfillment_holds =
+    list.append(order_fulfillment_holds(fulfillment_order), [hold])
   let held_fulfillment_order =
     fulfillment_order
     |> replace_fulfillment_order_line_items(selected_line_items)
     |> replace_captured_object_fields([
       #("status", CapturedString("ON_HOLD")),
       #("updatedAt", CapturedString(updated_at)),
-      #("fulfillmentHolds", CapturedArray([hold])),
+      #(
+        "supportedActions",
+        captured_supported_actions(fulfillment_order_hold_supported_actions(
+          fulfillment_holds,
+        )),
+      ),
+      #("fulfillmentHolds", CapturedArray(fulfillment_holds)),
     ])
-  let #(remaining_fulfillment_order, next_identity) = case
-    remaining_line_items
-  {
+  let #(remaining_fulfillment_order, next_identity) = case requested {
     [] -> #(None, identity_after_timestamp)
     [_, ..] -> {
-      let #(replacement, identity_after_replacement) =
-        build_replacement_fulfillment_order(
-          identity_after_timestamp,
-          fulfillment_order,
-          remaining_line_items,
-          [],
-        )
-      #(Some(replacement), identity_after_replacement)
+      case remaining_line_items {
+        [] -> #(None, identity_after_timestamp)
+        [_, ..] -> {
+          let #(replacement, identity_after_replacement) =
+            build_replacement_fulfillment_order(
+              identity_after_timestamp,
+              fulfillment_order,
+              remaining_line_items,
+              [],
+            )
+          #(Some(replacement), identity_after_replacement)
+        }
+      }
     }
   }
   let next_order =
@@ -13231,12 +13470,25 @@ fn apply_fulfillment_order_hold(
     )
   #(
     [
+      #("fulfillmentHold", Some(hold)),
       #("fulfillmentOrder", Some(held_fulfillment_order)),
       #("remainingFulfillmentOrder", remaining_fulfillment_order),
     ],
     next_order,
     next_identity,
   )
+}
+
+fn fulfillment_order_hold_supported_actions(
+  holds: List(CapturedJsonValue),
+) -> List(String) {
+  case
+    fulfillment_order_active_requesting_app_holds(holds)
+    >= max_fulfillment_holds_per_api_client
+  {
+    True -> ["RELEASE_HOLD", "MOVE"]
+    False -> ["RELEASE_HOLD", "HOLD", "MOVE"]
+  }
 }
 
 fn apply_fulfillment_order_release_hold(
@@ -13273,6 +13525,13 @@ fn apply_fulfillment_order_release_hold(
     |> replace_captured_object_fields([
       #("status", CapturedString("OPEN")),
       #("updatedAt", CapturedString(updated_at)),
+      #(
+        "supportedActions",
+        captured_supported_actions(computed_fulfillment_order_supported_actions(
+          Some("OPEN"),
+          merged_line_items,
+        )),
+      ),
       #("fulfillmentHolds", CapturedArray([])),
     ])
   let updated_fulfillment_orders =
@@ -13344,9 +13603,6 @@ fn merge_released_fulfillment_order_line_items(
       captured_int_field(line_item, "totalQuantity") |> option.unwrap(0)
     let remaining_quantity =
       captured_int_field(line_item, "remainingQuantity") |> option.unwrap(0)
-    let fulfillable_quantity =
-      captured_int_field(line_item, "lineItemFulfillableQuantity")
-      |> option.unwrap(remaining_quantity)
     replace_captured_object_fields(line_item, [
       #(
         "totalQuantity",
@@ -13371,10 +13627,10 @@ fn merge_released_fulfillment_order_line_items(
       #(
         "lineItemFulfillableQuantity",
         CapturedInt(
-          fulfillable_quantity
+          remaining_quantity
           + sum_fulfillment_order_line_item_field(
             sibling_line_items,
-            "lineItemFulfillableQuantity",
+            "remainingQuantity",
           ),
         ),
       ),
@@ -13491,16 +13747,43 @@ fn apply_fulfillment_order_status(
       "IN_PROGRESS" -> [
         #("status", CapturedString(status)),
         #("updatedAt", CapturedString(updated_at)),
+        #(
+          "supportedActions",
+          captured_supported_actions(
+            computed_fulfillment_order_supported_actions(
+              Some(status),
+              fulfillment_order_line_items(fulfillment_order),
+            ),
+          ),
+        ),
         #("__draftProxyManuallyReportedProgress", CapturedBool(True)),
       ]
       "OPEN" -> [
         #("status", CapturedString(status)),
         #("updatedAt", CapturedString(updated_at)),
+        #(
+          "supportedActions",
+          captured_supported_actions(
+            computed_fulfillment_order_supported_actions(
+              Some(status),
+              fulfillment_order_line_items(fulfillment_order),
+            ),
+          ),
+        ),
         #("__draftProxyManuallyReportedProgress", CapturedBool(False)),
       ]
       _ -> [
         #("status", CapturedString(status)),
         #("updatedAt", CapturedString(updated_at)),
+        #(
+          "supportedActions",
+          captured_supported_actions(
+            computed_fulfillment_order_supported_actions(
+              Some(status),
+              fulfillment_order_line_items(fulfillment_order),
+            ),
+          ),
+        ),
       ]
     })
   let replacements = case status {
@@ -13583,6 +13866,7 @@ fn serialize_fulfillment_order_mutation_payload(
             | "replacementFulfillmentOrder" -> #(
               key,
               case find_named_captured_value(values, name.value) {
+                Some(CapturedNull) -> json.null()
                 Some(value) ->
                   serialize_order_fulfillment_order(child, value, fragments)
                 None -> json.null()
@@ -13590,14 +13874,24 @@ fn serialize_fulfillment_order_mutation_payload(
             )
             "fulfillmentHold" -> #(
               key,
-              case find_named_captured_value(values, "fulfillmentOrder") {
-                Some(fulfillment_order) ->
-                  case order_fulfillment_holds(fulfillment_order) {
-                    [hold, ..] ->
-                      serialize_captured_selection(child, Some(hold), fragments)
-                    [] -> json.null()
+              case find_named_captured_value(values, "fulfillmentHold") {
+                Some(CapturedNull) -> json.null()
+                Some(hold) ->
+                  serialize_captured_selection(child, Some(hold), fragments)
+                None ->
+                  case find_named_captured_value(values, "fulfillmentOrder") {
+                    Some(fulfillment_order) ->
+                      case order_fulfillment_holds(fulfillment_order) {
+                        [hold, ..] ->
+                          serialize_captured_selection(
+                            child,
+                            Some(hold),
+                            fragments,
+                          )
+                        [] -> json.null()
+                      }
+                    None -> json.null()
                   }
-                None -> json.null()
               },
             )
             "userErrors" -> #(
@@ -13714,6 +14008,19 @@ fn fulfillment_order_user_error_code(message: String) -> SourceValue {
       SrcString("fulfillment_order_has_manually_reported_progress")
     "Fulfillment order is not in cancelable request state and can't be canceled." ->
       SrcString("fulfillment_order_cannot_be_cancelled")
+    "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order." ->
+      SrcString("DUPLICATE_FULFILLMENT_HOLD_HANDLE")
+    "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time." ->
+      SrcString("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED")
+    "The fulfillment order is not in a splittable state." ->
+      SrcString("FULFILLMENT_ORDER_NOT_SPLITTABLE")
+    "You must select at least one item to place on partial hold." ->
+      SrcString("GREATER_THAN_ZERO")
+    "The line item quantity is invalid." ->
+      SrcString("INVALID_LINE_ITEM_QUANTITY")
+    "must contain unique line item ids" ->
+      SrcString("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS")
+    "Handle is too long (maximum is 64 characters)" -> SrcString("TOO_LONG")
     _ -> SrcNull
   }
 }

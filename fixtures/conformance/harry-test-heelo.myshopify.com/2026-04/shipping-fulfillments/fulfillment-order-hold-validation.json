@@ -1,0 +1,2763 @@
+{
+  "metadata": {
+    "issue": "HAR-552",
+    "capturedAt": "2026-05-05T02:30:17.909Z",
+    "startedAt": "2026-05-05T02:30:12.538Z",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "scopedRoots": ["fulfillmentOrderHold"],
+    "createdOrder": {
+      "id": "gid://shopify/Order/8728604311858",
+      "name": "#1082",
+      "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652928282930",
+      "fulfillmentOrderLineItemId": "gid://shopify/FulfillmentOrderLineItem/19450990821682"
+    }
+  },
+  "setup": {
+    "create": {
+      "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation CreateFulfillmentOrderHoldValidationOrder($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderHoldValidationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-552-hold-validation-20260505023012@example.com",
+          "note": "HAR-552 fulfillment-order hold validation 20260505023012",
+          "tags": ["har-552", "fulfillment-order-hold-validation"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "HAR",
+            "lastName": "Probe",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+              "quantity": 5,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8728604311858",
+                "name": "#1082",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-05T02:30:13Z",
+                      "supportedActions": [
+                        {
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
+                        }
+                      ],
+                      "fulfillmentHolds": [],
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                            "totalQuantity": 5,
+                            "remainingQuantity": 5,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301844713778",
+                              "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                              "quantity": 5,
+                              "fulfillableQuantity": 5
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 48,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "hydrate": {
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions { action }\n      assignedLocation { name location { id name } }\n      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n      merchantRequests(first: 10) { nodes { kind message requestOptions } }\n      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n      order { id name displayFulfillmentStatus }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652928282930"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652928282930",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-05-05T02:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-05-05T02:30:13Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                    "totalQuantity": 5,
+                    "remainingQuantity": 5,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301844713778",
+                      "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                      "quantity": 5,
+                      "fulfillableQuantity": 5
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8728604311858",
+                "name": "#1082",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "workflows": {
+    "validation": {
+      "firstHold": {
+        "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9652928282930",
+          "fulfillmentHold": {
+            "reason": "OTHER",
+            "reasonNotes": "HAR-552 appA-1",
+            "notifyMerchant": false,
+            "externalId": "appA-1",
+            "handle": "appA-1",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                "quantity": 2
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "errors": [
+              {
+                "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                "locations": [
+                  {
+                    "line": 17,
+                    "column": 7
+                  }
+                ],
+                "extensions": {
+                  "code": "ACCESS_DENIED",
+                  "documentation": "https://shopify.dev/api/usage/access-scopes",
+                  "requiredAccess": "`read_apps` access scope."
+                },
+                "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+              }
+            ],
+            "data": {
+              "fulfillmentOrderHold": {
+                "fulfillmentHold": {
+                  "id": "gid://shopify/FulfillmentHold/262926795058",
+                  "handle": "appA-1",
+                  "reason": "OTHER",
+                  "reasonNotes": "HAR-552 appA-1",
+                  "displayReason": "Other",
+                  "heldByRequestingApp": true
+                },
+                "fulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                  "status": "ON_HOLD",
+                  "requestStatus": "UNSUBMITTED",
+                  "updatedAt": "2026-05-05T02:30:14Z",
+                  "supportedActions": [
+                    {
+                      "action": "RELEASE_HOLD"
+                    },
+                    {
+                      "action": "HOLD"
+                    },
+                    {
+                      "action": "MOVE"
+                    }
+                  ],
+                  "fulfillmentHolds": [
+                    {
+                      "id": "gid://shopify/FulfillmentHold/262926795058",
+                      "handle": "appA-1",
+                      "reason": "OTHER",
+                      "reasonNotes": "HAR-552 appA-1",
+                      "displayReason": "Other",
+                      "heldByApp": null,
+                      "heldByRequestingApp": true
+                    }
+                  ],
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                        "totalQuantity": 2,
+                        "remainingQuantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19301844713778",
+                          "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                          "quantity": 5,
+                          "fulfillableQuantity": 3
+                        }
+                      }
+                    ]
+                  }
+                },
+                "remainingFulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9652928348466",
+                  "status": "OPEN",
+                  "requestStatus": "UNSUBMITTED",
+                  "updatedAt": "2026-05-05T02:30:14Z",
+                  "supportedActions": [
+                    {
+                      "action": "CREATE_FULFILLMENT"
+                    },
+                    {
+                      "action": "REPORT_PROGRESS"
+                    },
+                    {
+                      "action": "MOVE"
+                    },
+                    {
+                      "action": "HOLD"
+                    },
+                    {
+                      "action": "SPLIT"
+                    }
+                  ],
+                  "fulfillmentHolds": [],
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19450990887218",
+                        "totalQuantity": 3,
+                        "remainingQuantity": 3,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19301844713778",
+                          "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                          "quantity": 5,
+                          "fulfillableQuantity": 3
+                        }
+                      }
+                    ]
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 32,
+                "actualQueryCost": 23,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1977,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "duplicateHandle": {
+        "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9652928282930",
+          "fulfillmentHold": {
+            "reason": "OTHER",
+            "reasonNotes": "HAR-552 appA-1",
+            "notifyMerchant": false,
+            "externalId": "appA-1",
+            "handle": "appA-1"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderHold": {
+                "fulfillmentHold": null,
+                "fulfillmentOrder": null,
+                "remainingFulfillmentOrder": null,
+                "userErrors": [
+                  {
+                    "field": ["fulfillmentHold", "handle"],
+                    "message": "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
+                    "code": "DUPLICATE_FULFILLMENT_HOLD_HANDLE"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 32,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "notSplittable": {
+        "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9652928282930",
+          "fulfillmentHold": {
+            "reason": "OTHER",
+            "reasonNotes": "HAR-552 appA-2",
+            "notifyMerchant": false,
+            "externalId": "appA-2",
+            "handle": "appA-2",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                "quantity": 1
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderHold": {
+                "fulfillmentHold": null,
+                "fulfillmentOrder": null,
+                "remainingFulfillmentOrder": null,
+                "userErrors": [
+                  {
+                    "field": ["fulfillmentHold", "fulfillmentOrderLineItems"],
+                    "message": "The fulfillment order is not in a splittable state.",
+                    "code": "FULFILLMENT_ORDER_NOT_SPLITTABLE"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 32,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "secondHold": {
+        "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9652928282930",
+          "fulfillmentHold": {
+            "reason": "OTHER",
+            "reasonNotes": "HAR-552 appA-3",
+            "notifyMerchant": false,
+            "externalId": "appA-3",
+            "handle": "appA-3"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "errors": [
+              {
+                "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                "locations": [
+                  {
+                    "line": 17,
+                    "column": 7
+                  }
+                ],
+                "extensions": {
+                  "code": "ACCESS_DENIED",
+                  "documentation": "https://shopify.dev/api/usage/access-scopes",
+                  "requiredAccess": "`read_apps` access scope."
+                },
+                "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+              },
+              {
+                "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                "locations": [
+                  {
+                    "line": 17,
+                    "column": 7
+                  }
+                ],
+                "extensions": {
+                  "code": "ACCESS_DENIED",
+                  "documentation": "https://shopify.dev/api/usage/access-scopes",
+                  "requiredAccess": "`read_apps` access scope."
+                },
+                "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 1, "heldByApp"]
+              }
+            ],
+            "data": {
+              "fulfillmentOrderHold": {
+                "fulfillmentHold": {
+                  "id": "gid://shopify/FulfillmentHold/262926827826",
+                  "handle": "appA-3",
+                  "reason": "OTHER",
+                  "reasonNotes": "HAR-552 appA-3",
+                  "displayReason": "Other",
+                  "heldByRequestingApp": true
+                },
+                "fulfillmentOrder": {
+                  "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                  "status": "ON_HOLD",
+                  "requestStatus": "UNSUBMITTED",
+                  "updatedAt": "2026-05-05T02:30:14Z",
+                  "supportedActions": [
+                    {
+                      "action": "RELEASE_HOLD"
+                    },
+                    {
+                      "action": "HOLD"
+                    },
+                    {
+                      "action": "MOVE"
+                    }
+                  ],
+                  "fulfillmentHolds": [
+                    {
+                      "id": "gid://shopify/FulfillmentHold/262926795058",
+                      "handle": "appA-1",
+                      "reason": "OTHER",
+                      "reasonNotes": "HAR-552 appA-1",
+                      "displayReason": "Other",
+                      "heldByApp": null,
+                      "heldByRequestingApp": true
+                    },
+                    {
+                      "id": "gid://shopify/FulfillmentHold/262926827826",
+                      "handle": "appA-3",
+                      "reason": "OTHER",
+                      "reasonNotes": "HAR-552 appA-3",
+                      "displayReason": "Other",
+                      "heldByApp": null,
+                      "heldByRequestingApp": true
+                    }
+                  ],
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                        "totalQuantity": 2,
+                        "remainingQuantity": 2,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19301844713778",
+                          "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                          "quantity": 5,
+                          "fulfillableQuantity": 3
+                        }
+                      }
+                    ]
+                  }
+                },
+                "remainingFulfillmentOrder": null,
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 32,
+                "actualQueryCost": 17,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1983,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "additionalHolds": [
+        {
+          "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9652928282930",
+            "fulfillmentHold": {
+              "reason": "OTHER",
+              "reasonNotes": "HAR-552 appA-4",
+              "notifyMerchant": false,
+              "externalId": "appA-4",
+              "handle": "appA-4"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "errors": [
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 1, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 2, "heldByApp"]
+                }
+              ],
+              "data": {
+                "fulfillmentOrderHold": {
+                  "fulfillmentHold": {
+                    "id": "gid://shopify/FulfillmentHold/262926860594",
+                    "handle": "appA-4",
+                    "reason": "OTHER",
+                    "reasonNotes": "HAR-552 appA-4",
+                    "displayReason": "Other",
+                    "heldByRequestingApp": true
+                  },
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:30:14Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ],
+                    "fulfillmentHolds": [
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926795058",
+                        "handle": "appA-1",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-1",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926827826",
+                        "handle": "appA-3",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-3",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926860594",
+                        "handle": "appA-4",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-4",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      }
+                    ],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301844713778",
+                            "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                            "quantity": 5,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": null,
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 32,
+                  "actualQueryCost": 17,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1983,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9652928282930",
+            "fulfillmentHold": {
+              "reason": "OTHER",
+              "reasonNotes": "HAR-552 appA-5",
+              "notifyMerchant": false,
+              "externalId": "appA-5",
+              "handle": "appA-5"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "errors": [
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 1, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 2, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 3, "heldByApp"]
+                }
+              ],
+              "data": {
+                "fulfillmentOrderHold": {
+                  "fulfillmentHold": {
+                    "id": "gid://shopify/FulfillmentHold/262926893362",
+                    "handle": "appA-5",
+                    "reason": "OTHER",
+                    "reasonNotes": "HAR-552 appA-5",
+                    "displayReason": "Other",
+                    "heldByRequestingApp": true
+                  },
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:30:14Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ],
+                    "fulfillmentHolds": [
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926795058",
+                        "handle": "appA-1",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-1",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926827826",
+                        "handle": "appA-3",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-3",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926860594",
+                        "handle": "appA-4",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-4",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926893362",
+                        "handle": "appA-5",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-5",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      }
+                    ],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301844713778",
+                            "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                            "quantity": 5,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": null,
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 32,
+                  "actualQueryCost": 17,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1983,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9652928282930",
+            "fulfillmentHold": {
+              "reason": "OTHER",
+              "reasonNotes": "HAR-552 appA-6",
+              "notifyMerchant": false,
+              "externalId": "appA-6",
+              "handle": "appA-6"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "errors": [
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 1, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 2, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 3, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 4, "heldByApp"]
+                }
+              ],
+              "data": {
+                "fulfillmentOrderHold": {
+                  "fulfillmentHold": {
+                    "id": "gid://shopify/FulfillmentHold/262926926130",
+                    "handle": "appA-6",
+                    "reason": "OTHER",
+                    "reasonNotes": "HAR-552 appA-6",
+                    "displayReason": "Other",
+                    "heldByRequestingApp": true
+                  },
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:30:14Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ],
+                    "fulfillmentHolds": [
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926795058",
+                        "handle": "appA-1",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-1",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926827826",
+                        "handle": "appA-3",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-3",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926860594",
+                        "handle": "appA-4",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-4",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926893362",
+                        "handle": "appA-5",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-5",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926926130",
+                        "handle": "appA-6",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-6",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      }
+                    ],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301844713778",
+                            "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                            "quantity": 5,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": null,
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 32,
+                  "actualQueryCost": 17,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1983,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9652928282930",
+            "fulfillmentHold": {
+              "reason": "OTHER",
+              "reasonNotes": "HAR-552 appA-7",
+              "notifyMerchant": false,
+              "externalId": "appA-7",
+              "handle": "appA-7"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "errors": [
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 1, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 2, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 3, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 4, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 5, "heldByApp"]
+                }
+              ],
+              "data": {
+                "fulfillmentOrderHold": {
+                  "fulfillmentHold": {
+                    "id": "gid://shopify/FulfillmentHold/262926958898",
+                    "handle": "appA-7",
+                    "reason": "OTHER",
+                    "reasonNotes": "HAR-552 appA-7",
+                    "displayReason": "Other",
+                    "heldByRequestingApp": true
+                  },
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:30:14Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ],
+                    "fulfillmentHolds": [
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926795058",
+                        "handle": "appA-1",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-1",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926827826",
+                        "handle": "appA-3",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-3",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926860594",
+                        "handle": "appA-4",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-4",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926893362",
+                        "handle": "appA-5",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-5",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926926130",
+                        "handle": "appA-6",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-6",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926958898",
+                        "handle": "appA-7",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-7",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      }
+                    ],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301844713778",
+                            "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                            "quantity": 5,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": null,
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 32,
+                  "actualQueryCost": 17,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1983,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9652928282930",
+            "fulfillmentHold": {
+              "reason": "OTHER",
+              "reasonNotes": "HAR-552 appA-8",
+              "notifyMerchant": false,
+              "externalId": "appA-8",
+              "handle": "appA-8"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "errors": [
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 1, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 2, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 3, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 4, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 5, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 6, "heldByApp"]
+                }
+              ],
+              "data": {
+                "fulfillmentOrderHold": {
+                  "fulfillmentHold": {
+                    "id": "gid://shopify/FulfillmentHold/262926991666",
+                    "handle": "appA-8",
+                    "reason": "OTHER",
+                    "reasonNotes": "HAR-552 appA-8",
+                    "displayReason": "Other",
+                    "heldByRequestingApp": true
+                  },
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:30:14Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ],
+                    "fulfillmentHolds": [
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926795058",
+                        "handle": "appA-1",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-1",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926827826",
+                        "handle": "appA-3",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-3",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926860594",
+                        "handle": "appA-4",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-4",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926893362",
+                        "handle": "appA-5",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-5",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926926130",
+                        "handle": "appA-6",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-6",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926958898",
+                        "handle": "appA-7",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-7",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926991666",
+                        "handle": "appA-8",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-8",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      }
+                    ],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301844713778",
+                            "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                            "quantity": 5,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": null,
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 32,
+                  "actualQueryCost": 17,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1983,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9652928282930",
+            "fulfillmentHold": {
+              "reason": "OTHER",
+              "reasonNotes": "HAR-552 appA-9",
+              "notifyMerchant": false,
+              "externalId": "appA-9",
+              "handle": "appA-9"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "errors": [
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 1, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 2, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 3, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 4, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 5, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 6, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 7, "heldByApp"]
+                }
+              ],
+              "data": {
+                "fulfillmentOrderHold": {
+                  "fulfillmentHold": {
+                    "id": "gid://shopify/FulfillmentHold/262927024434",
+                    "handle": "appA-9",
+                    "reason": "OTHER",
+                    "reasonNotes": "HAR-552 appA-9",
+                    "displayReason": "Other",
+                    "heldByRequestingApp": true
+                  },
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:30:14Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ],
+                    "fulfillmentHolds": [
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926795058",
+                        "handle": "appA-1",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-1",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926827826",
+                        "handle": "appA-3",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-3",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926860594",
+                        "handle": "appA-4",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-4",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926893362",
+                        "handle": "appA-5",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-5",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926926130",
+                        "handle": "appA-6",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-6",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926958898",
+                        "handle": "appA-7",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-7",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926991666",
+                        "handle": "appA-8",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-8",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262927024434",
+                        "handle": "appA-9",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-9",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      }
+                    ],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301844713778",
+                            "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                            "quantity": 5,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": null,
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 32,
+                  "actualQueryCost": 17,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1983,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9652928282930",
+            "fulfillmentHold": {
+              "reason": "OTHER",
+              "reasonNotes": "HAR-552 appA-10",
+              "notifyMerchant": false,
+              "externalId": "appA-10",
+              "handle": "appA-10"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "errors": [
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 1, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 2, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 3, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 4, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 5, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 6, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 7, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 8, "heldByApp"]
+                }
+              ],
+              "data": {
+                "fulfillmentOrderHold": {
+                  "fulfillmentHold": {
+                    "id": "gid://shopify/FulfillmentHold/262927057202",
+                    "handle": "appA-10",
+                    "reason": "OTHER",
+                    "reasonNotes": "HAR-552 appA-10",
+                    "displayReason": "Other",
+                    "heldByRequestingApp": true
+                  },
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:30:14Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ],
+                    "fulfillmentHolds": [
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926795058",
+                        "handle": "appA-1",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-1",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926827826",
+                        "handle": "appA-3",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-3",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926860594",
+                        "handle": "appA-4",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-4",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926893362",
+                        "handle": "appA-5",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-5",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926926130",
+                        "handle": "appA-6",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-6",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926958898",
+                        "handle": "appA-7",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-7",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926991666",
+                        "handle": "appA-8",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-8",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262927024434",
+                        "handle": "appA-9",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-9",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262927057202",
+                        "handle": "appA-10",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-10",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      }
+                    ],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301844713778",
+                            "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                            "quantity": 5,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": null,
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 32,
+                  "actualQueryCost": 17,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1983,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+          "variables": {
+            "id": "gid://shopify/FulfillmentOrder/9652928282930",
+            "fulfillmentHold": {
+              "reason": "OTHER",
+              "reasonNotes": "HAR-552 appA-11",
+              "notifyMerchant": false,
+              "externalId": "appA-11",
+              "handle": "appA-11"
+            }
+          },
+          "response": {
+            "status": 200,
+            "payload": {
+              "errors": [
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 0, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 1, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 2, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 3, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 4, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 5, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 6, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 7, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 8, "heldByApp"]
+                },
+                {
+                  "message": "Access denied for heldByApp field. Required access: `read_apps` access scope.",
+                  "locations": [
+                    {
+                      "line": 17,
+                      "column": 7
+                    }
+                  ],
+                  "extensions": {
+                    "code": "ACCESS_DENIED",
+                    "documentation": "https://shopify.dev/api/usage/access-scopes",
+                    "requiredAccess": "`read_apps` access scope."
+                  },
+                  "path": ["fulfillmentOrderHold", "fulfillmentOrder", "fulfillmentHolds", 9, "heldByApp"]
+                }
+              ],
+              "data": {
+                "fulfillmentOrderHold": {
+                  "fulfillmentHold": {
+                    "id": "gid://shopify/FulfillmentHold/262927089970",
+                    "handle": "appA-11",
+                    "reason": "OTHER",
+                    "reasonNotes": "HAR-552 appA-11",
+                    "displayReason": "Other",
+                    "heldByRequestingApp": true
+                  },
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                    "status": "ON_HOLD",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:30:14Z",
+                    "supportedActions": [
+                      {
+                        "action": "RELEASE_HOLD"
+                      },
+                      {
+                        "action": "MOVE"
+                      }
+                    ],
+                    "fulfillmentHolds": [
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926795058",
+                        "handle": "appA-1",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-1",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926827826",
+                        "handle": "appA-3",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-3",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926860594",
+                        "handle": "appA-4",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-4",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926893362",
+                        "handle": "appA-5",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-5",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926926130",
+                        "handle": "appA-6",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-6",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926958898",
+                        "handle": "appA-7",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-7",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262926991666",
+                        "handle": "appA-8",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-8",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262927024434",
+                        "handle": "appA-9",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-9",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262927057202",
+                        "handle": "appA-10",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-10",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      },
+                      {
+                        "id": "gid://shopify/FulfillmentHold/262927089970",
+                        "handle": "appA-11",
+                        "reason": "OTHER",
+                        "reasonNotes": "HAR-552 appA-11",
+                        "displayReason": "Other",
+                        "heldByApp": null,
+                        "heldByRequestingApp": true
+                      }
+                    ],
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301844713778",
+                            "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                            "quantity": 5,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": null,
+                  "userErrors": []
+                }
+              },
+              "extensions": {
+                "cost": {
+                  "requestedQueryCost": 32,
+                  "actualQueryCost": 17,
+                  "throttleStatus": {
+                    "maximumAvailable": 2000,
+                    "currentlyAvailable": 1983,
+                    "restoreRate": 100
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "limitReached": {
+        "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9652928282930",
+          "fulfillmentHold": {
+            "reason": "OTHER",
+            "reasonNotes": "HAR-552 appA-12",
+            "notifyMerchant": false,
+            "externalId": "appA-12",
+            "handle": "appA-12"
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderHold": {
+                "fulfillmentHold": null,
+                "fulfillmentOrder": null,
+                "remainingFulfillmentOrder": null,
+                "userErrors": [
+                  {
+                    "field": ["id"],
+                    "message": "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
+                    "code": "FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 32,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "zeroQuantity": {
+        "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9652928282930",
+          "fulfillmentHold": {
+            "reason": "OTHER",
+            "reasonNotes": "HAR-552 appA-13",
+            "notifyMerchant": false,
+            "externalId": "appA-13",
+            "handle": "appA-13",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                "quantity": 0
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderHold": {
+                "fulfillmentHold": null,
+                "fulfillmentOrder": null,
+                "remainingFulfillmentOrder": null,
+                "userErrors": [
+                  {
+                    "field": ["fulfillmentHold", "fulfillmentOrderLineItems", "0", "quantity"],
+                    "message": "You must select at least one item to place on partial hold.",
+                    "code": "GREATER_THAN_ZERO"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 32,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "duplicateLineItems": {
+        "query": "#graphql\n  fragment FulfillmentOrderHoldValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    fulfillmentHolds {\n      id\n      handle\n      reason\n      reasonNotes\n      displayReason\n      heldByApp {\n        id\n        title\n      }\n      heldByRequestingApp\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {\n    fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {\n      fulfillmentHold {\n        id\n        handle\n        reason\n        reasonNotes\n        displayReason\n        heldByRequestingApp\n      }\n      fulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderHoldValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "id": "gid://shopify/FulfillmentOrder/9652928282930",
+          "fulfillmentHold": {
+            "reason": "OTHER",
+            "reasonNotes": "HAR-552 appA-14",
+            "notifyMerchant": false,
+            "externalId": "appA-14",
+            "handle": "appA-14",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                "quantity": 1
+              }
+            ]
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "fulfillmentOrderHold": {
+                "fulfillmentHold": null,
+                "fulfillmentOrder": null,
+                "remainingFulfillmentOrder": null,
+                "userErrors": [
+                  {
+                    "field": ["fulfillmentHold", "fulfillmentOrderLineItems"],
+                    "message": "must contain unique line item ids",
+                    "code": "DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 32,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "releaseHold": {
+      "query": "mutation CleanupFulfillmentOrderHoldValidationHolds($id: ID!, $holdIds: [ID!]) {\n    fulfillmentOrderReleaseHold(id: $id, holdIds: $holdIds) {\n      fulfillmentOrder {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652928282930",
+        "holdIds": [
+          "gid://shopify/FulfillmentHold/262926795058",
+          "gid://shopify/FulfillmentHold/262926827826",
+          "gid://shopify/FulfillmentHold/262926860594",
+          "gid://shopify/FulfillmentHold/262926893362",
+          "gid://shopify/FulfillmentHold/262926926130",
+          "gid://shopify/FulfillmentHold/262926958898",
+          "gid://shopify/FulfillmentHold/262926991666",
+          "gid://shopify/FulfillmentHold/262927024434",
+          "gid://shopify/FulfillmentHold/262927057202",
+          "gid://shopify/FulfillmentHold/262927089970"
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderReleaseHold": {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652928282930",
+                "status": "OPEN"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancel": {
+      "query": "mutation CleanupFulfillmentOrderHoldValidationOrder(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8728604311858",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/d8a43197-de35-44ec-ac91-bc8f58c74b83"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652928282930"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id\n      status\n      requestStatus\n      fulfillAt\n      fulfillBy\n      updatedAt\n      supportedActions { action }\n      assignedLocation { name location { id name } }\n      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n      merchantRequests(first: 10) { nodes { kind message requestOptions } }\n      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n      order { id name displayFulfillmentStatus }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652928282930",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "fulfillAt": "2026-05-05T02:00:00Z",
+              "fulfillBy": null,
+              "updatedAt": "2026-05-05T02:30:13Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "fulfillmentHolds": [],
+              "merchantRequests": {
+                "nodes": []
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19450990821682",
+                    "totalQuantity": 5,
+                    "remainingQuantity": 5,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301844713778",
+                      "title": "HAR-552 fulfillment-order hold validation 20260505023012",
+                      "quantity": 5,
+                      "fulfillableQuantity": 5
+                    }
+                  }
+                ]
+              },
+              "order": {
+                "id": "gid://shopify/Order/8728604311858",
+                "name": "#1082",
+                "displayFulfillmentStatus": "UNFULFILLED"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 25,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

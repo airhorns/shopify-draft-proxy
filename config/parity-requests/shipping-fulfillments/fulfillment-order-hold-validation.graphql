@@ -1,0 +1,85 @@
+mutation FulfillmentOrderHoldValidation($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+  fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+    fulfillmentHold {
+      id
+      handle
+      reason
+      reasonNotes
+      displayReason
+      heldByRequestingApp
+    }
+    fulfillmentOrder {
+      id
+      status
+      requestStatus
+      updatedAt
+      supportedActions {
+        action
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+    }
+    remainingFulfillmentOrder {
+      id
+      status
+      requestStatus
+      updatedAt
+      supportedActions {
+        action
+      }
+      fulfillmentHolds {
+        id
+        handle
+        reason
+        reasonNotes
+        displayReason
+        heldByApp {
+          id
+          title
+        }
+        heldByRequestingApp
+      }
+      lineItems(first: 5) {
+        nodes {
+          id
+          totalQuantity
+          remainingQuantity
+          lineItem {
+            id
+            title
+            quantity
+            fulfillableQuantity
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
