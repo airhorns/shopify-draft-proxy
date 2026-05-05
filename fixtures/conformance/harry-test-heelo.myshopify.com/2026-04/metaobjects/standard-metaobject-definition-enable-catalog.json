@@ -1,0 +1,2038 @@
+{
+  "capturedAt": "2026-05-05T17:15:03.180Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenarioId": "standard-metaobject-definition-enable-catalog",
+  "issue": "HAR-682",
+  "summary": "standardMetaobjectDefinitionEnable catalog, unknown-template RECORD_NOT_FOUND, idempotent duplicate enable, and read-after-enable behavior.",
+  "qaPair": {
+    "name": "qaPair",
+    "request": {
+      "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+      "variables": {
+        "type": "shopify--qa-pair"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17868423474",
+            "type": "shopify--qa-pair",
+            "name": "Question and Answer Pairs",
+            "description": "Question and answer pairs that describe a merchant's shop.",
+            "displayNameKey": "question",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "question",
+                "name": "Question",
+                "description": null,
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "answer",
+                "name": "Answer",
+                "description": null,
+                "required": true,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "sources",
+                "name": "Sources",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.link",
+                  "category": "LINK"
+                },
+                "validations": []
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 0,
+            "standardTemplate": {
+              "type": "shopify--qa-pair",
+              "name": "Question and Answer Pairs"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "qaPairRead": {
+    "name": "qaPairRead",
+    "request": {
+      "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query StandardMetaobjectDefinitionEnableRead($id: ID!, $type: String!) {\n    byId: metaobjectDefinition(id: $id) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n    byType: metaobjectDefinitionByType(type: $type) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/17868423474",
+        "type": "shopify--qa-pair"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "byId": {
+          "id": "gid://shopify/MetaobjectDefinition/17868423474",
+          "type": "shopify--qa-pair",
+          "name": "Question and Answer Pairs",
+          "description": "Question and answer pairs that describe a merchant's shop.",
+          "displayNameKey": "question",
+          "access": {
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "NONE"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": false
+            },
+            "translatable": {
+              "enabled": true
+            },
+            "renderable": {
+              "enabled": false
+            },
+            "onlineStore": {
+              "enabled": false
+            }
+          },
+          "fieldDefinitions": [
+            {
+              "key": "question",
+              "name": "Question",
+              "description": null,
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": []
+            },
+            {
+              "key": "answer",
+              "name": "Answer",
+              "description": null,
+              "required": true,
+              "type": {
+                "name": "multi_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": []
+            },
+            {
+              "key": "sources",
+              "name": "Sources",
+              "description": null,
+              "required": false,
+              "type": {
+                "name": "list.link",
+                "category": "LINK"
+              },
+              "validations": []
+            }
+          ],
+          "hasThumbnailField": false,
+          "metaobjectsCount": 0,
+          "standardTemplate": {
+            "type": "shopify--qa-pair",
+            "name": "Question and Answer Pairs"
+          }
+        },
+        "byType": {
+          "id": "gid://shopify/MetaobjectDefinition/17868423474",
+          "type": "shopify--qa-pair",
+          "name": "Question and Answer Pairs",
+          "description": "Question and answer pairs that describe a merchant's shop.",
+          "displayNameKey": "question",
+          "access": {
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "NONE"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": false
+            },
+            "translatable": {
+              "enabled": true
+            },
+            "renderable": {
+              "enabled": false
+            },
+            "onlineStore": {
+              "enabled": false
+            }
+          },
+          "fieldDefinitions": [
+            {
+              "key": "question",
+              "name": "Question",
+              "description": null,
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": []
+            },
+            {
+              "key": "answer",
+              "name": "Answer",
+              "description": null,
+              "required": true,
+              "type": {
+                "name": "multi_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": []
+            },
+            {
+              "key": "sources",
+              "name": "Sources",
+              "description": null,
+              "required": false,
+              "type": {
+                "name": "list.link",
+                "category": "LINK"
+              },
+              "validations": []
+            }
+          ],
+          "hasThumbnailField": false,
+          "metaobjectsCount": 0,
+          "standardTemplate": {
+            "type": "shopify--qa-pair",
+            "name": "Question and Answer Pairs"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 22,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "colorPattern": {
+    "name": "colorPattern",
+    "request": {
+      "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+      "variables": {
+        "type": "shopify--color-pattern"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17868456242",
+            "type": "shopify--color-pattern",
+            "name": "Color",
+            "description": "Defines the primary color or pattern, such as blue or striped",
+            "displayNameKey": "label",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "label",
+                "name": "Label",
+                "description": null,
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "255"
+                  }
+                ]
+              },
+              {
+                "key": "color",
+                "name": "Color",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "color",
+                  "category": "COLOR"
+                },
+                "validations": []
+              },
+              {
+                "key": "image",
+                "name": "Image",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "file_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": [
+                  {
+                    "name": "file_type_options",
+                    "value": "[\"Image\"]"
+                  }
+                ]
+              },
+              {
+                "key": "color_taxonomy_reference",
+                "name": "Base color",
+                "description": "Base values map to standards for better search and organization",
+                "required": true,
+                "type": {
+                  "name": "list.product_taxonomy_value_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": [
+                  {
+                    "name": "product_taxonomy_attribute_handle",
+                    "value": "color"
+                  },
+                  {
+                    "name": "list.min",
+                    "value": "1"
+                  },
+                  {
+                    "name": "list.max",
+                    "value": "4"
+                  }
+                ]
+              },
+              {
+                "key": "pattern_taxonomy_reference",
+                "name": "Base pattern",
+                "description": "Base values map to standards for better search and organization",
+                "required": true,
+                "type": {
+                  "name": "product_taxonomy_value_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": [
+                  {
+                    "name": "product_taxonomy_attribute_handle",
+                    "value": "pattern"
+                  }
+                ]
+              }
+            ],
+            "hasThumbnailField": true,
+            "metaobjectsCount": 0,
+            "standardTemplate": {
+              "type": "shopify--color-pattern",
+              "name": "Color"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "colorPatternRead": {
+    "name": "colorPatternRead",
+    "request": {
+      "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query StandardMetaobjectDefinitionEnableRead($id: ID!, $type: String!) {\n    byId: metaobjectDefinition(id: $id) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n    byType: metaobjectDefinitionByType(type: $type) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/17868456242",
+        "type": "shopify--color-pattern"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "byId": {
+          "id": "gid://shopify/MetaobjectDefinition/17868456242",
+          "type": "shopify--color-pattern",
+          "name": "Color",
+          "description": "Defines the primary color or pattern, such as blue or striped",
+          "displayNameKey": "label",
+          "access": {
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "PUBLIC_READ"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": false
+            },
+            "translatable": {
+              "enabled": true
+            },
+            "renderable": {
+              "enabled": false
+            },
+            "onlineStore": {
+              "enabled": false
+            }
+          },
+          "fieldDefinitions": [
+            {
+              "key": "label",
+              "name": "Label",
+              "description": null,
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "255"
+                }
+              ]
+            },
+            {
+              "key": "color",
+              "name": "Color",
+              "description": null,
+              "required": false,
+              "type": {
+                "name": "color",
+                "category": "COLOR"
+              },
+              "validations": []
+            },
+            {
+              "key": "image",
+              "name": "Image",
+              "description": null,
+              "required": false,
+              "type": {
+                "name": "file_reference",
+                "category": "REFERENCE"
+              },
+              "validations": [
+                {
+                  "name": "file_type_options",
+                  "value": "[\"Image\"]"
+                }
+              ]
+            },
+            {
+              "key": "color_taxonomy_reference",
+              "name": "Base color",
+              "description": "Base values map to standards for better search and organization",
+              "required": true,
+              "type": {
+                "name": "list.product_taxonomy_value_reference",
+                "category": "REFERENCE"
+              },
+              "validations": [
+                {
+                  "name": "product_taxonomy_attribute_handle",
+                  "value": "color"
+                },
+                {
+                  "name": "list.min",
+                  "value": "1"
+                },
+                {
+                  "name": "list.max",
+                  "value": "4"
+                }
+              ]
+            },
+            {
+              "key": "pattern_taxonomy_reference",
+              "name": "Base pattern",
+              "description": "Base values map to standards for better search and organization",
+              "required": true,
+              "type": {
+                "name": "product_taxonomy_value_reference",
+                "category": "REFERENCE"
+              },
+              "validations": [
+                {
+                  "name": "product_taxonomy_attribute_handle",
+                  "value": "pattern"
+                }
+              ]
+            }
+          ],
+          "hasThumbnailField": true,
+          "metaobjectsCount": 0,
+          "standardTemplate": {
+            "type": "shopify--color-pattern",
+            "name": "Color"
+          }
+        },
+        "byType": {
+          "id": "gid://shopify/MetaobjectDefinition/17868456242",
+          "type": "shopify--color-pattern",
+          "name": "Color",
+          "description": "Defines the primary color or pattern, such as blue or striped",
+          "displayNameKey": "label",
+          "access": {
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "PUBLIC_READ"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": false
+            },
+            "translatable": {
+              "enabled": true
+            },
+            "renderable": {
+              "enabled": false
+            },
+            "onlineStore": {
+              "enabled": false
+            }
+          },
+          "fieldDefinitions": [
+            {
+              "key": "label",
+              "name": "Label",
+              "description": null,
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "255"
+                }
+              ]
+            },
+            {
+              "key": "color",
+              "name": "Color",
+              "description": null,
+              "required": false,
+              "type": {
+                "name": "color",
+                "category": "COLOR"
+              },
+              "validations": []
+            },
+            {
+              "key": "image",
+              "name": "Image",
+              "description": null,
+              "required": false,
+              "type": {
+                "name": "file_reference",
+                "category": "REFERENCE"
+              },
+              "validations": [
+                {
+                  "name": "file_type_options",
+                  "value": "[\"Image\"]"
+                }
+              ]
+            },
+            {
+              "key": "color_taxonomy_reference",
+              "name": "Base color",
+              "description": "Base values map to standards for better search and organization",
+              "required": true,
+              "type": {
+                "name": "list.product_taxonomy_value_reference",
+                "category": "REFERENCE"
+              },
+              "validations": [
+                {
+                  "name": "product_taxonomy_attribute_handle",
+                  "value": "color"
+                },
+                {
+                  "name": "list.min",
+                  "value": "1"
+                },
+                {
+                  "name": "list.max",
+                  "value": "4"
+                }
+              ]
+            },
+            {
+              "key": "pattern_taxonomy_reference",
+              "name": "Base pattern",
+              "description": "Base values map to standards for better search and organization",
+              "required": true,
+              "type": {
+                "name": "product_taxonomy_value_reference",
+                "category": "REFERENCE"
+              },
+              "validations": [
+                {
+                  "name": "product_taxonomy_attribute_handle",
+                  "value": "pattern"
+                }
+              ]
+            }
+          ],
+          "hasThumbnailField": true,
+          "metaobjectsCount": 0,
+          "standardTemplate": {
+            "type": "shopify--color-pattern",
+            "name": "Color"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 22,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "material": {
+    "name": "material",
+    "request": {
+      "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+      "variables": {
+        "type": "shopify--material"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17868489010",
+            "type": "shopify--material",
+            "name": "Material",
+            "description": "Defines a product's primary material, such as cotton or wool",
+            "displayNameKey": "label",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "PUBLIC_READ"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "label",
+                "name": "Label",
+                "description": null,
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "255"
+                  }
+                ]
+              },
+              {
+                "key": "taxonomy_reference",
+                "name": "Base material",
+                "description": "Base values map to standards for better search and organization",
+                "required": true,
+                "type": {
+                  "name": "product_taxonomy_value_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": [
+                  {
+                    "name": "product_taxonomy_attribute_handle",
+                    "value": "material"
+                  }
+                ]
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 0,
+            "standardTemplate": {
+              "type": "shopify--material",
+              "name": "Material"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "materialRead": {
+    "name": "materialRead",
+    "request": {
+      "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  query StandardMetaobjectDefinitionEnableRead($id: ID!, $type: String!) {\n    byId: metaobjectDefinition(id: $id) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n    byType: metaobjectDefinitionByType(type: $type) {\n      ...StandardMetaobjectDefinitionEnableFields\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/17868489010",
+        "type": "shopify--material"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "byId": {
+          "id": "gid://shopify/MetaobjectDefinition/17868489010",
+          "type": "shopify--material",
+          "name": "Material",
+          "description": "Defines a product's primary material, such as cotton or wool",
+          "displayNameKey": "label",
+          "access": {
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "PUBLIC_READ"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": false
+            },
+            "translatable": {
+              "enabled": true
+            },
+            "renderable": {
+              "enabled": false
+            },
+            "onlineStore": {
+              "enabled": false
+            }
+          },
+          "fieldDefinitions": [
+            {
+              "key": "label",
+              "name": "Label",
+              "description": null,
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "255"
+                }
+              ]
+            },
+            {
+              "key": "taxonomy_reference",
+              "name": "Base material",
+              "description": "Base values map to standards for better search and organization",
+              "required": true,
+              "type": {
+                "name": "product_taxonomy_value_reference",
+                "category": "REFERENCE"
+              },
+              "validations": [
+                {
+                  "name": "product_taxonomy_attribute_handle",
+                  "value": "material"
+                }
+              ]
+            }
+          ],
+          "hasThumbnailField": false,
+          "metaobjectsCount": 0,
+          "standardTemplate": {
+            "type": "shopify--material",
+            "name": "Material"
+          }
+        },
+        "byType": {
+          "id": "gid://shopify/MetaobjectDefinition/17868489010",
+          "type": "shopify--material",
+          "name": "Material",
+          "description": "Defines a product's primary material, such as cotton or wool",
+          "displayNameKey": "label",
+          "access": {
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "PUBLIC_READ"
+          },
+          "capabilities": {
+            "publishable": {
+              "enabled": false
+            },
+            "translatable": {
+              "enabled": true
+            },
+            "renderable": {
+              "enabled": false
+            },
+            "onlineStore": {
+              "enabled": false
+            }
+          },
+          "fieldDefinitions": [
+            {
+              "key": "label",
+              "name": "Label",
+              "description": null,
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "255"
+                }
+              ]
+            },
+            {
+              "key": "taxonomy_reference",
+              "name": "Base material",
+              "description": "Base values map to standards for better search and organization",
+              "required": true,
+              "type": {
+                "name": "product_taxonomy_value_reference",
+                "category": "REFERENCE"
+              },
+              "validations": [
+                {
+                  "name": "product_taxonomy_attribute_handle",
+                  "value": "material"
+                }
+              ]
+            }
+          ],
+          "hasThumbnailField": false,
+          "metaobjectsCount": 0,
+          "standardTemplate": {
+            "type": "shopify--material",
+            "name": "Material"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 22,
+          "actualQueryCost": 22,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "unknown": {
+    "name": "unknown",
+    "request": {
+      "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+      "variables": {
+        "type": "shopify--unknown-template"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["type"],
+              "message": "Record not found",
+              "code": "RECORD_NOT_FOUND",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateFirst": {
+    "name": "duplicateFirst",
+    "request": {
+      "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+      "variables": {
+        "type": "shopify--qa-pair"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17868521778",
+            "type": "shopify--qa-pair",
+            "name": "Question and Answer Pairs",
+            "description": "Question and answer pairs that describe a merchant's shop.",
+            "displayNameKey": "question",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "question",
+                "name": "Question",
+                "description": null,
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "answer",
+                "name": "Answer",
+                "description": null,
+                "required": true,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "sources",
+                "name": "Sources",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.link",
+                  "category": "LINK"
+                },
+                "validations": []
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 0,
+            "standardTemplate": {
+              "type": "shopify--qa-pair",
+              "name": "Question and Answer Pairs"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateSecond": {
+    "name": "duplicateSecond",
+    "request": {
+      "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+      "variables": {
+        "type": "shopify--qa-pair"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "standardMetaobjectDefinitionEnable": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17868521778",
+            "type": "shopify--qa-pair",
+            "name": "Question and Answer Pairs",
+            "description": "Question and answer pairs that describe a merchant's shop.",
+            "displayNameKey": "question",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": true
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "question",
+                "name": "Question",
+                "description": null,
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "answer",
+                "name": "Answer",
+                "description": null,
+                "required": true,
+                "type": {
+                  "name": "multi_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "sources",
+                "name": "Sources",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.link",
+                  "category": "LINK"
+                },
+                "validations": []
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 0,
+            "standardTemplate": {
+              "type": "shopify--qa-pair",
+              "name": "Question and Answer Pairs"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "catalog-cleanup-shopify--qa-pair",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867538738"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867538738",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--accessory-size",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867571506"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867571506",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--age-group",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867604274"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867604274",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--battery-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867637042"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867637042",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--color-pattern",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867669810"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867669810",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--fabric",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867702578"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867702578",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--finish",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867735346"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867735346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--flavor",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867768114"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867768114",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--jewelry-material",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867800882"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867800882",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--material",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867833650"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867833650",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--neckline",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867866418"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867866418",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--occasion",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867899186"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867899186",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--one-piece-style",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867931954"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867931954",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--ring-size",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867964722"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867964722",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--shoe-size",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867997490"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867997490",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--size",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868030258"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868030258",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--sleeve-length-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868063026"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868063026",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--style",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868095794"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868095794",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--target-gender",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868128562"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868128562",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--theme",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868161330"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868161330",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--toe-style",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868194098"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868194098",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--top-length-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868226866"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868226866",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--waist-rise",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868259634"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868259634",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--watch-band-material",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868292402"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868292402",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--pants-length-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868325170"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868325170",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--closure-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868357938"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868357938",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--fit-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868390706"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868390706",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "qaPairCleanup",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868423474"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868423474",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "colorPatternCleanup",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868456242"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868456242",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "materialCleanup",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868489010"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868489010",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "duplicateCleanup",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868521778"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868521778",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

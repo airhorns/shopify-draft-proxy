@@ -906,6 +906,42 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-delete-cascade',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-delete-cascade-conformance.ts',
+    purpose:
+      'Metaobject definition delete cascade with two associated entries plus immediate downstream definition, id, handle, and type-catalog reads.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-delete-cascade.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-delete-cascade.json',
+      'config/parity-requests/metaobjects/metaobject-definition-delete-cascade-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable definition and two rows, deletes the definition during the scenario, then best-effort deletes any remaining rows/definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'standard-metaobject-definition-enable-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
+    purpose:
+      'Standard metaobject definition template catalog, successful enablement, unknown-template RECORD_NOT_FOUND, idempotent duplicate enable, and read-after-enable behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metaobject-templates.json`,
+      `${CAPTURE_ROOT}standard-metaobject-definition-enable-catalog.json`,
+      'src/shopify_draft_proxy/proxy/metaobject_standard_templates_data.gleam',
+      'config/parity-specs/metaobjects/standard-metaobject-definition-enable-catalog.json',
+      'config/parity-requests/metaobjects/standard-metaobject-definition-enable-*.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily enables standard definitions on the disposable shop, captures their payloads, and deletes every created definition after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-field-validation-matrix',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-field-validation-matrix-conformance.ts',
@@ -919,6 +955,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable metaobject definition and setup entry; rejected branches create no rows except captured scalar coercion branches, which are deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-upsert-recovery-and-prefixes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-upsert-recovery-and-prefixes-conformance.ts',
+    purpose:
+      'metaobjectUpsert create, exact-match no-op, conflicting handle prefix, missing required value prefix, and cold handle hydration.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-upsert-recovery-and-prefixes.json`,
+      'config/parity-specs/metaobjects/metaobject-upsert-recovery-and-prefixes.json',
+      'config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and several disposable rows; deletes rows and definition during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1283,6 +1336,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable segment for update validation, deletes it during cleanup, and avoids thousands of live segment-limit setup writes by using local parity-runner setup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
+    captureId: 'segments-user-errors-shape',
+    scriptPath: 'scripts/capture-segments-user-errors-shape-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate/segmentDelete default UserError shape plus customerSegmentMembersQueryCreate typed userError code and field shape.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segments-user-errors-shape.json`,
+      'config/parity-specs/segments/segments-user-errors-shape.json',
+      'config/parity-requests/segments/segments-user-errors-shape-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment for the segmentUpdate id-only validation branch and deletes it during cleanup; all other captured branches are validation-only.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2248,6 +2317,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['webhook subscription management access for the installed app'],
     fixtureOutputs: [`${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`],
     cleanupBehavior: 'Creates one temporary SHOP_UPDATE webhook subscription and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-uri-whitespace',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-uri-whitespace.ts',
+    purpose: 'Webhook subscription URI whitespace validation branches for create.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-uri-whitespace.json`,
+      'config/parity-specs/webhooks/webhook-subscription-uri-whitespace.json',
+    ],
+    cleanupBehavior:
+      'Whitespace-only branch is validation-only; leading/trailing-whitespace HTTPS branch creates a temporary subscription and deletes it during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

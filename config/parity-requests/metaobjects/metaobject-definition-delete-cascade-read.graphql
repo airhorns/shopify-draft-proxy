@@ -1,0 +1,135 @@
+fragment MetaobjectDefinitionDeleteCascadeDefinitionFields on MetaobjectDefinition {
+  id
+  type
+  name
+  description
+  displayNameKey
+  access {
+    admin
+    storefront
+  }
+  capabilities {
+    publishable {
+      enabled
+    }
+    translatable {
+      enabled
+    }
+    renderable {
+      enabled
+    }
+    onlineStore {
+      enabled
+    }
+  }
+  fieldDefinitions {
+    key
+    name
+    description
+    required
+    type {
+      name
+      category
+    }
+    validations {
+      name
+      value
+    }
+  }
+  metaobjectsCount
+  standardTemplate {
+    type
+    name
+  }
+}
+
+fragment MetaobjectDefinitionDeleteCascadeEntryReadFields on Metaobject {
+  id
+  handle
+  type
+  displayName
+  updatedAt
+  capabilities {
+    publishable {
+      status
+    }
+    onlineStore {
+      templateSuffix
+    }
+  }
+  fields {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  titleField: field(key: "title") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+}
+
+query MetaobjectDefinitionDeleteCascadeRead(
+  $definitionId: ID!
+  $type: String!
+  $firstId: ID!
+  $secondId: ID!
+  $firstHandle: MetaobjectHandleInput!
+  $secondHandle: MetaobjectHandleInput!
+) {
+  definition: metaobjectDefinition(id: $definitionId) {
+    ...MetaobjectDefinitionDeleteCascadeDefinitionFields
+  }
+  byType: metaobjectDefinitionByType(type: $type) {
+    ...MetaobjectDefinitionDeleteCascadeDefinitionFields
+  }
+  first: metaobject(id: $firstId) {
+    ...MetaobjectDefinitionDeleteCascadeEntryReadFields
+  }
+  second: metaobject(id: $secondId) {
+    ...MetaobjectDefinitionDeleteCascadeEntryReadFields
+  }
+  firstByHandle: metaobjectByHandle(handle: $firstHandle) {
+    ...MetaobjectDefinitionDeleteCascadeEntryReadFields
+  }
+  secondByHandle: metaobjectByHandle(handle: $secondHandle) {
+    ...MetaobjectDefinitionDeleteCascadeEntryReadFields
+  }
+  catalog: metaobjects(type: $type, first: 10) {
+    edges {
+      cursor
+      node {
+        ...MetaobjectDefinitionDeleteCascadeEntryReadFields
+      }
+    }
+    nodes {
+      ...MetaobjectDefinitionDeleteCascadeEntryReadFields
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

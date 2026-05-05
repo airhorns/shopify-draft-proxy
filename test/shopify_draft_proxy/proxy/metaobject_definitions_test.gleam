@@ -5,8 +5,10 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/string
 import shopify_draft_proxy/proxy/app_identity
+import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
@@ -68,6 +70,15 @@ fn run_mutation_with_api_client_id(
   outcome
 }
 
+fn graphql_request(query: String) -> proxy_state.Request {
+  proxy_state.Request(
+    method: "POST",
+    path: path,
+    headers: dict.new(),
+    body: "{\"query\":" <> json.to_string(json.string(query)) <> "}",
+  )
+}
+
 fn create_definition_query(type_: String) -> String {
   "mutation {
     metaobjectDefinitionCreate(definition: {
@@ -87,6 +98,39 @@ fn create_definition_query(type_: String) -> String {
         capabilities { publishable { enabled } translatable { enabled } }
         fieldDefinitions { key name required type { name category } }
         metaobjectsCount
+      }
+      userErrors { field message code elementKey elementIndex }
+    }
+  }"
+}
+
+fn standard_enable_query(type_: String) -> String {
+  "mutation {
+    standardMetaobjectDefinitionEnable(type: \"" <> type_ <> "\") {
+      metaobjectDefinition {
+        id
+        type
+        name
+        description
+        displayNameKey
+        access { admin storefront }
+        capabilities {
+          publishable { enabled }
+          translatable { enabled }
+          renderable { enabled }
+          onlineStore { enabled }
+        }
+        fieldDefinitions {
+          key
+          name
+          description
+          required
+          type { name category }
+          validations { name value }
+        }
+        hasThumbnailField
+        metaobjectsCount
+        standardTemplate { type name }
       }
       userErrors { field message code elementKey elementIndex }
     }
@@ -237,6 +281,63 @@ pub fn definition_create_downcases_type_before_uniqueness_test() {
     == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type has already been taken\",\"code\":\"TAKEN\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 }
 
+pub fn standard_definition_enable_uses_captured_catalog_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query("shopify--color-pattern"),
+    )
+  let serialized = json.to_string(outcome.data)
+
+  assert string.contains(serialized, "\"type\":\"shopify--color-pattern\"")
+  assert string.contains(serialized, "\"name\":\"Color\"")
+  assert string.contains(
+    serialized,
+    "\"standardTemplate\":{\"type\":\"shopify--color-pattern\",\"name\":\"Color\"}",
+  )
+  assert string.contains(serialized, "\"metaobjectsCount\":0")
+  assert string.contains(serialized, "\"key\":\"color_taxonomy_reference\"")
+  assert string.contains(
+    serialized,
+    "\"name\":\"product_taxonomy_attribute_handle\",\"value\":\"color\"",
+  )
+  assert string.contains(serialized, "\"hasThumbnailField\":true")
+  assert string.contains(serialized, "\"userErrors\":[]")
+}
+
+pub fn standard_definition_enable_unknown_returns_record_not_found_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query("made-up-template"),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"standardMetaobjectDefinitionEnable\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"type\"],\"message\":\"Record not found\",\"code\":\"RECORD_NOT_FOUND\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn standard_definition_enable_existing_type_is_idempotent_test() {
+  let first =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      standard_enable_query("shopify--material"),
+    )
+  let second =
+    run_mutation(
+      first.store,
+      first.identity,
+      standard_enable_query("shopify--material"),
+    )
+  let serialized = json.to_string(second.data)
+
+  assert string.contains(serialized, "\"type\":\"shopify--material\"")
+  assert string.contains(serialized, "\"name\":\"Material\"")
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert first.identity == second.identity
+}
+
 pub fn definition_create_rejects_invalid_field_key_test() {
   let outcome =
     run_mutation(
@@ -342,6 +443,64 @@ pub fn definition_and_entry_lifecycle_stages_locally_test() {
     == "{\"data\":{\"detail\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"},\"byHandle\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"},\"catalog\":{\"nodes\":[{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"}]},\"definition\":{\"metaobjectsCount\":1}}}"
 }
 
+pub fn definition_delete_cascades_associated_entries_locally_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_delete_cascade"),
+    )
+  let create_one =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_delete_cascade\", handle: \"one\", fields: [{ key: \"title\", value: \"One\" }] }) { metaobject { id } userErrors { message code } } }",
+    )
+  let create_two =
+    run_mutation(
+      create_one.store,
+      create_one.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_delete_cascade\", handle: \"two\", fields: [{ key: \"title\", value: \"Two\" }] }) { metaobject { id } userErrors { message code } } }",
+    )
+  let delete_query =
+    "mutation { metaobjectDefinitionDelete(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { deletedId userErrors { field message code } } }"
+  let delete_definition =
+    run_mutation(create_two.store, create_two.identity, delete_query)
+
+  assert json.to_string(delete_definition.data)
+    == "{\"data\":{\"metaobjectDefinitionDelete\":{\"deletedId\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+  assert delete_definition.staged_resource_ids
+    == [
+      "gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic",
+      "gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic",
+      "gid://shopify/Metaobject/3?shopify-draft-proxy=synthetic",
+    ]
+  let assert [delete_draft] = delete_definition.log_drafts
+  assert delete_draft.staged_resource_ids
+    == delete_definition.staged_resource_ids
+
+  let #(logged_store, _) =
+    mutation_helpers.record_log_drafts(
+      delete_definition.store,
+      delete_definition.identity,
+      path,
+      delete_query,
+      dict.new(),
+      delete_definition.log_drafts,
+    )
+  let assert [log_entry] = store.get_log(logged_store)
+  assert log_entry.operation_name == Some("metaobjectDefinitionDelete")
+  assert log_entry.staged_resource_ids == delete_definition.staged_resource_ids
+
+  let read_after =
+    run_query(
+      delete_definition.store,
+      "{ definition: metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { id } byType: metaobjectDefinitionByType(type: \"codex_delete_cascade\") { id } one: metaobject(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\") { id } two: metaobject(id: \"gid://shopify/Metaobject/3?shopify-draft-proxy=synthetic\") { id } byHandle: metaobjectByHandle(handle: { type: \"codex_delete_cascade\", handle: \"one\" }) { id } catalog: metaobjects(type: \"codex_delete_cascade\", first: 10) { nodes { id } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"definition\":null,\"byType\":null,\"one\":null,\"two\":null,\"byHandle\":null,\"catalog\":{\"nodes\":[]}}}"
+}
+
 pub fn update_upsert_delete_and_bulk_delete_stage_locally_test() {
   let definition_outcome =
     run_mutation(
@@ -398,6 +557,89 @@ pub fn update_upsert_delete_and_bulk_delete_stage_locally_test() {
     )
   assert read_back
     == "{\"data\":{\"metaobjects\":{\"nodes\":[]},\"definition\":{\"metaobjectsCount\":0}}}"
+}
+
+pub fn metaobject_upsert_exact_match_preserves_updated_at_and_skips_log_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_upsert_exact"),
+    )
+  let create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_upsert_exact\", handle: \"same\" }, metaobject: { fields: [{ key: \"title\", value: \"Same\" }, { key: \"body\", value: \"Body\" }] }) { metaobject { id handle displayName updatedAt fields { key value } } userErrors { field message code } } }",
+    )
+  assert json.to_string(create.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"same\",\"displayName\":\"Same\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\",\"fields\":[{\"key\":\"title\",\"value\":\"Same\"},{\"key\":\"body\",\"value\":\"Body\"}]},\"userErrors\":[]}}}"
+  assert list.length(create.log_drafts) == 1
+
+  let exact =
+    run_mutation(
+      create.store,
+      create.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_upsert_exact\", handle: \"same\" }, metaobject: { handle: \"same\", fields: [{ key: \"title\", value: \"Same\" }, { key: \"body\", value: \"Body\" }] }) { metaobject { id handle displayName updatedAt fields { key value } } userErrors { field message code } } }",
+    )
+  assert json.to_string(exact.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"same\",\"displayName\":\"Same\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\",\"fields\":[{\"key\":\"title\",\"value\":\"Same\"},{\"key\":\"body\",\"value\":\"Body\"}]},\"userErrors\":[]}}}"
+  assert exact.log_drafts == []
+}
+
+pub fn metaobject_upsert_partitions_handle_and_value_error_prefixes_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_upsert_prefix"),
+    )
+  let one =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_upsert_prefix\", handle: \"one\", fields: [{ key: \"title\", value: \"One\" }] }) { metaobject { id } userErrors { field message code } } }",
+    )
+  let two =
+    run_mutation(
+      one.store,
+      one.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_upsert_prefix\", handle: \"two\", fields: [{ key: \"title\", value: \"Two\" }] }) { metaobject { id } userErrors { field message code } } }",
+    )
+
+  let taken =
+    run_mutation(
+      two.store,
+      two.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_upsert_prefix\", handle: \"one\" }, metaobject: { handle: \"two\", fields: [{ key: \"title\", value: \"One\" }] }) { metaobject { id } userErrors { field message code elementKey elementIndex } } }",
+    )
+  assert json.to_string(taken.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"handle\",\"handle\"],\"message\":\"Handle has already been taken\",\"code\":\"TAKEN\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let missing_required =
+    run_mutation(
+      two.store,
+      two.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_upsert_prefix\", handle: \"missing-title\" }, metaobject: { fields: [{ key: \"body\", value: \"Only body\" }] }) { metaobject { id } userErrors { field message code elementKey elementIndex } } }",
+    )
+  assert json.to_string(missing_required.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[],\"message\":\"Title can't be blank\",\"code\":\"OBJECT_FIELD_REQUIRED\",\"elementKey\":\"title\",\"elementIndex\":null}]}}}"
+}
+
+pub fn metaobject_upsert_key_value_shape_requires_metaobject_or_values_test() {
+  let #(proxy_state.Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(
+        "mutation { metaobjectUpsert(handle: { type: \"codex_rows\", handle: \"blank\" }) { metaobject { id } userErrors { field message code } } }",
+      ),
+    )
+  assert status == 200
+  let serialized = json.to_string(body)
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "metaobject")
+  assert string.contains(serialized, "values")
+  assert !string.contains(serialized, "\"userErrors\"")
 }
 
 pub fn metaobject_field_values_validate_and_coerce_by_type_test() {

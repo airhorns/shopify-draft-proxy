@@ -1,0 +1,48 @@
+{
+  "scenarioId": "gift-card-mutation-user-error-codes",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-05T17:31:15.000Z",
+  "notes": "Deterministic local-runtime evidence for HAR-686. The proxy request stages a $5 CAD gift card and then exercises the ticketed userError code and field-path branches without upstream mutation passthrough. Live conformance auth was valid, but public Admin API 2025-01 and 2026-04 rejected `code` selection on `giftCardUpdate.userErrors`, so this fixture records the ticket's internal typed-error contract rather than a live public-schema response.",
+  "expected": {
+    "data": {
+      "zeroInitialValue": {
+        "userErrors": [
+          {
+            "field": ["input", "initialValue"],
+            "code": "GREATER_THAN",
+            "message": "must be greater than 0"
+          }
+        ]
+      },
+      "missingUpdate": {
+        "userErrors": [
+          {
+            "field": ["id"],
+            "code": "GIFT_CARD_NOT_FOUND",
+            "message": "The gift card could not be found."
+          }
+        ]
+      },
+      "negativeCredit": {
+        "userErrors": [
+          {
+            "field": ["creditInput", "creditAmount", "amount"],
+            "code": "NEGATIVE_OR_ZERO_AMOUNT",
+            "message": "Amount must be greater than zero"
+          }
+        ]
+      },
+      "insufficientDebit": {
+        "userErrors": [
+          {
+            "field": ["debitInput", "debitAmount", "amount"],
+            "code": "INSUFFICIENT_FUNDS",
+            "message": "Insufficient balance"
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": []
+}

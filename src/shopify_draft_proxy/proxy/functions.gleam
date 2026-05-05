@@ -940,14 +940,6 @@ fn read_validation_metafields(
   }
 }
 
-fn missing_function_error(field: List(String)) -> UserError {
-  UserError(
-    field: field,
-    message: "Function handle or function ID must be provided",
-    code: Some("MISSING_FUNCTION_IDENTIFIER"),
-  )
-}
-
 fn missing_cart_transform_function_error() -> UserError {
   UserError(
     field: ["functionHandle"],
@@ -993,6 +985,16 @@ fn function_does_not_implement_error(field_name: String) -> UserError {
   )
 }
 
+fn validation_function_does_not_implement_error(
+  field_name: String,
+) -> UserError {
+  UserError(
+    field: [field_name],
+    message: "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
+    code: Some("FUNCTION_DOES_NOT_IMPLEMENT"),
+  )
+}
+
 fn function_already_registered_error(field_name: String) -> UserError {
   UserError(
     field: [field_name],
@@ -1003,8 +1005,8 @@ fn function_already_registered_error(field_name: String) -> UserError {
 
 fn max_validations_activated_error() -> UserError {
   UserError(
-    field: ["validation", "enable"],
-    message: "The maximum number of active validations has been reached.",
+    field: ["enable"],
+    message: "Cannot have more than 10 active validation functions.",
     code: Some("MAX_VALIDATIONS_ACTIVATED"),
   )
 }
@@ -1069,7 +1071,18 @@ fn handle_validation_create(
     None, None -> {
       let payload =
         validation_mutation_payload(store, field, fragments, None, [
-          missing_function_error(["validation", "functionHandle"]),
+          missing_cart_transform_function_error(),
+        ])
+      #(
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
+        store,
+        identity,
+      )
+    }
+    Some(_), Some(_) -> {
+      let payload =
+        validation_mutation_payload(store, field, fragments, None, [
+          multiple_function_identifiers_error(),
         ])
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1083,7 +1096,7 @@ fn handle_validation_create(
         None ->
           case graphql_helpers.read_arg_bool(input, "enabled") {
             Some(b) -> Some(b)
-            None -> Some(True)
+            None -> Some(False)
           }
       }
       case validation_enable_would_exceed_cap(store, "", enable) {
@@ -1103,77 +1116,84 @@ fn handle_validation_create(
           )
         }
         False -> {
-          let title = graphql_helpers.read_arg_string(input, "title")
-          let fallback = case title {
-            Some(t) -> t
-            None -> "Local validation function"
+          case resolve_validation_function(store, reference) {
+            Error(user_error) -> {
+              let payload =
+                validation_mutation_payload(store, field, fragments, None, [
+                  user_error,
+                ])
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [],
+                ),
+                store,
+                identity,
+              )
+            }
+            Ok(shopify_fn) -> {
+              let title = graphql_helpers.read_arg_string(input, "title")
+              let #(timestamp, identity_after_ts) =
+                synthetic_identity.make_synthetic_timestamp(identity)
+              let #(validation_id, identity_final) =
+                synthetic_identity.make_synthetic_gid(
+                  identity_after_ts,
+                  "Validation",
+                )
+              let #(metafields, identity_after_metafields) =
+                read_validation_metafields(
+                  input,
+                  validation_id,
+                  timestamp,
+                  identity_final,
+                )
+              let block_on_failure = case
+                graphql_helpers.read_arg_bool(input, "blockOnFailure")
+              {
+                Some(b) -> Some(b)
+                None -> Some(False)
+              }
+              let function_handle = case reference.function_handle {
+                Some(_) -> reference.function_handle
+                None -> shopify_fn.handle
+              }
+              let validation =
+                ValidationRecord(
+                  id: validation_id,
+                  title: title,
+                  enable: enable,
+                  block_on_failure: block_on_failure,
+                  function_id: reference.function_id,
+                  function_handle: function_handle,
+                  shopify_function_id: Some(shopify_fn.id),
+                  metafields: metafields,
+                  created_at: Some(timestamp),
+                  updated_at: Some(timestamp),
+                )
+              let #(_, store_final) =
+                store.upsert_staged_validation(store, validation)
+              let payload =
+                validation_mutation_payload(
+                  store_final,
+                  field,
+                  fragments,
+                  Some(validation),
+                  [],
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [
+                    validation.id,
+                  ],
+                ),
+                store_final,
+                identity_after_metafields,
+              )
+            }
           }
-          let #(shopify_fn, store_after_fn, identity_after_fn) =
-            ensure_shopify_function(
-              store,
-              identity,
-              reference,
-              "VALIDATION",
-              fallback,
-            )
-          let #(timestamp, identity_after_ts) =
-            synthetic_identity.make_synthetic_timestamp(identity_after_fn)
-          let #(validation_id, identity_final) =
-            synthetic_identity.make_synthetic_gid(
-              identity_after_ts,
-              "Validation",
-            )
-          let #(metafields, identity_after_metafields) =
-            read_validation_metafields(
-              input,
-              validation_id,
-              timestamp,
-              identity_final,
-            )
-          let block_on_failure = case
-            graphql_helpers.read_arg_bool(input, "blockOnFailure")
-          {
-            Some(b) -> Some(b)
-            None -> Some(False)
-          }
-          let function_handle = case reference.function_handle {
-            Some(_) -> reference.function_handle
-            None -> shopify_fn.handle
-          }
-          let validation =
-            ValidationRecord(
-              id: validation_id,
-              title: title,
-              enable: enable,
-              block_on_failure: block_on_failure,
-              function_id: reference.function_id,
-              function_handle: function_handle,
-              shopify_function_id: Some(shopify_fn.id),
-              metafields: metafields,
-              created_at: Some(timestamp),
-              updated_at: Some(timestamp),
-            )
-          let #(_, store_final) =
-            store.upsert_staged_validation(store_after_fn, validation)
-          let payload =
-            validation_mutation_payload(
-              store_final,
-              field,
-              fragments,
-              Some(validation),
-              [],
-            )
-          #(
-            MutationFieldResult(
-              key: key,
-              payload: payload,
-              staged_resource_ids: [
-                validation.id,
-              ],
-            ),
-            store_final,
-            identity_after_metafields,
-          )
         }
       }
     }
@@ -1676,7 +1696,12 @@ fn function_reference_for_mutation(
             Some(d) -> d
             None -> dict.new()
           }
-          Some(#(read_function_reference(input), "VALIDATION"))
+          let reference = read_function_reference(input)
+          case reference.function_id, reference.function_handle {
+            Some(_), Some(_) -> None
+            None, None -> None
+            _, _ -> Some(#(reference, "VALIDATION"))
+          }
         }
         "validationUpdate" -> None
         "cartTransformCreate" -> {
@@ -2029,6 +2054,22 @@ fn find_existing_shopify_function(
   }
 }
 
+fn resolve_validation_function(
+  store: Store,
+  reference: FunctionReference,
+) -> Result(ShopifyFunctionRecord, UserError) {
+  let field_name = cart_transform_reference_field(reference)
+  let value = cart_transform_reference_value(reference)
+  case find_existing_shopify_function(store, reference) {
+    None -> Error(function_not_found_error(field_name, value))
+    Some(record) ->
+      case validation_function_api_supported(record) {
+        True -> Ok(record)
+        False -> Error(validation_function_does_not_implement_error(field_name))
+      }
+  }
+}
+
 fn resolve_cart_transform_function(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -2085,6 +2126,16 @@ fn cart_transform_function_api_supported(
   }
 }
 
+fn validation_function_api_supported(record: ShopifyFunctionRecord) -> Bool {
+  case record.api_type {
+    None -> True
+    Some(api_type) -> {
+      let normalized = normalize_function_api_type(api_type)
+      normalized == "VALIDATION" || normalized == "CART_CHECKOUT_VALIDATION"
+    }
+  }
+}
+
 fn normalize_function_api_type(api_type: String) -> String {
   api_type
   |> string.uppercase
@@ -2100,79 +2151,6 @@ fn cart_transform_function_in_use(
     record.shopify_function_id == Some(shopify_fn.id)
     || record.function_id == Some(shopify_fn.id)
   })
-}
-
-/// Hydrate a `ShopifyFunctionRecord` given a reference + api type.
-/// Mirrors `ensureShopifyFunction` — it reuses an existing record when
-/// one matches, otherwise mints a fresh one (using a handle-derived id
-/// if a handle is supplied, or a synthetic gid otherwise).
-fn ensure_shopify_function(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  reference: FunctionReference,
-  api_type: String,
-  fallback_title: String,
-) -> #(ShopifyFunctionRecord, Store, SyntheticIdentityRegistry) {
-  let existing = find_existing_shopify_function(store, reference)
-  let #(id, identity_after_id) = case existing {
-    Some(record) -> #(record.id, identity)
-    None ->
-      case reference.function_id {
-        Some(id) -> #(id, identity)
-        None ->
-          case reference.function_handle {
-            Some(handle) -> #(shopify_function_id_from_handle(handle), identity)
-            None -> {
-              let #(synthetic, next_identity) =
-                synthetic_identity.make_synthetic_gid(
-                  identity,
-                  "ShopifyFunction",
-                )
-              #(synthetic, next_identity)
-            }
-          }
-      }
-  }
-  let handle = case reference.function_handle {
-    Some(_) -> reference.function_handle
-    None ->
-      case existing {
-        Some(record) -> record.handle
-        None -> None
-      }
-  }
-  let title = case existing {
-    Some(record) -> record.title
-    None ->
-      case handle {
-        Some(h) -> Some(title_from_handle(h))
-        None -> Some(fallback_title)
-      }
-  }
-  let description = case existing {
-    Some(record) -> record.description
-    None -> None
-  }
-  let app_key = case existing {
-    Some(record) -> record.app_key
-    None -> None
-  }
-  let app = case existing {
-    Some(record) -> record.app
-    None -> None
-  }
-  let record =
-    ShopifyFunctionRecord(
-      id: id,
-      title: title,
-      handle: handle,
-      api_type: Some(api_type),
-      description: description,
-      app_key: app_key,
-      app: app,
-    )
-  let #(_, next_store) = store.upsert_staged_shopify_function(store, record)
-  #(record, next_store, identity_after_id)
 }
 
 /// Mirror `normalizeFunctionHandle`. Lowercases, trims, replaces runs of

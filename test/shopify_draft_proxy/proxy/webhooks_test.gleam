@@ -783,6 +783,26 @@ pub fn webhook_subscription_create_blank_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
 }
 
+pub fn webhook_subscription_create_whitespace_only_uri_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"   \", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
+}
+
+pub fn webhook_subscription_create_trims_outer_uri_whitespace_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"  https://example.com/h  \", format: JSON }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"uri\":\"https://example.com/h\"},\"userErrors\":[]}}}"
+
+  let records = store.list_effective_webhook_subscriptions(outcome.store)
+  assert list.map(records, fn(record) { record.uri })
+    == [Some("https://example.com/h")]
+}
+
 pub fn webhook_subscription_create_rejects_pubsub_no_topic_test() {
   assert_create_uri_rejected("pubsub://my-project", [
     "Address protocol pubsub:// is not supported",

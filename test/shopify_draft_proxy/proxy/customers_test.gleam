@@ -1,11 +1,13 @@
 import gleam/dict
 import gleam/json
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store as store_mod
-import shopify_draft_proxy/state/types.{Money, StoreCreditAccountRecord}
+import shopify_draft_proxy/state/types.{
+  CustomerRecord, Money, StoreCreditAccountRecord,
+}
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   let request =
@@ -201,6 +203,56 @@ pub fn customer_create_readback_and_log_test() {
   assert string.contains(
     log_json,
     "\"query\":\"" <> escape(create_query) <> "\"",
+  )
+}
+
+pub fn customer_account_invite_stages_only_invitable_customers_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"invite@example.com\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: invite_status, body: invite_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\") { customer { id state } userErrors { field message code } } }",
+    )
+  assert invite_status == 200
+  let invite_json = json.to_string(invite_body)
+  assert string.contains(invite_json, "\"state\":\"INVITED\"")
+  assert string.contains(invite_json, "\"userErrors\":[]")
+
+  let enabled_proxy =
+    proxy
+    |> set_customer_state("gid://shopify/Customer/1", "ENABLED")
+  let #(Response(status: enabled_status, body: enabled_body, ..), next_proxy) =
+    graphql(
+      enabled_proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\") { customer { id state } userErrors { field message code } } }",
+    )
+  assert enabled_status == 200
+  let enabled_json = json.to_string(enabled_body)
+  assert string.contains(
+    enabled_json,
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"ENABLED\"}",
+  )
+  assert string.contains(
+    enabled_json,
+    "\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"Account already enabled\",\"code\":\"ACCOUNT_ALREADY_ENABLED\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      next_proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id state } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"ENABLED\"}",
   )
 }
 
@@ -885,6 +937,22 @@ fn assert_next_customer_create_uses_first_customer_id(
     json.to_string(body),
     "\"customer\":{\"id\":\"gid://shopify/Customer/1\"}",
   )
+}
+
+fn set_customer_state(
+  proxy: draft_proxy.DraftProxy,
+  customer_id: String,
+  state: String,
+) -> draft_proxy.DraftProxy {
+  let customer = case
+    store_mod.get_effective_customer_by_id(proxy.store, customer_id)
+  {
+    Some(record) -> record
+    None -> panic as "expected seeded customer"
+  }
+  let updated = CustomerRecord(..customer, state: Some(state))
+  let #(_, next_store) = store_mod.stage_update_customer(proxy.store, updated)
+  proxy_state.DraftProxy(..proxy, store: next_store)
 }
 
 fn opt_in_level_for_state(state: String) -> String {
