@@ -1,0 +1,12 @@
+mutation AppUninstallUnknownInput($input: AppUninstallInput) {
+  appUninstall(input: $input) {
+    app {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

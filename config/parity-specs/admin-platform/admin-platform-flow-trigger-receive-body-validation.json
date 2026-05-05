@@ -1,0 +1,45 @@
+{
+  "scenarioId": "admin-platform-flow-trigger-receive-body-validation",
+  "operationNames": ["flowTriggerReceive"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "side-effect-safety"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-utility-roots.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/admin_platform_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-body-not-json.graphql"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-746 executable validation parity for flowTriggerReceive body-only JSON and BODY_SCHEMA guardrails. The current conformance store rejects the proposed trigger_id success sample as an unregistered Flow trigger after schema validation, so this parity spec records the validation-only branches and the local runtime test covers well-formed body-only staging without external Flow delivery.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "body-not-json",
+        "capturePath": "$.captures.flowTriggerReceiveBodyNotJson.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "body-properties-not-object",
+        "capturePath": "$.captures.flowTriggerReceiveBodyPropertiesNotObject.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-body-properties-not-object.graphql"
+        }
+      },
+      {
+        "name": "body-missing-resource-url",
+        "capturePath": "$.captures.flowTriggerReceiveBodyMissingResourceUrl.result.payload.data.flowTriggerReceive",
+        "proxyPath": "$.data.flowTriggerReceive",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-flow-trigger-body-missing-resource-url.graphql"
+        }
+      }
+    ]
+  }
+}

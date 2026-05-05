@@ -1,0 +1,58 @@
+{
+  "scenarioId": "admin-platform-backup-region-update-validation",
+  "operationNames": ["backupRegionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["validation-errors", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-backup-region-update-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/admin_platform_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-validation-typename.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-745 executable parity for backupRegionUpdate MarketUserError typename on REGION_NOT_FOUND and GraphQL input-object coercion errors for missing, null, and non-enum literal region.countryCode values.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "usererror-typename-marketusererror",
+        "capturePath": "$.captures.userErrorTypename.result.payload.data.backupRegionUpdate",
+        "proxyPath": "$.data.backupRegionUpdate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "missing-country-code-coercion",
+        "capturePath": "$.captures.missingCountryCode.result.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-validation-missing-country-code.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "null-country-code-coercion",
+        "capturePath": "$.captures.nullCountryCode.result.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-validation-null-country-code.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "numeric-country-code-coercion",
+        "capturePath": "$.captures.numericCountryCode.result.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-validation-numeric-country-code.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

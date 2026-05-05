@@ -425,6 +425,63 @@ pub fn gift_card_update_changes_note_test() {
     == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/100?shopify-draft-proxy=synthetic\",\"note\":\"new note\"},\"userErrors\":[]}}}"
 }
 
+pub fn gift_card_update_accepts_noop_note_and_logs_raw_mutation_test() {
+  let id = "gid://shopify/GiftCard/noop-note"
+  let existing =
+    GiftCardRecord(
+      ..transaction_card(id, True, None, "50.0", "CAD"),
+      note: Some("current note"),
+      updated_at: "2023-12-31T23:59:59.000Z",
+    )
+  let document =
+    "mutation { giftCardUpdate(id: \""
+    <> id
+    <> "\", input: { note: \"current note\" }) { giftCard { id note updatedAt } userErrors { field code message } } }"
+  let outcome =
+    run_mutation_outcome(store.new() |> seed_card(existing), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/noop-note\",\"note\":\"current note\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [id]
+  let assert Some(updated) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert updated.note == Some("current note")
+  assert updated.updated_at == "2024-01-01T00:00:00.000Z"
+
+  let #(logged_store, _) =
+    mutation_helpers.record_log_drafts(
+      outcome.store,
+      outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      document,
+      dict.new(),
+      outcome.log_drafts,
+    )
+  let assert [entry] = store.get_log(logged_store)
+  assert entry.query == document
+  assert entry.staged_resource_ids == [id]
+}
+
+pub fn gift_card_update_accepts_noop_expiry_and_template_suffix_test() {
+  let id = "gid://shopify/GiftCard/noop-date-template"
+  let existing =
+    GiftCardRecord(
+      ..transaction_card(id, True, Some("2030-01-01"), "50.0", "CAD"),
+      template_suffix: Some("birthday"),
+      updated_at: "2023-12-31T23:59:59.000Z",
+    )
+  let body =
+    run_mutation(
+      store.new() |> seed_card(existing),
+      "mutation { noopExpires: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { expiresOn: \"2030-01-01\" }) { giftCard { id expiresOn updatedAt } userErrors { field code message } } noopTemplate: giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { templateSuffix: \"birthday\" }) { giftCard { id templateSuffix updatedAt } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"noopExpires\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/noop-date-template\",\"expiresOn\":\"2030-01-01\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]},\"noopTemplate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/noop-date-template\",\"templateSuffix\":\"birthday\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\"},\"userErrors\":[]}}}"
+}
+
 pub fn gift_card_update_missing_card_uses_typed_not_found_error_test() {
   let body =
     run_mutation(
