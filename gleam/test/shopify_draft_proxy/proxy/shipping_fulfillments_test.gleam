@@ -1355,7 +1355,7 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
       dict.from_list([#("id", root_field.StringVal(closed_order_id))]),
     )
   assert json.to_string(closed_cancel.data)
-    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order cannot be cancelled in its current state.\",\"code\":\"fulfillment_order_cannot_be_cancelled\"}]}}}"
+    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order is not in cancelable request state and can't be canceled.\",\"code\":\"fulfillment_order_cannot_be_cancelled\"}]}}}"
 
   let report_mutation =
     "
@@ -1389,7 +1389,7 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
       dict.from_list([#("id", root_field.StringVal(progress_order_id))]),
     )
   assert json.to_string(progress_cancel.data)
-    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order has manually reported progress.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
+    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
 }
 
 fn fulfillment_order_record(

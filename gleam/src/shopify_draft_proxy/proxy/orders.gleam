@@ -12842,7 +12842,12 @@ fn handle_fulfillment_order_lifecycle_mutation(
                         serialize_fulfillment_order_mutation_payload(
                           field,
                           [],
-                          [#(None, message)],
+                          [
+                            #(
+                              fulfillment_order_cancel_user_error_field(message),
+                              message,
+                            ),
+                          ],
                           fragments,
                         )
                       #(key, payload, store, identity, [], [], [])
@@ -12890,12 +12895,17 @@ fn fulfillment_order_cancel_block_message(
   fulfillment_order: CapturedJsonValue,
 ) -> Option(String) {
   case fulfillment_order_has_manually_reported_progress(fulfillment_order) {
-    True -> Some("Fulfillment order has manually reported progress.")
+    True ->
+      Some(
+        "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.",
+      )
     False ->
       case fulfillment_order_cancel_allowed(fulfillment_order) {
         True -> None
         False ->
-          Some("Fulfillment order cannot be cancelled in its current state.")
+          Some(
+            "Fulfillment order is not in cancelable request state and can't be canceled.",
+          )
       }
   }
 }
@@ -13529,11 +13539,21 @@ fn serialize_nullable_field_user_error(
   )
 }
 
+fn fulfillment_order_cancel_user_error_field(
+  message: String,
+) -> Option(List(String)) {
+  case message {
+    "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." ->
+      Some(["id"])
+    _ -> None
+  }
+}
+
 fn fulfillment_order_user_error_code(message: String) -> SourceValue {
   case message {
-    "Fulfillment order has manually reported progress." ->
+    "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." ->
       SrcString("fulfillment_order_has_manually_reported_progress")
-    "Fulfillment order cannot be cancelled in its current state." ->
+    "Fulfillment order is not in cancelable request state and can't be canceled." ->
       SrcString("fulfillment_order_cannot_be_cancelled")
     _ -> SrcNull
   }

@@ -251,6 +251,15 @@
         ]
       },
       {
+        "name": "cancel-after-report-progress-guardrail-data",
+        "capturePath": "$.workflows.scheduleProgressOpenClose.cancelAfterReportProgress.response.payload.data.fulfillmentOrderCancel",
+        "proxyPath": "$.data.fulfillmentOrderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-cancel.graphql",
+          "variablesCapturePath": "$.workflows.scheduleProgressOpenClose.cancelAfterReportProgress.variables"
+        }
+      },
+      {
         "name": "open-mutation-data",
         "capturePath": "$.workflows.scheduleProgressOpenClose.open.response.payload.data.fulfillmentOrderOpen",
         "proxyPath": "$.data.fulfillmentOrderOpen",
@@ -332,6 +341,15 @@
             "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
           }
         ]
+      },
+      {
+        "name": "cancel-after-cancelled-guardrail-data",
+        "capturePath": "$.workflows.reroute.cancelAgainAfterCancel.response.payload.data.fulfillmentOrderCancel",
+        "proxyPath": "$.data.fulfillmentOrderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-lifecycle-cancel.graphql",
+          "variablesCapturePath": "$.workflows.reroute.cancelAgainAfterCancel.variables"
+        }
       },
       {
         "name": "after-cancel-order-read",

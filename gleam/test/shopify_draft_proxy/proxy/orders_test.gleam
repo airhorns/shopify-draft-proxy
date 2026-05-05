@@ -2153,7 +2153,7 @@ pub fn orders_fulfillment_order_cancel_rejects_closed_orders_test() {
       dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
     )
   assert json.to_string(second_cancel.data)
-    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order cannot be cancelled in its current state.\",\"code\":\"fulfillment_order_cannot_be_cancelled\"}]}}}"
+    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order is not in cancelable request state and can't be canceled.\",\"code\":\"fulfillment_order_cannot_be_cancelled\"}]}}}"
 }
 
 pub fn orders_fulfillment_order_cancel_rejects_manually_reported_progress_test() {
@@ -2221,7 +2221,7 @@ pub fn orders_fulfillment_order_cancel_rejects_manually_reported_progress_test()
       dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
     )
   assert json.to_string(cancel_outcome.data)
-    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order has manually reported progress.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
+    == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
 }
 
 pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {

@@ -4266,12 +4266,17 @@ fn fulfillment_order_cancel_block_message(
   order: FulfillmentOrderRecord,
 ) -> Option(String) {
   case fulfillment_order_has_manually_reported_progress(order) {
-    True -> Some("Fulfillment order has manually reported progress.")
+    True ->
+      Some(
+        "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.",
+      )
     False ->
       case fulfillment_order_cancel_allowed(order) {
         True -> None
         False ->
-          Some("Fulfillment order cannot be cancelled in its current state.")
+          Some(
+            "Fulfillment order is not in cancelable request state and can't be canceled.",
+          )
       }
   }
 }
@@ -7329,9 +7334,10 @@ fn fulfillment_order_cancel_user_error_payload(
   message: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
+  let field_value = fulfillment_order_cancel_user_error_field(message)
   let user_error =
     src_object([
-      #("field", SrcNull),
+      #("field", field_value),
       #("message", SrcString(message)),
       #("code", fulfillment_order_cancel_user_error_code(message)),
     ])
@@ -7352,11 +7358,19 @@ fn fulfillment_order_cancel_user_error_payload(
   )
 }
 
+fn fulfillment_order_cancel_user_error_field(message: String) -> SourceValue {
+  case message {
+    "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." ->
+      SrcList([SrcString("id")])
+    _ -> SrcNull
+  }
+}
+
 fn fulfillment_order_cancel_user_error_code(message: String) -> SourceValue {
   case message {
-    "Fulfillment order has manually reported progress." ->
+    "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." ->
       SrcString("fulfillment_order_has_manually_reported_progress")
-    "Fulfillment order cannot be cancelled in its current state." ->
+    "Fulfillment order is not in cancelable request state and can't be canceled." ->
       SrcString("fulfillment_order_cannot_be_cancelled")
     _ -> SrcNull
   }
