@@ -40,7 +40,9 @@ import shopify_draft_proxy/graphql/parse_operation.{
 import shopify_draft_proxy/proxy/draft_proxy.{type DraftProxy, type Response}
 import shopify_draft_proxy/proxy/operation_registry
 import shopify_draft_proxy/proxy/operation_registry_data
-import shopify_draft_proxy/proxy/proxy_state.{Config, LiveHybrid, Request}
+import shopify_draft_proxy/proxy/proxy_state.{
+  Config, LiveHybrid, PassthroughUnsupportedMutations, Request,
+}
 import simplifile
 
 pub type RunError {
@@ -223,6 +225,7 @@ fn build_proxy(
       let proxy =
         draft_proxy.with_config(Config(
           read_mode: LiveHybrid,
+          unsupported_mutation_mode: PassthroughUnsupportedMutations,
           port: 4000,
           shopify_admin_origin: capture_shopify_admin_origin(capture),
           snapshot_path: None,

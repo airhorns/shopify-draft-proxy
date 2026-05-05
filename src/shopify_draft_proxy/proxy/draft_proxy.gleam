@@ -56,7 +56,8 @@ import shopify_draft_proxy/proxy/payments
 import shopify_draft_proxy/proxy/privacy
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/proxy_state.{
-  DraftProxy, Live, LiveHybrid, Request, Response, Snapshot,
+  DraftProxy, Live, LiveHybrid, PassthroughUnsupportedMutations,
+  RejectUnsupportedMutations, Request, Response, Snapshot,
 }
 import shopify_draft_proxy/proxy/saved_searches
 import shopify_draft_proxy/proxy/segments
@@ -254,6 +255,12 @@ pub fn get_config_snapshot(proxy: DraftProxy) -> Json {
       "runtime",
       json.object([
         #("readMode", json.string(read_mode_to_string(proxy.config.read_mode))),
+        #(
+          "unsupportedMutationMode",
+          json.string(unsupported_mutation_mode_to_string(
+            proxy.config.unsupported_mutation_mode,
+          )),
+        ),
       ]),
     ),
     #(
@@ -278,6 +285,15 @@ fn read_mode_to_string(mode: ReadMode) -> String {
     Snapshot -> "snapshot"
     LiveHybrid -> "live-hybrid"
     Live -> "passthrough"
+  }
+}
+
+fn unsupported_mutation_mode_to_string(
+  mode: proxy_state.UnsupportedMutationMode,
+) -> String {
+  case mode {
+    PassthroughUnsupportedMutations -> "passthrough"
+    RejectUnsupportedMutations -> "reject"
   }
 }
 
@@ -445,30 +461,38 @@ fn dispatch_graphql(
       case parse_operation.parse_operation(body.query) {
         Error(_) -> #(bad_request("Could not parse GraphQL operation"), proxy)
         Ok(parsed) ->
-          case live_hybrid_passthrough_target(proxy, parsed, body.variables) {
-            True -> dispatch_passthrough_sync(proxy, request)
+          case
+            reject_unsupported_mutation_target(proxy, parsed, body.variables)
+          {
+            True -> #(unsupported_mutation_rejected_response(parsed), proxy)
             False ->
-              case parsed.type_, list.first(parsed.root_fields) {
-                QueryOperation, Ok(field) ->
-                  route_query(
-                    proxy,
-                    request,
-                    parsed,
-                    body.query,
-                    field,
-                    body.variables,
-                  )
-                MutationOperation, Ok(field) ->
-                  route_mutation(
-                    proxy,
-                    parsed,
-                    request.path,
-                    request.headers,
-                    body.query,
-                    field,
-                    body.variables,
-                  )
-                _, _ -> #(bad_request("Operation has no root field"), proxy)
+              case
+                live_hybrid_passthrough_target(proxy, parsed, body.variables)
+              {
+                True -> dispatch_passthrough_sync(proxy, request)
+                False ->
+                  case parsed.type_, list.first(parsed.root_fields) {
+                    QueryOperation, Ok(field) ->
+                      route_query(
+                        proxy,
+                        request,
+                        parsed,
+                        body.query,
+                        field,
+                        body.variables,
+                      )
+                    MutationOperation, Ok(field) ->
+                      route_mutation(
+                        proxy,
+                        parsed,
+                        request.path,
+                        request.headers,
+                        body.query,
+                        field,
+                        body.variables,
+                      )
+                    _, _ -> #(bad_request("Operation has no root field"), proxy)
+                  }
               }
           }
       }
@@ -507,6 +531,26 @@ fn live_hybrid_passthrough_target(
     }
     _ -> False
   }
+}
+
+fn reject_unsupported_mutation_target(
+  proxy: DraftProxy,
+  parsed: ParsedOperation,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case proxy.config.unsupported_mutation_mode, parsed.type_ {
+    RejectUnsupportedMutations, MutationOperation ->
+      live_hybrid_passthrough_target(proxy, parsed, variables)
+    _, _ -> False
+  }
+}
+
+fn unsupported_mutation_rejected_response(parsed: ParsedOperation) -> Response {
+  let root = case list.first(parsed.root_fields) {
+    Ok(name) -> name
+    Error(_) -> "unknown"
+  }
+  bad_request("Unsupported mutation rejected by configuration: " <> root)
 }
 
 fn dispatch_passthrough_sync(
@@ -2301,6 +2345,7 @@ fn is_passthrough_request(proxy: DraftProxy, request: Request) -> Bool {
         Error(_) -> False
         Ok(parsed) ->
           live_hybrid_passthrough_target(proxy, parsed, body.variables)
+          && !reject_unsupported_mutation_target(proxy, parsed, body.variables)
       }
   }
 }

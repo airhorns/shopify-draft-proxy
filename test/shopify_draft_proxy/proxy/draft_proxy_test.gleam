@@ -6,7 +6,8 @@ import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy.{type Request}
 import shopify_draft_proxy/proxy/operation_registry
 import shopify_draft_proxy/proxy/proxy_state.{
-  Config, LiveHybrid, Request, Response, Snapshot,
+  Config, LiveHybrid, PassthroughUnsupportedMutations, Request, Response,
+  Snapshot,
 }
 import shopify_draft_proxy/state/serialization as state_serialization
 
@@ -182,13 +183,14 @@ pub fn meta_config_default_test() {
     draft_proxy.process_request(proxy, request)
   assert status == 200
   assert json.to_string(body)
-    == "{\"runtime\":{\"readMode\":\"snapshot\"},\"proxy\":{\"port\":4000,\"shopifyAdminOrigin\":\"https://shopify.com\"},\"snapshot\":{\"enabled\":false,\"path\":null}}"
+    == "{\"runtime\":{\"readMode\":\"snapshot\",\"unsupportedMutationMode\":\"passthrough\"},\"proxy\":{\"port\":4000,\"shopifyAdminOrigin\":\"https://shopify.com\"},\"snapshot\":{\"enabled\":false,\"path\":null}}"
 }
 
 pub fn meta_config_with_snapshot_path_test() {
   let proxy =
     draft_proxy.with_config(Config(
       read_mode: LiveHybrid,
+      unsupported_mutation_mode: PassthroughUnsupportedMutations,
       port: 9000,
       shopify_admin_origin: "https://shop.test",
       snapshot_path: Some("/tmp/snap.json"),
@@ -204,7 +206,7 @@ pub fn meta_config_with_snapshot_path_test() {
     draft_proxy.process_request(proxy, request)
   assert status == 200
   assert json.to_string(body)
-    == "{\"runtime\":{\"readMode\":\"live-hybrid\"},\"proxy\":{\"port\":9000,\"shopifyAdminOrigin\":\"https://shop.test\"},\"snapshot\":{\"enabled\":true,\"path\":\"/tmp/snap.json\"}}"
+    == "{\"runtime\":{\"readMode\":\"live-hybrid\",\"unsupportedMutationMode\":\"passthrough\"},\"proxy\":{\"port\":9000,\"shopifyAdminOrigin\":\"https://shop.test\"},\"snapshot\":{\"enabled\":true,\"path\":\"/tmp/snap.json\"}}"
 }
 
 pub fn meta_config_post_returns_405_test() {
@@ -336,6 +338,7 @@ pub fn graphql_order_saved_searches_routed_test() {
 pub fn default_config_round_trip_test() {
   let cfg = draft_proxy.default_config()
   assert cfg.read_mode == Snapshot
+  assert cfg.unsupported_mutation_mode == PassthroughUnsupportedMutations
   assert cfg.port == 4000
   assert cfg.snapshot_path == None
   assert draft_proxy.config_summary(cfg) == "snapshot@4000"
@@ -836,20 +839,21 @@ pub fn graphql_webhook_subscription_create_blank_uri_user_error_test() {
 pub fn get_config_snapshot_default_test() {
   let proxy = draft_proxy.new()
   assert json.to_string(draft_proxy.get_config_snapshot(proxy))
-    == "{\"runtime\":{\"readMode\":\"snapshot\"},\"proxy\":{\"port\":4000,\"shopifyAdminOrigin\":\"https://shopify.com\"},\"snapshot\":{\"enabled\":false,\"path\":null}}"
+    == "{\"runtime\":{\"readMode\":\"snapshot\",\"unsupportedMutationMode\":\"passthrough\"},\"proxy\":{\"port\":4000,\"shopifyAdminOrigin\":\"https://shopify.com\"},\"snapshot\":{\"enabled\":false,\"path\":null}}"
 }
 
 pub fn get_config_snapshot_with_snapshot_path_test() {
   let cfg =
     Config(
       read_mode: LiveHybrid,
+      unsupported_mutation_mode: PassthroughUnsupportedMutations,
       port: 4001,
       shopify_admin_origin: "https://example.myshopify.com",
       snapshot_path: Some("/tmp/snap.json"),
     )
   let proxy = draft_proxy.with_config(cfg)
   assert json.to_string(draft_proxy.get_config_snapshot(proxy))
-    == "{\"runtime\":{\"readMode\":\"live-hybrid\"},\"proxy\":{\"port\":4001,\"shopifyAdminOrigin\":\"https://example.myshopify.com\"},\"snapshot\":{\"enabled\":true,\"path\":\"/tmp/snap.json\"}}"
+    == "{\"runtime\":{\"readMode\":\"live-hybrid\",\"unsupportedMutationMode\":\"passthrough\"},\"proxy\":{\"port\":4001,\"shopifyAdminOrigin\":\"https://example.myshopify.com\"},\"snapshot\":{\"enabled\":true,\"path\":\"/tmp/snap.json\"}}"
 }
 
 pub fn get_config_snapshot_matches_meta_route_body_test() {
