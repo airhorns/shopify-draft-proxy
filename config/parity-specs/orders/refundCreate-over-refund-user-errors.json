@@ -4,7 +4,7 @@
   "scenarioStatus": "captured",
   "assertionKinds": ["user-errors-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/very-big-test-store.myshopify.com/2025-01/orders/refund-create-over-refund-user-errors.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/refund-create-over-refund-user-errors.json"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/refundCreate-partial-shipping-restock-parity.graphql",
@@ -18,7 +18,15 @@
       {
         "name": "refundCreate over-refund userErrors match",
         "capturePath": "$.mutation.response.data.refundCreate.userErrors",
-        "proxyPath": "$.data.refundCreate.userErrors"
+        "proxyPath": "$.data.refundCreate.userErrors",
+        "expectedDifferences": [
+          {
+            "path": "$[0].field",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "HAR-575 intentionally models a specific transaction-path field for local over-refund validation; the existing 2025-01 capture returned a null field for the same amount guardrail."
+          }
+        ]
       },
       {
         "name": "refundCreate over-refund refund remains null",
