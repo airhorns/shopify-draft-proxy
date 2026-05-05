@@ -33,7 +33,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, LogDraft, MutationOutcome,
+  type MutationFieldResult, type MutationOutcome, LogDraft, MutationFieldResult,
+  MutationOutcome,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -667,14 +668,6 @@ fn empty_page_info_source() -> SourceValue {
 /// message, optional code).
 pub type UserError {
   UserError(field: List(String), message: String, code: Option(String))
-}
-
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
-  )
 }
 
 /// Process a functions mutation document. Mirrors

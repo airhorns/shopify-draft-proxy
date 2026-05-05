@@ -1195,6 +1195,20 @@ pub fn parse_failed_outcome(
   )
 }
 
+/// Per-field result returned by simple mutation handlers. Shared by
+/// domains whose mutation roots fit a uniform shape: a JSON-serialised
+/// payload keyed under the response alias, plus the resource ids that
+/// were staged this turn. Domains with extra cross-cutting concerns
+/// (top-level errors, log-draft toggles, etc.) keep their own local
+/// type.
+pub type MutationFieldResult {
+  MutationFieldResult(
+    key: String,
+    payload: Json,
+    staged_resource_ids: List(String),
+  )
+}
+
 /// Build a `LogDraft` for a single-root-field mutation. Mirrors the
 /// shape that webhooks/apps/saved_searches/functions all
 /// historically produced inline. `domain` and `execution` are the

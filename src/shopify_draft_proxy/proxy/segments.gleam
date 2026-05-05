@@ -36,7 +36,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection_with_field_serializers, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, single_root_log_draft,
+  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
+  MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
@@ -1232,14 +1233,6 @@ fn serialize_membership_items(
 /// User-error payload. Mirrors selected Shopify user-error fields.
 pub type UserError {
   UserError(field: List(String), message: String, code: Option(String))
-}
-
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
-  )
 }
 
 type SegmentMutationPayload {
