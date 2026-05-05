@@ -807,6 +807,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Recognized channel-handle success depends on the disposable shop exposing a valid marketing channel handle.',
   },
   {
+    domain: 'marketing',
+    captureId: 'marketing-activity-immutable-fields',
+    scriptPath: 'scripts/capture-marketing-activity-immutable-fields-conformance.mts',
+    purpose:
+      'External marketing activity upsert/update immutable channel handle, URL parameter, UTM, parent remote ID, and hierarchy-level userErrors.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-upsert-immutable-fields.json`,
+      'config/parity-specs/marketing/marketing-activity-upsert-immutable-fields.json',
+      'config/parity-requests/marketing/marketing-activity-immutable-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable parent and child external marketing activities, captures rejected immutable-field updates, then deletes every disposable remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'segments',
     captureId: 'segments',
     scriptPath: 'scripts/capture-segment-conformance.mts',
