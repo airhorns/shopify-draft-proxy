@@ -31,10 +31,10 @@ Validation:
 - `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm parity:record fulfillment-order-lifecycle-local-staging`
 - `cd gleam && gleam test --target javascript -- fulfillment_order_cancel`
   (858 passed after parity refresh)
-- `cd gleam && gleam test --target javascript` (889 passed after merging
-  `origin/main@4942be69`)
+- `cd gleam && gleam test --target javascript` (900 passed after merging
+  `origin/main@b94610b4`)
 - `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
-  (OTP 28, 880 passed after merging `origin/main@4942be69`)
+  (OTP 28, 891 passed after merging `origin/main@b94610b4`)
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:capture:check`
 - `corepack pnpm gleam:format:check`
@@ -42,8 +42,8 @@ Validation:
   `scripts/parity-record.mts` unused catch-parameter warning)
 - `corepack pnpm typecheck`
 - `corepack pnpm build`
-- `corepack pnpm test` (123 files passed; 2336 passed after merging
-  `origin/main@4942be69`)
+- `corepack pnpm test` (123 files passed; 2344 passed after merging
+  `origin/main@b94610b4`)
 - `git diff --check`
 
 ### Findings
