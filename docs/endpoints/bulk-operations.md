@@ -116,12 +116,12 @@ Local `bulkOperationRunQuery` supports:
 Local `bulkOperationRunQuery` rejects these branches locally with `userErrors` and no upstream runtime request:
 
 - missing `query`, matching the captured top-level `missingRequiredArguments` shape
-- malformed submitted bulk query strings
+- malformed submitted bulk query strings, including an empty string returning `Invalid bulk query: syntax error, unexpected end of file`
 - no connection, using the captured message `Bulk queries must contain at least one connection.`
 - multiple top-level fields, top-level `node`/`nodes`, unsupported roots, more than five detected connections, and connections deeper than two levels
 - unsupported nested connections other than product `variants`
 - `groupObjects: true`; grouped JSONL output is an explicit unsupported boundary for now
-- selected `BulkOperationUserError.code` values are serialized for these local validation branches as `INVALID`, matching the documented error-code surface instead of dropping the selected field
+- selected `BulkOperationUserError.code` values are serialized for these local validation branches as `INVALID`, matching the captured 2026-04 Admin API behavior instead of dropping the selected field
 
 Local `bulkOperationCancel` supports:
 
@@ -154,6 +154,8 @@ BulkOperation jobs are inspectable through the standard meta surfaces:
 ### Captured 2026-04 evidence
 
 HAR-262 adds a live 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-status-catalog-cancel.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-status-conformance.ts`. The fixture is registered by `config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json`. HAR-346 promotes the local read/cancel slice from fixture-only evidence to `captured-vs-proxy-request` parity: the parity runner strictly compares unknown-id reads, empty running-query/running-mutation lists, empty `currentBulkOperation(type: MUTATION)`, unknown/terminal cancel userErrors, staged local cancel, and read-after-local-cancel. HAR-264 extends that same fixture with downloaded product-export JSONL records, replays `bulkOperationRunQuery`, and compares the completed local job plus downstream `bulkOperation(id:)` read to the captured Shopify terminal job with only synthetic IDs/timestamps/result URLs/file-size infrastructure differences allowed. HAR-396 adds runtime coverage for failed mutation-import job visibility after malformed JSONL, including result URL serving and downstream BulkOperation status reads. HAR-454 extends the strict parity target list to include the captured no-connection `bulkOperationRunQuery` validation payload and extends runtime coverage so unsupported inner mutation roots are proven to create readable failed BulkOperation jobs without upstream passthrough. HAR-528 migrates the scenario to cassette-backed Gleam parity: prior BulkOperation records and product counts are hand-synthesized into `upstreamCalls` from the checked-in capture evidence, replacing the retired base-state seeding pattern.
+
+HAR-733 adds a focused 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-user-error-codes.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-run-query-user-error-codes-conformance.ts`. The strict parity spec `config/parity-specs/bulk-operations/bulk-operation-run-query-user-error-codes.json` proves that selecting `userErrors { field message code }` returns `code: "INVALID"` for both no-connection validation and empty-query malformed-query branches.
 
 The fixture captures these read and validation branches:
 

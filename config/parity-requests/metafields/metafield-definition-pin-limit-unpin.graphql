@@ -1,0 +1,14 @@
+mutation MetafieldDefinitionPinLimitUnpin($definitionId: ID!) {
+  metafieldDefinitionUnpin(definitionId: $definitionId) {
+    unpinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

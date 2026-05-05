@@ -1,0 +1,106 @@
+{
+  "scenarioId": "saved-search-name-uniqueness",
+  "operationNames": ["savedSearchCreate", "savedSearchUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-name-uniqueness.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/draft_proxy_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreateA.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-720 live evidence that savedSearchCreate rejects duplicate case-sensitive names within resourceType with savedSearch: null, and savedSearchUpdate rejects rename conflicts with the same userError while echoing the existing name plus submitted valid query in the payload. The proxy does not stage the failed update into effective state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-create-a-payload",
+        "capturePath": "$.savedSearchCreateA.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the legacy resource id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-name-create",
+        "capturePath": "$.savedSearchCreateDuplicate.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+          "variablesCapturePath": "$.savedSearchCreateDuplicate.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "setup-create-b-payload",
+        "capturePath": "$.savedSearchCreateB.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+          "variablesCapturePath": "$.savedSearchCreateB.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the legacy resource id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          }
+        ]
+      },
+      {
+        "name": "update-rename-conflict",
+        "capturePath": "$.savedSearchUpdateRenameConflict.payload.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-name-uniqueness-update-conflict.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "setup-create-b-payload",
+                "path": "$.data.savedSearchCreate.savedSearch.id"
+              },
+              "name": {
+                "fromCapturePath": "$.savedSearchUpdateRenameConflict.variables.input.name"
+              },
+              "query": {
+                "fromCapturePath": "$.savedSearchUpdateRenameConflict.variables.input.query"
+              }
+            }
+          },
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy returns the deterministic local SavedSearch id while Shopify returned the live store id."
+          }
+        ]
+      }
+    ]
+  }
+}

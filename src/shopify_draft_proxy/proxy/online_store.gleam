@@ -5,6 +5,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
+import shopify_draft_proxy/crypto
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
@@ -1386,9 +1387,11 @@ fn theme_files_change(
     Some(_) -> []
     None -> [user_error(["themeId"], "Theme does not exist")]
   }
-  let files = case root {
-    "themeFilesDelete" -> []
-    _ -> make_theme_files(input_list(args, "files"))
+  let result = case existing, errors {
+    Some(theme), [] ->
+      theme_files_change_result(outcome.store, theme, args, root)
+    _, _ ->
+      ThemeFilesChangeResult(files: [], errors: errors, store: outcome.store)
   }
   let payload = case root {
     "themeFilesUpsert" ->
@@ -1400,8 +1403,8 @@ fn theme_files_change(
             #("done", SrcBool(True)),
           ]),
         ),
-        #("upsertedThemeFiles", SrcList(files)),
-        #("userErrors", user_errors_source(errors)),
+        #("upsertedThemeFiles", SrcList(result.files)),
+        #("userErrors", user_errors_source(result.errors)),
       ])
     "themeFilesCopy" ->
       src_object([
@@ -1412,8 +1415,8 @@ fn theme_files_change(
             #("done", SrcBool(True)),
           ]),
         ),
-        #("copiedThemeFiles", SrcList(files)),
-        #("userErrors", user_errors_source(errors)),
+        #("copiedThemeFiles", SrcList(result.files)),
+        #("userErrors", user_errors_source(result.errors)),
       ])
     _ ->
       src_object([
@@ -1424,15 +1427,113 @@ fn theme_files_change(
             #("done", SrcBool(True)),
           ]),
         ),
-        #("deletedThemeFiles", SrcList([])),
-        #("userErrors", user_errors_source(errors)),
+        #("deletedThemeFiles", SrcList(result.files)),
+        #("userErrors", user_errors_source(result.errors)),
       ])
   }
   #(
     key,
     project_payload_source(field, payload, dict.new()),
-    mutation_outcome(outcome, outcome.store, outcome.identity, root, []),
+    mutation_outcome(outcome, result.store, outcome.identity, root, []),
   )
+}
+
+type ThemeFilesChangeResult {
+  ThemeFilesChangeResult(
+    files: List(graphql_helpers.SourceValue),
+    errors: List(graphql_helpers.SourceValue),
+    store: Store,
+  )
+}
+
+fn theme_files_change_result(
+  store_in: Store,
+  theme: OnlineStoreIntegrationRecord,
+  args: Dict(String, root_field.ResolvedValue),
+  root: String,
+) -> ThemeFilesChangeResult {
+  case root {
+    "themeFilesUpsert" -> theme_files_upsert_result(store_in, theme, args)
+    "themeFilesCopy" -> theme_files_copy_result(store_in, theme, args)
+    _ -> theme_files_delete_result(store_in, theme, args)
+  }
+}
+
+fn theme_files_upsert_result(
+  store_in: Store,
+  theme: OnlineStoreIntegrationRecord,
+  args: Dict(String, root_field.ResolvedValue),
+) -> ThemeFilesChangeResult {
+  let inputs = input_list(args, "files")
+  let errors = theme_file_input_filename_errors(inputs, "filename")
+  case errors {
+    [] -> {
+      let files = make_theme_files(inputs)
+      let updated_files =
+        list.fold(files, theme_record_files(theme), replace_theme_file)
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(
+          store_in,
+          theme_with_files(theme, updated_files),
+        )
+      ThemeFilesChangeResult(files: files, errors: [], store: store)
+    }
+    _ -> ThemeFilesChangeResult(files: [], errors: errors, store: store_in)
+  }
+}
+
+fn theme_files_copy_result(
+  store_in: Store,
+  theme: OnlineStoreIntegrationRecord,
+  args: Dict(String, root_field.ResolvedValue),
+) -> ThemeFilesChangeResult {
+  let current_files = theme_record_files(theme)
+  let inputs = input_list(args, "files")
+  let errors =
+    theme_file_input_filename_errors(inputs, "dstFilename")
+    |> list.append(theme_file_copy_source_errors(inputs, current_files))
+  case errors {
+    [] -> {
+      let files = make_copied_theme_files(inputs, current_files)
+      let updated_files = list.fold(files, current_files, replace_theme_file)
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(
+          store_in,
+          theme_with_files(theme, updated_files),
+        )
+      ThemeFilesChangeResult(files: files, errors: [], store: store)
+    }
+    _ -> ThemeFilesChangeResult(files: [], errors: errors, store: store_in)
+  }
+}
+
+fn theme_files_delete_result(
+  store_in: Store,
+  theme: OnlineStoreIntegrationRecord,
+  args: Dict(String, root_field.ResolvedValue),
+) -> ThemeFilesChangeResult {
+  let filenames = input_string_values(input_list(args, "files"))
+  let errors = required_theme_file_delete_errors(filenames)
+  case errors {
+    [] -> {
+      let current_files = theme_record_files(theme)
+      let deleted_files =
+        list.filter(current_files, fn(file) {
+          list.contains(filenames, theme_file_filename(file))
+        })
+      let updated_files =
+        list.filter(current_files, fn(file) {
+          !list.contains(filenames, theme_file_filename(file))
+        })
+      let #(_, store) =
+        store.upsert_staged_online_store_integration(
+          store_in,
+          theme_with_files(theme, updated_files),
+        )
+      ThemeFilesChangeResult(files: deleted_files, errors: [], store: store)
+    }
+    _ -> ThemeFilesChangeResult(files: [], errors: errors, store: store_in)
+  }
 }
 
 fn create_script_tag(
@@ -3641,7 +3742,7 @@ fn theme_files_connection(
 fn make_theme_files(
   files: List(root_field.ResolvedValue),
 ) -> List(graphql_helpers.SourceValue) {
-  list.map(files, fn(file) {
+  list.filter_map(files, fn(file) {
     case file {
       root_field.ObjectVal(fields) -> {
         let filename = option_string(input_string(fields, "filename"), "")
@@ -3649,23 +3750,246 @@ fn make_theme_files(
           graphql_helpers.read_arg_object(fields, "body")
           |> option.unwrap(dict.new())
         let content = option_string(input_string(body, "value"), "")
-        src_object([
-          #("__typename", SrcString("OnlineStoreThemeFile")),
-          #("filename", SrcString(filename)),
-          #("size", SrcInt(string.length(content))),
-          #("checksumMd5", SrcString("draft-proxy")),
-          #(
-            "body",
-            src_object([
-              #("__typename", SrcString("OnlineStoreThemeFileBodyText")),
-              #("content", SrcString(content)),
-            ]),
-          ),
-        ])
+        Ok(make_theme_file(filename, content))
       }
-      _ -> src_object([])
+      _ -> Error(Nil)
     }
   })
+}
+
+fn make_copied_theme_files(
+  files: List(root_field.ResolvedValue),
+  current_files: List(graphql_helpers.SourceValue),
+) -> List(graphql_helpers.SourceValue) {
+  list.filter_map(files, fn(file) {
+    case file {
+      root_field.ObjectVal(fields) -> {
+        let src = option_string(input_string(fields, "srcFilename"), "")
+        let dst = option_string(input_string(fields, "dstFilename"), "")
+        case find_theme_file(current_files, src) {
+          Some(source_file) ->
+            Ok(make_theme_file(dst, theme_file_content(source_file)))
+          None -> Error(Nil)
+        }
+      }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn make_theme_file(
+  filename: String,
+  content: String,
+) -> graphql_helpers.SourceValue {
+  src_object([
+    #("__typename", SrcString("OnlineStoreThemeFile")),
+    #("filename", SrcString(filename)),
+    #("size", SrcInt(string.byte_size(content))),
+    #("checksumMd5", SrcString(crypto.md5_hex(content))),
+    #(
+      "body",
+      src_object([
+        #("__typename", SrcString("OnlineStoreThemeFileBodyText")),
+        #("content", SrcString(content)),
+      ]),
+    ),
+  ])
+}
+
+fn theme_record_files(
+  theme: OnlineStoreIntegrationRecord,
+) -> List(graphql_helpers.SourceValue) {
+  case source_field(captured_to_source(theme.data), "files", SrcList([])) {
+    SrcList(files) -> files
+    _ -> []
+  }
+}
+
+fn theme_with_files(
+  theme: OnlineStoreIntegrationRecord,
+  files: List(graphql_helpers.SourceValue),
+) -> OnlineStoreIntegrationRecord {
+  OnlineStoreIntegrationRecord(
+    ..theme,
+    data: captured_object_insert(
+      theme.data,
+      "files",
+      source_to_captured(SrcList(files)),
+    ),
+  )
+}
+
+fn replace_theme_file(
+  files: List(graphql_helpers.SourceValue),
+  file: graphql_helpers.SourceValue,
+) -> List(graphql_helpers.SourceValue) {
+  let filename = theme_file_filename(file)
+  list.filter(files, fn(existing) { theme_file_filename(existing) != filename })
+  |> list.append([file])
+}
+
+fn find_theme_file(
+  files: List(graphql_helpers.SourceValue),
+  filename: String,
+) -> Option(graphql_helpers.SourceValue) {
+  files
+  |> list.find(fn(file) { theme_file_filename(file) == filename })
+  |> option.from_result
+}
+
+fn theme_file_filename(file: graphql_helpers.SourceValue) -> String {
+  source_string_field(file, "filename", "")
+}
+
+fn theme_file_content(file: graphql_helpers.SourceValue) -> String {
+  case source_field(file, "body", SrcNull) {
+    SrcObject(fields) ->
+      case dict.get(fields, "content") {
+        Ok(SrcString(content)) -> content
+        _ -> ""
+      }
+    _ -> ""
+  }
+}
+
+fn theme_file_input_filename_errors(
+  files: List(root_field.ResolvedValue),
+  field_name: String,
+) -> List(graphql_helpers.SourceValue) {
+  files
+  |> list.index_map(fn(file, index) {
+    case file {
+      root_field.ObjectVal(fields) ->
+        case input_string(fields, field_name) {
+          Some(filename) ->
+            case valid_theme_file_filename(filename) {
+              True -> []
+              False -> [
+                theme_file_user_error(
+                  ["files", int.to_string(index), field_name],
+                  "Filename is invalid",
+                  "INVALID",
+                ),
+              ]
+            }
+          None -> [
+            theme_file_user_error(
+              ["files", int.to_string(index), field_name],
+              "Filename is invalid",
+              "INVALID",
+            ),
+          ]
+        }
+      _ -> [
+        theme_file_user_error(
+          ["files", int.to_string(index), field_name],
+          "Filename is invalid",
+          "INVALID",
+        ),
+      ]
+    }
+  })
+  |> list.flatten
+}
+
+fn theme_file_copy_source_errors(
+  files: List(root_field.ResolvedValue),
+  current_files: List(graphql_helpers.SourceValue),
+) -> List(graphql_helpers.SourceValue) {
+  files
+  |> list.index_map(fn(file, index) {
+    case file {
+      root_field.ObjectVal(fields) ->
+        case input_string(fields, "srcFilename") {
+          Some(filename) ->
+            case find_theme_file(current_files, filename) {
+              Some(_) -> []
+              None -> [
+                theme_file_user_error(
+                  ["files", int.to_string(index), "srcFilename"],
+                  "File not found",
+                  "NOT_FOUND",
+                ),
+              ]
+            }
+          None -> [
+            theme_file_user_error(
+              ["files", int.to_string(index), "srcFilename"],
+              "File not found",
+              "NOT_FOUND",
+            ),
+          ]
+        }
+      _ -> [
+        theme_file_user_error(
+          ["files", int.to_string(index), "srcFilename"],
+          "File not found",
+          "NOT_FOUND",
+        ),
+      ]
+    }
+  })
+  |> list.flatten
+}
+
+fn required_theme_file_delete_errors(
+  filenames: List(String),
+) -> List(graphql_helpers.SourceValue) {
+  filenames
+  |> list.index_map(fn(filename, index) {
+    case filename {
+      "config/settings_data.json" | "config/settings_schema.json" -> [
+        theme_file_user_error(
+          ["files", int.to_string(index)],
+          "File is required and can't be deleted",
+          "INVALID",
+        ),
+      ]
+      _ -> []
+    }
+  })
+  |> list.flatten
+}
+
+fn input_string_values(values: List(root_field.ResolvedValue)) -> List(String) {
+  list.filter_map(values, fn(value) {
+    case value {
+      root_field.StringVal(value) -> Ok(value)
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn valid_theme_file_filename(filename: String) -> Bool {
+  case string.split(filename, "/") {
+    [directory, basename] ->
+      basename != ""
+      && list.contains(
+        [
+          "templates",
+          "sections",
+          "snippets",
+          "layout",
+          "config",
+          "locales",
+          "assets",
+        ],
+        directory,
+      )
+    _ -> False
+  }
+}
+
+fn theme_file_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  src_object([
+    #("field", SrcList(list.map(field, SrcString))),
+    #("message", SrcString(message)),
+    #("code", SrcString(code)),
+  ])
 }
 
 fn content_gid_type(kind: String) -> String {

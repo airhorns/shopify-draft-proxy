@@ -1,0 +1,148 @@
+{
+  "capturedAt": "2026-05-05T04:48:07.863Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "request": {
+    "operationName": "BulkOperationRunMutationValidators",
+    "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n"
+  },
+  "validations": {
+    "parserError": {
+      "operationName": "BulkOperationRunMutationValidators",
+      "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation { not parseable",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Failed to parse the mutation - syntax error, unexpected end of file at [1, 16]",
+                "code": "INVALID_MUTATION"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "queryInsteadOfMutation": {
+      "operationName": "BulkOperationRunMutationValidators",
+      "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "query { products { edges { node { id } } } }",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": null,
+                "message": "Invalid operation type. Only `mutation` operations are supported.",
+                "code": "INVALID_MUTATION"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "multipleTopLevelMutations": {
+      "operationName": "BulkOperationRunMutationValidators",
+      "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation BulkProducts($product: ProductCreateInput!, $update: ProductUpdateInput!) { productCreate(product: $product) { product { id } } productUpdate(product: $update) { product { id } } }",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["mutation"],
+                "message": "You must specify a single top level mutation.",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "disallowedMutationName": {
+      "operationName": "BulkOperationRunMutationValidators",
+      "query": "mutation BulkOperationRunMutationValidators($mutation: String!, $path: String!) {\n  bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n    bulkOperation {\n      id\n      status\n      type\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "mutation": "mutation Probe($mutation: String!, $stagedUploadPath: String!, $clientIdentifier: String) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath, clientIdentifier: $clientIdentifier) { bulkOperation { id } userErrors { field message } } }",
+        "path": "valid"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunMutation": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["mutation"],
+                "message": "You must use an allowed mutation name.",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

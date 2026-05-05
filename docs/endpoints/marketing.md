@@ -54,6 +54,12 @@ HAR-213 captures external lifecycle write evidence with `write_marketing_events`
 - deleteAllExternal asynchronous `Job` payload with `done: false`
 - userErrors for missing non-hierarchical attribution and immutable UTM changes
 
+HAR-681 extends existing external activity update/upsert validation:
+
+- existing external activities reject immutable `channelHandle`, `urlParameterValue`, UTM, invalid `parentRemoteId`, and `hierarchyLevel` changes with Shopify's captured `MarketingActivityUserError.code` values and `marketingActivity: null`
+- the shared local validator also rejects non-external activity records, external records whose nested marketing event is absent, and parent changes to a different resolved marketing event before staging any update
+- the live parity capture covers the branches the current disposable shop can create: channel-handle, URL-parameter, UTM, invalid-parent-remote-id, and hierarchy-level rejections. The immutable-parent-id branch is runtime-test-backed because the conformance app/store has no recognized channel handle, while Shopify requires one to create the campaign-level parent activity needed for that live branch.
+
 The HAR-213 parity spec replays the external lifecycle through the local proxy parity harness. It compares stable selected mutation/read fields and captured userErrors against the live fixture; synthetic IDs and timestamps remain covered by runtime integration tests because local staging intentionally does not reuse live Shopify identifiers.
 
 Local staging intentionally uses stable synthetic IDs and timestamps instead of replaying live Shopify IDs. The raw original mutation body is retained in the meta log for successful staged lifecycle mutations so commit replay can preserve request order.

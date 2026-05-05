@@ -1,0 +1,51 @@
+{
+  "scenarioId": "media-file-acknowledge-update-failed-semantics",
+  "operationNames": ["fileCreate", "fileAcknowledgeUpdateFailed", "files"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/media/media-file-acknowledge-update-failed-semantics.json",
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/file-acknowledge-update-failed-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-acknowledge-update-failed-semantics-create.graphql",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable local parity covers the HAR-706 no-op-stub boundary: a freshly created non-READY file returns Shopify-like NON_READY_STATE, and a follow-up files read exposes empty mediaErrors/mediaWarnings no-data lists. The paired live capture confirms READY acknowledgement success and NON_READY_STATE for failed-created media, but did not produce a capturable READY parent with failed inner mediaable/preview_image errors; the proxy therefore documents that real MediaError/mediaWarnings clearing is not modeled.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-uploaded-file",
+        "capturePath": "$.create.response.data.fileCreate",
+        "proxyPath": "$.data.fileCreate"
+      },
+      {
+        "name": "acknowledge-non-ready",
+        "capturePath": "$.acknowledgeNonReady.response.data.fileAcknowledgeUpdateFailed",
+        "proxyPath": "$.data.fileAcknowledgeUpdateFailed",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-acknowledge-update-failed-semantics-ack.graphql",
+          "variables": {
+            "fileIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "files-read-after-non-ready-acknowledge",
+        "capturePath": "$.readAfterNonReady.response.data.files",
+        "proxyPath": "$.data.files",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-acknowledge-update-failed-semantics-read.graphql"
+        }
+      }
+    ]
+  }
+}

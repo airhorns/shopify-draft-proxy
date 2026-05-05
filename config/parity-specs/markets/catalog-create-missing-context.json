@@ -1,0 +1,26 @@
+{
+  "scenarioId": "catalog-create-missing-context",
+  "operationNames": ["catalogCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-create-missing-context.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-create-missing-context.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "CatalogCreate validation evidence for missing context input. The proxy must return catalog null and an INVALID CatalogUserError rooted at input.context without staging a MarketCatalog.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-context-catalog-create-data",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

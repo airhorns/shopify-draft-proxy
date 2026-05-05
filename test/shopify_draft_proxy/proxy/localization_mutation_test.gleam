@@ -8,7 +8,9 @@
 
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
@@ -76,6 +78,21 @@ fn seed_source_content_marker(
       ),
     )
   s
+}
+
+fn repeated_translation_inputs(count: Int) -> String {
+  repeat_translation_input_loop(count, [])
+}
+
+fn repeat_translation_input_loop(count: Int, acc: List(String)) -> String {
+  case count {
+    0 -> string.join(acc, ", ")
+    _ ->
+      repeat_translation_input_loop(count - 1, [
+        "{ locale: \"fr\", key: \"title\", value: \"Bonjour\", translatableContentDigest: \"abc\" }",
+        ..acc
+      ])
+  }
 }
 
 // ---------- envelope ----------
@@ -281,9 +298,50 @@ pub fn translations_register_blank_resource_id_returns_error_test() {
       store.new(),
       "mutation { translationsRegister(resourceId: \"\", translations: []) { translations { key } userErrors { field message code } } }",
     )
-  // Both the missing resource and the blank-translations error surface.
   assert body
-    == "{\"data\":{\"translationsRegister\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Resource does not exist\",\"code\":\"RESOURCE_NOT_FOUND\"},{\"field\":[\"translations\"],\"message\":\"At least one translation is required\",\"code\":\"BLANK\"}]}}}"
+    == "{\"data\":{\"translationsRegister\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Resource does not exist\",\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
+}
+
+pub fn translations_register_empty_list_noops_against_seeded_resource_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let body =
+    run(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: []) { translations { key } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[],\"userErrors\":[]}}}"
+}
+
+pub fn translations_register_blank_value_returns_resource_validation_error_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let body =
+    run(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"fr\", key: \"title\", value: \"\", translatableContentDigest: \"abc\" }]) { translations { key } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[],\"userErrors\":[{\"field\":[\"translations\",\"0\",\"value\"],\"message\":\"Value can't be blank\",\"code\":\"FAILS_RESOURCE_VALIDATION\"}]}}}"
+}
+
+pub fn translations_register_rejects_more_than_100_keys_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let body =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: ["
+        <> repeated_translation_inputs(101)
+        <> "]) { translations { key } userErrors { field message code } } }",
+    )
+  assert json.to_string(body.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Too many keys for resource - maximum 100 per mutation\",\"code\":\"TOO_MANY_KEYS_FOR_RESOURCE\"}]}}}"
+  assert body.staged_resource_ids == []
 }
 
 // ---------- translationsRemove ----------
@@ -298,15 +356,35 @@ pub fn translations_remove_unknown_resource_returns_error_test() {
     == "{\"data\":{\"translationsRemove\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Resource gid://shopify/Product/1 does not exist\",\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
 }
 
-pub fn translations_remove_blank_keys_returns_error_test() {
+pub fn translations_remove_blank_keys_returns_no_synthetic_blank_test() {
   let body =
     run(
       store.new(),
       "mutation { translationsRemove(resourceId: \"\", translationKeys: [], locales: []) { translations { key } userErrors { field message code } } }",
     )
-  // resource_not_found + blank keys + blank locales — three errors.
   assert body
-    == "{\"data\":{\"translationsRemove\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Resource does not exist\",\"code\":\"RESOURCE_NOT_FOUND\"},{\"field\":[\"translationKeys\"],\"message\":\"At least one translation key is required\",\"code\":\"BLANK\"},{\"field\":[\"locales\"],\"message\":\"At least one locale is required\",\"code\":\"BLANK\"}]}}}"
+    == "{\"data\":{\"translationsRemove\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Resource does not exist\",\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
+}
+
+pub fn translations_remove_empty_locales_noops_against_seeded_resource_test() {
+  let s =
+    seed_shop_locale(store.new(), "fr", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let body =
+    run(
+      s,
+      "mutation { translationsRemove(resourceId: \"gid://shopify/Product/1\", translationKeys: [\"title\"], locales: []) { translations { key } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"translationsRemove\":{\"translations\":null,\"userErrors\":[]}}}"
+}
+
+pub fn translation_mutation_error_codes_are_translation_error_codes_test() {
+  let allow_list = localization.translation_error_code_allow_list()
+  let proxy_codes = localization.emitted_translation_mutation_error_codes()
+
+  assert !list.contains(proxy_codes, "BLANK")
+  assert list.all(proxy_codes, fn(code) { list.contains(allow_list, code) })
 }
 
 pub fn translations_remove_accepts_market_ids_and_clears_market_read_test() {

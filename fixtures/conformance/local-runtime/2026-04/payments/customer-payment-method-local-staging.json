@@ -3,7 +3,7 @@
   "source": "local-runtime-parity-harness",
   "apiVersion": "2026-04",
   "livePaymentCredentialSideEffects": false,
-  "notes": "Customer payment-method lifecycle and payment reminder behavior is represented by deterministic local-runtime evidence because the current conformance grant lacks read_customer_payment_methods/write_customer_payment_methods, and live success paths can expose vaulted payment material, expiring customer update URLs, or customer-visible reminder email.",
+  "notes": "Customer payment-method lifecycle is represented by deterministic local-runtime evidence because the current conformance grant lacks read_customer_payment_methods/write_customer_payment_methods. The paymentReminderSend branch intentionally exercises the unknown-schedule guardrail: arbitrary PaymentSchedule GIDs must not stage reminder intent without a locally known eligible overdue schedule.",
   "seedCustomerPaymentMethods": [
     {
       "id": "gid://shopify/CustomerPaymentMethod/base-card",
@@ -125,8 +125,14 @@
           "userErrors": []
         },
         "reminder": {
-          "success": true,
-          "userErrors": []
+          "success": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Payment schedule does not exist",
+              "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL"
+            }
+          ]
         }
       }
     },
@@ -134,7 +140,7 @@
       "data": {
         "customerPaymentMethodCreateFromDuplicationData": {
           "customerPaymentMethod": {
-            "id": "gid://shopify/CustomerPaymentMethod/7",
+            "id": "gid://shopify/CustomerPaymentMethod/6",
             "customer": {
               "id": "gid://shopify/Customer/8802"
             },
@@ -186,7 +192,7 @@
           "paymentMethods": {
             "nodes": [
               {
-                "id": "gid://shopify/CustomerPaymentMethod/7",
+                "id": "gid://shopify/CustomerPaymentMethod/6",
                 "instrument": {
                   "__typename": "CustomerCreditCard",
                   "lastDigits": null,
@@ -256,6 +262,21 @@
                 }
               }
             ]
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentScheduleReminderHydrate",
+      "variables": {
+        "id": "gid://shopify/PaymentSchedule/123"
+      },
+      "query": "local-runtime payment schedule reminder hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentSchedule": null
           }
         }
       }
