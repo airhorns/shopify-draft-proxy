@@ -15,6 +15,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/b2b_user_error_codes as user_error_code
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type ConnectionWindow, type FragmentMap, type SourceValue,
   SerializeConnectionConfig, SrcBool, SrcFloat, SrcInt, SrcList, SrcNull,
@@ -50,7 +51,11 @@ pub type B2BError {
 }
 
 type UserError {
-  UserError(field: Option(List(String)), message: String, code: String)
+  UserError(
+    field: Option(List(String)),
+    message: String,
+    code: user_error_code.Code,
+  )
 }
 
 type Payload {
@@ -1270,7 +1275,11 @@ fn source_string(value: SourceValue) -> String {
   }
 }
 
-fn user_error(field: Option(List(String)), message: String, code: String) {
+fn user_error(
+  field: Option(List(String)),
+  message: String,
+  code: user_error_code.Code,
+) {
   UserError(field: field, message: message, code: code)
 }
 
@@ -1278,7 +1287,7 @@ fn resource_not_found(field: List(String)) {
   user_error(
     Some(field),
     "Resource requested does not exist.",
-    "RESOURCE_NOT_FOUND",
+    user_error_code.resource_not_found,
   )
 }
 
@@ -1656,7 +1665,7 @@ fn handle_company_create(
           user_error(
             Some(["input", "company", "name"]),
             "Name can't be blank",
-            "BLANK",
+            user_error_code.blank,
           ),
         ]),
         store,
@@ -1766,7 +1775,7 @@ fn handle_company_update(
                   user_error(
                     Some(["input", "name"]),
                     "Name can't be blank",
-                    "BLANK",
+                    user_error_code.blank,
                   ),
                 ]),
                 store,
@@ -2010,7 +2019,7 @@ fn handle_contact_update(
                 user_error(
                   Some(["companyContactId"]),
                   "The company contact doesn't exist.",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               company_contact: None,
@@ -2027,7 +2036,7 @@ fn handle_contact_update(
             user_error(
               Some(["companyContactId"]),
               "The company contact doesn't exist.",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           company_contact: None,
@@ -2089,7 +2098,7 @@ fn handle_contact_delete(
                 user_error(
                   Some(["companyContactId"]),
                   "The company contact doesn't exist.",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               deleted_company_contact_id: None,
@@ -2106,7 +2115,7 @@ fn handle_contact_delete(
             user_error(
               Some(["companyContactId"]),
               "The company contact doesn't exist.",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           deleted_company_contact_id: None,
@@ -2147,7 +2156,7 @@ fn handle_contacts_delete(
               user_error(
                 Some(["companyContactIds"]),
                 "The company contact doesn't exist.",
-                "RESOURCE_NOT_FOUND",
+                user_error_code.resource_not_found,
               ),
             ]),
           )
@@ -2238,7 +2247,7 @@ fn handle_contact_remove_from_company(
                 user_error(
                   Some(["companyContactId"]),
                   "The company contact doesn't exist.",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               removed_company_contact_id: None,
@@ -2255,7 +2264,7 @@ fn handle_contact_remove_from_company(
             user_error(
               Some(["companyContactId"]),
               "The company contact doesn't exist.",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           removed_company_contact_id: None,
@@ -2451,7 +2460,7 @@ fn handle_location_update(
                 user_error(
                   Some(["input"]),
                   "The company location doesn't exist",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               company_location: None,
@@ -2468,7 +2477,7 @@ fn handle_location_update(
             user_error(
               Some(["input"]),
               "The company location doesn't exist",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           company_location: None,
@@ -2533,7 +2542,7 @@ fn handle_location_delete(
                 user_error(
                   Some(["companyLocationId"]),
                   "The company location doesn't exist",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               deleted_company_location_id: None,
@@ -2550,7 +2559,7 @@ fn handle_location_delete(
             user_error(
               Some(["companyLocationId"]),
               "The company location doesn't exist",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           deleted_company_location_id: None,
@@ -2591,7 +2600,7 @@ fn handle_locations_delete(
               user_error(
                 Some(["companyLocationIds"]),
                 "The company location doesn't exist",
-                "RESOURCE_NOT_FOUND",
+                user_error_code.resource_not_found,
               ),
             ]),
           )
@@ -3109,7 +3118,7 @@ fn handle_assign_address(
                     user_error(
                       Some(["addressTypes"]),
                       "Address type is invalid",
-                      "INVALID",
+                      user_error_code.invalid,
                     ),
                   ]),
                   addresses: [],
@@ -3417,7 +3426,7 @@ fn handle_tax_settings_update(
                 user_error(
                   Some(["companyLocationId"]),
                   "The company location doesn't exist",
-                  "RESOURCE_NOT_FOUND",
+                  user_error_code.resource_not_found,
                 ),
               ]),
               company_location: None,
@@ -3434,7 +3443,7 @@ fn handle_tax_settings_update(
             user_error(
               Some(["companyLocationId"]),
               "The company location doesn't exist",
-              "RESOURCE_NOT_FOUND",
+              user_error_code.resource_not_found,
             ),
           ]),
           company_location: None,
@@ -3651,7 +3660,7 @@ fn serialize_user_error(
         None -> SrcNull
       }),
       #("message", SrcString(error.message)),
-      #("code", SrcString(error.code)),
+      #("code", SrcString(user_error_code.value(error.code))),
     ])
   project_source(source, field, fragments)
 }
