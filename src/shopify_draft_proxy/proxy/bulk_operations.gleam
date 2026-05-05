@@ -15,9 +15,14 @@ import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/ast.{
+  type Argument, type Selection, Field, FragmentSpread, InlineFragment, Mutation,
+  OperationDefinition, Query, SelectionSet, Subscription,
+}
 import shopify_draft_proxy/graphql/parse_operation
+import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionWindow,
@@ -377,6 +382,12 @@ fn last_gid_segment(id: String) -> String {
 
 pub type UserError {
   UserError(field: Option(List(String)), message: String, code: Option(String))
+}
+
+type InnerMutationValidationError {
+  InnerMutationParseError(String)
+  InnerMutationInvalidOperationType
+  InnerMutationAnalysisErrors(List(String))
 }
 
 type MutationFieldResult {
@@ -936,26 +947,18 @@ fn handle_bulk_operation_run_mutation(
       identity,
     )
     Some(mutation_string), Some(path) ->
-      case store.get_staged_upload_content(store, path) {
-        None ->
-          stage_failed_run_mutation(
+      case validate_inner_bulk_mutation(mutation_string) {
+        Error(validation_error) ->
+          return_run_mutation_validation_error(
             store,
             identity,
             field,
             fragments,
             key,
-            mutation_string,
-            "",
-            [
-              UserError(
-                field: Some(["stagedUploadPath"]),
-                message: "Staged upload content was not found for the provided stagedUploadPath.",
-                code: None,
-              ),
-            ],
+            validation_error,
           )
-        Some(content) ->
-          case supported_inner_mutation_root(mutation_string) {
+        Ok(_inner_root) ->
+          case store.get_staged_upload_content(store, path) {
             None ->
               stage_failed_run_mutation(
                 store,
@@ -964,36 +967,16 @@ fn handle_bulk_operation_run_mutation(
                 fragments,
                 key,
                 mutation_string,
-                make_jsonl([
-                  json.object([
-                    #("line", json.null()),
-                    #(
-                      "errors",
-                      json.array(
-                        [
-                          json.object([
-                            #(
-                              "message",
-                              json.string(
-                                "bulkOperationRunMutation locally supports only single-root Admin mutations with local staging support in the proxy.",
-                              ),
-                            ),
-                          ]),
-                        ],
-                        fn(row) { row },
-                      ),
-                    ),
-                  ]),
-                ]),
+                "",
                 [
                   UserError(
-                    field: Some(["mutation"]),
-                    message: "Unsupported bulk mutation import root. The proxy did not send this bulk import upstream at runtime.",
+                    field: Some(["stagedUploadPath"]),
+                    message: "Staged upload content was not found for the provided stagedUploadPath.",
                     code: None,
                   ),
                 ],
               )
-            Some(_inner_root) ->
+            Some(content) ->
               stage_supported_run_mutation(
                 store,
                 identity,
@@ -1006,6 +989,56 @@ fn handle_bulk_operation_run_mutation(
               )
           }
       }
+  }
+}
+
+fn return_run_mutation_validation_error(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  validation_error: InnerMutationValidationError,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: serialize_run_mutation_payload(
+        field,
+        None,
+        inner_mutation_validation_user_errors(validation_error),
+        fragments,
+      ),
+      staged_resource_ids: [],
+      log_drafts: [],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn inner_mutation_validation_user_errors(
+  validation_error: InnerMutationValidationError,
+) -> List(UserError) {
+  case validation_error {
+    InnerMutationParseError(message) -> [
+      UserError(
+        field: None,
+        message: "Failed to parse the mutation - " <> message,
+        code: Some("INVALID_MUTATION"),
+      ),
+    ]
+    InnerMutationInvalidOperationType -> [
+      UserError(
+        field: None,
+        message: "Invalid operation type. Only `mutation` operations are supported.",
+        code: Some("INVALID_MUTATION"),
+      ),
+    ]
+    InnerMutationAnalysisErrors(messages) ->
+      list.map(messages, fn(message) {
+        UserError(field: Some(["mutation"]), message: message, code: None)
+      })
   }
 }
 
@@ -1276,19 +1309,145 @@ fn import_error_row(line_number: Int, message: String) -> Json {
   ])
 }
 
-fn supported_inner_mutation_root(mutation: String) -> Option(String) {
-  case root_field.get_root_fields(mutation) {
-    Ok([field]) ->
-      case root_field_name(field) {
-        Some(name) ->
-          case products.is_products_mutation_root(name) {
-            True -> Some(name)
-            False -> None
+fn validate_inner_bulk_mutation(
+  mutation: String,
+) -> Result(String, InnerMutationValidationError) {
+  case parser.parse(source.new(mutation)) {
+    Error(parser.ParseError(message: message, ..)) ->
+      Error(InnerMutationParseError(message))
+    Ok(document) ->
+      case parse_operation.find_operation(document.definitions) {
+        Some(OperationDefinition(operation: Query, ..))
+        | Some(OperationDefinition(operation: Subscription, ..)) ->
+          Error(InnerMutationInvalidOperationType)
+        Some(OperationDefinition(
+          operation: Mutation,
+          selection_set: selection_set,
+          ..,
+        )) -> {
+          let SelectionSet(selections: selections, ..) = selection_set
+          let root_fields = top_level_fields(selections)
+          let root_count_errors = case root_fields {
+            [single_root] ->
+              case root_field_name(single_root) {
+                Some(name) ->
+                  case products.is_products_mutation_root(name) {
+                    True -> []
+                    False -> ["You must use an allowed mutation name."]
+                  }
+                None -> ["You must use an allowed mutation name."]
+              }
+            _ -> ["You must specify a single top level mutation."]
           }
-        None -> None
+          let analysis_errors = case root_fields {
+            [single_root] ->
+              list.append(
+                root_count_errors,
+                connection_analysis_errors(single_root),
+              )
+            _ -> root_count_errors
+          }
+          case analysis_errors {
+            [] -> {
+              let assert [single_root] = root_fields
+              case root_field_name(single_root) {
+                Some(name) -> Ok(name)
+                None ->
+                  Error(
+                    InnerMutationAnalysisErrors([
+                      "You must use an allowed mutation name.",
+                    ]),
+                  )
+              }
+            }
+            [_, ..] -> Error(InnerMutationAnalysisErrors(analysis_errors))
+          }
+        }
+        _ -> Error(InnerMutationInvalidOperationType)
       }
-    _ -> None
   }
+}
+
+fn top_level_fields(selections: List(Selection)) -> List(Selection) {
+  list.filter(selections, fn(selection) {
+    case selection {
+      Field(..) -> True
+      _ -> False
+    }
+  })
+}
+
+fn connection_analysis_errors(root: Selection) -> List(String) {
+  let connection_depths = selected_connection_depths(root, 0)
+  let connection_count_error = case list.length(connection_depths) > 1 {
+    True -> ["Bulk mutations cannot contain more than 1 connection."]
+    False -> []
+  }
+  let nesting_error = case
+    list.any(connection_depths, fn(depth) { depth > 1 })
+  {
+    True -> [
+      "Bulk mutations cannot contain connections with a nesting depth greater than 1.",
+    ]
+    False -> []
+  }
+  list.append(connection_count_error, nesting_error)
+}
+
+fn selected_connection_depths(
+  selection: Selection,
+  parent_connection_depth: Int,
+) -> List(Int) {
+  case selection {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) -> {
+      let connection_depth = case is_connection_selection(selection) {
+        True -> parent_connection_depth + 1
+        False -> parent_connection_depth
+      }
+      let current = case is_connection_selection(selection) {
+        True -> [connection_depth]
+        False -> []
+      }
+      selections
+      |> list.map(fn(child) {
+        selected_connection_depths(child, connection_depth)
+      })
+      |> list.flatten
+      |> list.append(current)
+    }
+    InlineFragment(selection_set: SelectionSet(selections: selections, ..), ..) ->
+      selections
+      |> list.map(fn(child) {
+        selected_connection_depths(child, parent_connection_depth)
+      })
+      |> list.flatten
+    Field(..) | FragmentSpread(..) -> []
+  }
+}
+
+fn is_connection_selection(selection: Selection) -> Bool {
+  case selection {
+    Field(
+      arguments: arguments,
+      selection_set: Some(SelectionSet(selections: selections, ..)),
+      ..,
+    ) ->
+      has_connection_window_argument(arguments)
+      && list.any(selections, fn(child) {
+        case child {
+          Field(name: name, ..) ->
+            name.value == "edges" || name.value == "nodes"
+          _ -> False
+        }
+      })
+    _ -> False
+  }
+}
+
+fn has_connection_window_argument(arguments: List(Argument)) -> Bool {
+  list.any(arguments, fn(argument) {
+    argument.name.value == "first" || argument.name.value == "last"
+  })
 }
 
 fn build_and_stage_mutation_operation(

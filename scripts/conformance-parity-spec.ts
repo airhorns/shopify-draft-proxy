@@ -49,7 +49,8 @@ function isKnownMatcher(matcher: string): matcher is Matcher {
     matcher === 'non-empty-string' ||
     matcher === 'any-number' ||
     matcher === 'iso-timestamp' ||
-    /^shopify-gid:([A-Za-z][A-Za-z0-9]*)$/.test(matcher)
+    /^shopify-gid:([A-Za-z][A-Za-z0-9]*)$/.test(matcher) ||
+    /^regex:\^.+$/.test(matcher)
   );
 }
 
