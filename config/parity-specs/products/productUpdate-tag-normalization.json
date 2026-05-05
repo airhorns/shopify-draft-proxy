@@ -1,0 +1,86 @@
+{
+  "scenarioId": "productUpdate-tag-normalization",
+  "operationNames": ["productCreate", "productUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "tag-normalization-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-update-tag-normalization.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-tag-normalization-setup.graphql",
+    "variablesCapturePath": "$.setup.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-583 live 2025-01 capture for product tag normalization. Shopify trims tag edges, deduplicates and removes tags using a case-insensitive identity, sorts returned Product.tags case-insensitively, preserves the first surviving tag casing and internal whitespace, returns a top-level MAX_INPUT_SIZE_EXCEEDED error for 251 input tags, and returns a payload userError `Product tags is invalid` for a tag longer than 255 characters.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mixed-case-and-whitespace-tags",
+        "capturePath": "$.updates.mixedCaseWhitespace.response.data.productUpdate",
+        "proxyPath": "$.data.productUpdate",
+        "selectedPaths": ["$.product.tags", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-tag-normalization.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "tags": {
+                "fromCapturePath": "$.updates.mixedCaseWhitespace.variables.product.tags"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "too-many-tags-top-level-error",
+        "capturePath": "$.updates.tooManyTags.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-tag-normalization.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "tags": {
+                "fromCapturePath": "$.updates.tooManyTags.variables.product.tags"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$[*].locations",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "GraphQL source locations are parser-specific and not part of the product tag limit semantics."
+          }
+        ]
+      },
+      {
+        "name": "too-long-tag-user-error",
+        "capturePath": "$.updates.tooLongTag.response.data.productUpdate",
+        "proxyPath": "$.data.productUpdate",
+        "selectedPaths": ["$.product.tags", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUpdate-tag-normalization.graphql",
+          "variables": {
+            "product": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+              },
+              "tags": {
+                "fromCapturePath": "$.updates.tooLongTag.variables.product.tags"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
