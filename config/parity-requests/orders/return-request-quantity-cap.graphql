@@ -1,0 +1,13 @@
+mutation ReturnRequestQuantityCap($input: ReturnRequestInput!) {
+  returnRequest(input: $input) {
+    return {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

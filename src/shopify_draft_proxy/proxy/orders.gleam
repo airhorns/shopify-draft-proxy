@@ -7390,7 +7390,13 @@ fn build_return_line_items(
                 let available_quantity =
                   captured_int_field(fulfillment_line_item, "quantity")
                   |> option.unwrap(0)
-                case quantity <= 0 || quantity > available_quantity {
+                let already_returned =
+                  fulfillment_line_item_id
+                  |> option.map(fn(id) { already_returned_quantity(order, id) })
+                  |> option.unwrap(0)
+                let remaining_quantity =
+                  int.max(0, available_quantity - already_returned)
+                case quantity <= 0 || quantity > remaining_quantity {
                   True -> #(
                     items,
                     list.append(errors, [
@@ -7425,6 +7431,38 @@ fn build_return_line_items(
         _ -> Error(user_errors)
       }
     }
+  }
+}
+
+fn already_returned_quantity(
+  order: OrderRecord,
+  fulfillment_line_item_id: String,
+) -> Int {
+  order_returns(order.data)
+  |> list.filter(fn(order_return) {
+    captured_string_field(order_return, "status") != Some("CANCELED")
+  })
+  |> list.flat_map(order_return_line_items)
+  |> list.filter(fn(return_line_item) {
+    return_line_item_fulfillment_line_item_id(return_line_item)
+    == Some(fulfillment_line_item_id)
+  })
+  |> list.fold(0, fn(total, return_line_item) {
+    total
+    + { captured_int_field(return_line_item, "quantity") |> option.unwrap(0) }
+  })
+}
+
+fn return_line_item_fulfillment_line_item_id(
+  return_line_item: CapturedJsonValue,
+) -> Option(String) {
+  case captured_string_field(return_line_item, "fulfillmentLineItemId") {
+    Some(id) -> Some(id)
+    None ->
+      captured_object_field(return_line_item, "fulfillmentLineItem")
+      |> option.then(fn(fulfillment_line_item) {
+        captured_string_field(fulfillment_line_item, "id")
+      })
   }
 }
 
@@ -18983,8 +19021,17 @@ fn serialize_user_error(
     src_object([
       #("field", SrcList(list.map(field_path, SrcString))),
       #("message", SrcString(message)),
+      #("code", return_user_error_code(field_path)),
     ])
   project_graphql_value(source, selection_children(field), dict.new())
+}
+
+fn return_user_error_code(field_path: List(String)) -> SourceValue {
+  case field_path {
+    ["returnLineItems", _, "quantity"] -> SrcString("INVALID")
+    ["input", "returnLineItems", _, "quantity"] -> SrcString("INVALID")
+    _ -> SrcNull
+  }
 }
 
 fn captured_json_source(value: CapturedJsonValue) -> SourceValue {
