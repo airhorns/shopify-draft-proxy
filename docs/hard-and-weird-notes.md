@@ -64,6 +64,27 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: B2B same-as-shipping exposes separate public address IDs in 2026-04
+
+HAR-623 captured B2B location/address management on Admin GraphQL 2026-04. A
+`companyLocationCreate` request with `billingSameAsShipping: true` and a
+shipping address returned both `billingAddress` and `shippingAddress`, but those
+two public `CompanyAddress` IDs were different. Deleting the captured
+shipping-side ID removed only `shippingAddress` on the downstream public read
+and left the billing-side public address visible. Earlier ticket/source notes
+described the internal same-as-shipping anchor as a shared address; the local
+runtime still keeps one shared local address ID so it can clear
+`billingSameAsShipping` and detach both sides when that shared anchor is deleted.
+
+Two nearby 2026-04 traps from the same capture:
+
+- `CompanyLocation.billingSameAsShipping` is not selectable in that public Admin
+  API schema, so the local flag invariant needs focused runtime coverage rather
+  than strict public read parity.
+- duplicate `companyLocationAssignAddress(addressTypes: [BILLING, BILLING])`
+  returns `addresses: null` and a single `INVALID_INPUT` userError with
+  `field: null` and message `Invalid input.`
+
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
 HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:
@@ -1303,6 +1324,13 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 - `metaobjectCreate` field values that violate a `max` validation return `INVALID_VALUE` on `['metaobject', 'fields', '<index>']`; invalid JSON values also return `INVALID_VALUE` with an element key for the JSON field.
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
 - 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
+
+HAR-673 live capture against Admin GraphQL 2026-04 added definition type validation details:
+
+- `metaobjectDefinitionCreate` resolves `$app:<rest>` to the requesting app namespace before validation/storage; the conformance app resolved to `app--347082227713--<rest>`, and local parity replays provide that app identity through `x-shopify-draft-proxy-api-client-id`.
+- definition type validation returns `TOO_SHORT`, `TOO_LONG`, or `INVALID` on `["definition", "type"]` after app namespace resolution and lowercasing. The captured invalid-format message is the longer service message: `Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.`
+- uppercase definition types are downcased before storage and duplicate checks; a create with `HAR_673_CASE...` stored `har_673_case...`, and a follow-up lower-case create returned `TAKEN`.
+- Shopify 2026-04 accepted an uppercase field definition key introduced through `metaobjectDefinitionUpdate` field creation during this capture. Keep local field-key guardrails unit-tested, but do not claim live parity for that update branch without a later capture that rejects it.
 
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
@@ -3054,3 +3082,44 @@ Practical rule:
 
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
+
+## 76. `locationAdd` required input errors are parser-level, but country validation is topology-sensitive
+
+HAR-654 captured `locationAdd` on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- omitting inline `input.address` returns a top-level GraphQL error with `extensions.code: "missingRequiredInputObjectAttribute"` and no mutation payload
+- blank `input.name` returns a mutation-scoped userError with `field: ["input", "name"]` and `code: "BLANK"`
+- omitting `fulfillsOnlineOrders` creates a location whose mutation payload and immediate `location(id:)` read both show `fulfillsOnlineOrders: true`
+- explicitly passing `fulfillsOnlineOrders: false` is reflected in both the mutation payload and immediate read
+- a probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError; the location was deactivated and deleted immediately after capture
+
+Practical rule:
+
+- keep required-address and blank-name behavior aligned with the captured parser/userError shapes
+- keep the proxy's obvious non-ISO country-code rejection as a local guardrail requested by HAR-654, but treat exact Shopify country acceptance/rejection as store/topology-sensitive until a stricter live branch is captured
+
+## 77. B2B customer-as-contact validation codes are version/evidence-sensitive
+
+HAR-606 probed `companyAssignCustomerAsContact` on Admin GraphQL 2025-01 and
+2026-04 against `harry-test-heelo.myshopify.com` while fixing local customer
+resolution.
+
+Observed public Admin API behavior:
+
+- unknown customer IDs returned `field: ["customerId"]`, message
+  `Customer does not exist.`, and code `RESOURCE_NOT_FOUND`
+- assigning the same customer twice returned `field: ["companyId"]`, message
+  `Customer is already associated with a company contact.`, and code
+  `INVALID_INPUT`
+- assigning a customer with no email returned `field: ["companyId"]`, message
+  `Customer must have an email address.`, and code `INVALID_INPUT`
+
+Practical rule:
+
+- the local handler follows HAR-606's internal-source acceptance codes
+  (`CUSTOMER_NOT_FOUND`, `CUSTOMER_ALREADY_A_CONTACT`, and
+  `CUSTOMER_EMAIL_MUST_EXIST`) while preserving the observed field/message
+  shapes; re-record parity if Shopify's public Admin API starts returning those
+  more specific enum values

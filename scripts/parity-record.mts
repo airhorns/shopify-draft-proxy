@@ -271,7 +271,7 @@ function rewriteCapture(
   let parsed: Record<string, unknown>;
   try {
     parsed = JSON.parse(source) as Record<string, unknown>;
-  } catch (err) {
+  } catch {
     throw new Error(`Capture file is not valid JSON: ${captureFile}`);
   }
   for (const { capturePath, value } of rewrites) {

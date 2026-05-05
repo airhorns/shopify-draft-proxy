@@ -13,6 +13,7 @@ import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{ShopLocaleRecord, TranslationRecord}
@@ -29,6 +30,7 @@ fn run_outcome(
       "/admin/api/2025-01/graphql.json",
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   outcome
 }

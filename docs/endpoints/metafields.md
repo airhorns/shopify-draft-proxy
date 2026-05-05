@@ -92,6 +92,8 @@ The product-owner pinning slice supports local staging for existing normalized d
 
 Captured 2025-01 live behavior shows pinning an unpinned product definition assigns the next owner-type pinned position after the highest existing product definition position. Pinned definition catalogs sorted with `sortKey: PINNED_POSITION` return higher pinned positions first. Unpinning clears the target definition's `pinnedPosition` and compacts any higher pinned positions down by one, so downstream `metafieldDefinition` detail reads plus `metafieldDefinitions(... pinnedStatus: PINNED|UNPINNED)` catalogs reflect the staged change.
 
+HAR-699 captured the default 2025-01 product-owner pin cap as 20 pinned definitions. The 21st pin returns `pinnedDefinition: null` with `field: null`, message `Limit of 20 pinned definitions.`, and code `PINNED_LIMIT_REACHED`. Constrained definitions, represented by populated `constraints.key` or `constraints.values`, cannot be pinned and return `pinnedDefinition: null` with code `UNSUPPORTED_PINNING`.
+
 The local implementation intentionally covers pin/unpin for definitions already present in normalized snapshot, hydrated state, or staged lifecycle state. In LiveHybrid, a cold pin/unpin first hydrates the product-owner definition catalog through `upstream_query.fetch_sync`, then stages only the pin or unpin effect locally; parity cassettes provide that read deterministically. It does not create missing definitions through pin/unpin when no upstream definition can be hydrated, and it does not model app-configuration-managed / unsupported-owner error branches yet.
 
 ## Historical and developer notes
@@ -99,6 +101,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 Validation entry points:
 
 - `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
+- `config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json`
 - `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`
 - `config/parity-specs/products/metafieldsSet-*.json`
 - `config/parity-specs/products/metafieldDelete-parity-plan.json`

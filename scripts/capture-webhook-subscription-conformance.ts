@@ -111,16 +111,22 @@ function withWebhookUri(
   rawVariables: Record<string, unknown>,
   uri: string,
   overrides: Record<string, unknown> = {},
+  omitInputKeys: string[] = [],
 ): Record<string, unknown> {
   const input = isObject(rawVariables['webhookSubscription']) ? rawVariables['webhookSubscription'] : {};
+  const webhookSubscription: Record<string, unknown> = {
+    ...input,
+    ...overrides,
+    uri,
+  };
+
+  for (const key of omitInputKeys) {
+    delete webhookSubscription[key];
+  }
 
   return {
     ...rawVariables,
-    webhookSubscription: {
-      ...input,
-      ...overrides,
-      uri,
-    },
+    webhookSubscription,
   };
 }
 
@@ -169,6 +175,8 @@ requireSuccessfulGraphql(schemaAndAccess, 'Webhook subscription schema/access pr
 const suffix = `${Date.now()}`;
 const createUri = `https://example.com/hermes-webhook-conformance-${suffix}`;
 const updateUri = `${createUri}-updated`;
+const filterDefaultUri = `${createUri}-filter-default`;
+const filterDefaultEmptyUri = `${createUri}-filter-empty`;
 const unknownId = 'gid://shopify/WebhookSubscription/999999999999';
 
 const catalogVariables = await readVariables(catalogVariablesPath);
@@ -179,6 +187,8 @@ const validationVariables = await readVariables(validationVariablesPath);
 let createdId: string | null = null;
 let cleanup: CapturedRequest | null = null;
 let updateValidationCreatedId: string | null = null;
+let filterDefaultWithoutId: string | null = null;
+let filterDefaultEmptyId: string | null = null;
 const lifecycle: {
   create: CapturedRequest | null;
   detailAfterCreate: CapturedRequest | null;
@@ -193,6 +203,23 @@ const lifecycle: {
   detailAfterUpdate: null,
   delete: null,
   postDeleteDetail: null,
+};
+const filterDefault: {
+  createWithoutFilter: CapturedRequest | null;
+  detailWithoutFilter: CapturedRequest | null;
+  deleteWithoutFilter: CapturedRequest | null;
+  createWithEmptyFilter: CapturedRequest | null;
+  deleteWithEmptyFilter: CapturedRequest | null;
+  cleanupWithoutFilter: CapturedRequest | null;
+  cleanupWithEmptyFilter: CapturedRequest | null;
+} = {
+  createWithoutFilter: null,
+  detailWithoutFilter: null,
+  deleteWithoutFilter: null,
+  createWithEmptyFilter: null,
+  deleteWithEmptyFilter: null,
+  cleanupWithoutFilter: null,
+  cleanupWithEmptyFilter: null,
 };
 const updateValidation: {
   create: CapturedRequest | null;
@@ -233,6 +260,41 @@ try {
 } finally {
   if (createdId !== null && lifecycle.delete === null) {
     cleanup = await capture(deleteRequestPath, { id: createdId });
+  }
+}
+
+try {
+  filterDefault.createWithoutFilter = await capture(
+    createRequestPath,
+    withWebhookUri(createVariables, filterDefaultUri, {}, ['filter']),
+  );
+  filterDefaultWithoutId = readCreatedWebhookId(filterDefault.createWithoutFilter);
+  if (filterDefaultWithoutId === null) {
+    throw new Error('filter-default omitted-filter create did not return a webhookSubscription.id.');
+  }
+
+  filterDefault.detailWithoutFilter = await capture(detailRequestPath, { id: filterDefaultWithoutId });
+  filterDefault.deleteWithoutFilter = await capture(deleteRequestPath, { id: filterDefaultWithoutId });
+} finally {
+  if (filterDefaultWithoutId !== null && filterDefault.deleteWithoutFilter === null) {
+    filterDefault.cleanupWithoutFilter = await capture(deleteRequestPath, { id: filterDefaultWithoutId });
+  }
+}
+
+try {
+  filterDefault.createWithEmptyFilter = await capture(
+    createRequestPath,
+    withWebhookUri(createVariables, filterDefaultEmptyUri, { filter: '' }),
+  );
+  filterDefaultEmptyId = readCreatedWebhookId(filterDefault.createWithEmptyFilter);
+  if (filterDefaultEmptyId === null) {
+    throw new Error('filter-default empty-filter create did not return a webhookSubscription.id.');
+  }
+
+  filterDefault.deleteWithEmptyFilter = await capture(deleteRequestPath, { id: filterDefaultEmptyId });
+} finally {
+  if (filterDefaultEmptyId !== null && filterDefault.deleteWithEmptyFilter === null) {
+    filterDefault.cleanupWithEmptyFilter = await capture(deleteRequestPath, { id: filterDefaultEmptyId });
   }
 }
 
@@ -312,6 +374,7 @@ await writeFile(
       },
       catalog,
       lifecycle,
+      filterDefault,
       updateValidation,
       validation,
       graphqlValidation,

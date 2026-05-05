@@ -44,6 +44,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
 import shopify_draft_proxy/proxy/store_properties
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -1493,8 +1494,15 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
-  process_mutation_with_shop_origin(store, identity, "", document, variables)
+  process_mutation_with_shop_origin(
+    store,
+    identity,
+    upstream.origin,
+    document,
+    variables,
+  )
 }
 
 pub fn process_mutation_with_shop_origin(

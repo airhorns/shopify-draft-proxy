@@ -1,0 +1,197 @@
+{
+  "scenarioId": "discount-timestamps-monotonic",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBasicUpdate",
+    "codeDiscountNode",
+    "codeDiscountNodeByCode"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-lifecycle", "downstream-read-parity", "timestamp-monotonicity", "runtime-test-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-timestamps-monotonic.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-timestamps-monotonic-create.graphql",
+    "variablesCapturePath": "$.requests.firstCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-create-payload",
+        "capturePath": "$.firstCreate.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.discountCodeBasicCreate.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy creates a stable synthetic discount node ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged discount timestamps."
+          },
+          {
+            "path": "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged discount timestamps."
+          }
+        ]
+      },
+      {
+        "name": "second-create-payload",
+        "capturePath": "$.secondCreate.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-timestamps-monotonic-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.requests.secondCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.discountCodeBasicCreate.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy creates a stable synthetic discount node ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged discount timestamps."
+          },
+          {
+            "path": "$.discountCodeBasicCreate.codeDiscountNode.codeDiscount.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged discount timestamps."
+          }
+        ]
+      },
+      {
+        "name": "first-update-payload",
+        "capturePath": "$.updateFirst.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-timestamps-monotonic-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.requests.updateFirst.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.discountCodeBasicUpdate.codeDiscountNode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy updates the synthetic discount node ID returned by its local create."
+          },
+          {
+            "path": "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy preserves the deterministic synthetic create timestamp for locally staged discounts."
+          },
+          {
+            "path": "$.discountCodeBasicUpdate.codeDiscountNode.codeDiscount.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy bumps updatedAt with its deterministic synthetic clock."
+          }
+        ]
+      },
+      {
+        "name": "read-after-update",
+        "capturePath": "$.readAfterUpdate.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-timestamps-monotonic-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "firstId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "secondId": {
+              "fromProxyResponse": "second-create-payload",
+              "path": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "firstCode": {
+              "fromCapturePath": "$.variables.firstCode"
+            },
+            "secondCode": {
+              "fromCapturePath": "$.variables.secondCode"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.first.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The downstream read sees the proxy-created synthetic discount ID."
+          },
+          {
+            "path": "$.first.codeDiscount.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.first.codeDiscount.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic update timestamp."
+          },
+          {
+            "path": "$.second.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The downstream read sees the proxy-created synthetic discount ID."
+          },
+          {
+            "path": "$.second.codeDiscount.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.second.codeDiscount.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic update timestamp."
+          },
+          {
+            "path": "$.firstByCode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Code lookup returns the proxy-created synthetic discount ID."
+          },
+          {
+            "path": "$.firstByCode.codeDiscount.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Code lookup returns the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.firstByCode.codeDiscount.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Code lookup returns the proxy synthetic update timestamp."
+          },
+          {
+            "path": "$.secondByCode.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "Code lookup returns the proxy-created synthetic discount ID."
+          },
+          {
+            "path": "$.secondByCode.codeDiscount.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Code lookup returns the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.secondByCode.codeDiscount.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Code lookup returns the proxy synthetic update timestamp."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-603 live parity for discount timestamp lifecycle behavior: two code-basic creates produce distinct createdAt values, updating the first discount preserves createdAt and advances updatedAt, and downstream reads observe the persisted staged timestamps. The generic parity runner compares timestamp shape with path-scoped expected differences, while the runtime test file asserts relational ordering and CREATED_AT/UPDATED_AT sort behavior that strict JSON parity cannot express."
+}

@@ -55,6 +55,22 @@ result. See _Per-operation upstream access_ below.
 `comparison.mode` is the comparison contract for the target payloads. It
 is distinct from proxy runtime read mode, which the runner owns.
 
+`proxyRequest.localSetups` is a narrow runner hook for executable local
+state setup that is not sourced from captured Shopify payloads. Use it
+only when live setup would be impractical or unsafe, and compare against
+an explicit captured or documented runtime case. It is not a replacement
+for cassette playback, and it must not reintroduce `seedX` keys in
+capture files.
+
+```jsonc
+{
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-create-limit-validation.graphql",
+    "localSetups": [{ "kind": "seedSegments", "count": 6000 }],
+  },
+}
+```
+
 ## Cassette shape
 
 The cassette lives inside the same capture file the spec already points

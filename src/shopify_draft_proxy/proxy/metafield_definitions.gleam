@@ -100,6 +100,8 @@ type StandardMetafieldDefinitionTemplate {
   )
 }
 
+const pinned_definition_limit = 20
+
 pub fn is_metafield_definitions_query_root(name: String) -> Bool {
   case name {
     "metafieldDefinition"
@@ -1951,24 +1953,40 @@ fn serialize_definition_pin_root(
       identity,
       [],
     )
-    Some(definition) -> {
-      let pinned = pin_definition(store_in, definition)
-      let next_store =
-        store.upsert_staged_metafield_definitions(store_in, [pinned])
-      #(
-        serialize_pinning_payload(
+    Some(definition) ->
+      case validate_definition_pin(store_in, definition) {
+        [_, ..] as user_errors -> #(
+          serialize_pinning_payload(
+            store_in,
+            "pinnedDefinition",
+            None,
+            user_errors,
+            field,
+            variables,
+          ),
           store_in,
-          "pinnedDefinition",
-          Some(pinned),
+          identity,
           [],
-          field,
-          variables,
-        ),
-        next_store,
-        identity,
-        [pinned.id],
-      )
-    }
+        )
+        [] -> {
+          let pinned = pin_definition(store_in, definition)
+          let next_store =
+            store.upsert_staged_metafield_definitions(store_in, [pinned])
+          #(
+            serialize_pinning_payload(
+              store_in,
+              "pinnedDefinition",
+              Some(pinned),
+              [],
+              field,
+              variables,
+            ),
+            next_store,
+            identity,
+            [pinned.id],
+          )
+        }
+      }
   }
 }
 
@@ -2094,9 +2112,7 @@ fn build_definition_from_input(
         input,
         "capabilities",
       )),
-      constraints: Some(
-        MetafieldDefinitionConstraintsRecord(key: None, values: []),
-      ),
+      constraints: read_definition_constraints(input),
       pinned_position: case read_optional_bool(input, "pin") {
         Some(True) -> Some(next_pinned_position(store_in, owner_type, None))
         _ -> None
@@ -2105,6 +2121,40 @@ fn build_definition_from_input(
     ),
     next_identity,
   )
+}
+
+fn read_definition_constraints(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(MetafieldDefinitionConstraintsRecord) {
+  case has_field(input, "constraints") {
+    False -> Some(MetafieldDefinitionConstraintsRecord(key: None, values: []))
+    True -> {
+      let constraints = read_object(input, "constraints")
+      Some(MetafieldDefinitionConstraintsRecord(
+        key: read_optional_string(constraints, "key"),
+        values: read_string_list(constraints, "values")
+          |> list.map(fn(value) {
+            MetafieldDefinitionConstraintValueRecord(value: value)
+          }),
+      ))
+    }
+  }
+}
+
+fn read_string_list(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(String) {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          root_field.StringVal(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
 }
 
 fn infer_definition_type_category(type_name: String) -> Option(String) {
@@ -2315,6 +2365,47 @@ fn serialize_definition_user_error(error: UserError, field: Selection) -> Json {
       },
     ),
   )
+}
+
+fn validate_definition_pin(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> List(UserError) {
+  case definition_is_constrained(definition) {
+    True -> [
+      UserError(
+        field: None,
+        message: "Constrained metafield definitions do not support pinning.",
+        code: "UNSUPPORTED_PINNING",
+      ),
+    ]
+    False ->
+      case definition.pinned_position {
+        Some(_) -> []
+        None ->
+          case
+            list.length(list_pinned_definitions(store_in, definition.owner_type))
+            >= pinned_definition_limit
+          {
+            True -> [
+              UserError(
+                field: None,
+                message: "Limit of 20 pinned definitions.",
+                code: "PINNED_LIMIT_REACHED",
+              ),
+            ]
+            False -> []
+          }
+      }
+  }
+}
+
+fn definition_is_constrained(definition: MetafieldDefinitionRecord) -> Bool {
+  case definition.constraints {
+    Some(MetafieldDefinitionConstraintsRecord(key: Some(_), ..)) -> True
+    Some(MetafieldDefinitionConstraintsRecord(values: [_, ..], ..)) -> True
+    _ -> False
+  }
 }
 
 fn list_pinned_definitions(
