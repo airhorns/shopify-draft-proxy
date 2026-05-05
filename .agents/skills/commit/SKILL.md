@@ -49,7 +49,7 @@ description: Create a well-formed git commit from current changes using session 
     fix the index or revise the message before committing.
 13. If the change touched any parity spec, capture file under
     `fixtures/conformance/**`, parity request document, or any operation
-    handler in `gleam/src/shopify_draft_proxy/proxy/`, confirm cassettes were
+    handler in `src/shopify_draft_proxy/proxy/`, confirm cassettes were
     re-recorded via `pnpm parity:record <scenario-id>` and `pnpm gleam:test`
     is green on both targets. See `docs/parity-runner.md`.
 

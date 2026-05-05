@@ -182,17 +182,6 @@ Remaining gaps that should not be overclaimed:
 
 ### Validation anchors
 
-- Order reads: `tests/integration/order-query-shapes.test.ts`
-- Abandoned checkouts and abandonments: `tests/integration/abandoned-checkout-query-shapes.test.ts`
-- Order lifecycle, payment, and customer changes: `tests/integration/order-lifecycle-payment-customer-flow.test.ts`
-- Order payment transaction changes: `tests/integration/order-payment-transaction-flow.test.ts`
-- Order create/update flows: `tests/integration/order-creation-flow.test.ts`, `tests/integration/order-draft-flow.test.ts`
-- Payment terms reads: `tests/integration/payment-terms-query-shapes.test.ts`
-- Draft-order mutation family: `tests/integration/draft-order-mutation-family-flow.test.ts`
-- Fulfillments: `tests/integration/order-fulfillment-flow.test.ts`, `tests/integration/order-query-shapes.test.ts`
 - Fulfillment-order lifecycle capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`
-- Order editing: `tests/integration/order-edit-flow.test.ts`
-- Refunds and shipping-refund aggregates: `tests/integration/order-refund-flow.test.ts`
-- Returns: `tests/integration/order-return-flow.test.ts`
 - Conformance fixtures and requests: `config/parity-specs/orders/order*.json`, `config/parity-specs/orders/draftOrder*.json`, `config/parity-specs/orders/draftOrders*.json`, `config/parity-specs/shipping-fulfillments/fulfillment*.json`, `config/parity-specs/orders/refund*.json`, and matching files under `config/parity-requests/orders/` or `config/parity-requests/shipping-fulfillments/`. For order editing, prefer `orderEdit-lifecycle-userErrors`, the `orderEditExistingOrder-*` workflow specs, and the missing-id validation slices over single-root planned placeholders.
 - Residual draft-order helper capture: `corepack pnpm conformance:capture-draft-order-residual-helpers`

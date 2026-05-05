@@ -25,7 +25,7 @@ Local staged mutations currently live under the orders group because they operat
 - `fulfillmentOrderAcceptCancellationRequest`
 - `fulfillmentOrderRejectCancellationRequest`
 
-Those roots are implemented in `tests/integration/order-fulfillment-flow.test.ts` and covered by `config/parity-specs/shipping-fulfillments/fulfillment*.json`. HAR-122/HAR-187 provide the evidence-backed fulfillment lifecycle slices; HAR-233 adds request/cancellation lifecycle evidence backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json`.
+Those roots are implemented in the Gleam parity runner and covered by `config/parity-specs/shipping-fulfillments/fulfillment*.json`. HAR-122/HAR-187 provide the evidence-backed fulfillment lifecycle slices; HAR-233 adds request/cancellation lifecycle evidence backed by `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json`.
 
 Top-level fulfillment and fulfillment-order reads are implemented as snapshot/local reads over the existing order graph:
 
@@ -87,7 +87,7 @@ HAR-234/HAR-367 captured but does not mark full support for `fulfillmentOrderRes
 
 `fulfillmentOrderSubmitCancellationRequest` appends a `CANCELLATION_REQUEST` merchant request to an accepted fulfillment order while preserving Shopify's captured `requestStatus: ACCEPTED` immediately after submission. `fulfillmentOrderAcceptCancellationRequest` closes the fulfillment order with `requestStatus: CANCELLATION_ACCEPTED` and zeroes the modeled fulfillment-order line-item quantities. `fulfillmentOrderRejectCancellationRequest` keeps the order in progress with `requestStatus: CANCELLATION_REJECTED`. These supported roots append original raw mutations to the meta log and never call Shopify or fulfillment-service notification callbacks during normal runtime staging.
 
-Captured HAR-232 evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-top-level-reads.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-top-level-reads.json`. HAR-235 detail/event evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-detail-events-lifecycle.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json`. HAR-233 request/cancellation evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json`. Runtime coverage is in `tests/integration/order-query-shapes.test.ts` and `tests/integration/order-fulfillment-flow.test.ts`.
+Captured HAR-232 evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-top-level-reads.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-top-level-reads.json`. HAR-235 detail/event evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-detail-events-lifecycle.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json`. HAR-233 request/cancellation evidence lives at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json` with parity coverage in `config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json`.
 
 Fulfillment service reads and lifecycle writes are implemented as a shipping/fulfillments slice because they create and mutate service-managed locations:
 
@@ -213,8 +213,6 @@ Current executable evidence for the reviewed fulfillment scope:
 - `config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json` replays captured lifecycle mutations and downstream fulfillment-order reads against the proxy with strict comparison targets.
 - `config/parity-specs/shipping-fulfillments/fulfillment-order-request-lifecycle.json` replays captured fulfillment request and cancellation request transitions, including downstream direct reads.
 - `config/parity-specs/shipping-fulfillments/fulfillment-detail-events-lifecycle.json` covers top-level and nested fulfillment event/tracking/cancel detail reads.
-- `tests/integration/order-fulfillment-flow.test.ts` covers no-upstream local staging and mutation-log preservation for the lifecycle roots.
-- `tests/integration/order-query-shapes.test.ts` covers top-level fulfillment/fulfillment-order reads, manual holds, and local `assignedFulfillmentOrders` assignment-status/location filters.
 
 Remaining gaps that should not be overclaimed:
 
@@ -282,14 +280,6 @@ Shipping-line order-edit roots:
 
 ### Validation anchors
 
-- Implemented order-scoped fulfillments: `tests/integration/order-fulfillment-flow.test.ts`
-- Implemented top-level fulfillment reads: `tests/integration/order-query-shapes.test.ts`
-- Implemented fulfillment services: `tests/integration/fulfillment-service-flow.test.ts`
-- Implemented carrier services: `tests/integration/carrier-service-flow.test.ts`
-- Implemented delivery settings reads: `tests/integration/delivery-settings-query-shapes.test.ts`
-- Implemented shipping settings/package/pickup slice: `tests/integration/shipping-settings-flow.test.ts`
-- Implemented delivery-profile reads: `tests/integration/delivery-profile-query-shapes.test.ts`
-- Implemented delivery-profile writes: `tests/integration/delivery-profile-lifecycle-flow.test.ts`
 - Existing fulfillment parity specs and requests: `config/parity-specs/shipping-fulfillments/fulfillment*.json` and matching files under `config/parity-requests/shipping-fulfillments/`
 - Fulfillment-order request/cancellation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-request-lifecycle.json`
 - Carrier-service capture/parity metadata: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-lifecycle.json` and `config/parity-specs/shipping-fulfillments/carrier-service-lifecycle.json`
@@ -298,4 +288,3 @@ Shipping-line order-edit roots:
 - Delivery settings/customization/promise probe evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/delivery-customization-promise-settings-blockers.json`
 - Shipping settings/package/pickup/constraint evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/shipping-fulfillments/shipping-settings-package-pickup-constraints.json` and `config/parity-specs/shipping-fulfillments/shipping-settings-package-pickup-constraints.json`
 - Existing order docs for fulfilled order read-after-write behavior: `docs/endpoints/orders.md`
-- Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `tests/integration/proxy-capability-classification.test.ts`

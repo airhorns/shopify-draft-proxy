@@ -1,0 +1,88 @@
+{
+  "scenarioId": "discount-activate-deactivate-edge-cases",
+  "operationNames": ["discountCodeBasicCreate", "discountCodeDeactivate", "discountCodeActivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "mutation-lifecycle",
+    "downstream-read-parity",
+    "user-errors-parity",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/discounts/discount-activate-deactivate-edge-cases.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-edge-create.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "code-basic-edge-create",
+        "capturePath": "$.create.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "code-basic-deactivate-rewrites-dates",
+        "capturePath": "$.deactivate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-edge-deactivate.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-basic-activate-clears-stale-ends-at",
+        "capturePath": "$.activate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-edge-activate.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-basic-read-after-activate",
+        "capturePath": "$.readAfterActivate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-edge-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "code": {
+              "fromCapturePath": "$.variables.code"
+            }
+          }
+        }
+      },
+      {
+        "name": "unknown-code-activate-invalid-error",
+        "capturePath": "$.unknownActivate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-edge-unknown.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-600 executable local-runtime parity for shared code discount activate/deactivate edge behavior: deactivation rewrites a future startsAt plus endsAt to synthetic now, activation clears the stale endsAt, downstream codeDiscountNode reads remain ACTIVE with endsAt null, and unknown activate uses Shopify's INVALID-style userError code. The app-discount missing Function activation branch is covered by focused Gleam runtime tests in the listed runtime test file; a full generic parity replay would require revoking staged Shopify Function state, which the runner intentionally does not support without banned seed-state setup."
+}

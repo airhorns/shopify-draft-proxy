@@ -8,7 +8,7 @@ import path from 'node:path';
 
 import { z } from 'zod';
 
-import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
+import { DEFAULT_ADMIN_API_VERSION } from './support/shopify/api-version.js';
 import { runAdminGraphqlRequest } from './conformance-graphql-client.js';
 
 export const SHOPIFY_CONFORMANCE_AUTH_DIR = path.join(homedir(), '.shopify-draft-proxy');

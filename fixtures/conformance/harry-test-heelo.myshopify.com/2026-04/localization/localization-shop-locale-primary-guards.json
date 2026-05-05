@@ -1,0 +1,142 @@
+{
+  "capturedAt": "2026-05-05T01:23:48.505Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "rootAvailability": {
+    "mutations": ["shopLocaleDisable", "shopLocaleEnable", "shopLocaleUpdate"]
+  },
+  "primaryGuards": {
+    "primaryLocale": "en",
+    "enablePrimary": {
+      "request": {
+        "variables": {
+          "locale": "en"
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleEnable": {
+            "shopLocale": null,
+            "userErrors": [
+              {
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updatePrimaryUnpublish": {
+      "request": {
+        "variables": {
+          "locale": "en",
+          "shopLocale": {
+            "published": false
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleUpdate": {
+            "shopLocale": null,
+            "userErrors": [
+              {
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "disablePrimary": {
+      "request": {
+        "variables": {
+          "locale": "en"
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleDisable": {
+            "locale": null,
+            "userErrors": [
+              {
+                "field": ["locale"],
+                "message": "The primary locale of your store can't be changed through this endpoint."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1985,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "updateMissingLocale": {
+      "request": {
+        "variables": {
+          "locale": "zz",
+          "shopLocale": {
+            "published": false
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "shopLocaleUpdate": {
+            "shopLocale": null,
+            "userErrors": [
+              {
+                "field": ["locale"],
+                "message": "The locale doesn't exist."
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
