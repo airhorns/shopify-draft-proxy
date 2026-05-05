@@ -20,7 +20,7 @@ type RecordedOperation = {
 
 const scenarioId = 'b2b-no-input-validation';
 const timestamp = Date.now();
-const companyName = `HAR-759 B2B no input ${timestamp}`;
+const companyName = `B2B no input ${timestamp}`;
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -31,7 +31,7 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
 });
 
 const schemaProbeDocument = `#graphql
-  query HAR759B2BNoInputSchema {
+  query B2BNoInputSchema {
     companyInput: __type(name: "CompanyInput") { inputFields { name } }
     contactInput: __type(name: "CompanyContactInput") { inputFields { name } }
     locationUpdateInput: __type(name: "CompanyLocationUpdateInput") { inputFields { name } }
@@ -39,7 +39,7 @@ const schemaProbeDocument = `#graphql
 `;
 
 const companyCreateDocument = `#graphql
-  mutation HAR759NoInputCompanyCreate($input: CompanyCreateInput!) {
+  mutation B2BNoInputCompanyCreate($input: CompanyCreateInput!) {
     companyCreate(input: $input) {
       company {
         id
@@ -72,7 +72,7 @@ const companyCreateDocument = `#graphql
 `;
 
 const companyReadDocument = `#graphql
-  query HAR759NoInputCompanyRead($companyId: ID!) {
+  query B2BNoInputCompanyRead($companyId: ID!) {
     company(id: $companyId) {
       id
       name
@@ -98,7 +98,7 @@ const companyReadDocument = `#graphql
 `;
 
 const contactCreateDocument = `#graphql
-  mutation HAR759NoInputContactCreate($companyId: ID!, $input: CompanyContactInput!) {
+  mutation B2BNoInputContactCreate($companyId: ID!, $input: CompanyContactInput!) {
     companyContactCreate(companyId: $companyId, input: $input) {
       companyContact {
         id
@@ -118,7 +118,7 @@ const contactCreateDocument = `#graphql
 `;
 
 const companyUpdateDocument = `#graphql
-  mutation HAR759NoInputCompanyUpdate($companyId: ID!, $input: CompanyInput!) {
+  mutation B2BNoInputCompanyUpdate($companyId: ID!, $input: CompanyInput!) {
     companyUpdate(companyId: $companyId, input: $input) {
       company {
         id
@@ -136,7 +136,7 @@ const companyUpdateDocument = `#graphql
 `;
 
 const contactUpdateDocument = `#graphql
-  mutation HAR759NoInputContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
+  mutation B2BNoInputContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
     companyContactUpdate(companyContactId: $companyContactId, input: $input) {
       companyContact {
         id
@@ -153,7 +153,7 @@ const contactUpdateDocument = `#graphql
 `;
 
 const locationUpdateDocument = `#graphql
-  mutation HAR759NoInputLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
+  mutation B2BNoInputLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
     companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
       companyLocation {
         id
@@ -170,7 +170,7 @@ const locationUpdateDocument = `#graphql
 `;
 
 const companyDeleteDocument = `#graphql
-  mutation HAR759NoInputCompanyDelete($id: ID!) {
+  mutation B2BNoInputCompanyDelete($id: ID!) {
     companyDelete(id: $id) {
       deletedCompanyId
       userErrors {
@@ -286,7 +286,7 @@ const cleanup: Record<string, RecordedOperation> = {};
 
 try {
   const schemaProbeResult = await runGraphqlRequest(schemaProbeDocument, {});
-  assertNoTopLevelErrors(schemaProbeResult, 'HAR-759 B2B schema probe');
+  assertNoTopLevelErrors(schemaProbeResult, 'B2B no-input schema probe');
   const schemaProbe = recordOperation(schemaProbeDocument, {}, schemaProbeResult);
 
   const setupCompany = await runRequired(
@@ -296,19 +296,19 @@ try {
         company: {
           name: companyName,
           note: 'unchanged note',
-          externalId: `har-759-${timestamp}`,
+          externalId: `b2b-no-input-${timestamp}`,
         },
         companyContact: {
           firstName: 'Har',
           lastName: 'No Input',
-          email: `har-759-no-input-${timestamp}@example.com`,
+          email: `b2b-no-input-${timestamp}@example.com`,
           title: 'Unchanged buyer',
         },
         companyLocation: {
           name: `${companyName} HQ`,
-          externalId: `har-759-location-${timestamp}`,
+          externalId: `b2b-no-input-location-${timestamp}`,
           billingAddress: {
-            address1: '759 B2B Way',
+            address1: '10 B2B Way',
             city: 'Ottawa',
             countryCode: 'CA',
           },
@@ -316,7 +316,7 @@ try {
       },
     },
     'companyCreate',
-    'HAR-759 companyCreate setup',
+    'B2B no-input companyCreate setup',
   );
 
   companyId = readStringAtPath(setupCompany.response, ['data', 'companyCreate', 'company', 'id'], 'setup company');
@@ -331,13 +331,13 @@ try {
     'setup location',
   );
 
-  const baselineRead = await runRead(companyReadDocument, { companyId }, 'HAR-759 baseline read');
+  const baselineRead = await runRead(companyReadDocument, { companyId }, 'B2B no-input baseline read');
 
   const contactCreateEmptyInput = await runValidationMutation(
     contactCreateDocument,
     { companyId, input: {} },
     'companyContactCreate',
-    'HAR-759 contact create empty input',
+    'B2B no-input contact create empty input',
   );
   const contactCreateNullOnlyInput = await runValidationMutation(
     contactCreateDocument,
@@ -353,13 +353,13 @@ try {
       },
     },
     'companyContactCreate',
-    'HAR-759 contact create null-only input',
+    'B2B no-input contact create null-only input',
   );
   const companyUpdateEmptyInput = await runValidationMutation(
     companyUpdateDocument,
     { companyId, input: {} },
     'companyUpdate',
-    'HAR-759 company update empty input',
+    'B2B no-input company update empty input',
   );
   const companyUpdateNullOnlyInput = await runValidationMutation(
     companyUpdateDocument,
@@ -373,13 +373,13 @@ try {
       },
     },
     'companyUpdate',
-    'HAR-759 company update null-only input',
+    'B2B no-input company update null-only input',
   );
   const contactUpdateEmptyInput = await runValidationMutation(
     contactUpdateDocument,
     { companyContactId: contactId, input: {} },
     'companyContactUpdate',
-    'HAR-759 contact update empty input',
+    'B2B no-input contact update empty input',
   );
   const contactUpdateNullOnlyInput = await runValidationMutation(
     contactUpdateDocument,
@@ -395,13 +395,13 @@ try {
       },
     },
     'companyContactUpdate',
-    'HAR-759 contact update null-only input',
+    'B2B no-input contact update null-only input',
   );
   const locationUpdateEmptyInput = await runValidationMutation(
     locationUpdateDocument,
     { companyLocationId: locationId, input: {} },
     'companyLocationUpdate',
-    'HAR-759 location update empty input',
+    'B2B no-input location update empty input',
   );
   const locationUpdateNullOnlyInput = await runValidationMutation(
     locationUpdateDocument,
@@ -416,10 +416,10 @@ try {
       },
     },
     'companyLocationUpdate',
-    'HAR-759 location update null-only input',
+    'B2B no-input location update null-only input',
   );
 
-  const readAfterNoInput = await runRead(companyReadDocument, { companyId }, 'HAR-759 read after NO_INPUT probes');
+  const readAfterNoInput = await runRead(companyReadDocument, { companyId }, 'B2B no-input read after NO_INPUT probes');
 
   cleanup[`companyDelete:${companyId}`] = await runCleanup(companyId);
   companyDeleted = true;
@@ -430,7 +430,6 @@ try {
     storeDomain,
     apiVersion,
     intent: {
-      ticket: 'HAR-759',
       plan: 'Create a disposable B2B company with contact/location, record Shopify NO_INPUT validation for empty and null-only B2B update/contact-create inputs, verify readback remains unchanged, and clean up the company.',
     },
     schemaProbe,

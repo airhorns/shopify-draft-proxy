@@ -17,7 +17,7 @@
   },
   "comparisonMode": "captured-vs-proxy-request",
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
-  "notes": "Executable parity coverage for HAR-759 empty-object B2B validation. Shopify Admin 2026-04 returns root-specific NO_INPUT payloads for empty companyContactCreate/companyContactUpdate/companyLocationUpdate, and returns INVALID with field [\"input\"] for empty companyUpdate. The live capture also records null-only probes as evidence that the public schema does not treat null-only keys as a uniform NO_INPUT branch; the local null-only guardrail remains covered by the focused runtime test.",
+  "notes": "Executable parity coverage for empty-object B2B validation. Shopify Admin 2026-04 returns root-specific NO_INPUT payloads for empty companyContactCreate/companyContactUpdate/companyLocationUpdate, and returns INVALID with field [\"input\"] for empty companyUpdate. The live capture also records null-only probes as evidence that the public schema does not treat null-only keys as a uniform NO_INPUT branch; the local null-only guardrail remains covered by the focused runtime test.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

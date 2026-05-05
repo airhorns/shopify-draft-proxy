@@ -1,4 +1,4 @@
-query HAR759NoInputCompanyRead($companyId: ID!) {
+query B2BNoInputCompanyRead($companyId: ID!) {
   company(id: $companyId) {
     id
     name

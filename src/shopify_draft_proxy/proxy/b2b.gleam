@@ -2982,21 +2982,26 @@ fn handle_company_update(
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
           let raw_input = read_object(args, "input")
-          case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
-            True, _ ->
-              RootResult(
-                empty_payload([company_update_empty_input_error()]),
-                store,
-                identity,
-                [],
-              )
-            _, False ->
-              RootResult(empty_payload([no_input_error()]), store, identity, [])
-            _, True -> {
-              case reject_customer_since_update(raw_input) {
-                [_, ..] as errors ->
-                  RootResult(empty_payload(errors), store, identity, [])
-                [] -> {
+          case reject_customer_since_update(raw_input) {
+            [_, ..] as errors ->
+              RootResult(empty_payload(errors), store, identity, [])
+            [] -> {
+              case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
+                True, _ ->
+                  RootResult(
+                    empty_payload([company_update_empty_input_error()]),
+                    store,
+                    identity,
+                    [],
+                  )
+                _, False ->
+                  RootResult(
+                    empty_payload([no_input_error()]),
+                    store,
+                    identity,
+                    [],
+                  )
+                _, True -> {
                   let #(input, validation_errors) =
                     validate_company_input(raw_input, ["input"])
                   let validation_errors =

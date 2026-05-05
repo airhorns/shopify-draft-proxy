@@ -1,4 +1,4 @@
-mutation HAR759NoInputCompanyCreate($input: CompanyCreateInput!) {
+mutation B2BNoInputCompanyCreate($input: CompanyCreateInput!) {
   companyCreate(input: $input) {
     company {
       id

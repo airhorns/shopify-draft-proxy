@@ -1,15 +1,14 @@
 {
   "scenarioId": "b2b-no-input-validation",
-  "capturedAt": "2026-05-05T21:10:24.291Z",
+  "capturedAt": "2026-05-05T22:12:32.570Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "intent": {
-    "ticket": "HAR-759",
     "plan": "Create a disposable B2B company with contact/location, record Shopify NO_INPUT validation for empty and null-only B2B update/contact-create inputs, verify readback remains unchanged, and clean up the company."
   },
   "schemaProbe": {
     "request": {
-      "query": "#graphql\n  query HAR759B2BNoInputSchema {\n    companyInput: __type(name: \"CompanyInput\") { inputFields { name } }\n    contactInput: __type(name: \"CompanyContactInput\") { inputFields { name } }\n    locationUpdateInput: __type(name: \"CompanyLocationUpdateInput\") { inputFields { name } }\n  }\n",
+      "query": "#graphql\n  query B2BNoInputSchema {\n    companyInput: __type(name: \"CompanyInput\") { inputFields { name } }\n    contactInput: __type(name: \"CompanyContactInput\") { inputFields { name } }\n    locationUpdateInput: __type(name: \"CompanyLocationUpdateInput\") { inputFields { name } }\n  }\n",
       "variables": {}
     },
     "response": {
@@ -91,25 +90,25 @@
   },
   "setupCompany": {
     "request": {
-      "query": "#graphql\n  mutation HAR759NoInputCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        note\n        externalId\n        contacts(first: 5) {\n          nodes {\n            id\n            title\n            locale\n            isMainContact\n          }\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            externalId\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BNoInputCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        note\n        externalId\n        contacts(first: 5) {\n          nodes {\n            id\n            title\n            locale\n            isMainContact\n          }\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            externalId\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-759 B2B no input 1778015422295",
+            "name": "B2B no input 1778019150457",
             "note": "unchanged note",
-            "externalId": "har-759-1778015422295"
+            "externalId": "b2b-no-input-1778019150457"
           },
           "companyContact": {
             "firstName": "Har",
             "lastName": "No Input",
-            "email": "har-759-no-input-1778015422295@example.com",
+            "email": "b2b-no-input-1778019150457@example.com",
             "title": "Unchanged buyer"
           },
           "companyLocation": {
-            "name": "HAR-759 B2B no input 1778015422295 HQ",
-            "externalId": "har-759-location-1778015422295",
+            "name": "B2B no input 1778019150457 HQ",
+            "externalId": "b2b-no-input-location-1778019150457",
             "billingAddress": {
-              "address1": "759 B2B Way",
+              "address1": "10 B2B Way",
               "city": "Ottawa",
               "countryCode": "CA"
             }
@@ -122,14 +121,14 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5438538034",
-            "name": "HAR-759 B2B no input 1778015422295",
+            "id": "gid://shopify/Company/5438996786",
+            "name": "B2B no input 1778019150457",
             "note": "unchanged note",
-            "externalId": "har-759-1778015422295",
+            "externalId": "b2b-no-input-1778019150457",
             "contacts": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContact/10148938034",
+                  "id": "gid://shopify/CompanyContact/10149626162",
                   "title": "Unchanged buyer",
                   "locale": "en",
                   "isMainContact": true
@@ -139,9 +138,9 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8247476530",
-                  "name": "HAR-759 B2B no input 1778015422295 HQ",
-                  "externalId": "har-759-location-1778015422295"
+                  "id": "gid://shopify/CompanyLocation/8248787250",
+                  "name": "B2B no input 1778019150457 HQ",
+                  "externalId": "b2b-no-input-location-1778019150457"
                 }
               ]
             }
@@ -164,23 +163,23 @@
   },
   "baselineRead": {
     "request": {
-      "query": "#graphql\n  query HAR759NoInputCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          locale\n          isMainContact\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n  }\n",
+      "query": "#graphql\n  query B2BNoInputCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          locale\n          isMainContact\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5438538034"
+        "companyId": "gid://shopify/Company/5438996786"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "company": {
-          "id": "gid://shopify/Company/5438538034",
-          "name": "HAR-759 B2B no input 1778015422295",
+          "id": "gid://shopify/Company/5438996786",
+          "name": "B2B no input 1778019150457",
           "note": "unchanged note",
-          "externalId": "har-759-1778015422295",
+          "externalId": "b2b-no-input-1778019150457",
           "contacts": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContact/10148938034",
+                "id": "gid://shopify/CompanyContact/10149626162",
                 "title": "Unchanged buyer",
                 "locale": "en",
                 "isMainContact": true
@@ -190,9 +189,9 @@
           "locations": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyLocation/8247476530",
-                "name": "HAR-759 B2B no input 1778015422295 HQ",
-                "externalId": "har-759-location-1778015422295"
+                "id": "gid://shopify/CompanyLocation/8248787250",
+                "name": "B2B no input 1778019150457 HQ",
+                "externalId": "b2b-no-input-location-1778019150457"
               }
             ]
           }
@@ -213,9 +212,9 @@
   },
   "contactCreateEmptyInput": {
     "request": {
-      "query": "#graphql\n  mutation HAR759NoInputContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BNoInputContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5438538034",
+        "companyId": "gid://shopify/Company/5438996786",
         "input": {}
       }
     },
@@ -248,9 +247,9 @@
   },
   "contactCreateNullOnlyInput": {
     "request": {
-      "query": "#graphql\n  mutation HAR759NoInputContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BNoInputContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5438538034",
+        "companyId": "gid://shopify/Company/5438996786",
         "input": {
           "firstName": null,
           "lastName": null,
@@ -290,9 +289,9 @@
   },
   "companyUpdateEmptyInput": {
     "request": {
-      "query": "#graphql\n  mutation HAR759NoInputCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        note\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BNoInputCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        note\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5438538034",
+        "companyId": "gid://shopify/Company/5438996786",
         "input": {}
       }
     },
@@ -325,9 +324,9 @@
   },
   "companyUpdateNullOnlyInput": {
     "request": {
-      "query": "#graphql\n  mutation HAR759NoInputCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        note\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BNoInputCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        note\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5438538034",
+        "companyId": "gid://shopify/Company/5438996786",
         "input": {
           "name": null,
           "note": null,
@@ -365,9 +364,9 @@
   },
   "contactUpdateEmptyInput": {
     "request": {
-      "query": "#graphql\n  mutation HAR759NoInputContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BNoInputContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10148938034",
+        "companyContactId": "gid://shopify/CompanyContact/10149626162",
         "input": {}
       }
     },
@@ -400,9 +399,9 @@
   },
   "contactUpdateNullOnlyInput": {
     "request": {
-      "query": "#graphql\n  mutation HAR759NoInputContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BNoInputContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10148938034",
+        "companyContactId": "gid://shopify/CompanyContact/10149626162",
         "input": {
           "firstName": null,
           "lastName": null,
@@ -462,9 +461,9 @@
   },
   "locationUpdateEmptyInput": {
     "request": {
-      "query": "#graphql\n  mutation HAR759NoInputLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BNoInputLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8247476530",
+        "companyLocationId": "gid://shopify/CompanyLocation/8248787250",
         "input": {}
       }
     },
@@ -497,9 +496,9 @@
   },
   "locationUpdateNullOnlyInput": {
     "request": {
-      "query": "#graphql\n  mutation HAR759NoInputLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BNoInputLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8247476530",
+        "companyLocationId": "gid://shopify/CompanyLocation/8248787250",
         "input": {
           "name": null,
           "phone": null,
@@ -538,23 +537,23 @@
   },
   "readAfterNoInput": {
     "request": {
-      "query": "#graphql\n  query HAR759NoInputCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          locale\n          isMainContact\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n  }\n",
+      "query": "#graphql\n  query B2BNoInputCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          locale\n          isMainContact\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5438538034"
+        "companyId": "gid://shopify/Company/5438996786"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "company": {
-          "id": "gid://shopify/Company/5438538034",
-          "name": "HAR-759 B2B no input 1778015422295",
+          "id": "gid://shopify/Company/5438996786",
+          "name": "B2B no input 1778019150457",
           "note": "unchanged note",
-          "externalId": "har-759-1778015422295",
+          "externalId": "b2b-no-input-1778019150457",
           "contacts": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContact/10148938034",
+                "id": "gid://shopify/CompanyContact/10149626162",
                 "title": "Unchanged buyer",
                 "locale": "en",
                 "isMainContact": true
@@ -564,9 +563,9 @@
           "locations": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyLocation/8247476530",
-                "name": "HAR-759 B2B no input 1778015422295 HQ",
-                "externalId": "har-759-location-1778015422295"
+                "id": "gid://shopify/CompanyLocation/8248787250",
+                "name": "B2B no input 1778019150457 HQ",
+                "externalId": "b2b-no-input-location-1778019150457"
               }
             ]
           }
@@ -586,18 +585,18 @@
     }
   },
   "cleanup": {
-    "companyDelete:gid://shopify/Company/5438538034": {
+    "companyDelete:gid://shopify/Company/5438996786": {
       "request": {
-        "query": "#graphql\n  mutation HAR759NoInputCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "query": "#graphql\n  mutation B2BNoInputCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Company/5438538034"
+          "id": "gid://shopify/Company/5438996786"
         }
       },
       "response": {
         "status": 200,
         "data": {
           "companyDelete": {
-            "deletedCompanyId": "gid://shopify/Company/5438538034",
+            "deletedCompanyId": "gid://shopify/Company/5438996786",
             "userErrors": []
           }
         },
