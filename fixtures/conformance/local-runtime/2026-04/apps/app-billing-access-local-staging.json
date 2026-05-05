@@ -216,13 +216,7 @@
                   "description": null
                 }
               ],
-              "userErrors": [
-                {
-                  "field": ["scopes"],
-                  "message": "Access scope 'write_orders' is not granted.",
-                  "code": "UNKNOWN_SCOPES"
-                }
-              ]
+              "userErrors": []
             }
           }
         },
@@ -326,7 +320,7 @@
     },
     "accessAndInstall": {
       "mutationPayloads": [
-        "appRevokeAccessScopes returns revoked access scope handles plus userErrors for unknown/not-granted scopes.",
+        "appRevokeAccessScopes returns revoked access scope handles for granted optional scopes.",
         "appUninstall returns the staged app object."
       ],
       "downstreamReads": [

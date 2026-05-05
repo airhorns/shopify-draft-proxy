@@ -53,7 +53,15 @@ Current modeled behavior:
 - `appSubscriptionCancel` stages cancellation only for `PENDING`, `ACCEPTED`, and `ACTIVE` subscriptions. `CANCELLED`, `DECLINED`, `EXPIRED`, `FROZEN`, and other non-cancellable statuses return an `id` userError shaped like Shopify's invalid transition payload without mutating local state. Unknown subscription IDs return an `id` userError with a record-not-found message and no error code.
 - `appSubscriptionLineItemUpdate` and `appSubscriptionTrialExtend` mutate staged subscription state and return userErrors for unknown local IDs.
 - `appUsageRecordCreate` stages usage records under staged usage line items and exposes them through `AppSubscriptionLineItem.usageRecords`.
-- `appRevokeAccessScopes` removes locally granted scopes from the current app installation and returns per-scope errors for requested scopes that are not locally granted.
+- `appRevokeAccessScopes` removes locally granted optional scopes from the
+  current app installation. Validation failures do not partially revoke any
+  scope: catalog-unknown handles return `UNKNOWN_SCOPES`, catalog-known but
+  non-granted handles return `CANNOT_REVOKE_UNDECLARED_SCOPES`, requested app
+  scopes return `CANNOT_REVOKE_REQUIRED_SCOPES`, and read scopes implied by a
+  granted write scope return `CANNOT_REVOKE_IMPLIED_SCOPES`. Missing local app
+  context is surfaced as `MISSING_SOURCE_APP`, a current installation whose app
+  record cannot be resolved as `APPLICATION_CANNOT_BE_FOUND`, and an app record
+  without an installed current installation as `APP_NOT_INSTALLED`.
 - `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
 - `delegateAccessTokenCreate` accepts the current singular `delegateAccessScope` input, returns the selected scope through the payload's `accessScopes` list, and stores only a SHA-256 hash plus redacted preview in meta-visible state. The older local fixture shape using `input.accessScopes` remains tolerated for compatibility but is not the documented Admin API input shape; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current `delegateAccessScope` input.
 - `delegateAccessTokenDestroy` matches the raw token against the stored hash, marks it destroyed locally, and returns `ACCESS_TOKEN_NOT_FOUND` when repeated or unknown.
@@ -81,6 +89,14 @@ Live success-path captures for billing approval, uninstall, app grant revocation
 
 HAR-631 attempted a live `appSubscriptionCreate`/`appSubscriptionCancel` transition capture against the current conformance store on 2026-05-05. Shopify returned `Custom apps cannot use the Billing API`, so repeat-cancel and forced-status transition coverage remains executable local-runtime evidence rather than live billing mutation evidence for this app credential.
 
+HAR-672 live probes on 2026-05-05 confirmed the public Admin schema only exposes
+the `scopes` argument for `appRevokeAccessScopes` on both 2025-01 and 2026-04.
+Safe error probes against `harry-test-heelo.myshopify.com` confirmed
+`UNKNOWN_SCOPES` for invalid handles and `CANNOT_REVOKE_REQUIRED_SCOPES` for
+the conformance app's declared scopes. The public credential could not exercise
+the internal source-app/id resolver branches directly, so those branches are
+covered by executable local runtime tests and the HAR-672 local parity fixture.
+
 ## Historical and developer notes
 
 ### Captured read evidence
@@ -100,6 +116,7 @@ The capture records:
 - `tests/unit/app-billing-conformance-fixture.test.ts`
 - `config/parity-specs/apps/app-billing-access-local-staging.json`, including
   app-domain generic Node read targets
+- `config/parity-specs/apps/app-revoke-access-scopes-error-codes.json`
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
