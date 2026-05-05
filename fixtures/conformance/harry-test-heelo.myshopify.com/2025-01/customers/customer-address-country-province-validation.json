@@ -1,0 +1,465 @@
+{
+  "capturedAt": "2026-05-05T22:20:47.017Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "validControl": {
+    "variables": {
+      "input": {
+        "email": "har776-address-valid-1778019645358@example.com",
+        "addresses": [
+          {
+            "address1": "1 Valid St",
+            "city": "San Francisco",
+            "countryCode": "US",
+            "country": "Canada",
+            "provinceCode": "CA",
+            "zip": "94105"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10582994551090",
+            "email": "har776-address-valid-1778019645358@example.com",
+            "defaultAddress": {
+              "id": "gid://shopify/MailingAddress/12056325947698?model_name=CustomerAddress",
+              "address1": "1 Valid St",
+              "city": "San Francisco",
+              "country": "United States",
+              "countryCodeV2": "US",
+              "province": "California",
+              "provinceCode": "CA",
+              "zip": "94105",
+              "formattedArea": "San Francisco CA, United States"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateUnknownCountry": {
+    "variables": {
+      "customerId": "<valid-control-customer-id>",
+      "address": {
+        "address1": "5 Invalid Country",
+        "city": "Nowhere",
+        "countryCode": "ZZ",
+        "provinceCode": "ZZ"
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address", "country"],
+              "message": "Country is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressCreateWrongProvinceCountry": {
+    "variables": {
+      "customerId": "<valid-control-customer-id>",
+      "address": {
+        "address1": "6 Wrong Province",
+        "city": "Chicago",
+        "countryCode": "US",
+        "provinceCode": "ON"
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressCreate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address", "province"],
+              "message": "Province is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "addressUpdateWrongProvinceCountry": {
+    "variables": {
+      "customerId": "<valid-control-customer-id>",
+      "addressId": "<valid-control-address-id>",
+      "address": {
+        "countryCode": "US",
+        "provinceCode": "ON"
+      },
+      "setAsDefault": false
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerAddressUpdate": {
+          "address": null,
+          "userErrors": [
+            {
+              "field": ["address", "province"],
+              "message": "Province is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customerUpdateWrongProvinceCountry": {
+    "variables": {
+      "input": {
+        "id": "<valid-control-customer-id>",
+        "addresses": [
+          {
+            "address1": "7 Wrong Province",
+            "city": "Chicago",
+            "countryCode": "US",
+            "provinceCode": "ON"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerUpdate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["addresses", "0", "province"],
+              "message": "Province is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customerSetWrongProvinceCountry": {
+    "variables": {
+      "identifier": {
+        "id": "<valid-control-customer-id>"
+      },
+      "input": {
+        "email": "har776-address-valid-1778019645358@example.com",
+        "addresses": [
+          {
+            "address1": "8 Wrong Province",
+            "city": "Chicago",
+            "countryCode": "US",
+            "provinceCode": "ON"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerSet": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["input", "addresses", "0", "province"],
+              "message": "Province is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customerCreateUnknownCountry": {
+    "variables": {
+      "input": {
+        "email": "har776-address-unknown-country-1778019645358@example.com",
+        "addresses": [
+          {
+            "address1": "2 Unknown Country",
+            "city": "Nowhere",
+            "country": "Atlantis"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["addresses", "0", "country"],
+              "message": "Country is invalid"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customerCreateDisplayConflict": {
+    "variables": {
+      "input": {
+        "email": "har776-address-display-conflict-1778019645358@example.com",
+        "addresses": [
+          {
+            "address1": "3 Display Conflict",
+            "city": "San Francisco",
+            "countryCode": "US",
+            "country": "Canada"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10582994649394",
+            "email": "har776-address-display-conflict-1778019645358@example.com",
+            "defaultAddress": {
+              "id": "gid://shopify/MailingAddress/12056325980466?model_name=CustomerAddress",
+              "address1": "3 Display Conflict",
+              "city": "San Francisco",
+              "country": "United States",
+              "countryCodeV2": "US",
+              "province": null,
+              "provinceCode": null,
+              "zip": null,
+              "formattedArea": "San Francisco, United States"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customerCreateNoZoneProvince": {
+    "variables": {
+      "input": {
+        "email": "har776-address-no-zone-1778019645358@example.com",
+        "addresses": [
+          {
+            "address1": "4 No Zone",
+            "city": "Singapore",
+            "countryCode": "SG",
+            "provinceCode": "ON"
+          }
+        ]
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": {
+            "id": "gid://shopify/Customer/10582994682162",
+            "email": "har776-address-no-zone-1778019645358@example.com",
+            "defaultAddress": {
+              "id": "gid://shopify/MailingAddress/12056326013234?model_name=CustomerAddress",
+              "address1": "4 No Zone",
+              "city": "Singapore",
+              "country": "Singapore",
+              "countryCodeV2": "SG",
+              "province": null,
+              "provinceCode": null,
+              "zip": null,
+              "formattedArea": "Singapore"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "id": "gid://shopify/Customer/10582994682162",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10582994682162",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/Customer/10582994649394",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10582994649394",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "gid://shopify/Customer/10582994551090",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10582994551090",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [],
+  "notes": "Captured Admin GraphQL evidence for HAR-776. Shopify normalizes countryCode over a conflicting country display name, and ignores province input for SG because the country has no zones; those captured branches intentionally override the original ticket assumptions."
+}

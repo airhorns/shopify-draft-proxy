@@ -1,0 +1,40 @@
+mutation GiftCardCreateInitialValueLimit($boundary: Decimal!, $overByCent: Decimal!, $wellOver: Decimal!) {
+  boundarySuccess: giftCardCreate(input: { initialValue: $boundary }) {
+    giftCard {
+      id
+      initialValue {
+        amount
+        currencyCode
+      }
+      balance {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  overByCent: giftCardCreate(input: { initialValue: $overByCent }) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  wellOver: giftCardCreate(input: { initialValue: $wellOver }) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

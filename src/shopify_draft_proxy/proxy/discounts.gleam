@@ -1269,6 +1269,14 @@ fn create_discount_after_top_level_validation(
   key: String,
 ) -> MutationResult {
   // Local input validation first (structural / pure-function checks).
+  let store =
+    maybe_hydrate_discount_subscription_capability(
+      store,
+      input_name,
+      input,
+      discount_type,
+      upstream,
+    )
   let user_errors =
     validate_discount_input(
       store,
@@ -2147,58 +2155,107 @@ fn redeem_code_bulk_delete(
   upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
-  let discount_id = read_string_arg(field, variables, "discountId")
-  let ids = read_string_list_arg(field, variables, "ids")
-  // Same Pattern 2 hydration as redeem_code_bulk_add: pull the prior
-  // record from upstream so that staged code-deletions overlay on top
-  // of the real codes connection. See the comment on the add handler.
-  let #(store, identity) = case discount_id {
-    Some(id) -> maybe_hydrate_discount(store, identity, id, upstream)
-    None -> #(store, identity)
-  }
-  let #(next_store, identity_after_update) = case discount_id {
-    Some(id) ->
-      case store.get_effective_discount_by_id(store, id) {
-        Some(record) -> {
-          let #(updated_at, identity) =
-            synthetic_identity.make_synthetic_timestamp(identity)
-          let updated = remove_codes_by_ids(record, ids, updated_at)
-          let #(_, s) = store.stage_discount(store, updated)
-          #(s, identity)
-        }
+  let args =
+    root_field.get_field_arguments(field, variables)
+    |> result.unwrap(dict.new())
+  let discount_id = read_string(args, "discountId")
+  let selector_errors = validate_redeem_code_bulk_delete_selector_shape(args)
+  case selector_errors {
+    [_, ..] ->
+      MutationResult(
+        key,
+        redeem_code_bulk_delete_payload(
+          field,
+          fragments,
+          SrcNull,
+          selector_errors,
+        ),
+        store,
+        identity,
+        [],
+        [],
+      )
+    [] -> {
+      // Same Pattern 2 hydration as redeem_code_bulk_add: pull the prior
+      // record from upstream before validating discount existence so real
+      // Shopify-side discounts can be targeted by local staged deletions.
+      let #(store, identity) = case discount_id {
+        Some(id) -> maybe_hydrate_discount(store, identity, id, upstream)
         None -> #(store, identity)
       }
-    None -> #(store, identity)
-  }
-  let #(job_id, next_identity) =
-    make_discount_async_gid(store, identity_after_update, "Job")
-  let payload =
-    project_graphql_value(
-      SrcObject(
-        dict.from_list([
-          #(
-            "job",
+      let user_errors =
+        validate_redeem_code_bulk_delete_after_hydrate(store, args)
+      case user_errors {
+        [_, ..] ->
+          MutationResult(
+            key,
+            redeem_code_bulk_delete_payload(
+              field,
+              fragments,
+              SrcNull,
+              user_errors,
+            ),
+            store,
+            identity,
+            [],
+            [],
+          )
+        [] -> {
+          let #(next_store, identity_after_update) = case discount_id {
+            Some(id) ->
+              case store.get_effective_discount_by_id(store, id) {
+                Some(record) -> {
+                  let ids =
+                    redeem_code_bulk_delete_target_ids(store, record, args)
+                  let #(updated_at, identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let updated = remove_codes_by_ids(record, ids, updated_at)
+                  let #(_, s) = store.stage_discount(store, updated)
+                  #(s, identity)
+                }
+                None -> #(store, identity)
+              }
+            None -> #(store, identity)
+          }
+          let #(job_id, next_identity) =
+            make_discount_async_gid(store, identity_after_update, "Job")
+          let job =
             SrcObject(
               dict.from_list([
                 #("id", SrcString(job_id)),
                 #("done", SrcBool(True)),
                 #("query", SrcNull),
               ]),
-            ),
-          ),
-          #("userErrors", SrcList([])),
-        ]),
-      ),
-      child_fields(field),
-      fragments,
-    )
-  MutationResult(
-    key,
-    payload,
-    next_store,
-    next_identity,
-    option_to_list(discount_id),
-    [],
+            )
+          MutationResult(
+            key,
+            redeem_code_bulk_delete_payload(field, fragments, job, []),
+            next_store,
+            next_identity,
+            option_to_list(discount_id),
+            [],
+          )
+        }
+      }
+    }
+  }
+}
+
+fn redeem_code_bulk_delete_payload(
+  field: Selection,
+  fragments: FragmentMap,
+  job: SourceValue,
+  user_errors: List(SourceValue),
+) -> Json {
+  project_graphql_value(
+    SrcObject(
+      dict.from_list([
+        #("job", job),
+        #("userErrors", SrcList(user_errors)),
+      ]),
+    ),
+    child_fields(field),
+    fragments,
   )
 }
 
@@ -2623,12 +2680,19 @@ fn validate_discount_input(
   let errors =
     list.append(
       errors,
+      validate_subscription_fields(store, input_name, input, discount_type),
+    )
+  let errors =
+    list.append(
+      errors,
       validate_cart_line_combination_tag_settings(
         input_name,
         input,
         discount_classes_for_input(input, discount_type),
       ),
     )
+  let errors =
+    list.append(errors, validate_minimum_requirement(input_name, input))
   let errors = case discount_type {
     "free_shipping" -> {
       case invalid_free_shipping_combines(input) {
@@ -2661,6 +2725,260 @@ fn validate_discount_input(
     "basicCodeDiscount" ->
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
+  }
+}
+
+fn validate_subscription_fields(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+) -> List(SourceValue) {
+  case subscription_field_location(discount_type, input_name) {
+    Some(location) ->
+      validate_subscription_field_values(store, input_name, input, location)
+    None -> []
+  }
+}
+
+type SubscriptionFieldLocation {
+  SubscriptionCustomerGetsFields
+  SubscriptionTopLevelFields
+}
+
+fn subscription_field_location(
+  discount_type: String,
+  input_name: String,
+) -> Option(SubscriptionFieldLocation) {
+  case discount_type, input_name {
+    "basic", _ -> Some(SubscriptionCustomerGetsFields)
+    "free_shipping", "freeShippingAutomaticDiscount" -> None
+    "free_shipping", _ -> Some(SubscriptionTopLevelFields)
+    _, _ -> None
+  }
+}
+
+fn maybe_hydrate_discount_subscription_capability(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case store.get_effective_shop(store) {
+    Some(_) -> store
+    None ->
+      case subscription_field_location(discount_type, input_name) {
+        Some(location) ->
+          case has_subscription_validation_fields(input, location) {
+            True -> fetch_shop_subscription_capability(store, upstream)
+            False -> store
+          }
+        None -> store
+      }
+  }
+}
+
+fn has_subscription_validation_fields(
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> Bool {
+  let #(fields, _) = subscription_field_source("", input, location)
+  dict.has_key(fields, "appliesOnSubscription")
+  || dict.has_key(fields, "appliesOnOneTimePurchase")
+  || dict.has_key(input, "recurringCycleLimit")
+}
+
+fn fetch_shop_subscription_capability(
+  store: Store,
+  upstream: UpstreamContext,
+) -> Store {
+  let query =
+    "query DraftProxyShopSubscriptionCapability {
+  shop {
+    features {
+      sellsSubscriptions
+    }
+  }
+}
+"
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "DraftProxyShopSubscriptionCapability",
+      query,
+      json.object([]),
+    )
+  {
+    Ok(value) ->
+      case shop_sells_subscriptions_from_response(value) {
+        Some(sells_subscriptions) ->
+          store.set_shop_sells_subscriptions(store, sells_subscriptions)
+        None -> store
+      }
+    Error(_) -> store
+  }
+}
+
+fn shop_sells_subscriptions_from_response(
+  value: commit.JsonValue,
+) -> Option(Bool) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "shop") {
+        Some(shop) ->
+          case json_get(shop, "features") {
+            Some(features) ->
+              case json_get(features, "sellsSubscriptions") {
+                Some(commit.JsonBool(value)) -> Some(value)
+                _ -> None
+              }
+            None -> None
+          }
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn validate_subscription_field_values(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> List(SourceValue) {
+  case store.shop_sells_subscriptions(store) {
+    False ->
+      subscription_fields_not_permitted_errors(input_name, input, location)
+    True -> blank_subscription_field_errors(input_name, input, location)
+  }
+}
+
+fn subscription_fields_not_permitted_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> List(SourceValue) {
+  let errors =
+    subscription_field_error(
+      input_name,
+      input,
+      location,
+      "appliesOnSubscription",
+      subscription_not_permitted_message(location, "appliesOnSubscription"),
+    )
+  let errors =
+    list.append(
+      errors,
+      subscription_field_error(
+        input_name,
+        input,
+        location,
+        "appliesOnOneTimePurchase",
+        subscription_not_permitted_message(location, "appliesOnOneTimePurchase"),
+      ),
+    )
+  case dict.has_key(input, "recurringCycleLimit") {
+    True ->
+      list.append(errors, [
+        user_error(
+          [input_name, "recurringCycleLimit"],
+          "Recurring cycle limit is not permitted for this shop.",
+          "INVALID",
+        ),
+      ])
+    False -> errors
+  }
+}
+
+fn subscription_not_permitted_message(
+  location: SubscriptionFieldLocation,
+  field_name: String,
+) -> String {
+  case location, field_name {
+    SubscriptionCustomerGetsFields, "appliesOnSubscription" ->
+      "Customer gets applies on subscription is not permitted for this shop."
+    SubscriptionCustomerGetsFields, "appliesOnOneTimePurchase" ->
+      "Customer gets applies on one time purchase is not permitted for this shop."
+    SubscriptionTopLevelFields, "appliesOnSubscription" ->
+      "Applies on subscription is not permitted for this shop."
+    SubscriptionTopLevelFields, "appliesOnOneTimePurchase" ->
+      "Applies on one time purchase is not permitted for this shop."
+    _, _ -> "Subscription field is not permitted for this shop."
+  }
+}
+
+fn subscription_field_error(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+  field_name: String,
+  message: String,
+) -> List(SourceValue) {
+  let #(fields, path) = subscription_field_source(input_name, input, location)
+  case dict.has_key(fields, field_name) {
+    True -> [
+      user_error(list.append(path, [field_name]), message, "INVALID"),
+    ]
+    False -> []
+  }
+}
+
+fn blank_subscription_field_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> List(SourceValue) {
+  let errors =
+    blank_subscription_field_error(
+      input_name,
+      input,
+      location,
+      "appliesOnSubscription",
+      "applies_on_subscription can't be blank",
+    )
+  list.append(
+    errors,
+    blank_subscription_field_error(
+      input_name,
+      input,
+      location,
+      "appliesOnOneTimePurchase",
+      "applies_on_one_time_purchase can't be blank",
+    ),
+  )
+}
+
+fn blank_subscription_field_error(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+  field_name: String,
+  message: String,
+) -> List(SourceValue) {
+  let #(fields, path) = subscription_field_source(input_name, input, location)
+  case dict.get(fields, field_name) {
+    Ok(root_field.NullVal) -> [
+      user_error(list.append(path, [field_name]), message, "INVALID"),
+    ]
+    _ -> []
+  }
+}
+
+fn subscription_field_source(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> #(Dict(String, root_field.ResolvedValue), List(String)) {
+  case location {
+    SubscriptionCustomerGetsFields ->
+      case customer_gets_fields(input) {
+        Some(fields) -> #(fields, [input_name, "customerGets"])
+        None -> #(dict.new(), [input_name, "customerGets"])
+      }
+    SubscriptionTopLevelFields -> #(input, [input_name])
   }
 }
 
@@ -2740,6 +3058,185 @@ fn validate_discount_code_input(
 
 fn discount_code_blank_error(input_name: String) -> SourceValue {
   user_error([input_name, "code"], "Code can't be blank", "BLANK")
+}
+
+fn validate_minimum_requirement(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_value(input, "minimumRequirement") {
+    root_field.ObjectVal(fields) -> {
+      let has_quantity = has_object_field(fields, "quantity")
+      let has_subtotal = has_object_field(fields, "subtotal")
+      let errors = case has_quantity && has_subtotal {
+        True -> [
+          user_error(
+            [
+              input_name,
+              "minimumRequirement",
+              "subtotal",
+              "greaterThanOrEqualToSubtotal",
+            ],
+            "Minimum subtotal cannot be defined when minimum quantity is.",
+            "CONFLICT",
+          ),
+          user_error(
+            [
+              input_name,
+              "minimumRequirement",
+              "quantity",
+              "greaterThanOrEqualToQuantity",
+            ],
+            "Minimum quantity cannot be defined when minimum subtotal is.",
+            "CONFLICT",
+          ),
+        ]
+        False -> []
+      }
+      errors
+      |> list.append(validate_minimum_quantity_limit(input_name, fields))
+      |> list.append(validate_minimum_subtotal_limit(input_name, fields))
+    }
+    _ -> []
+  }
+}
+
+fn has_object_field(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(input, name) {
+    Ok(root_field.ObjectVal(_)) -> True
+    _ -> False
+  }
+}
+
+fn validate_minimum_quantity_limit(
+  input_name: String,
+  fields: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case dict.get(fields, "quantity") {
+    Ok(root_field.ObjectVal(quantity)) ->
+      case read_numeric_string(quantity, "greaterThanOrEqualToQuantity") {
+        Some(value) ->
+          case decimal_at_least(value, "2147483647") {
+            True -> [
+              user_error(
+                [
+                  input_name,
+                  "minimumRequirement",
+                  "quantity",
+                  "greaterThanOrEqualToQuantity",
+                ],
+                "Minimum quantity must be less than 2147483647",
+                "LESS_THAN",
+              ),
+            ]
+            False -> []
+          }
+        None -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_minimum_subtotal_limit(
+  input_name: String,
+  fields: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case dict.get(fields, "subtotal") {
+    Ok(root_field.ObjectVal(subtotal)) ->
+      case read_numeric_string(subtotal, "greaterThanOrEqualToSubtotal") {
+        Some(value) ->
+          case decimal_at_least(value, "1000000000000000000") {
+            True -> [
+              user_error(
+                [
+                  input_name,
+                  "minimumRequirement",
+                  "subtotal",
+                  "greaterThanOrEqualToSubtotal",
+                ],
+                "Minimum subtotal must be less than 1000000000000000000",
+                "LESS_THAN",
+              ),
+            ]
+            False -> []
+          }
+        None -> []
+      }
+    _ -> []
+  }
+}
+
+fn read_numeric_string(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(input, name) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    Ok(root_field.IntVal(value)) -> Some(int.to_string(value))
+    Ok(root_field.FloatVal(value)) -> Some(float.to_string(value))
+    _ -> None
+  }
+}
+
+fn decimal_at_least(value: String, limit: String) -> Bool {
+  let value = string.trim(value)
+  let value = case string.starts_with(value, "+") {
+    True -> string.drop_start(value, 1)
+    False -> value
+  }
+  case string.starts_with(value, "-") {
+    True -> False
+    False ->
+      case string.split(value, ".") {
+        [whole] -> decimal_parts_at_least(whole, "", limit)
+        [whole, decimals] -> decimal_parts_at_least(whole, decimals, limit)
+        _ -> False
+      }
+  }
+}
+
+fn decimal_parts_at_least(
+  whole: String,
+  decimals: String,
+  limit: String,
+) -> Bool {
+  case digits_only(whole) && digits_only(decimals) {
+    False -> False
+    True -> {
+      let whole = trim_leading_zeroes(whole)
+      case int.compare(string.length(whole), string.length(limit)) {
+        order.Gt -> True
+        order.Lt -> False
+        order.Eq ->
+          case string.compare(whole, limit) {
+            order.Lt -> False
+            order.Eq | order.Gt -> True
+          }
+      }
+    }
+  }
+}
+
+fn digits_only(value: String) -> Bool {
+  value
+  |> string.to_graphemes
+  |> list.all(fn(grapheme) {
+    case grapheme {
+      "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+      _ -> False
+    }
+  })
+}
+
+fn trim_leading_zeroes(value: String) -> String {
+  case value {
+    "0" <> rest -> trim_leading_zeroes(rest)
+    "" -> "0"
+    _ -> value
+  }
 }
 
 /// Pattern 2: ask upstream whether a discount with the proposed code
@@ -3732,6 +4229,148 @@ fn validate_bulk_selector(
   }
 }
 
+fn validate_redeem_code_bulk_delete_selector_shape(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  let count =
+    redeem_code_ids_selector_present(args)
+    + selector_present(args, "search")
+    + selector_present(args, "savedSearchId")
+    + selector_present(args, "saved_search_id")
+  case count {
+    0 -> [
+      user_error_null_field(
+        "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
+        "MISSING_ARGUMENT",
+      ),
+    ]
+    n if n > 1 -> [
+      user_error_null_field(
+        "Only one of 'ids', 'search' or 'saved_search_id' is allowed.",
+        "TOO_MANY_ARGUMENTS",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_redeem_code_bulk_delete_after_hydrate(
+  store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_string(args, "discountId") {
+    Some(id) ->
+      case store.get_effective_discount_by_id(store, id) {
+        None -> [
+          user_error(["discountId"], "Code discount does not exist.", "INVALID"),
+        ]
+        Some(_) ->
+          case redeem_code_ids_selector_is_empty(args) {
+            True -> [
+              user_error_null_field_with_code(
+                "Something went wrong, please try again.",
+                None,
+              ),
+            ]
+            False ->
+              list.append(
+                validate_redeem_code_bulk_delete_search_selector(args),
+                validate_redeem_code_bulk_delete_saved_search_selector(
+                  store,
+                  args,
+                ),
+              )
+          }
+      }
+    None -> [
+      user_error(["discountId"], "Code discount does not exist.", "INVALID"),
+    ]
+  }
+}
+
+fn validate_redeem_code_bulk_delete_search_selector(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_string(args, "search") {
+    Some(search) ->
+      case string.trim(search) {
+        "" -> [user_error(["search"], "'Search' can't be blank.", "BLANK")]
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_redeem_code_bulk_delete_saved_search_selector(
+  store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_bulk_saved_search_id(args) {
+    Some(id) ->
+      case store.get_effective_saved_search_by_id(store, id) {
+        Some(_) -> []
+        None -> [
+          user_error(["savedSearchId"], "Invalid 'saved_search_id'.", "INVALID"),
+        ]
+      }
+    None -> []
+  }
+}
+
+fn redeem_code_bulk_delete_target_ids(
+  store: Store,
+  record: DiscountRecord,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  case dict.has_key(args, "ids") {
+    True -> read_string_array(args, "ids", [])
+    False ->
+      case read_string(args, "search") {
+        Some(query) -> redeem_code_ids_matching_query(record, query)
+        None ->
+          case read_bulk_saved_search_id(args) {
+            Some(id) ->
+              case store.get_effective_saved_search_by_id(store, id) {
+                Some(saved_search) ->
+                  redeem_code_ids_matching_query(record, saved_search.query)
+                None -> []
+              }
+            None -> []
+          }
+      }
+  }
+}
+
+fn redeem_code_ids_matching_query(
+  record: DiscountRecord,
+  query: String,
+) -> List(String) {
+  existing_code_nodes(record)
+  |> search_query_parser.apply_search_query(
+    Some(query),
+    search_query_parser.default_parse_options(),
+    redeem_code_matches_positive_search_term,
+  )
+  |> list.map(fn(pair) { pair.0 })
+}
+
+fn redeem_code_matches_positive_search_term(
+  pair: #(String, String),
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  let #(_id, code) = pair
+  case term.field {
+    Some("code") ->
+      search_query_parser.matches_search_query_string(
+        Some(code),
+        search_query_parser.search_query_term_value(term),
+        search_query_parser.ExactMatch,
+        search_query_parser.default_string_match_options(),
+      )
+    _ -> search_query_parser.matches_search_query_text(Some(code), term)
+  }
+}
+
 fn bulk_missing_selector_message(root: String) -> String {
   case root {
     "discountAutomaticBulkDelete" ->
@@ -3810,6 +4449,24 @@ fn selector_present(
     Ok(root_field.NullVal) | Error(_) -> 0
     Ok(root_field.ListVal([])) -> 0
     _ -> 1
+  }
+}
+
+fn redeem_code_ids_selector_present(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Int {
+  case dict.has_key(args, "ids") {
+    True -> 1
+    False -> 0
+  }
+}
+
+fn redeem_code_ids_selector_is_empty(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(args, "ids") {
+    Ok(root_field.NullVal) | Ok(root_field.ListVal([])) -> True
+    _ -> False
   }
 }
 
@@ -4000,11 +4657,18 @@ fn user_error_with_code(
 }
 
 fn user_error_null_field(message: String, code: String) -> SourceValue {
+  user_error_null_field_with_code(message, Some(code))
+}
+
+fn user_error_null_field_with_code(
+  message: String,
+  code: Option(String),
+) -> SourceValue {
   SrcObject(
     dict.from_list([
       #("field", SrcNull),
       #("message", SrcString(message)),
-      #("code", SrcString(code)),
+      #("code", code |> option.map(SrcString) |> option.unwrap(SrcNull)),
       #("extraInfo", SrcNull),
     ]),
   )
@@ -4104,17 +4768,6 @@ fn read_string_array(
         }
       })
     _ -> fallback
-  }
-}
-
-fn read_string_list_arg(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> List(String) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(args) -> read_string_array(args, name, [])
-    Error(_) -> []
   }
 }
 
