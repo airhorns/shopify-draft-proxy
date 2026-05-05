@@ -1,0 +1,176 @@
+{
+  "scenarioId": "segment-payload-non-null-fields",
+  "operationNames": ["segmentCreate", "segmentUpdate", "segment"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "runtime-staging", "downstream-read-parity", "non-null-field-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/segments/segment-payload-non-null-fields.json"],
+  "runtimeTestFiles": [
+    "test/shopify_draft_proxy/proxy/segments_mutation_test.gleam",
+    "test/shopify_draft_proxy/proxy/segments_test.gleam"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-payload-non-null-fields-create.graphql",
+    "variablesCapturePath": "$.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-715 executable local-runtime parity for Segment payload fields cited from Core GraphApi::Admin::Segment. Live conformance credentials are valid, but public Admin GraphQL 2025-01 and 2026-04 introspection for this disposable shop does not expose tagMigrated, valid, percentageSnapshot, percentageSnapshotUpdatedAt, translation, or author on Segment. The generic replay therefore enforces the local contract from the ticket: tagMigrated and valid must match boolean values, while Shopify-owned computed nullable fields are explicit expected differences and project null locally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-create-payload-non-null-fields",
+        "capturePath": "$.create.response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses synthetic segment IDs while Shopify returns live store IDs."
+          },
+          {
+            "path": "$.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.segment.percentageSnapshot",
+            "ignore": true,
+            "reason": "Proxy cannot compute Shopify's segment percentage snapshot locally."
+          },
+          {
+            "path": "$.segment.percentageSnapshotUpdatedAt",
+            "ignore": true,
+            "reason": "Proxy cannot compute Shopify's segment percentage snapshot timestamp locally."
+          },
+          {
+            "path": "$.segment.translation",
+            "ignore": true,
+            "reason": "Proxy cannot compute Shopify's segment translation locally."
+          },
+          {
+            "path": "$.segment.author",
+            "ignore": true,
+            "reason": "Proxy cannot infer Shopify's segment author locally."
+          }
+        ]
+      },
+      {
+        "name": "segment-update-payload-non-null-fields",
+        "capturePath": "$.update.response.payload.data.segmentUpdate",
+        "proxyPath": "$.data.segmentUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses synthetic segment IDs while Shopify returns live store IDs."
+          },
+          {
+            "path": "$.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.segment.percentageSnapshot",
+            "ignore": true,
+            "reason": "Proxy cannot compute Shopify's segment percentage snapshot locally."
+          },
+          {
+            "path": "$.segment.percentageSnapshotUpdatedAt",
+            "ignore": true,
+            "reason": "Proxy cannot compute Shopify's segment percentage snapshot timestamp locally."
+          },
+          {
+            "path": "$.segment.translation",
+            "ignore": true,
+            "reason": "Proxy cannot compute Shopify's segment translation locally."
+          },
+          {
+            "path": "$.segment.author",
+            "ignore": true,
+            "reason": "Proxy cannot infer Shopify's segment author locally."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-payload-non-null-fields-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-create-payload-non-null-fields",
+              "path": "$.data.segmentCreate.segment.id"
+            },
+            "name": {
+              "fromCapturePath": "$.update.variables.name"
+            },
+            "query": {
+              "fromCapturePath": "$.update.variables.query"
+            }
+          }
+        }
+      },
+      {
+        "name": "segment-read-payload-non-null-fields",
+        "capturePath": "$.read.response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses synthetic segment IDs while Shopify returns live store IDs."
+          },
+          {
+            "path": "$.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.segment.percentageSnapshot",
+            "ignore": true,
+            "reason": "Proxy cannot compute Shopify's segment percentage snapshot locally."
+          },
+          {
+            "path": "$.segment.percentageSnapshotUpdatedAt",
+            "ignore": true,
+            "reason": "Proxy cannot compute Shopify's segment percentage snapshot timestamp locally."
+          },
+          {
+            "path": "$.segment.translation",
+            "ignore": true,
+            "reason": "Proxy cannot compute Shopify's segment translation locally."
+          },
+          {
+            "path": "$.segment.author",
+            "ignore": true,
+            "reason": "Proxy cannot infer Shopify's segment author locally."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-payload-non-null-fields-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-create-payload-non-null-fields",
+              "path": "$.data.segmentCreate.segment.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

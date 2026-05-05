@@ -36,6 +36,7 @@ Staged mutations:
 - Snapshot mode returns Shopify-like empty connections and `EXACT` zero counts when no segment data has been hydrated.
 - Unknown `segment(id:)` returns `null` with Shopify's captured `NOT_FOUND` error shape.
 - `segmentCreate` stages a local segment with a stable synthetic Segment GID, creation/last-edit timestamps, name, and query. Duplicate names follow Shopify's captured suffix behavior by returning the requested name with ` (2)`, ` (3)`, and so on rather than a user error.
+- Locally staged Segment payloads project Shopify-like defaults for schema non-null fields: `tagMigrated: false` and `valid: true`. Computed Shopify-owned fields that the proxy cannot derive locally are selected as null for staged segments: `percentageSnapshot`, `percentageSnapshotUpdatedAt`, `translation`, and `author`.
 - `segmentCreate` rejects names longer than 255 characters, queries longer than 5000 characters, and shops that already have 6000 effective local segments before staging a new segment. Length validation runs before query grammar validation so overlong queries return Shopify's length error rather than parser errors.
 - `segmentUpdate` stages name/query replacement on an existing base or staged segment and preserves the original creation timestamp while advancing `lastEditDate`.
 - `segmentUpdate` applies the same 255-character name and 5000-character query limits before staging updates.
@@ -77,11 +78,13 @@ Staged mutations:
 - Conformance fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/segments/segments-baseline.json`
 - Segment lifecycle validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-lifecycle-validation.json`
 - Segment length/limit validation fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segments-create-update-validation-limits.json`
+- Segment payload non-null field fixture: `fixtures/conformance/local-runtime/2026-04/segments/segment-payload-non-null-fields.json`
 - Customer segment member fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar fixture: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-query-grammar-not-contains.json`
 - Conformance request/spec: `config/parity-requests/segments/segments-baseline-read.graphql`, `config/parity-specs/segments/segments-baseline-read.json`
 - Segment lifecycle validation specs: `config/parity-specs/segments/segment-create-invalid-query-validation.json`, `config/parity-specs/segments/segment-update-unknown-id-validation.json`, `config/parity-specs/segments/segment-delete-unknown-id-validation.json`
 - Segment length/limit validation spec: `config/parity-specs/segments/segments-create-update-validation-limits.json`
+- Segment payload non-null field spec: `config/parity-specs/segments/segment-payload-non-null-fields.json`
 - Customer segment member parity spec: `config/parity-specs/segments/customer-segment-members-query-lifecycle.json`
 - Segment query grammar parity spec: `config/parity-specs/segments/segment-query-grammar-not-contains.json`
 - Segment query grammar capture script: `scripts/capture-segment-query-grammar-conformance.ts`
