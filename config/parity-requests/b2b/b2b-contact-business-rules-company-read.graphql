@@ -1,0 +1,16 @@
+query B2BContactBusinessRulesCompanyRead($companyId: ID!, $companyContactId: ID!) {
+  company(id: $companyId) {
+    id
+    mainContact {
+      id
+      isMainContact
+    }
+    contactsCount {
+      count
+    }
+  }
+  companyContact(id: $companyContactId) {
+    id
+    isMainContact
+  }
+}

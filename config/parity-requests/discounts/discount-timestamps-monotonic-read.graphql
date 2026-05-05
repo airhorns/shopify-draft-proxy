@@ -1,0 +1,46 @@
+query DiscountTimestampsMonotonicRead($firstId: ID!, $secondId: ID!, $firstCode: String!, $secondCode: String!) {
+  first: codeDiscountNode(id: $firstId) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        createdAt
+        updatedAt
+      }
+    }
+  }
+  second: codeDiscountNode(id: $secondId) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        createdAt
+        updatedAt
+      }
+    }
+  }
+  firstByCode: codeDiscountNodeByCode(code: $firstCode) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        createdAt
+        updatedAt
+      }
+    }
+  }
+  secondByCode: codeDiscountNodeByCode(code: $secondCode) {
+    id
+    codeDiscount {
+      __typename
+      ... on DiscountCodeBasic {
+        title
+        createdAt
+        updatedAt
+      }
+    }
+  }
+}

@@ -1,0 +1,392 @@
+{
+  "scenarioId": "b2b-location-address-management",
+  "capturedAt": "2026-05-05T10:10:13.653Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-623",
+    "plan": "Create a disposable B2B company, capture location name fallback, duplicate address-type validation, shared-address delete readback, location-delete role-assignment cascade, and delete the company."
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAddressManagementCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          roleAssignments(first: 5) {\n            nodes {\n              id\n              companyLocation { id }\n            }\n          }\n        }\n        contacts(first: 5) {\n          nodes {\n            id\n            roleAssignments(first: 5) {\n              nodes {\n                id\n                companyLocation { id }\n              }\n            }\n          }\n        }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-623 B2B address 1777975811212",
+            "note": "HAR-623 B2B location address management parity",
+            "externalId": "har-623-address-1777975811212"
+          },
+          "companyContact": {
+            "firstName": "Har",
+            "lastName": "Address",
+            "email": "har-623-address-1777975811212@example.com",
+            "title": "Buyer"
+          },
+          "companyLocation": {
+            "name": "HAR-623 B2B address 1777975811212 HQ"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5435556146",
+            "name": "HAR-623 B2B address 1777975811212",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10146251058",
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44644041010",
+                    "companyLocation": {
+                      "id": "gid://shopify/CompanyLocation/8243380530"
+                    }
+                  }
+                ]
+              }
+            },
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10146251058",
+                  "roleAssignments": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/CompanyContactRoleAssignment/44644041010",
+                        "companyLocation": {
+                          "id": "gid://shopify/CompanyLocation/8243380530"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8243380530",
+                  "name": "HAR-623 B2B address 1777975811212 HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10662740274",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10662773042",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 58,
+          "actualQueryCost": 28,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1972,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationNameFallback": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAddressManagementLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        billingAddress { id address1 }\n        shippingAddress { id address1 }\n        company { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5435556146",
+        "input": {
+          "phone": "+16135550623",
+          "shippingAddress": {
+            "address1": "123 Main",
+            "countryCode": "CA"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8243413298",
+            "name": "123 Main",
+            "billingAddress": null,
+            "shippingAddress": {
+              "id": "gid://shopify/CompanyAddress/9345204530",
+              "address1": "123 Main"
+            },
+            "company": {
+              "id": "gid://shopify/Company/5435556146",
+              "name": "HAR-623 B2B address 1777975811212"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateAddressTypes": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAddressManagementAssignAddress(\n    $locationId: ID!\n    $address: CompanyAddressInput!\n    $addressTypes: [CompanyAddressType!]!\n  ) {\n    companyLocationAssignAddress(locationId: $locationId, address: $address, addressTypes: $addressTypes) {\n      addresses { id address1 }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/CompanyLocation/8243413298",
+        "address": {
+          "address1": "Duplicate Type Way"
+        },
+        "addressTypes": ["BILLING", "BILLING"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignAddress": {
+          "addresses": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Invalid input.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "sharedLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAddressManagementLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        billingAddress { id address1 }\n        shippingAddress { id address1 }\n        company { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5435556146",
+        "input": {
+          "name": "HAR-623 B2B address 1777975811212 shared address",
+          "billingSameAsShipping": true,
+          "shippingAddress": {
+            "address1": "623 Shared Anchor",
+            "countryCode": "CA"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8243446066",
+            "name": "HAR-623 B2B address 1777975811212 shared address",
+            "billingAddress": {
+              "id": "gid://shopify/CompanyAddress/9345270066",
+              "address1": "623 Shared Anchor"
+            },
+            "shippingAddress": {
+              "id": "gid://shopify/CompanyAddress/9345237298",
+              "address1": "623 Shared Anchor"
+            },
+            "company": {
+              "id": "gid://shopify/Company/5435556146",
+              "name": "HAR-623 B2B address 1777975811212"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "sharedAddressDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAddressManagementAddressDelete($addressId: ID!) {\n    companyAddressDelete(addressId: $addressId) {\n      deletedAddressId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "addressId": "gid://shopify/CompanyAddress/9345237298"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAddressDelete": {
+          "deletedAddressId": "gid://shopify/CompanyAddress/9345237298",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterSharedAddressDelete": {
+    "request": {
+      "query": "#graphql\n  query B2BLocationAddressManagementReadSharedDelete($companyLocationId: ID!) {\n    companyLocation(id: $companyLocationId) {\n      id\n      billingAddress { id address1 }\n      shippingAddress { id address1 }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8243446066"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocation": {
+          "id": "gid://shopify/CompanyLocation/8243446066",
+          "billingAddress": {
+            "id": "gid://shopify/CompanyAddress/9345270066",
+            "address1": "623 Shared Anchor"
+          },
+          "shippingAddress": null
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAddressManagementLocationDelete($companyLocationId: ID!) {\n    companyLocationDelete(companyLocationId: $companyLocationId) {\n      deletedCompanyLocationId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8243380530"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationDelete": {
+          "deletedCompanyLocationId": "gid://shopify/CompanyLocation/8243380530",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterLocationDelete": {
+    "request": {
+      "query": "#graphql\n  query B2BLocationAddressManagementReadLocationDelete($companyContactId: ID!, $companyLocationId: ID!) {\n    companyContact(id: $companyContactId) {\n      id\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyLocation { id }\n        }\n      }\n    }\n    companyLocation(id: $companyLocationId) { id }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10146251058",
+        "companyLocationId": "gid://shopify/CompanyLocation/8243380530"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContact": {
+          "id": "gid://shopify/CompanyContact/10146251058",
+          "roleAssignments": {
+            "nodes": []
+          }
+        },
+        "companyLocation": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BLocationAddressManagementCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5435556146"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5435556146",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {},
+  "upstreamCalls": []
+}

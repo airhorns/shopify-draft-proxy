@@ -4,28 +4,41 @@
   "accessScopes": {
     "availableScopes": [
       "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
       "read_content",
+      "read_customer_data_erasure",
       "read_customer_merge",
       "read_customers",
+      "read_delivery_customizations",
       "read_discounts",
       "read_draft_orders",
       "read_files",
+      "read_fulfillment_constraint_rules",
       "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
       "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
       "read_legal_policies",
       "read_locales",
       "read_locations",
+      "read_marketing_events",
       "read_markets",
       "read_merchant_managed_fulfillment_orders",
       "read_metaobject_definitions",
       "read_metaobjects",
+      "read_online_store_navigation",
       "read_order_edits",
       "read_orders",
       "read_payment_customizations",
       "read_payment_terms",
+      "read_privacy_settings",
       "read_product_listings",
       "read_products",
       "read_publications",
+      "read_purchase_options",
       "read_returns",
       "read_shipping",
       "read_shopify_payments_disputes",
@@ -35,33 +48,48 @@
       "read_themes",
       "read_third_party_fulfillment_orders",
       "read_translations",
+      "read_validations",
       "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
       "write_content",
+      "write_customer_data_erasure",
       "write_customer_merge",
       "write_customers",
+      "write_delivery_customizations",
       "write_discounts",
       "write_draft_orders",
       "write_files",
+      "write_fulfillment_constraint_rules",
       "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
       "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
       "write_legal_policies",
       "write_locales",
       "write_locations",
+      "write_marketing_events",
       "write_markets",
       "write_merchant_managed_fulfillment_orders",
       "write_metaobject_definitions",
       "write_metaobjects",
+      "write_online_store_navigation",
       "write_order_edits",
       "write_orders",
       "write_payment_customizations",
       "write_payment_terms",
+      "write_privacy_settings",
       "write_products",
       "write_publications",
+      "write_purchase_options",
       "write_returns",
       "write_shipping",
       "write_store_credit_account_transactions",
       "write_third_party_fulfillment_orders",
-      "write_translations"
+      "write_translations",
+      "write_validations"
     ],
     "requiredScopes": [
       {
@@ -76,6 +104,35 @@
     "missingScopes": [],
     "hasRequiredScopes": true
   },
+  "seedDiscounts": [
+    {
+      "id": "gid://shopify/DiscountCodeNode/1640437383474",
+      "discount": {
+        "__typename": "DiscountCodeBasic",
+        "title": "HAR-198 HAR198DUP1778005729926",
+        "status": "ACTIVE",
+        "summary": "10% off entire order",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "endsAt": null,
+        "asyncUsageCount": 0,
+        "discountClasses": ["ORDER"],
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "codes": {
+          "nodes": [
+            {
+              "id": "gid://shopify/DiscountRedeemCode/1640437383474",
+              "code": "HAR198DUP1778005729926",
+              "asyncUsageCount": 0
+            }
+          ]
+        }
+      }
+    }
+  ],
   "validation": {
     "missingInput": {
       "query": "mutation DiscountCodeBasicCreateMissingInput($input: DiscountCodeBasicInput!) {\n  discountCodeBasicCreate(basicCodeDiscount: $input) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
@@ -128,11 +185,11 @@
       }
     },
     "omnibus": {
-      "query": "mutation DiscountValidationBranches(\n  $duplicate: DiscountCodeBasicInput!\n  $badRefs: DiscountCodeBasicInput!\n  $invalidAutomatic: DiscountAutomaticBasicInput!\n  $blankCodeBxgy: DiscountCodeBxgyInput!\n  $blankAutomaticBxgy: DiscountAutomaticBxgyInput!\n  $invalidCodeFreeShipping: DiscountCodeFreeShippingInput!\n  $invalidAutomaticFreeShipping: DiscountAutomaticFreeShippingInput!\n  $unknownUpdateId: ID!\n  $unknownUpdate: DiscountCodeBasicInput!\n  $codeBulkIds: [ID!]\n  $automaticBulkIds: [ID!]\n  $bulkSearch: String\n) {\n  duplicate: discountCodeBasicCreate(basicCodeDiscount: $duplicate) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  badRefs: discountCodeBasicCreate(basicCodeDiscount: $badRefs) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $invalidAutomatic) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  blankCodeBxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $blankCodeBxgy) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  blankAutomaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $blankAutomaticBxgy) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidCodeFreeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $invalidCodeFreeShipping) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidAutomaticFreeShipping: discountAutomaticFreeShippingCreate(\n    freeShippingAutomaticDiscount: $invalidAutomaticFreeShipping\n  ) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  unknownUpdate: discountCodeBasicUpdate(id: $unknownUpdateId, basicCodeDiscount: $unknownUpdate) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  codeBulk: discountCodeBulkDeactivate(ids: $codeBulkIds, search: $bulkSearch) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBulk: discountAutomaticBulkDelete(ids: $automaticBulkIds, search: $bulkSearch) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
+      "query": "mutation DiscountValidationBranches(\n  $duplicate: DiscountCodeBasicInput!\n  $badRefs: DiscountCodeBasicInput!\n  $invalidAutomatic: DiscountAutomaticBasicInput!\n  $blankCodeBxgy: DiscountCodeBxgyInput!\n  $blankAutomaticBxgy: DiscountAutomaticBxgyInput!\n  $invalidCodeFreeShipping: DiscountCodeFreeShippingInput!\n  $invalidAutomaticFreeShipping: DiscountAutomaticFreeShippingInput!\n  $unknownUpdateId: ID!\n  $unknownUpdate: DiscountCodeBasicInput!\n  $codeBulkIds: [ID!]\n  $automaticBulkIds: [ID!]\n  $bulkSearch: String\n) {\n  duplicate: discountCodeBasicCreate(basicCodeDiscount: $duplicate) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  badRefs: discountCodeBasicCreate(basicCodeDiscount: $badRefs) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $invalidAutomatic) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  blankCodeBxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $blankCodeBxgy) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  blankAutomaticBxgy: discountAutomaticBxgyCreate(automaticBxgyDiscount: $blankAutomaticBxgy) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidCodeFreeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $invalidCodeFreeShipping) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  invalidAutomaticFreeShipping: discountAutomaticFreeShippingCreate(\n    freeShippingAutomaticDiscount: $invalidAutomaticFreeShipping\n  ) {\n    automaticDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  unknownUpdate: discountCodeBasicUpdate(id: $unknownUpdateId, basicCodeDiscount: $unknownUpdate) {\n    codeDiscountNode {\n      id\n    }\n    userErrors {\n      field\n      message\n      extraInfo\n    }\n  }\n  codeBulk: discountCodeBulkDeactivate(ids: $codeBulkIds, search: $bulkSearch) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n  automaticBulk: discountAutomaticBulkDelete(ids: $automaticBulkIds, search: $bulkSearch) {\n    job {\n      id\n    }\n    userErrors {\n      field\n      message\n      code\n      extraInfo\n    }\n  }\n}\n",
       "variables": {
         "duplicate": {
-          "title": "HAR-198 HAR198DUP1777134605940",
-          "code": "HAR198DUP1777134605940",
+          "title": "HAR-198 HAR198DUP1778005729926",
+          "code": "HAR198DUP1778005729926",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -157,8 +214,8 @@
           }
         },
         "badRefs": {
-          "title": "HAR-198 HAR198BADREF1777134605940",
-          "code": "HAR198BADREF1777134605940",
+          "title": "HAR-198 HAR198BADREF1778005729926",
+          "code": "HAR198BADREF1778005729926",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -189,7 +246,7 @@
           }
         },
         "invalidAutomatic": {
-          "title": "HAR-198 invalid automatic dates 1777134605940",
+          "title": "HAR-198 invalid automatic dates 1778005729926",
           "startsAt": "2026-04-25T00:00:00Z",
           "endsAt": "2026-04-24T00:00:00Z",
           "combinesWith": {
@@ -216,7 +273,7 @@
         },
         "blankCodeBxgy": {
           "title": "",
-          "code": "HAR198BXGY1777134605940",
+          "code": "HAR198BXGY1778005729926",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": true,
@@ -283,7 +340,7 @@
         },
         "invalidCodeFreeShipping": {
           "title": "",
-          "code": "HAR198FREE1777134605940",
+          "code": "HAR198FREE1778005729926",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": true,
@@ -314,8 +371,8 @@
         },
         "unknownUpdateId": "gid://shopify/DiscountCodeNode/0",
         "unknownUpdate": {
-          "title": "HAR-198 HAR198UNKNOWN1777134605940",
-          "code": "HAR198UNKNOWN1777134605940",
+          "title": "HAR-198 HAR198UNKNOWN1778005729926",
+          "code": "HAR198UNKNOWN1778005729926",
           "startsAt": "2026-04-25T00:00:00Z",
           "combinesWith": {
             "productDiscounts": false,
@@ -470,7 +527,6 @@
               {
                 "field": ["id"],
                 "message": "Discount does not exist",
-                "code": null,
                 "extraInfo": null
               }
             ]
@@ -504,7 +560,7 @@
             "actualQueryCost": 100,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1900,
+              "currentlyAvailable": 1802,
               "restoreRate": 100
             }
           }
@@ -515,7 +571,7 @@
   "cleanup": {
     "data": {
       "discountCodeDelete": {
-        "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1638431064370",
+        "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640437383474",
         "userErrors": []
       }
     },
@@ -525,7 +581,7 @@
         "actualQueryCost": 10,
         "throttleStatus": {
           "maximumAvailable": 2000,
-          "currentlyAvailable": 1904,
+          "currentlyAvailable": 1848,
           "restoreRate": 100
         }
       }
@@ -535,7 +591,7 @@
     {
       "operationName": "DiscountUniquenessCheck",
       "variables": {
-        "code": "HAR198DUP1777134605940"
+        "code": "HAR198DUP1778005729926"
       },
       "query": "sha:DiscountUniquenessCheck",
       "response": {
@@ -543,7 +599,7 @@
         "body": {
           "data": {
             "codeDiscountNodeByCode": {
-              "id": "gid://shopify/DiscountCodeNode/1638431064370"
+              "id": "gid://shopify/DiscountCodeNode/1640437383474"
             }
           }
         }

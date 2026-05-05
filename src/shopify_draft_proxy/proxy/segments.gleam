@@ -36,12 +36,14 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection_with_field_serializers, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, single_root_log_draft,
+  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
+  MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -53,6 +55,12 @@ import shopify_draft_proxy/state/types.{
   SegmentRecord, StorePropertyBool, StorePropertyFloat, StorePropertyInt,
   StorePropertyList, StorePropertyNull, StorePropertyObject, StorePropertyString,
 }
+
+const max_segment_name_length = 255
+
+const max_segment_query_length = 5000
+
+const max_segments_per_shop = 6000
 
 // ---------------------------------------------------------------------------
 // Public surface
@@ -529,6 +537,12 @@ fn segment_to_source(record: SegmentRecord) -> SourceValue {
       "lastEditDate",
       graphql_helpers.option_string_source(record.last_edit_date),
     ),
+    #("tagMigrated", SrcBool(False)),
+    #("valid", SrcBool(True)),
+    #("percentageSnapshot", SrcNull),
+    #("percentageSnapshotUpdatedAt", SrcNull),
+    #("translation", SrcNull),
+    #("author", SrcNull),
   ])
 }
 
@@ -1224,15 +1238,19 @@ fn serialize_membership_items(
 /// Outcome of a segments mutation.
 /// User-error payload. Mirrors selected Shopify user-error fields.
 pub type UserError {
-  UserError(field: List(String), message: String, code: Option(String))
+  UserError(field: Option(List(String)), message: String, code: Option(String))
 }
 
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
-  )
+fn user_error(
+  field: List(String),
+  message: String,
+  code: Option(String),
+) -> UserError {
+  UserError(field: Some(field), message: message, code: code)
+}
+
+fn null_field_user_error(message: String, code: Option(String)) -> UserError {
+  UserError(field: None, message: message, code: code)
 }
 
 type SegmentMutationPayload {
@@ -1255,6 +1273,7 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  _upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -1380,20 +1399,16 @@ fn handle_segment_create(
   let args = graphql_helpers.field_args(field, variables)
   let raw_name = graphql_helpers.read_arg_string_nonempty(args, "name")
   let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
-  let name_errors = case raw_name {
-    None -> [
-      UserError(field: ["name"], message: "Name can't be blank", code: None),
-    ]
-    Some(s) ->
-      case string.trim(s) {
-        "" -> [
-          UserError(field: ["name"], message: "Name can't be blank", code: None),
-        ]
-        _ -> []
-      }
-  }
+  let name_errors = validate_segment_name_required(raw_name, ["name"])
   let query_errors = validate_segment_query(raw_query, ["query"])
-  let errors = list.append(name_errors, query_errors)
+  let field_errors = list.append(name_errors, query_errors)
+  let limit_errors = case field_errors {
+    [] -> validate_segment_limit(store)
+    _ -> []
+  }
+  let errors =
+    field_errors
+    |> list.append(limit_errors)
   case errors, raw_name, raw_query {
     [], Some(name_value), Some(query_value) -> {
       let #(gid, identity_after_id) =
@@ -1472,41 +1487,35 @@ fn handle_segment_update(
   let id_errors = case id, existing {
     Some(_), Some(_) -> []
     _, _ -> [
-      UserError(field: ["id"], message: "Segment does not exist", code: None),
+      user_error(["id"], "Segment does not exist", None),
     ]
   }
   let raw_name = graphql_helpers.read_arg_string_nonempty(args, "name")
   let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
   let name_present = arg_present(args, "name")
   let query_present = arg_present(args, "query")
-  let name_errors = case name_present {
-    False -> []
-    True ->
-      case raw_name {
-        None -> [
-          UserError(field: ["name"], message: "Name can't be blank", code: None),
-        ]
-        Some(s) ->
-          case string.trim(s) {
-            "" -> [
-              UserError(
-                field: ["name"],
-                message: "Name can't be blank",
-                code: None,
-              ),
-            ]
-            _ -> []
-          }
-      }
-  }
+  let name_errors =
+    validate_segment_name_optional(raw_name, name_present, [
+      "name",
+    ])
   let query_errors = case query_present {
     False -> []
     True -> validate_segment_query(raw_query, ["query"])
+  }
+  let change_errors = case id_errors, name_present, query_present {
+    [], False, False -> [
+      null_field_user_error(
+        "At least one attribute to change must be present",
+        None,
+      ),
+    ]
+    _, _, _ -> []
   }
   let errors =
     id_errors
     |> list.append(name_errors)
     |> list.append(query_errors)
+    |> list.append(change_errors)
   case errors, id, existing {
     [], Some(id_value), Some(current) -> {
       let #(timestamp, identity_after_ts) =
@@ -1590,7 +1599,7 @@ fn handle_segment_delete(
   let errors = case id, existing {
     Some(_), Some(_) -> []
     _, _ -> [
-      UserError(field: ["id"], message: "Segment does not exist", code: None),
+      user_error(["id"], "Segment does not exist", None),
     ]
   }
   case errors, id {
@@ -1771,22 +1780,24 @@ fn validate_customer_segment_members_query_create(
 fn invalid_customer_segment_members_query_input_error(
   message: String,
 ) -> UserError {
-  UserError(field: ["input"], message: message, code: Some("INVALID"))
+  user_error(["input"], message, Some("INVALID"))
 }
 
 fn validate_customer_segment_members_query(
   query: Option(String),
 ) -> List(UserError) {
   case query {
-    None -> [UserError(field: [], message: "Query can't be blank", code: None)]
+    None -> [
+      null_field_user_error("Query can't be blank", Some("INVALID")),
+    ]
     Some(q) ->
       case string.trim(q) {
         "" -> [
-          UserError(field: [], message: "Query can't be blank", code: None),
+          null_field_user_error("Query can't be blank", Some("INVALID")),
         ]
         trimmed ->
           list.map(validate_member_query_string(trimmed), fn(message) {
-            UserError(field: [], message: message, code: None)
+            null_field_user_error(message, Some("INVALID"))
           })
       }
   }
@@ -1912,6 +1923,7 @@ fn member_query_payload_field_entry(
           key,
           serialize_user_errors(
             payload.user_errors,
+            "CustomerSegmentMembersQueryUserError",
             graphql_helpers.selection_set_selections(ss),
             fragments,
           ),
@@ -1952,6 +1964,62 @@ fn project_member_query_record(
 /// Trim whitespace from a segment name. Mirrors `normalizeSegmentName`.
 pub fn normalize_segment_name(name: String) -> String {
   string.trim(name)
+}
+
+fn validate_segment_name_required(
+  raw: Option(String),
+  field_path: List(String),
+) -> List(UserError) {
+  validate_segment_name(raw, True, field_path)
+}
+
+fn validate_segment_name_optional(
+  raw: Option(String),
+  present: Bool,
+  field_path: List(String),
+) -> List(UserError) {
+  validate_segment_name(raw, present, field_path)
+}
+
+fn validate_segment_name(
+  raw: Option(String),
+  present: Bool,
+  field_path: List(String),
+) -> List(UserError) {
+  case present, raw {
+    False, _ -> []
+    True, None -> [
+      user_error(field_path, "Name can't be blank", None),
+    ]
+    True, Some(name) ->
+      case string.trim(name) {
+        "" -> [
+          user_error(field_path, "Name can't be blank", None),
+        ]
+        _ ->
+          case string.length(name) > max_segment_name_length {
+            True -> [
+              user_error(
+                field_path,
+                "Name is too long (maximum is 255 characters)",
+                None,
+              ),
+            ]
+            False -> []
+          }
+      }
+  }
+}
+
+fn validate_segment_limit(store: Store) -> List(UserError) {
+  case
+    list.length(store.list_effective_segments(store)) >= max_segments_per_shop
+  {
+    True -> [
+      user_error(["base"], "Segment limit reached", None),
+    ]
+    False -> []
+  }
 }
 
 /// Resolve a segment name against existing names, appending " (N)" until
@@ -2009,24 +2077,28 @@ pub fn validate_segment_query(
 ) -> List(UserError) {
   case raw {
     None -> [
-      UserError(field: field_path, message: "Query can't be blank", code: None),
+      user_error(field_path, "Query can't be blank", None),
     ]
     Some(q) ->
       case string.trim(q) {
         "" -> [
-          UserError(
-            field: field_path,
-            message: "Query can't be blank",
-            code: None,
-          ),
+          user_error(field_path, "Query can't be blank", None),
         ]
         trimmed ->
-          case validate_segment_query_string(trimmed) {
-            [] -> []
-            messages ->
-              list.map(messages, fn(m) {
-                UserError(field: field_path, message: m, code: None)
-              })
+          case string.length(trimmed) > max_segment_query_length {
+            True -> [
+              user_error(
+                field_path,
+                "Query is too long (maximum is 5000 characters)",
+                None,
+              ),
+            ]
+            False ->
+              case validate_segment_query_string(trimmed) {
+                [] -> []
+                messages ->
+                  list.map(messages, fn(m) { user_error(field_path, m, None) })
+              }
           }
       }
   }
@@ -2357,6 +2429,7 @@ fn payload_field_entry(
           key,
           serialize_user_errors(
             payload.user_errors,
+            "UserError",
             graphql_helpers.selection_set_selections(ss),
             fragments,
           ),
@@ -2369,21 +2442,22 @@ fn payload_field_entry(
 
 fn serialize_user_errors(
   user_errors: List(UserError),
+  typename: String,
   selections: List(Selection),
   fragments: FragmentMap,
 ) -> Json {
   json.array(user_errors, fn(error) {
-    let source = user_error_to_source(error)
+    let source = user_error_to_source(error, typename)
     project_graphql_value(source, selections, fragments)
   })
 }
 
-fn user_error_to_source(error: UserError) -> SourceValue {
+fn user_error_to_source(error: UserError, typename: String) -> SourceValue {
   src_object([
-    #("__typename", SrcString("UserError")),
+    #("__typename", SrcString(typename)),
     #("field", case error.field {
-      [] -> SrcNull
-      parts -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
+      None -> SrcNull
+      Some(parts) -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
     }),
     #("message", SrcString(error.message)),
     #("code", case error.code {

@@ -1,0 +1,18 @@
+mutation AppPurchaseOneTimeCreateValidationCurrencyMismatch {
+  appPurchaseOneTimeCreate(
+    name: "Pro"
+    returnUrl: "https://app.example.test/return"
+    price: { amount: "5.00", currencyCode: EUR }
+    test: true
+  ) {
+    appPurchaseOneTime {
+      id
+    }
+    confirmationUrl
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -47,7 +47,11 @@
           "variables": {
             "customerId": "gid://shopify/Customer/8802",
             "billingAddress": {
-              "countryCode": "US"
+              "address1": "1 Secret St",
+              "city": "New York",
+              "zip": "10001",
+              "countryCode": "US",
+              "provinceCode": "NY"
             },
             "encryptedDuplicationData": {
               "fromPrimaryProxyPath": "$.data.duplication.encryptedDuplicationData"
@@ -69,5 +73,5 @@
       }
     ]
   },
-  "notes": "Executable local-runtime parity for HAR-365 customer payment-method lifecycle and payment reminder staging. The current live credential can introspect the roots but lacks read_customer_payment_methods/write_customer_payment_methods, so the fixture deliberately records a scrubbed local contract instead of live vaulted payment material, real duplication data, expiring update URLs, or customer-visible reminder delivery."
+  "notes": "Executable local-runtime parity for HAR-365 customer payment-method lifecycle plus HAR-671 paymentReminderSend unknown-schedule rejection. The current live credential can introspect the roots but lacks read_customer_payment_methods/write_customer_payment_methods, so the fixture deliberately records a scrubbed local contract instead of live vaulted payment material, real duplication data, expiring update URLs, or customer-visible reminder delivery."
 }

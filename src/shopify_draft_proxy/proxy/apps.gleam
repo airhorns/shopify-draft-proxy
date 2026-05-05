@@ -22,6 +22,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/crypto
@@ -43,6 +44,8 @@ import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -887,6 +890,16 @@ pub type UserError {
   UserError(field: List(String), message: String, code: Option(String))
 }
 
+const default_billing_currency = "USD"
+
+const minimum_one_time_purchase_amount = 0.5
+
+const minimum_one_time_purchase_amount_label = "0.50"
+
+type DecimalAmount {
+  DecimalAmount(sign: Int, whole: String, fraction: String)
+}
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -905,9 +918,9 @@ pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
   request_path: String,
-  origin: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -917,7 +930,7 @@ pub fn process_mutation(
         store,
         identity,
         request_path,
-        origin,
+        upstream.origin,
         document,
         fields,
         fragments,
@@ -1115,15 +1128,13 @@ fn handle_revoke_access_scopes(
   store: Store,
   identity: SyntheticIdentityRegistry,
   _request_path: String,
-  origin: String,
+  _origin: String,
   _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let #(installation, store_after_ensure, identity_after_ensure) =
-    ensure_current_installation(store, identity, origin)
   let args = graphql_helpers.field_args(field, variables)
   let requested_scopes = case dict.get(args, "scopes") {
     Ok(root_field.ListVal(items)) ->
@@ -1135,47 +1146,323 @@ fn handle_revoke_access_scopes(
       })
     _ -> []
   }
-  let current_handles = list.map(installation.access_scopes, fn(s) { s.handle })
-  let revoked =
-    list.filter(installation.access_scopes, fn(scope) {
-      list.contains(requested_scopes, scope.handle)
-    })
-  let errors =
-    list.filter(requested_scopes, fn(scope) {
-      !list.contains(current_handles, scope)
-    })
-    |> list.map(fn(scope) {
-      UserError(
-        field: ["scopes"],
-        message: "Access scope '" <> scope <> "' is not granted.",
-        code: Some("UNKNOWN_SCOPES"),
+
+  case current_revoke_context(store) {
+    Error(errors) ->
+      failed_revoke_access_scopes_result(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+        errors,
+        [],
       )
-    })
-  let updated =
-    AppInstallationRecord(
-      ..installation,
-      access_scopes: list.filter(installation.access_scopes, fn(scope) {
-        !list.contains(requested_scopes, scope.handle)
-      }),
-    )
-  let #(_, store_staged) =
-    store.stage_app_installation(store_after_ensure, updated)
-  let payload = project_revoke_payload(revoked, errors, field, fragments)
-  let status = case errors {
-    [] -> store.Staged
-    _ -> store.Failed
+    Ok(#(installation, app)) -> {
+      let current_handles =
+        list.map(installation.access_scopes, fn(s) { s.handle })
+      let required_handles =
+        list.map(app.requested_access_scopes, fn(s) { s.handle })
+      let errors =
+        revoke_access_scope_errors(
+          requested_scopes,
+          current_handles,
+          required_handles,
+        )
+
+      case errors {
+        [] -> {
+          let revoked =
+            list.filter(installation.access_scopes, fn(scope) {
+              list.contains(requested_scopes, scope.handle)
+            })
+          let updated =
+            AppInstallationRecord(
+              ..installation,
+              access_scopes: list.filter(installation.access_scopes, fn(scope) {
+                !list.contains(requested_scopes, scope.handle)
+              }),
+            )
+          let #(_, store_staged) = store.stage_app_installation(store, updated)
+          let payload = project_revoke_payload(revoked, [], field, fragments)
+          let draft =
+            make_log_draft(
+              "appRevokeAccessScopes",
+              [installation.id],
+              store.Staged,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [installation.id],
+              log_drafts: [draft],
+            ),
+            store_staged,
+            identity,
+          )
+        }
+        _ ->
+          failed_revoke_access_scopes_result(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            errors,
+            [installation.id],
+          )
+      }
+    }
   }
-  let draft = make_log_draft("appRevokeAccessScopes", [installation.id], status)
+}
+
+fn current_revoke_context(
+  store: Store,
+) -> Result(#(AppInstallationRecord, AppRecord), List(UserError)) {
+  case store.get_current_app_installation(store) {
+    Some(installation) ->
+      case store.get_effective_app_by_id(store, installation.app_id) {
+        Some(app) -> Ok(#(installation, app))
+        None ->
+          Error([
+            UserError(
+              field: ["base"],
+              message: "Application cannot be found.",
+              code: Some("APPLICATION_CANNOT_BE_FOUND"),
+            ),
+          ])
+      }
+    None ->
+      case store.list_effective_apps(store) {
+        [] ->
+          Error([
+            UserError(
+              field: ["base"],
+              message: "Source app is missing.",
+              code: Some("MISSING_SOURCE_APP"),
+            ),
+          ])
+        _ ->
+          Error([
+            UserError(
+              field: ["base"],
+              message: "App is not installed on this shop.",
+              code: Some("APP_NOT_INSTALLED"),
+            ),
+          ])
+      }
+  }
+}
+
+fn failed_revoke_access_scopes_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(UserError),
+  staged_resource_ids: List(String),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload = project_revoke_payload([], errors, field, fragments)
+  let draft =
+    make_log_draft("appRevokeAccessScopes", staged_resource_ids, store.Failed)
   #(
     MutationFieldResult(
       key: key,
       payload: payload,
-      staged_resource_ids: [installation.id],
+      staged_resource_ids: staged_resource_ids,
       log_drafts: [draft],
     ),
-    store_staged,
-    identity_after_ensure,
+    store,
+    identity,
   )
+}
+
+fn revoke_access_scope_errors(
+  requested_scopes: List(String),
+  current_handles: List(String),
+  required_handles: List(String),
+) -> List(UserError) {
+  requested_scopes
+  |> list.filter_map(fn(scope) {
+    case is_known_shopify_access_scope(scope) {
+      False ->
+        Ok(UserError(
+          field: ["scopes"],
+          message: "The requested list of scopes to revoke includes invalid handles.",
+          code: Some("UNKNOWN_SCOPES"),
+        ))
+      True ->
+        case list.contains(required_handles, scope) {
+          True ->
+            Ok(UserError(
+              field: ["scopes"],
+              message: "Scopes that are declared as required cannot be revoked.",
+              code: Some("CANNOT_REVOKE_REQUIRED_SCOPES"),
+            ))
+          False ->
+            case scope_implied_by_granted_scope(scope, current_handles) {
+              True ->
+                Ok(UserError(
+                  field: ["scopes"],
+                  message: "Scopes that are implied by other granted scopes cannot be revoked.",
+                  code: Some("CANNOT_REVOKE_IMPLIED_SCOPES"),
+                ))
+              False ->
+                case list.contains(current_handles, scope) {
+                  True -> Error(Nil)
+                  False ->
+                    Ok(UserError(
+                      field: ["scopes"],
+                      message: "Scopes that are not declared cannot be revoked.",
+                      code: Some("CANNOT_REVOKE_UNDECLARED_SCOPES"),
+                    ))
+                }
+            }
+        }
+    }
+  })
+}
+
+fn scope_implied_by_granted_scope(
+  scope: String,
+  current_handles: List(String),
+) -> Bool {
+  case string.starts_with(scope, "read_") {
+    False -> False
+    True -> {
+      let write_scope = "write_" <> string.drop_start(scope, 5)
+      list.contains(current_handles, write_scope)
+    }
+  }
+}
+
+fn is_known_shopify_access_scope(scope: String) -> Bool {
+  list.contains(shopify_access_scope_catalog(), scope)
+}
+
+fn shopify_access_scope_catalog() -> List(String) {
+  [
+    "read_all_orders",
+    "write_all_orders",
+    "read_analytics",
+    "read_apps",
+    "write_apps",
+    "read_assigned_fulfillment_orders",
+    "write_assigned_fulfillment_orders",
+    "read_cart_transforms",
+    "write_cart_transforms",
+    "read_cash_tracking",
+    "write_cash_tracking",
+    "read_checkouts",
+    "write_checkouts",
+    "read_companies",
+    "write_companies",
+    "read_content",
+    "write_content",
+    "read_custom_pixels",
+    "write_custom_pixels",
+    "read_customer_data_erasure",
+    "write_customer_data_erasure",
+    "read_customer_events",
+    "read_customer_merge",
+    "write_customer_merge",
+    "read_customers",
+    "write_customers",
+    "read_delivery_customizations",
+    "write_delivery_customizations",
+    "read_delivery_promises",
+    "write_delivery_promises",
+    "read_discounts",
+    "write_discounts",
+    "read_discovery",
+    "read_domains",
+    "write_domains",
+    "read_draft_orders",
+    "write_draft_orders",
+    "read_files",
+    "write_files",
+    "read_fulfillment_constraint_rules",
+    "write_fulfillment_constraint_rules",
+    "read_fulfillments",
+    "write_fulfillments",
+    "read_gift_card_transactions",
+    "write_gift_card_transactions",
+    "read_gift_cards",
+    "write_gift_cards",
+    "read_inventory",
+    "write_inventory",
+    "read_inventory_shipments",
+    "write_inventory_shipments",
+    "read_inventory_transfers",
+    "write_inventory_transfers",
+    "read_legal_policies",
+    "write_legal_policies",
+    "read_locales",
+    "write_locales",
+    "read_locations",
+    "write_locations",
+    "read_marketing_events",
+    "write_marketing_events",
+    "read_markets",
+    "write_markets",
+    "read_merchant_managed_fulfillment_orders",
+    "write_merchant_managed_fulfillment_orders",
+    "read_metaobject_definitions",
+    "write_metaobject_definitions",
+    "read_metaobjects",
+    "write_metaobjects",
+    "read_online_store_navigation",
+    "write_online_store_navigation",
+    "read_order_edits",
+    "write_order_edits",
+    "read_orders",
+    "write_orders",
+    "read_own_subscription_contracts",
+    "write_own_subscription_contracts",
+    "read_payment_customizations",
+    "write_payment_customizations",
+    "read_payment_terms",
+    "write_payment_terms",
+    "read_privacy_settings",
+    "write_privacy_settings",
+    "read_product_listings",
+    "read_products",
+    "write_products",
+    "read_publications",
+    "write_publications",
+    "read_purchase_options",
+    "write_purchase_options",
+    "read_resource_feedbacks",
+    "write_resource_feedbacks",
+    "read_returns",
+    "write_returns",
+    "read_shipping",
+    "write_shipping",
+    "read_shopify_payments",
+    "read_shopify_payments_accounts",
+    "read_shopify_payments_dispute_evidences",
+    "write_shopify_payments_dispute_evidences",
+    "read_shopify_payments_disputes",
+    "write_shopify_payments_disputes",
+    "read_shopify_payments_payouts",
+    "read_store_credit_account_transactions",
+    "write_store_credit_account_transactions",
+    "read_store_credit_accounts",
+    "read_taxes",
+    "write_taxes",
+    "read_themes",
+    "write_themes",
+    "read_third_party_fulfillment_orders",
+    "write_third_party_fulfillment_orders",
+    "read_translations",
+    "write_translations",
+    "read_users",
+    "read_validations",
+    "write_validations",
+    "unauthenticated_read_product_listings",
+  ]
 }
 
 fn handle_delegate_create(
@@ -1331,6 +1618,59 @@ fn handle_purchase_create(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
+  let name = graphql_helpers.read_arg_string(args, "name")
+  let price = read_money_input(args, "price")
+  let billing_currency = shop_billing_currency(store)
+  let validation_errors =
+    purchase_create_validation_errors(args, name, price, billing_currency)
+  case validation_errors {
+    [] ->
+      stage_valid_purchase_create(
+        store,
+        identity,
+        origin,
+        key,
+        name |> option.unwrap(""),
+        price,
+        graphql_helpers.read_arg_bool(args, "test") |> option.unwrap(False),
+        field,
+        fragments,
+      )
+    _ -> {
+      let payload =
+        project_purchase_create_payload(
+          None,
+          None,
+          validation_errors,
+          field,
+          fragments,
+        )
+      let draft = make_log_draft("appPurchaseOneTimeCreate", [], store.Failed)
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+          log_drafts: [draft],
+        ),
+        store,
+        identity,
+      )
+    }
+  }
+}
+
+fn stage_valid_purchase_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  origin: String,
+  key: String,
+  name: String,
+  price: Money,
+  is_test: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let #(installation, store_after_ensure, identity_after_ensure) =
     ensure_current_installation(store, identity, origin)
   let #(purchase_gid, identity_after_id) =
@@ -1340,15 +1680,18 @@ fn handle_purchase_create(
     )
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let status = case is_test {
+    True -> "ACTIVE"
+    False -> "PENDING"
+  }
   let purchase =
     AppOneTimePurchaseRecord(
       id: purchase_gid,
-      name: option.unwrap(graphql_helpers.read_arg_string(args, "name"), ""),
-      status: "PENDING",
-      is_test: graphql_helpers.read_arg_bool(args, "test")
-        |> option.unwrap(False),
+      name: name,
+      status: status,
+      is_test: is_test,
       created_at: timestamp,
-      price: read_money_input(args, "price"),
+      price: price,
     )
   let #(_, store_with_purchase) =
     store.stage_app_one_time_purchase(store_after_ensure, purchase)
@@ -1427,15 +1770,25 @@ fn handle_subscription_create(
     )
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity_after_lis)
+  let is_test =
+    graphql_helpers.read_arg_bool(args, "test")
+    |> option.unwrap(False)
+  let status = case is_test {
+    True -> "ACTIVE"
+    False -> "PENDING"
+  }
+  let current_period_end = case status {
+    "ACTIVE" -> compute_current_period_end(timestamp, line_items, args)
+    _ -> None
+  }
   let subscription =
     AppSubscriptionRecord(
       id: sub_gid,
       name: option.unwrap(graphql_helpers.read_arg_string(args, "name"), ""),
-      status: "PENDING",
-      is_test: graphql_helpers.read_arg_bool(args, "test")
-        |> option.unwrap(False),
+      status: status,
+      is_test: is_test,
       trial_days: graphql_helpers.read_arg_int(args, "trialDays"),
-      current_period_end: None,
+      current_period_end: current_period_end,
       created_at: timestamp,
       line_item_ids: list.map(line_items, fn(li) { li.id }),
     )
@@ -1447,6 +1800,11 @@ fn handle_subscription_create(
       all_subscription_ids: list.append(installation.all_subscription_ids, [
         subscription.id,
       ]),
+      active_subscription_ids: case subscription.status {
+        "ACTIVE" ->
+          append_unique(installation.active_subscription_ids, subscription.id)
+        _ -> installation.active_subscription_ids
+      },
     )
   let #(_, store_staged) =
     store.stage_app_installation(store_after_sub, updated_installation)
@@ -1636,101 +1994,353 @@ fn handle_line_item_update(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let line_item_id = graphql_helpers.read_arg_string(args, "id")
-  let line_item = case line_item_id {
-    Some(id) -> store.get_effective_app_subscription_line_item_by_id(store, id)
-    None -> None
+  case line_item_id {
+    Some(id) -> {
+      case valid_app_subscription_line_item_gid(id) {
+        False ->
+          line_item_update_failed(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            UserError(
+              field: ["id"],
+              message: "Invalid app subscription line item id",
+              code: None,
+            ),
+          )
+        True ->
+          handle_valid_line_item_update(
+            key,
+            store,
+            identity,
+            origin,
+            field,
+            fragments,
+            args,
+            id,
+          )
+      }
+    }
+    None ->
+      line_item_update_failed(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+        UserError(
+          field: ["id"],
+          message: "Invalid app subscription line item id",
+          code: None,
+        ),
+      )
   }
+}
+
+fn handle_valid_line_item_update(
+  key: String,
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  origin: String,
+  field: Selection,
+  fragments: FragmentMap,
+  args: Dict(String, root_field.ResolvedValue),
+  line_item_id: String,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let line_item =
+    store.get_effective_app_subscription_line_item_by_id(
+      draft_store,
+      line_item_id,
+    )
   let subscription = case line_item {
     Some(li) ->
-      store.get_effective_app_subscription_by_id(store, li.subscription_id)
+      store.get_effective_app_subscription_by_id(
+        draft_store,
+        li.subscription_id,
+      )
     None -> None
   }
   case line_item, subscription {
     Some(li), Some(sub) -> {
       let capped = read_money_input(args, "cappedAmount")
-      let updated_pricing = case li.plan.pricing_details {
+      case li.plan.pricing_details {
         AppRecurringPricing(..) ->
-          // TS allows updating cappedAmount on a recurring line item by
-          // shallow-merging onto the existing pricing details. The Gleam
-          // model has no field for that on AppRecurringPricing, so we
-          // fall through and leave it unchanged. (Realistic shape is
-          // AppUsagePricing — that's what the TS shop emits.)
-          li.plan.pricing_details
+          line_item_update_failed(
+            key,
+            draft_store,
+            identity,
+            field,
+            fragments,
+            UserError(
+              field: ["cappedAmount"],
+              message: "Only usage-pricing line items support cappedAmount updates",
+              code: None,
+            ),
+          )
         AppUsagePricing(
+          capped_amount: current_capped,
           balance_used: balance,
           interval: interval,
           terms: terms,
-          ..,
         ) ->
-          AppUsagePricing(
-            capped_amount: capped,
-            balance_used: balance,
-            interval: interval,
-            terms: terms,
-          )
+          case capped.currency_code != current_capped.currency_code {
+            True ->
+              line_item_update_failed(
+                key,
+                draft_store,
+                identity,
+                field,
+                fragments,
+                UserError(
+                  field: ["cappedAmount"],
+                  message: "Capped amount currency mismatch. Expected "
+                    <> current_capped.currency_code,
+                  code: None,
+                ),
+              )
+            False ->
+              case
+                decimal_amount_greater_than(
+                  capped.amount,
+                  current_capped.amount,
+                )
+              {
+                False ->
+                  line_item_update_failed(
+                    key,
+                    draft_store,
+                    identity,
+                    field,
+                    fragments,
+                    UserError(
+                      field: ["cappedAmount"],
+                      message: "The capped amount must be greater than the existing capped amount",
+                      code: None,
+                    ),
+                  )
+                True -> {
+                  let updated_pricing =
+                    AppUsagePricing(
+                      capped_amount: capped,
+                      balance_used: balance,
+                      interval: interval,
+                      terms: terms,
+                    )
+                  let updated_line_item =
+                    AppSubscriptionLineItemRecord(
+                      ..li,
+                      plan: AppSubscriptionLineItemPlan(
+                        pricing_details: updated_pricing,
+                      ),
+                    )
+                  let #(_, store_after_li) =
+                    store.stage_app_subscription_line_item(
+                      draft_store,
+                      updated_line_item,
+                    )
+                  let payload =
+                    project_subscription_payload(
+                      store_after_li,
+                      Some(sub),
+                      Some(confirmation_url(
+                        origin,
+                        "RecurringApplicationCharge",
+                        sub.id,
+                      )),
+                      [],
+                      field,
+                      fragments,
+                    )
+                  let draft =
+                    make_log_draft(
+                      "appSubscriptionLineItemUpdate",
+                      [updated_line_item.id],
+                      store.Staged,
+                    )
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: payload,
+                      staged_resource_ids: [updated_line_item.id],
+                      log_drafts: [draft],
+                    ),
+                    store_after_li,
+                    identity,
+                  )
+                }
+              }
+          }
       }
-      let updated_line_item =
-        AppSubscriptionLineItemRecord(
-          ..li,
-          plan: AppSubscriptionLineItemPlan(pricing_details: updated_pricing),
-        )
-      let #(_, store_after_li) =
-        store.stage_app_subscription_line_item(store, updated_line_item)
-      let payload =
-        project_subscription_payload(
-          store_after_li,
-          Some(sub),
-          Some(confirmation_url(origin, "RecurringApplicationCharge", sub.id)),
-          [],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft(
-          "appSubscriptionLineItemUpdate",
-          [updated_line_item.id],
-          store.Staged,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [updated_line_item.id],
-          log_drafts: [draft],
-        ),
-        store_after_li,
+    }
+    _, _ ->
+      line_item_update_failed(
+        key,
+        draft_store,
         identity,
+        field,
+        fragments,
+        UserError(
+          field: ["id"],
+          message: "Subscription line item not found",
+          code: None,
+        ),
+      )
+  }
+}
+
+fn line_item_update_failed(
+  key: String,
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_error: UserError,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload =
+    project_subscription_payload(
+      draft_store,
+      None,
+      None,
+      [user_error],
+      field,
+      fragments,
+    )
+  let draft = make_log_draft("appSubscriptionLineItemUpdate", [], store.Failed)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [],
+      log_drafts: [draft],
+    ),
+    draft_store,
+    identity,
+  )
+}
+
+fn valid_app_subscription_line_item_gid(id: String) -> Bool {
+  let prefix = "gid://shopify/AppSubscriptionLineItem/"
+  case string.starts_with(id, prefix) {
+    False -> False
+    True -> {
+      let tail = string.drop_start(id, string.length(prefix))
+      let resource_id = case string.split_once(tail, "?") {
+        Ok(#(head, _)) -> head
+        Error(_) -> tail
+      }
+      string.length(resource_id) > 0 && !string.contains(resource_id, "/")
+    }
+  }
+}
+
+fn decimal_amount_greater_than(left: String, right: String) -> Bool {
+  case parse_decimal_amount(left), parse_decimal_amount(right) {
+    Some(left), Some(right) -> compare_decimal_amounts(left, right) == order.Gt
+    _, _ -> False
+  }
+}
+
+fn parse_decimal_amount(value: String) -> Option(DecimalAmount) {
+  let trimmed = string.trim(value)
+  let #(sign, unsigned) = case string.starts_with(trimmed, "-") {
+    True -> #(-1, string.drop_start(trimmed, 1))
+    False ->
+      case string.starts_with(trimmed, "+") {
+        True -> #(1, string.drop_start(trimmed, 1))
+        False -> #(1, trimmed)
+      }
+  }
+  let #(whole_raw, fraction) = case string.split_once(unsigned, ".") {
+    Ok(#(whole, fraction)) -> #(whole, fraction)
+    Error(_) -> #(unsigned, "")
+  }
+  let whole = case whole_raw {
+    "" -> "0"
+    _ -> whole_raw
+  }
+  case
+    string.length(unsigned) > 0
+    && all_decimal_digits(whole)
+    && all_decimal_digits(fraction)
+  {
+    True ->
+      Some(DecimalAmount(
+        sign: sign,
+        whole: normalize_decimal_whole(whole),
+        fraction: fraction,
+      ))
+    False -> None
+  }
+}
+
+fn all_decimal_digits(value: String) -> Bool {
+  list.all(string.to_graphemes(value), is_decimal_digit)
+}
+
+fn is_decimal_digit(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    _ -> False
+  }
+}
+
+fn normalize_decimal_whole(value: String) -> String {
+  do_normalize_decimal_whole(string.to_graphemes(value))
+}
+
+fn do_normalize_decimal_whole(graphemes: List(String)) -> String {
+  case graphemes {
+    ["0", ..rest] -> do_normalize_decimal_whole(rest)
+    [] -> "0"
+    _ -> string.join(graphemes, "")
+  }
+}
+
+fn compare_decimal_amounts(
+  left: DecimalAmount,
+  right: DecimalAmount,
+) -> order.Order {
+  case int.compare(left.sign, right.sign) {
+    order.Eq ->
+      case left.sign {
+        -1 -> invert_order(compare_unsigned_decimal_amounts(left, right))
+        _ -> compare_unsigned_decimal_amounts(left, right)
+      }
+    other -> other
+  }
+}
+
+fn compare_unsigned_decimal_amounts(
+  left: DecimalAmount,
+  right: DecimalAmount,
+) -> order.Order {
+  case int.compare(string.length(left.whole), string.length(right.whole)) {
+    order.Eq -> {
+      let scale =
+        int.max(string.length(left.fraction), string.length(right.fraction))
+      string.compare(
+        left.whole <> right_pad_fraction(left.fraction, scale),
+        right.whole <> right_pad_fraction(right.fraction, scale),
       )
     }
-    _, _ -> {
-      let payload =
-        project_subscription_payload(
-          store,
-          None,
-          None,
-          [
-            UserError(
-              field: ["id"],
-              message: "Subscription line item not found",
-              code: None,
-            ),
-          ],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft("appSubscriptionLineItemUpdate", [], store.Failed)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-          log_drafts: [draft],
-        ),
-        store,
-        identity,
-      )
-    }
+    other -> other
+  }
+}
+
+fn right_pad_fraction(value: String, scale: Int) -> String {
+  case string.length(value) >= scale {
+    True -> value
+    False -> right_pad_fraction(value <> "0", scale)
+  }
+}
+
+fn invert_order(value: order.Order) -> order.Order {
+  case value {
+    order.Lt -> order.Gt
+    order.Eq -> order.Eq
+    order.Gt -> order.Lt
   }
 }
 
@@ -1746,25 +2356,15 @@ fn handle_trial_extend(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let subscription_id = graphql_helpers.read_arg_string(args, "id")
-  let days = option.unwrap(graphql_helpers.read_arg_int(args, "days"), 0)
-  let subscription = case subscription_id {
-    Some(id) -> store.get_effective_app_subscription_by_id(store, id)
-    None -> None
-  }
-  case subscription {
-    None -> {
+  let days = graphql_helpers.read_arg_int(args, "days")
+  case validate_trial_extend_days(days) {
+    Error(user_error) -> {
       let payload =
         project_subscription_payload(
           store,
           None,
           None,
-          [
-            UserError(
-              field: ["id"],
-              message: "Subscription not found",
-              code: None,
-            ),
-          ],
+          [user_error],
           field,
           fragments,
         )
@@ -1780,36 +2380,161 @@ fn handle_trial_extend(
         identity,
       )
     }
-    Some(sub) -> {
-      let extended_days = option.unwrap(sub.trial_days, 0) + days
-      let extended =
-        AppSubscriptionRecord(..sub, trial_days: Some(extended_days))
-      let #(_, store_after) = store.stage_app_subscription(store, extended)
-      let payload =
-        project_subscription_payload(
-          store_after,
-          Some(extended),
-          None,
-          [],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft(
-          "appSubscriptionTrialExtend",
-          [extended.id],
-          store.Staged,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [extended.id],
-          log_drafts: [draft],
-        ),
-        store_after,
-        identity,
-      )
+    Ok(valid_days) -> {
+      let subscription = case subscription_id {
+        Some(id) -> store.get_effective_app_subscription_by_id(store, id)
+        None -> None
+      }
+      case subscription {
+        None -> {
+          let payload =
+            project_subscription_payload(
+              store,
+              None,
+              None,
+              [
+                UserError(
+                  field: ["id"],
+                  message: "The app subscription wasn't found.",
+                  code: Some("SUBSCRIPTION_NOT_FOUND"),
+                ),
+              ],
+              field,
+              fragments,
+            )
+          let draft =
+            make_log_draft("appSubscriptionTrialExtend", [], store.Failed)
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+              log_drafts: [draft],
+            ),
+            store,
+            identity,
+          )
+        }
+        Some(sub) -> {
+          case validate_trial_extend_subscription(sub) {
+            Error(user_error) -> {
+              let payload =
+                project_subscription_payload(
+                  store,
+                  None,
+                  None,
+                  [user_error],
+                  field,
+                  fragments,
+                )
+              let draft =
+                make_log_draft("appSubscriptionTrialExtend", [], store.Failed)
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [],
+                  log_drafts: [draft],
+                ),
+                store,
+                identity,
+              )
+            }
+            Ok(Nil) -> {
+              let extended_days = option.unwrap(sub.trial_days, 0) + valid_days
+              let extended =
+                AppSubscriptionRecord(..sub, trial_days: Some(extended_days))
+              let #(_, store_after) =
+                store.stage_app_subscription(store, extended)
+              let payload =
+                project_subscription_payload(
+                  store_after,
+                  Some(extended),
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              let draft =
+                make_log_draft(
+                  "appSubscriptionTrialExtend",
+                  [extended.id],
+                  store.Staged,
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [extended.id],
+                  log_drafts: [draft],
+                ),
+                store_after,
+                identity,
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn validate_trial_extend_days(days: Option(Int)) -> Result(Int, UserError) {
+  case days {
+    Some(value) if value > 0 && value <= 1000 -> Ok(value)
+    Some(value) if value <= 0 ->
+      Error(UserError(
+        field: ["days"],
+        message: "Days must be greater than 0",
+        code: None,
+      ))
+    _ ->
+      Error(UserError(
+        field: ["days"],
+        message: "Days must be less than or equal to 1000",
+        code: None,
+      ))
+  }
+}
+
+fn validate_trial_extend_subscription(
+  subscription: AppSubscriptionRecord,
+) -> Result(Nil, UserError) {
+  case subscription.status {
+    "ACTIVE" -> {
+      case trial_has_expired(subscription) {
+        True ->
+          Error(UserError(
+            field: ["id"],
+            message: "The trial can't be extended after expiration.",
+            code: Some("TRIAL_NOT_ACTIVE"),
+          ))
+        False -> Ok(Nil)
+      }
+    }
+    _ ->
+      Error(UserError(
+        field: ["id"],
+        message: "The trial can't be extended on inactive app subscriptions.",
+        code: Some("SUBSCRIPTION_NOT_ACTIVE"),
+      ))
+  }
+}
+
+fn trial_has_expired(subscription: AppSubscriptionRecord) -> Bool {
+  case subscription.current_period_end {
+    None -> False
+    Some(current_period_end) -> {
+      let trial_days = option.unwrap(subscription.trial_days, 0)
+      case iso_timestamp.parse_iso(current_period_end) {
+        Error(_) -> False
+        Ok(period_end_ms) -> {
+          case iso_timestamp.parse_iso(iso_timestamp.now_iso()) {
+            Error(_) -> False
+            Ok(now_ms) -> now_ms > period_end_ms + trial_days * 86_400_000
+          }
+        }
+      }
     }
   }
 }
@@ -1833,74 +2558,252 @@ fn handle_usage_record_create(
   }
   case line_item {
     None -> {
-      let payload =
-        project_usage_record_payload(
-          store,
-          None,
-          [
-            UserError(
-              field: ["subscriptionLineItemId"],
-              message: "Subscription line item not found",
-              code: None,
-            ),
-          ],
-          field,
-          fragments,
-        )
-      let draft = make_log_draft("appUsageRecordCreate", [], store.Failed)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-          log_drafts: [draft],
+      usage_record_create_failure(key, store, identity, field, fragments, [
+        UserError(
+          field: ["subscriptionLineItemId"],
+          message: "Subscription line item not found",
+          code: None,
         ),
-        store,
-        identity,
-      )
+      ])
     }
     Some(li) -> {
-      let #(record_gid, identity_after_id) =
-        synthetic_identity.make_synthetic_gid(identity, "AppUsageRecord")
-      let #(timestamp, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let record =
-        AppUsageRecord(
-          id: record_gid,
-          subscription_line_item_id: li.id,
-          description: option.unwrap(
-            graphql_helpers.read_arg_string(args, "description"),
-            "",
-          ),
-          price: read_money_input(args, "price"),
-          created_at: timestamp,
-          idempotency_key: graphql_helpers.read_arg_string(
-            args,
-            "idempotencyKey",
-          ),
-        )
-      let #(_, store_after) = store.stage_app_usage_record(store, record)
-      let payload =
-        project_usage_record_payload(
-          store_after,
-          Some(record),
-          [],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft("appUsageRecordCreate", [record.id], store.Staged)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [record.id],
-          log_drafts: [draft],
-        ),
-        store_after,
-        identity_after_ts,
-      )
+      let idempotency_key =
+        graphql_helpers.read_arg_string(args, "idempotencyKey")
+      case idempotency_key_too_long(idempotency_key) {
+        True ->
+          usage_record_create_failure(key, store, identity, field, fragments, [
+            UserError(
+              field: ["idempotencyKey"],
+              message: "Idempotency key must be at most 255 characters",
+              code: None,
+            ),
+          ])
+        False ->
+          case li.plan.pricing_details {
+            AppRecurringPricing(..) ->
+              usage_record_create_failure(
+                key,
+                store,
+                identity,
+                field,
+                fragments,
+                [
+                  UserError(
+                    field: ["subscriptionLineItemId"],
+                    message: "Subscription line item must use usage pricing",
+                    code: None,
+                  ),
+                ],
+              )
+            AppUsagePricing(
+              capped_amount: capped,
+              balance_used: balance,
+              interval: interval,
+              terms: terms,
+            ) -> {
+              case
+                find_usage_record_by_idempotency_key(
+                  store,
+                  li.id,
+                  idempotency_key,
+                )
+              {
+                Some(record) -> {
+                  let payload =
+                    project_usage_record_payload(
+                      store,
+                      Some(record),
+                      [],
+                      field,
+                      fragments,
+                    )
+                  let draft =
+                    make_log_draft(
+                      "appUsageRecordCreate",
+                      [record.id],
+                      store.Staged,
+                    )
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: payload,
+                      staged_resource_ids: [record.id],
+                      log_drafts: [draft],
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+                None -> {
+                  let price = read_money_input(args, "price")
+                  case price.currency_code == capped.currency_code {
+                    False ->
+                      usage_record_create_failure(
+                        key,
+                        store,
+                        identity,
+                        field,
+                        fragments,
+                        [
+                          UserError(
+                            field: ["price", "currencyCode"],
+                            message: "Currency code must match capped amount currency",
+                            code: None,
+                          ),
+                        ],
+                      )
+                    True -> {
+                      let proposed_balance = money_add(balance, price)
+                      case money_amount_greater_than(proposed_balance, capped) {
+                        True ->
+                          usage_record_create_failure(
+                            key,
+                            store,
+                            identity,
+                            field,
+                            fragments,
+                            [
+                              UserError(
+                                field: [],
+                                message: "Total price exceeds balance remaining",
+                                code: None,
+                              ),
+                            ],
+                          )
+                        False -> {
+                          let updated_pricing =
+                            AppUsagePricing(
+                              capped_amount: capped,
+                              balance_used: proposed_balance,
+                              interval: interval,
+                              terms: terms,
+                            )
+                          let updated_line_item =
+                            AppSubscriptionLineItemRecord(
+                              ..li,
+                              plan: AppSubscriptionLineItemPlan(
+                                pricing_details: updated_pricing,
+                              ),
+                            )
+                          let #(_, store_after_balance) =
+                            store.stage_app_subscription_line_item(
+                              store,
+                              updated_line_item,
+                            )
+                          let #(record_gid, identity_after_id) =
+                            synthetic_identity.make_synthetic_gid(
+                              identity,
+                              "AppUsageRecord",
+                            )
+                          let #(timestamp, identity_after_ts) =
+                            synthetic_identity.make_synthetic_timestamp(
+                              identity_after_id,
+                            )
+                          let record =
+                            AppUsageRecord(
+                              id: record_gid,
+                              subscription_line_item_id: li.id,
+                              description: option.unwrap(
+                                graphql_helpers.read_arg_string(
+                                  args,
+                                  "description",
+                                ),
+                                "",
+                              ),
+                              price: price,
+                              created_at: timestamp,
+                              idempotency_key: idempotency_key,
+                            )
+                          let #(_, store_after) =
+                            store.stage_app_usage_record(
+                              store_after_balance,
+                              record,
+                            )
+                          let payload =
+                            project_usage_record_payload(
+                              store_after,
+                              Some(record),
+                              [],
+                              field,
+                              fragments,
+                            )
+                          let draft =
+                            make_log_draft(
+                              "appUsageRecordCreate",
+                              [record.id],
+                              store.Staged,
+                            )
+                          #(
+                            MutationFieldResult(
+                              key: key,
+                              payload: payload,
+                              staged_resource_ids: [record.id],
+                              log_drafts: [draft],
+                            ),
+                            store_after,
+                            identity_after_ts,
+                          )
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+      }
     }
+  }
+}
+
+fn usage_record_create_failure(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_errors: List(UserError),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload =
+    project_usage_record_payload(store, None, user_errors, field, fragments)
+  let draft = make_log_draft("appUsageRecordCreate", [], store.Failed)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [],
+      log_drafts: [draft],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn idempotency_key_too_long(key: Option(String)) -> Bool {
+  case key {
+    Some(key) -> string.length(key) > 255
+    None -> False
+  }
+}
+
+fn find_usage_record_by_idempotency_key(
+  store: Store,
+  line_item_id: String,
+  key: Option(String),
+) -> Option(AppUsageRecord) {
+  case key {
+    None -> None
+    Some(key) ->
+      case
+        store.list_effective_app_usage_records_for_line_item(
+          store,
+          line_item_id,
+        )
+        |> list.find(fn(record) { record.idempotency_key == Some(key) })
+      {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
   }
 }
 
@@ -1933,7 +2836,9 @@ fn ensure_current_installation(
             <> option.unwrap(app.handle, "shopify-draft-proxy"),
           ),
           uninstall_url: None,
-          access_scopes: app.requested_access_scopes,
+          access_scopes: list.append(app.requested_access_scopes, [
+            AccessScopeRecord(handle: "write_products", description: None),
+          ]),
           active_subscription_ids: [],
           all_subscription_ids: [],
           one_time_purchase_ids: [],
@@ -1962,7 +2867,6 @@ fn default_app(
       previously_installed: Some(False),
       requested_access_scopes: [
         AccessScopeRecord(handle: "read_products", description: None),
-        AccessScopeRecord(handle: "write_products", description: None),
       ],
     )
   #(app, identity_after)
@@ -2032,6 +2936,202 @@ fn read_money_input(
   }
 }
 
+fn purchase_create_validation_errors(
+  args: Dict(String, root_field.ResolvedValue),
+  name: Option(String),
+  price: Money,
+  billing_currency: String,
+) -> List(UserError) {
+  let name_errors = case name {
+    Some(raw) ->
+      case string.trim(raw) {
+        "" -> blank_purchase_name_error()
+        _ -> []
+      }
+    _ -> [
+      UserError(field: ["name"], message: "Name can't be blank", code: None),
+    ]
+  }
+  let return_url_errors =
+    purchase_return_url_errors(graphql_helpers.read_arg_string(
+      args,
+      "returnUrl",
+    ))
+  let price_errors = purchase_price_errors(price, billing_currency)
+  list.append(name_errors, return_url_errors) |> list.append(price_errors)
+}
+
+fn blank_purchase_name_error() -> List(UserError) {
+  [
+    UserError(field: ["name"], message: "Name can't be blank", code: None),
+  ]
+}
+
+fn purchase_return_url_errors(return_url: Option(String)) -> List(UserError) {
+  case return_url {
+    Some(raw) -> {
+      let trimmed = string.trim(raw)
+      case
+        trimmed != ""
+        && {
+          string.starts_with(trimmed, "https://")
+          || string.starts_with(trimmed, "http://")
+        }
+      {
+        True -> []
+        False -> [
+          UserError(
+            field: ["returnUrl"],
+            message: "Return URL must be a valid URL.",
+            code: None,
+          ),
+        ]
+      }
+    }
+    None -> [
+      UserError(
+        field: ["returnUrl"],
+        message: "Return URL is required.",
+        code: None,
+      ),
+    ]
+  }
+}
+
+fn purchase_price_errors(
+  price: Money,
+  billing_currency: String,
+) -> List(UserError) {
+  let amount = parse_money_amount(price.amount)
+  let amount_errors = case amount <. minimum_one_time_purchase_amount {
+    True -> [
+      UserError(
+        field: ["price"],
+        message: price_too_low_message(billing_currency),
+        code: Some("PRICE_TOO_LOW"),
+      ),
+    ]
+    False -> []
+  }
+  let currency_errors = case
+    normalize_currency(price.currency_code)
+    == normalize_currency(billing_currency)
+  {
+    True -> []
+    False -> [
+      UserError(
+        field: ["price"],
+        message: "Price currency must match shop billing currency "
+          <> billing_currency
+          <> ".",
+        code: None,
+      ),
+    ]
+  }
+  list.append(amount_errors, currency_errors)
+}
+
+fn price_too_low_message(currency_code: String) -> String {
+  "Price must be at least "
+  <> minimum_one_time_purchase_amount_label
+  <> " "
+  <> currency_code
+  <> "."
+}
+
+fn parse_money_amount(raw: String) -> Float {
+  let trimmed = string.trim(raw)
+  case float.parse(trimmed) {
+    Ok(value) -> value
+    Error(_) ->
+      case int.parse(trimmed) {
+        Ok(value) -> int.to_float(value)
+        Error(_) -> 0.0
+      }
+  }
+}
+
+fn shop_billing_currency(store: Store) -> String {
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      case string.trim(shop.currency_code) {
+        "" -> default_billing_currency
+        code -> normalize_currency(code)
+      }
+    None -> default_billing_currency
+  }
+}
+
+fn normalize_currency(code: String) -> String {
+  string.uppercase(string.trim(code))
+}
+
+fn money_add(left: Money, right: Money) -> Money {
+  let scale = int.max(decimal_scale(left.amount), decimal_scale(right.amount))
+  let amount =
+    decimal_format(
+      decimal_to_scaled(left.amount, scale)
+        + decimal_to_scaled(right.amount, scale),
+      scale,
+    )
+  Money(amount: amount, currency_code: left.currency_code)
+}
+
+fn money_amount_greater_than(left: Money, right: Money) -> Bool {
+  let scale = int.max(decimal_scale(left.amount), decimal_scale(right.amount))
+  decimal_to_scaled(left.amount, scale) > decimal_to_scaled(right.amount, scale)
+}
+
+fn decimal_scale(amount: String) -> Int {
+  case string.split_once(string.trim(amount), ".") {
+    Ok(#(_, fractional)) -> string.length(fractional)
+    Error(_) -> 0
+  }
+}
+
+fn decimal_to_scaled(amount: String, scale: Int) -> Int {
+  let trimmed = string.trim(amount)
+  let #(whole, fractional) = case string.split_once(trimmed, ".") {
+    Ok(parts) -> parts
+    Error(_) -> #(trimmed, "")
+  }
+  let whole_value = int.parse(whole) |> result.unwrap(0)
+  let fractional_value = case scale {
+    0 -> 0
+    _ ->
+      fractional
+      |> string.pad_end(to: scale, with: "0")
+      |> string.slice(at_index: 0, length: scale)
+      |> int.parse
+      |> result.unwrap(0)
+  }
+  whole_value * decimal_multiplier(scale) + fractional_value
+}
+
+fn decimal_format(value: Int, scale: Int) -> String {
+  case scale {
+    0 -> int.to_string(value)
+    _ -> {
+      let multiplier = decimal_multiplier(scale)
+      let whole = int.divide(value, by: multiplier) |> result.unwrap(0)
+      let fractional =
+        int.remainder(value, by: multiplier)
+        |> result.unwrap(0)
+        |> int.absolute_value
+      int.to_string(whole)
+      <> "."
+      <> string.pad_start(int.to_string(fractional), to: scale, with: "0")
+    }
+  }
+}
+
+fn decimal_multiplier(scale: Int) -> Int {
+  case scale <= 0 {
+    True -> 1
+    False -> 10 * decimal_multiplier(scale - 1)
+  }
+}
+
 fn read_line_item_plan(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
@@ -2093,6 +3193,55 @@ fn read_line_item_plan(
       plan: AppSubscriptionLineItemPlan(pricing_details: pricing),
     )
   #(record, identity_after)
+}
+
+fn compute_current_period_end(
+  activated_at: String,
+  line_items: List(AppSubscriptionLineItemRecord),
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  let trial_days =
+    graphql_helpers.read_arg_int(args, "trialDays")
+    |> option.unwrap(0)
+  let interval = subscription_interval(line_items)
+  case iso_timestamp.parse_iso(activated_at) {
+    Ok(ms) ->
+      Some(iso_timestamp.format_iso(
+        ms + days_to_ms(interval_days(interval) + trial_days),
+      ))
+    Error(_) -> None
+  }
+}
+
+fn subscription_interval(
+  line_items: List(AppSubscriptionLineItemRecord),
+) -> String {
+  case line_items {
+    [first, ..] ->
+      case first.plan.pricing_details {
+        AppRecurringPricing(interval: interval, ..) -> interval
+        AppUsagePricing(interval: interval, ..) -> interval
+      }
+    [] -> "EVERY_30_DAYS"
+  }
+}
+
+fn interval_days(interval: String) -> Int {
+  case interval {
+    "ANNUAL" -> 365
+    _ -> 30
+  }
+}
+
+fn days_to_ms(days: Int) -> Int {
+  days * 24 * 60 * 60 * 1000
+}
+
+fn append_unique(values: List(String), value: String) -> List(String) {
+  case list.contains(values, value) {
+    True -> values
+    False -> list.append(values, [value])
+  }
 }
 
 fn make_log_draft(

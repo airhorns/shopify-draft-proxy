@@ -1,0 +1,31 @@
+{
+  "scenarioId": "online-store/script-tag-create-validates-src",
+  "operationNames": ["scriptTagCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "payload-shape",
+    "side-effect-boundary",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/online-store/script-tag-create-validates-src.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/script-tag-create-validates-src.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "script-tag-create-src-validation-user-errors",
+        "capturePath": "$.expected.primary.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "HAR-577 covers the Core ScriptTag model validation behavior specified by the ticket for blank, oversize, and non-http(s) src inputs. A live probe on 2026-04 showed Admin URL scalar coercion rejects blank and non-URL inline literals before scriptTagCreate reaches model validation, so this executable parity scenario is local-runtime-backed and compares the required coded userError shape without staging local state."
+}

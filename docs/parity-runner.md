@@ -35,6 +35,21 @@ There is **no per-domain "hydrate from upstream" pass** and no uniform
 its own, whether it needs an upstream read and what to do with the
 result. See _Per-operation upstream access_ below.
 
+### Apps billing test-charge activation
+
+Real Shopify app billing charges remain pending until the merchant opens
+the billing confirmation URL. For local parity and agent flows, the apps
+handler treats `appSubscriptionCreate(test: true)` and
+`appPurchaseOneTimeCreate(test: true)` as accepted test charges and stages
+them with `status: "ACTIVE"` immediately. This does not write to upstream;
+the synthetic confirmation URL is still returned for shape fidelity.
+
+Activated test subscriptions are added to
+`AppInstallation.activeSubscriptions` and receive a deterministic
+`currentPeriodEnd` from the activation timestamp plus the line item's
+billing interval and `trialDays`. The executable local-runtime proof is
+`config/parity-specs/apps/app-subscription-activation-readback.json`.
+
 ## Spec shape
 
 ```jsonc
@@ -54,6 +69,24 @@ result. See _Per-operation upstream access_ below.
 
 `comparison.mode` is the comparison contract for the target payloads. It
 is distinct from proxy runtime read mode, which the runner owns.
+
+`proxyRequest.localSetups` is legacy narrow support for existing high-volume
+validation scenarios such as segment-count caps. Do not add new setup kinds or
+use local setup to create domain lifecycle preconditions for a parity
+comparison. New parity coverage should drive normal proxy requests and recorded
+upstream cassettes; if that cannot create the required precondition, keep the
+gap in Linear instead of injecting proxy state in the runner. This hook is not a
+replacement for cassette playback, and it must not reintroduce `seedX` keys in
+capture files.
+
+```jsonc
+{
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-create-limit-validation.graphql",
+    "localSetups": [{ "kind": "seedSegments", "count": 6000 }],
+  },
+}
+```
 
 ## Cassette shape
 

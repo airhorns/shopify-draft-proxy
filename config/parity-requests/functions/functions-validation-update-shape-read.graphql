@@ -1,0 +1,14 @@
+query ValidationsConnection {
+  validations(first: 20) {
+    nodes {
+      id
+      metafields(first: 5) {
+        nodes {
+          namespace
+          key
+          value
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,621 @@
+{
+  "capturedAt": "2026-05-05T18:03:07.751Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "seed": {
+    "type": "codex_har_675_delete_cascade_1778004171130",
+    "firstHandle": "codex-har-675-cascade-first-1778004171130",
+    "secondHandle": "codex-har-675-cascade-second-1778004171130",
+    "definitionId": "gid://shopify/MetaobjectDefinition/17869963570",
+    "firstId": "gid://shopify/Metaobject/188115714354",
+    "secondId": "gid://shopify/Metaobject/188115747122"
+  },
+  "setup": [
+    {
+      "name": "setup-definition-create",
+      "request": {
+        "query": "mutation MetaobjectDefinitionLifecycleCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "type": "codex_har_675_delete_cascade_1778004171130",
+            "name": "Codex HAR-675 Cascade 1778004171130",
+            "description": "Temporary HAR-675 conformance definition for definition-delete cascade capture.",
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Display title.",
+                "type": "single_line_text_field",
+                "required": true
+              },
+              {
+                "key": "body",
+                "name": "Body",
+                "description": "Body text.",
+                "type": "multi_line_text_field",
+                "required": false
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionCreate": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17869963570",
+              "type": "codex_har_675_delete_cascade_1778004171130",
+              "name": "Codex HAR-675 Cascade 1778004171130",
+              "description": "Temporary HAR-675 conformance definition for definition-delete cascade capture.",
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": false
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "description": "Display title.",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "body",
+                  "name": "Body",
+                  "description": "Body text.",
+                  "required": false,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                }
+              ],
+              "metaobjectsCount": 0,
+              "standardTemplate": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-first-entry-create",
+      "request": {
+        "query": "fragment MetaobjectDefinitionDeleteCascadeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectDefinitionDeleteCascadeEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectDefinitionDeleteCascadeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_675_delete_cascade_1778004171130",
+            "handle": "codex-har-675-cascade-first-1778004171130",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Cascade delete first"
+              },
+              {
+                "key": "body",
+                "value": "First entry selected by definition delete cascade."
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188115714354",
+              "handle": "codex-har-675-cascade-first-1778004171130",
+              "type": "codex_har_675_delete_cascade_1778004171130",
+              "displayName": "Cascade delete first",
+              "updatedAt": "2026-05-05T18:02:51Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Cascade delete first",
+                  "jsonValue": "Cascade delete first",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "First entry selected by definition delete cascade.",
+                  "jsonValue": "First entry selected by definition delete cascade.",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "titleField": {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Cascade delete first",
+                "jsonValue": "Cascade delete first",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 19,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "setup-second-entry-create",
+      "request": {
+        "query": "fragment MetaobjectDefinitionDeleteCascadeEntryFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nmutation MetaobjectDefinitionDeleteCascadeEntryCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      ...MetaobjectDefinitionDeleteCascadeEntryFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har_675_delete_cascade_1778004171130",
+            "handle": "codex-har-675-cascade-second-1778004171130",
+            "fields": [
+              {
+                "key": "title",
+                "value": "Cascade delete second"
+              },
+              {
+                "key": "body",
+                "value": "Second entry selected by definition delete cascade."
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188115747122",
+              "handle": "codex-har-675-cascade-second-1778004171130",
+              "type": "codex_har_675_delete_cascade_1778004171130",
+              "displayName": "Cascade delete second",
+              "updatedAt": "2026-05-05T18:02:51Z",
+              "capabilities": {
+                "publishable": null,
+                "onlineStore": null
+              },
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": "Cascade delete second",
+                  "jsonValue": "Cascade delete second",
+                  "definition": {
+                    "key": "title",
+                    "name": "Title",
+                    "required": true,
+                    "type": {
+                      "name": "single_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                },
+                {
+                  "key": "body",
+                  "type": "multi_line_text_field",
+                  "value": "Second entry selected by definition delete cascade.",
+                  "jsonValue": "Second entry selected by definition delete cascade.",
+                  "definition": {
+                    "key": "body",
+                    "name": "Body",
+                    "required": false,
+                    "type": {
+                      "name": "multi_line_text_field",
+                      "category": "TEXT"
+                    }
+                  }
+                }
+              ],
+              "titleField": {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "Cascade delete second",
+                "jsonValue": "Cascade delete second",
+                "definition": {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 19,
+            "actualQueryCost": 19,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "hydrate": [
+    {
+      "name": "hydrate-definition-by-type-before-create",
+      "request": {
+        "query": "#graphql\n  query MetaobjectDefinitionHydrateByType($type: String!) {\n    metaobjectDefinitionByType(type: $type) {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n  }\n",
+        "variables": {
+          "type": "codex_har_675_delete_cascade_1778004171130"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionByType": null
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cascadeDelete": [
+    {
+      "name": "definition-delete-cascade",
+      "request": {
+        "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17869963570"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17869963570",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "downstreamReads": [
+    {
+      "name": "downstream-after-definition-delete-read",
+      "request": {
+        "query": "fragment MetaobjectDefinitionDeleteCascadeDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nfragment MetaobjectDefinitionDeleteCascadeEntryReadFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectDefinitionDeleteCascadeRead(\n  $definitionId: ID!\n  $type: String!\n  $firstId: ID!\n  $secondId: ID!\n  $firstHandle: MetaobjectHandleInput!\n  $secondHandle: MetaobjectHandleInput!\n) {\n  definition: metaobjectDefinition(id: $definitionId) {\n    ...MetaobjectDefinitionDeleteCascadeDefinitionFields\n  }\n  byType: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionDeleteCascadeDefinitionFields\n  }\n  first: metaobject(id: $firstId) {\n    ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n  }\n  second: metaobject(id: $secondId) {\n    ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n  }\n  firstByHandle: metaobjectByHandle(handle: $firstHandle) {\n    ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n  }\n  secondByHandle: metaobjectByHandle(handle: $secondHandle) {\n    ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n  }\n  catalog: metaobjects(type: $type, first: 10) {\n    edges {\n      cursor\n      node {\n        ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n      }\n    }\n    nodes {\n      ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "definitionId": "gid://shopify/MetaobjectDefinition/17869963570",
+          "type": "codex_har_675_delete_cascade_1778004171130",
+          "firstId": "gid://shopify/Metaobject/188115714354",
+          "secondId": "gid://shopify/Metaobject/188115747122",
+          "firstHandle": {
+            "type": "codex_har_675_delete_cascade_1778004171130",
+            "handle": "codex-har-675-cascade-first-1778004171130"
+          },
+          "secondHandle": {
+            "type": "codex_har_675_delete_cascade_1778004171130",
+            "handle": "codex-har-675-cascade-second-1778004171130"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "definition": null,
+          "byType": null,
+          "first": null,
+          "second": null,
+          "firstByHandle": null,
+          "secondByHandle": null,
+          "catalog": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 144,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "eventualReads": [
+    {
+      "name": "eventual-after-definition-delete-read",
+      "request": {
+        "query": "fragment MetaobjectDefinitionDeleteCascadeDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n}\n\nfragment MetaobjectDefinitionDeleteCascadeEntryReadFields on Metaobject {\n  id\n  handle\n  type\n  displayName\n  updatedAt\n  capabilities {\n    publishable {\n      status\n    }\n    onlineStore {\n      templateSuffix\n    }\n  }\n  fields {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n  titleField: field(key: \"title\") {\n    key\n    type\n    value\n    jsonValue\n    definition {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n  }\n}\n\nquery MetaobjectDefinitionDeleteCascadeRead(\n  $definitionId: ID!\n  $type: String!\n  $firstId: ID!\n  $secondId: ID!\n  $firstHandle: MetaobjectHandleInput!\n  $secondHandle: MetaobjectHandleInput!\n) {\n  definition: metaobjectDefinition(id: $definitionId) {\n    ...MetaobjectDefinitionDeleteCascadeDefinitionFields\n  }\n  byType: metaobjectDefinitionByType(type: $type) {\n    ...MetaobjectDefinitionDeleteCascadeDefinitionFields\n  }\n  first: metaobject(id: $firstId) {\n    ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n  }\n  second: metaobject(id: $secondId) {\n    ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n  }\n  firstByHandle: metaobjectByHandle(handle: $firstHandle) {\n    ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n  }\n  secondByHandle: metaobjectByHandle(handle: $secondHandle) {\n    ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n  }\n  catalog: metaobjects(type: $type, first: 10) {\n    edges {\n      cursor\n      node {\n        ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n      }\n    }\n    nodes {\n      ...MetaobjectDefinitionDeleteCascadeEntryReadFields\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n      startCursor\n      endCursor\n    }\n  }\n}\n",
+        "variables": {
+          "definitionId": "gid://shopify/MetaobjectDefinition/17869963570",
+          "type": "codex_har_675_delete_cascade_1778004171130",
+          "firstId": "gid://shopify/Metaobject/188115714354",
+          "secondId": "gid://shopify/Metaobject/188115747122",
+          "firstHandle": {
+            "type": "codex_har_675_delete_cascade_1778004171130",
+            "handle": "codex-har-675-cascade-first-1778004171130"
+          },
+          "secondHandle": {
+            "type": "codex_har_675_delete_cascade_1778004171130",
+            "handle": "codex-har-675-cascade-second-1778004171130"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "definition": null,
+          "byType": null,
+          "first": null,
+          "second": null,
+          "firstByHandle": null,
+          "secondByHandle": null,
+          "catalog": {
+            "edges": [],
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 144,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionDeleteCascadeEntryCleanup($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188115714354"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectDefinitionDeleteCascadeEntryCleanup($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188115747122"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "mutation MetaobjectDefinitionLifecycleDelete($id: ID!) {\n  metaobjectDefinitionDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17869963570"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Record not found",
+                "code": "RECORD_NOT_FOUND",
+                "elementKey": null,
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "MetaobjectDefinitionHydrateByType",
+      "variables": {
+        "type": "codex_har_675_delete_cascade_1778004171130"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinitionByType": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

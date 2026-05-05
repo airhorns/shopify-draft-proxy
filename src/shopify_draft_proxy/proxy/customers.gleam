@@ -38,6 +38,7 @@ import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
 }
 import shopify_draft_proxy/search_query_parser
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -51,14 +52,14 @@ import shopify_draft_proxy/state/types.{
   type CustomerMergeRequestRecord, type CustomerMetafieldRecord,
   type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord, type Money,
-  type StoreCreditAccountRecord, type StoreCreditAccountTransactionRecord,
-  CustomerAccountPageRecord, CustomerAddressRecord,
-  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
-  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
-  CustomerEmailMarketingConsentRecord, CustomerMergeRequestRecord,
-  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
-  CustomerSmsMarketingConsentRecord, Money, StoreCreditAccountRecord,
-  StoreCreditAccountTransactionRecord,
+  type ProductMetafieldRecord, type StoreCreditAccountRecord,
+  type StoreCreditAccountTransactionRecord, CustomerAccountPageRecord,
+  CustomerAddressRecord, CustomerCatalogPageInfoRecord,
+  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
+  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
+  CustomerMergeRequestRecord, CustomerMetafieldRecord,
+  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
+  Money, StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
 }
 
 pub type CustomersError {
@@ -67,6 +68,14 @@ pub type CustomersError {
 
 type UserError {
   UserError(field: List(String), message: String, code: Option(String))
+}
+
+type StoreCreditAccountResolution {
+  StoreCreditAccountResolved(
+    account: StoreCreditAccountRecord,
+    identity: SyntheticIdentityRegistry,
+  )
+  StoreCreditAccountResolutionError(error: UserError)
 }
 
 type MutationFieldResult {
@@ -164,7 +173,8 @@ fn should_passthrough_in_live_hybrid(
     parse_operation.QueryOperation, "customerByIdentifier" -> True
     parse_operation.QueryOperation, "customer" ->
       !local_has_customer_id(proxy, variables)
-    parse_operation.QueryOperation, "customers" -> True
+    parse_operation.QueryOperation, "customers" ->
+      list.is_empty(store.list_effective_customers(proxy.store))
     _, _ -> False
   }
 }
@@ -757,8 +767,7 @@ fn address_source(address: CustomerAddressRecord) -> SourceValue {
 }
 
 fn customer_to_source(store: Store, customer: CustomerRecord) -> SourceValue {
-  let customer_metafields =
-    store.get_effective_metafields_by_customer_id(store, customer.id)
+  let customer_metafields = customer_metafields_for_source(store, customer.id)
   src_object([
     #("__typename", SrcString("Customer")),
     #("id", SrcString(customer.id)),
@@ -836,6 +845,45 @@ fn customer_to_source(store: Store, customer: CustomerRecord) -> SourceValue {
     #("createdAt", graphql_helpers.option_string_source(customer.created_at)),
     #("updatedAt", graphql_helpers.option_string_source(customer.updated_at)),
   ])
+}
+
+fn customer_metafields_for_source(
+  store: Store,
+  customer_id: String,
+) -> List(CustomerMetafieldRecord) {
+  let generic_metafields =
+    store.get_effective_metafields_by_owner_id(store, customer_id)
+    |> list.filter_map(fn(metafield) {
+      generic_customer_metafield_to_record(customer_id, metafield)
+    })
+  let generic_keys = list.map(generic_metafields, customer_metafield_key)
+  let native_metafields =
+    store.get_effective_metafields_by_customer_id(store, customer_id)
+    |> list.filter(fn(metafield) {
+      !list.contains(generic_keys, customer_metafield_key(metafield))
+    })
+  list.append(native_metafields, generic_metafields)
+}
+
+fn generic_customer_metafield_to_record(
+  customer_id: String,
+  metafield: ProductMetafieldRecord,
+) -> Result(CustomerMetafieldRecord, Nil) {
+  case metafield.type_, metafield.value {
+    Some(type_), Some(value) ->
+      Ok(CustomerMetafieldRecord(
+        id: metafield.id,
+        customer_id: customer_id,
+        namespace: metafield.namespace,
+        key: metafield.key,
+        type_: type_,
+        value: value,
+        compare_digest: metafield.compare_digest,
+        created_at: metafield.created_at,
+        updated_at: metafield.updated_at,
+      ))
+    _, _ -> Error(Nil)
+  }
 }
 
 fn connection_source(
@@ -1081,18 +1129,35 @@ fn store_credit_account_shallow_source(
   store: Store,
   account: StoreCreditAccountRecord,
 ) -> SourceValue {
-  let owner = case
-    store.get_effective_customer_by_id(store, account.customer_id)
-  {
-    Some(customer) -> customer_owner_source(customer)
-    None -> SrcNull
-  }
+  let owner = store_credit_account_owner_source(store, account.customer_id)
   src_object([
     #("__typename", SrcString("StoreCreditAccount")),
     #("id", SrcString(account.id)),
     #("balance", money_source(account.balance)),
     #("owner", owner),
   ])
+}
+
+fn store_credit_account_owner_source(
+  store: Store,
+  owner_id: String,
+) -> SourceValue {
+  case string.starts_with(owner_id, "gid://shopify/CompanyLocation/") {
+    True ->
+      case store.get_effective_b2b_company_location_by_id(store, owner_id) {
+        Some(location) ->
+          src_object([
+            #("__typename", SrcString("CompanyLocation")),
+            #("id", SrcString(location.id)),
+          ])
+        None -> SrcNull
+      }
+    False ->
+      case store.get_effective_customer_by_id(store, owner_id) {
+        Some(customer) -> customer_owner_source(customer)
+        None -> SrcNull
+      }
+  }
 }
 
 fn store_credit_accounts_connection_source(
@@ -1932,21 +1997,15 @@ fn job_source(job_id: String, status: String) -> SourceValue {
 }
 
 pub fn process_mutation(
-  proxy: DraftProxy,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
-  let store = proxy.store
-  let identity = proxy.synthetic_identity
   case root_field.get_root_fields(document) {
-    Error(err) ->
-      mutation_helpers.parse_failed_outcome(
-        proxy.store,
-        proxy.synthetic_identity,
-        err,
-      )
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       handle_mutation_fields(
@@ -1974,11 +2033,7 @@ fn handle_mutation_fields(
   upstream: UpstreamContext,
 ) -> MutationOutcome {
   case
-    first_disallowed_marketing_consent_update_state_error(
-      fields,
-      variables,
-      document,
-    )
+    first_disallowed_marketing_consent_state_error(fields, variables, document)
   {
     Some(#(root_name, error_json, include_null_data)) -> {
       let entries = case include_null_data {
@@ -2036,7 +2091,7 @@ fn handle_mutation_fields(
   }
 }
 
-fn first_disallowed_marketing_consent_update_state_error(
+fn first_disallowed_marketing_consent_state_error(
   fields: List(Selection),
   variables: Dict(String, root_field.ResolvedValue),
   document: String,
@@ -2046,57 +2101,153 @@ fn first_disallowed_marketing_consent_update_state_error(
     [field, ..rest] ->
       case field {
         Field(name: name, ..) as selected_field ->
-          case marketing_consent_input_key(name.value) {
-            Some(consent_key) -> {
-              let args = graphql_helpers.field_args(selected_field, variables)
-              let input =
-                graphql_helpers.read_arg_object(args, "input")
-                |> option.unwrap(dict.new())
-              let consent = read_nested_object(input, consent_key)
-              case read_obj_string(consent, "marketingState") {
-                Some(value) ->
-                  case is_allowed_marketing_consent_update_state(value) {
-                    True ->
-                      first_disallowed_marketing_consent_update_state_error(
-                        rest,
-                        variables,
-                        document,
-                      )
-                    False -> {
-                      let #(error_json, include_null_data) =
-                        marketing_consent_update_state_error(
-                          name.value,
-                          consent_key,
-                          value,
-                          input,
-                          selected_field,
-                          document,
-                        )
-                      Some(#(name.value, error_json, include_null_data))
-                    }
-                  }
+          case name.value {
+            "customerCreate" ->
+              case
+                customer_create_marketing_consent_state_error(
+                  selected_field,
+                  variables,
+                  document,
+                )
+              {
+                Some(error) -> Some(#("customerCreate", error, True))
                 None ->
-                  first_disallowed_marketing_consent_update_state_error(
+                  first_disallowed_marketing_consent_state_error(
                     rest,
                     variables,
                     document,
                   )
               }
-            }
-            None ->
-              first_disallowed_marketing_consent_update_state_error(
-                rest,
-                variables,
-                document,
-              )
+            _ ->
+              case marketing_consent_input_key(name.value) {
+                Some(consent_key) -> {
+                  let args =
+                    graphql_helpers.field_args(selected_field, variables)
+                  let input =
+                    graphql_helpers.read_arg_object(args, "input")
+                    |> option.unwrap(dict.new())
+                  let consent = read_nested_object(input, consent_key)
+                  case read_obj_string(consent, "marketingState") {
+                    Some(value) ->
+                      case is_allowed_marketing_consent_update_state(value) {
+                        True ->
+                          first_disallowed_marketing_consent_state_error(
+                            rest,
+                            variables,
+                            document,
+                          )
+                        False -> {
+                          let #(error_json, include_null_data) =
+                            marketing_consent_state_error(
+                              name.value,
+                              consent_key,
+                              value,
+                              input,
+                              selected_field,
+                              document,
+                            )
+                          Some(#(name.value, error_json, include_null_data))
+                        }
+                      }
+                    None ->
+                      first_disallowed_marketing_consent_state_error(
+                        rest,
+                        variables,
+                        document,
+                      )
+                  }
+                }
+                None ->
+                  first_disallowed_marketing_consent_state_error(
+                    rest,
+                    variables,
+                    document,
+                  )
+              }
           }
         _ ->
-          first_disallowed_marketing_consent_update_state_error(
+          first_disallowed_marketing_consent_state_error(
             rest,
             variables,
             document,
           )
       }
+  }
+}
+
+fn customer_create_marketing_consent_state_error(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  document: String,
+) -> Option(Json) {
+  let args = graphql_helpers.field_args(field, variables)
+  let input =
+    graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  case
+    customer_create_disallowed_consent_state(input, "emailMarketingConsent")
+  {
+    Some(#(consent_key, state)) ->
+      Some(marketing_consent_resolver_error(
+        "customerCreate",
+        consent_key,
+        state,
+        field,
+        document,
+      ))
+    None ->
+      case
+        customer_create_disallowed_consent_state(input, "smsMarketingConsent")
+      {
+        Some(#(consent_key, state)) ->
+          Some(marketing_consent_resolver_error(
+            "customerCreate",
+            consent_key,
+            state,
+            field,
+            document,
+          ))
+        None -> None
+      }
+  }
+}
+
+fn customer_create_disallowed_consent_state(
+  input: Dict(String, root_field.ResolvedValue),
+  consent_key: String,
+) -> Option(#(String, String)) {
+  let consent = read_nested_object(input, consent_key)
+  case read_obj_string(consent, "marketingState") {
+    Some(state) ->
+      case is_allowed_marketing_consent_create_state(state) {
+        True -> None
+        False -> Some(#(consent_key, state))
+      }
+    None -> None
+  }
+}
+
+fn marketing_consent_resolver_error(
+  root_name: String,
+  _consent_key: String,
+  state: String,
+  field: Selection,
+  document: String,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string("Cannot specify " <> state <> " as a marketing state input"),
+    ),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
+    #("extensions", json.object([#("code", json.string("INVALID"))])),
+    #("path", json.array([json.string(root_name)], fn(x) { x })),
+  ])
+}
+
+fn is_allowed_marketing_consent_create_state(state: String) -> Bool {
+  case state {
+    "SUBSCRIBED" | "UNSUBSCRIBED" | "PENDING" | "NOT_SUBSCRIBED" -> True
+    _ -> False
   }
 }
 
@@ -2115,7 +2266,7 @@ fn is_allowed_marketing_consent_update_state(state: String) -> Bool {
   }
 }
 
-fn marketing_consent_update_state_error(
+fn marketing_consent_state_error(
   root_name: String,
   consent_key: String,
   state: String,
@@ -2135,17 +2286,13 @@ fn marketing_consent_update_state_error(
       False,
     )
     _, _ -> #(
-      json.object([
-        #(
-          "message",
-          json.string(
-            "Cannot specify " <> state <> " as a marketing state input",
-          ),
-        ),
-        #("locations", graphql_helpers.field_locations_json(field, document)),
-        #("extensions", json.object([#("code", json.string("INVALID"))])),
-        #("path", json.array([json.string(root_name)], fn(x) { x })),
-      ]),
+      marketing_consent_resolver_error(
+        root_name,
+        consent_key,
+        state,
+        field,
+        document,
+      ),
       True,
     )
   }
@@ -3153,6 +3300,7 @@ fn customer_record_from_node(
     )),
     default_address: json_get(node, "defaultAddress")
       |> option.then(default_address_from_node),
+    account_activation_token: None,
     created_at: json_get_string(node, "createdAt"),
     updated_at: json_get_string(node, "updatedAt"),
   ))
@@ -3692,6 +3840,7 @@ fn build_created_customer(
       email_marketing_consent: make_email_consent(input),
       sms_marketing_consent: make_sms_consent(input),
       default_address: default_address,
+      account_activation_token: None,
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
     ),
@@ -3707,21 +3856,68 @@ fn validate_customer_create(
 ) -> List(UserError) {
   let email = read_obj_string(input, "email")
   let phone = read_obj_string(input, "phone")
+  let id_errors = case dict.get(input, "id") {
+    Ok(root_field.NullVal) | Error(_) -> []
+    Ok(_) -> [UserError(["id"], "Cannot specify ID on creation", None)]
+  }
+  let consent_required_errors =
+    customer_create_consent_required_errors(input, email, phone)
   let presence_errors = case email, phone {
-    None, None -> [
+    None, None ->
+      case consent_required_errors {
+        [] -> [
+          UserError(
+            field: [],
+            message: "A name, phone number, or email address must be present",
+            code: None,
+          ),
+        ]
+        _ -> []
+      }
+    _, _ -> []
+  }
+  let local_errors = validate_customer_input_fields(store, input, None)
+  list.append(
+    list.append(
+      list.append(
+        list.append(id_errors, presence_errors),
+        consent_required_errors,
+      ),
+      local_errors,
+    ),
+    validate_upstream_duplicate_customer(input, local_errors, None, upstream),
+  )
+}
+
+fn customer_create_consent_required_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  email: Option(String),
+  phone: Option(String),
+) -> List(UserError) {
+  let email_errors = case
+    has_nested_object(input, "emailMarketingConsent"),
+    email
+  {
+    True, None -> [
       UserError(
-        field: [],
-        message: "A name, phone number, or email address must be present",
+        field: ["emailMarketingConsent"],
+        message: "An email address is required to set the email marketing consent state.",
         code: None,
       ),
     ]
     _, _ -> []
   }
-  let local_errors = validate_customer_input_fields(store, input, None)
-  list.append(
-    list.append(presence_errors, local_errors),
-    validate_upstream_duplicate_customer(input, local_errors, None, upstream),
-  )
+  let sms_errors = case has_nested_object(input, "smsMarketingConsent"), phone {
+    True, None -> [
+      UserError(
+        field: ["smsMarketingConsent"],
+        message: "A phone number is required to set the SMS consent state.",
+        code: None,
+      ),
+    ]
+    _, _ -> []
+  }
+  list.append(email_errors, sms_errors)
 }
 
 fn validate_upstream_duplicate_customer(
@@ -5300,31 +5496,39 @@ fn handle_data_erasure(store, identity, field, variables, cancel) {
 fn handle_activation_url(store, identity, field, variables) {
   let args = graphql_helpers.field_args(field, variables)
   let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
-  let errors = case customer_id {
+  let #(url, errors, next_store) = case customer_id {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
-        Some(_) -> []
-        None -> [
-          UserError(
-            ["customerId"],
-            "The customer can't be found.",
-            Some("CUSTOMER_DOES_NOT_EXIST"),
-          ),
-        ]
+        Some(customer) ->
+          case customer.state {
+            Some("DISABLED") | Some("INVITED") -> {
+              let token =
+                customer.account_activation_token
+                |> option.unwrap(activation_token_for_customer(id))
+              let updated =
+                CustomerRecord(
+                  ..customer,
+                  account_activation_token: Some(token),
+                )
+              let #(_, staged_store) =
+                store.stage_update_customer(store, updated)
+              #(Some(activation_url_for_customer(id, token)), [], staged_store)
+            }
+            _ -> #(
+              None,
+              [
+                UserError(
+                  ["customerId"],
+                  "Account already enabled.",
+                  Some("account_already_enabled"),
+                ),
+              ],
+              store,
+            )
+          }
+        None -> #(None, [missing_customer_activation_error()], store)
       }
-    None -> [
-      UserError(
-        ["customerId"],
-        "The customer can't be found.",
-        Some("CUSTOMER_DOES_NOT_EXIST"),
-      ),
-    ]
-  }
-  let url = case errors, customer_id {
-    [], Some(id) ->
-      "https://shopify-draft-proxy.local/customer-account/activate?customer_id="
-      <> id
-    _, _ -> ""
+    None -> #(None, [missing_customer_activation_error()], store)
   }
   let payload = case field {
     Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
@@ -5335,7 +5539,7 @@ fn handle_activation_url(store, identity, field, variables) {
             SrcString("CustomerGenerateAccountActivationUrlPayload"),
           ),
           #("accountActivationUrl", case errors {
-            [] -> SrcString(url)
+            [] -> option.unwrap(option.map(url, SrcString), SrcNull)
             _ -> SrcNull
           }),
           #("userErrors", SrcList(list.map(errors, user_error_source))),
@@ -5355,9 +5559,38 @@ fn handle_activation_url(store, identity, field, variables) {
       },
       "customerGenerateAccountActivationUrl",
     ),
-    store,
+    next_store,
     identity,
   )
+}
+
+fn missing_customer_activation_error() -> UserError {
+  UserError(
+    ["customerId"],
+    "The customer can't be found.",
+    Some("customer_does_not_exist"),
+  )
+}
+
+fn activation_url_for_customer(customer_id: String, token: String) -> String {
+  "https://shopify-draft-proxy.local/customer-account/activate?customer_id="
+  <> customer_id
+  <> "&account_activation_token="
+  <> token
+}
+
+fn activation_token_for_customer(customer_id: String) -> String {
+  "draft-proxy-activation-"
+  <> option.unwrap(gid_tail(customer_id), token_safe_customer_id(customer_id))
+}
+
+fn token_safe_customer_id(customer_id: String) -> String {
+  customer_id
+  |> string.replace(":", "-")
+  |> string.replace("/", "-")
+  |> string.replace("?", "-")
+  |> string.replace("&", "-")
+  |> string.replace("=", "-")
 }
 
 fn handle_account_invite(store, identity, field, fragments, variables) {
@@ -5367,24 +5600,53 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
         Some(customer) -> {
-          let updated = CustomerRecord(..customer, state: Some("INVITED"))
-          let #(_, next_store) = store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerSendAccountInviteEmailPayload",
-              Some(updated),
-              None,
-              None,
+          let #(payload, next_store, staged_ids) = case
+            customer_account_invitable(customer)
+          {
+            True -> {
+              let updated = CustomerRecord(..customer, state: Some("INVITED"))
+              let #(_, next_store) = store.stage_update_customer(store, updated)
+              #(
+                customer_payload_json(
+                  next_store,
+                  "CustomerSendAccountInviteEmailPayload",
+                  Some(updated),
+                  None,
+                  None,
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                [id],
+              )
+            }
+            False -> #(
+              customer_payload_json(
+                store,
+                "CustomerSendAccountInviteEmailPayload",
+                Some(customer),
+                None,
+                None,
+                [
+                  UserError(
+                    ["customerId"],
+                    "Account already enabled",
+                    Some("ACCOUNT_ALREADY_ENABLED"),
+                  ),
+                ],
+                field,
+                fragments,
+              ),
+              store,
               [],
-              field,
-              fragments,
             )
+          }
           #(
             MutationFieldResult(
               get_field_response_key(field),
               payload,
-              [id],
+              staged_ids,
               "customerSendAccountInviteEmail",
             ),
             next_store,
@@ -5416,6 +5678,13 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
         "Customer can't be found",
         None,
       )
+  }
+}
+
+fn customer_account_invitable(customer: CustomerRecord) -> Bool {
+  case customer.state {
+    Some("DISABLED") | Some("INVITED") -> True
+    _ -> False
   }
 }
 
@@ -5530,86 +5799,139 @@ fn handle_store_credit_adjustment(
     True -> "StoreCreditAccountCreditPayload"
     False -> "StoreCreditAccountDebitPayload"
   }
+  let amount_key = case is_credit {
+    True -> "creditAmount"
+    False -> "debitAmount"
+  }
   case account_id, amount {
-    Some(id), Some(money) ->
-      case store.get_effective_store_credit_account_by_id(store, id) {
-        Some(account) -> {
-          let balance_cents = parse_cents(account.balance.amount)
-          let amount_cents = parse_cents(money.amount)
-          let signed = case is_credit {
-            True -> amount_cents
-            False -> 0 - amount_cents
-          }
-          let new_balance = balance_cents + signed
-          let errors = case !is_credit && new_balance < 0 {
-            True -> [
-              UserError(
-                [input_name, "amount"],
-                "Insufficient funds",
-                Some("INSUFFICIENT_FUNDS"),
-              ),
-            ]
-            False -> []
-          }
-          case errors {
-            [] -> {
-              let #(transaction_id, after_id) =
-                synthetic_identity.make_synthetic_gid(
-                  identity,
-                  "StoreCreditAccountTransaction",
-                )
-              let #(timestamp, after_ts) =
-                synthetic_identity.make_synthetic_timestamp(after_id)
-              let new_account =
-                StoreCreditAccountRecord(
-                  ..account,
-                  balance: Money(
-                    amount: format_cents(new_balance),
-                    currency_code: money.currency_code,
+    Some(id), Some(money) -> {
+      let validation_errors =
+        store_credit_adjustment_input_errors(
+          input,
+          input_name,
+          amount_key,
+          money,
+          is_credit,
+        )
+      case validation_errors {
+        [] ->
+          case
+            resolve_store_credit_account(store, identity, id, money, is_credit)
+          {
+            StoreCreditAccountResolved(account, resolved_identity) -> {
+              let identity = resolved_identity
+              let currency_errors = case
+                account.balance.currency_code != money.currency_code
+              {
+                True -> [
+                  UserError(
+                    [input_name, amount_key, "currencyCode"],
+                    "The currency provided does not match the currency of the store credit account",
+                    Some("MISMATCHING_CURRENCY"),
                   ),
-                )
-              let transaction =
-                StoreCreditAccountTransactionRecord(
-                  id: transaction_id,
-                  account_id: account.id,
-                  amount: Money(
-                    amount: format_cents(signed),
-                    currency_code: money.currency_code,
+                ]
+                False -> []
+              }
+              let balance_cents = parse_cents(account.balance.amount)
+              let amount_cents = parse_cents(money.amount)
+              let signed = case is_credit {
+                True -> amount_cents
+                False -> 0 - amount_cents
+              }
+              let new_balance = balance_cents + signed
+              let limit_errors = case !is_credit && new_balance < 0 {
+                True -> [
+                  UserError(
+                    [input_name, amount_key, "amount"],
+                    "The store credit account does not have sufficient funds to satisfy the request",
+                    Some("INSUFFICIENT_FUNDS"),
                   ),
-                  balance_after_transaction: new_account.balance,
-                  created_at: timestamp,
-                  event: "ADJUSTMENT",
-                )
-              let next_store =
-                store.stage_store_credit_account(store, new_account)
-                |> store.stage_store_credit_account_transaction(transaction)
-              let payload =
-                store_credit_payload_json(
-                  next_store,
-                  typename,
-                  Some(transaction),
-                  [],
-                  field,
-                  fragments,
-                )
-              #(
-                MutationFieldResult(
-                  get_field_response_key(field),
-                  payload,
-                  [transaction.id, account.id],
-                  root,
-                ),
-                next_store,
-                after_ts,
-              )
+                ]
+                False -> []
+              }
+              let errors = list.append(currency_errors, limit_errors)
+              case errors {
+                [] -> {
+                  let #(transaction_id, after_id) =
+                    synthetic_identity.make_synthetic_gid(
+                      identity,
+                      "StoreCreditAccountTransaction",
+                    )
+                  let #(timestamp, after_ts) =
+                    synthetic_identity.make_synthetic_timestamp(after_id)
+                  let new_account =
+                    StoreCreditAccountRecord(
+                      ..account,
+                      balance: Money(
+                        amount: format_cents(new_balance),
+                        currency_code: account.balance.currency_code,
+                      ),
+                    )
+                  let transaction =
+                    StoreCreditAccountTransactionRecord(
+                      id: transaction_id,
+                      account_id: account.id,
+                      amount: Money(
+                        amount: format_cents(signed),
+                        currency_code: account.balance.currency_code,
+                      ),
+                      balance_after_transaction: new_account.balance,
+                      created_at: timestamp,
+                      event: "ADJUSTMENT",
+                    )
+                  let next_store =
+                    store.stage_store_credit_account(store, new_account)
+                    |> store.stage_store_credit_account_transaction(transaction)
+                  let payload =
+                    store_credit_payload_json(
+                      next_store,
+                      typename,
+                      Some(transaction),
+                      [],
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [transaction.id, account.id],
+                      root,
+                    ),
+                    next_store,
+                    after_ts,
+                  )
+                }
+                _ -> {
+                  let payload =
+                    store_credit_payload_json(
+                      store,
+                      typename,
+                      None,
+                      errors,
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [],
+                      root,
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+              }
             }
-            _ -> {
+            StoreCreditAccountResolutionError(error) -> {
               let payload =
                 store_credit_payload_json(
                   store,
                   typename,
                   None,
-                  errors,
+                  [error],
                   field,
                   fragments,
                 )
@@ -5625,20 +5947,13 @@ fn handle_store_credit_adjustment(
               )
             }
           }
-        }
-        None -> {
+        errors -> {
           let payload =
             store_credit_payload_json(
               store,
               typename,
               None,
-              [
-                UserError(
-                  ["id"],
-                  "Store credit account does not exist",
-                  Some("NOT_FOUND"),
-                ),
-              ],
+              errors,
               field,
               fragments,
             )
@@ -5654,6 +5969,7 @@ fn handle_store_credit_adjustment(
           )
         }
       }
+    }
     _, _ -> {
       let payload =
         store_credit_payload_json(
@@ -5676,6 +5992,180 @@ fn handle_store_credit_adjustment(
         identity,
       )
     }
+  }
+}
+
+fn store_credit_adjustment_input_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  input_name: String,
+  amount_key: String,
+  money: Money,
+  is_credit: Bool,
+) -> List(UserError) {
+  let amount_cents = parse_cents(money.amount)
+  let amount_errors = case amount_cents <= 0 {
+    True -> [
+      UserError(
+        [input_name, amount_key, "amount"],
+        "A positive amount must be used to credit a store credit account",
+        Some("NEGATIVE_OR_ZERO_AMOUNT"),
+      ),
+    ]
+    False -> []
+  }
+  let currency_errors = case
+    is_supported_store_credit_currency(money.currency_code)
+  {
+    True -> []
+    False -> [
+      UserError(
+        [input_name, amount_key, "currencyCode"],
+        "Currency is not supported",
+        Some("UNSUPPORTED_CURRENCY"),
+      ),
+    ]
+  }
+  let expiry_errors = case is_credit, read_obj_string(input, "expiresAt") {
+    True, Some(expires_at) ->
+      case store_credit_expires_at_in_past(expires_at) {
+        True -> [
+          UserError(
+            [input_name, "expiresAt"],
+            "The expiry date must be in the future",
+            Some("EXPIRES_AT_IN_PAST"),
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+  amount_errors
+  |> list.append(currency_errors)
+  |> list.append(expiry_errors)
+}
+
+fn resolve_store_credit_account(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  id: String,
+  money: Money,
+  is_credit: Bool,
+) -> StoreCreditAccountResolution {
+  case store_credit_id_kind(id) {
+    "account" ->
+      case store.get_effective_store_credit_account_by_id(store, id) {
+        Some(account) -> StoreCreditAccountResolved(account, identity)
+        None ->
+          StoreCreditAccountResolutionError(store_credit_account_not_found())
+      }
+    "customer" ->
+      case store.get_effective_customer_by_id(store, id) {
+        Some(_) ->
+          resolve_store_credit_owner_account(
+            store,
+            identity,
+            id,
+            money,
+            is_credit,
+          )
+        None ->
+          StoreCreditAccountResolutionError(store_credit_owner_not_found())
+      }
+    "company_location" ->
+      case store.get_effective_b2b_company_location_by_id(store, id) {
+        Some(_) ->
+          resolve_store_credit_owner_account(
+            store,
+            identity,
+            id,
+            money,
+            is_credit,
+          )
+        None ->
+          StoreCreditAccountResolutionError(store_credit_owner_not_found())
+      }
+    _ -> StoreCreditAccountResolutionError(store_credit_account_not_found())
+  }
+}
+
+fn resolve_store_credit_owner_account(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  owner_id: String,
+  money: Money,
+  is_credit: Bool,
+) -> StoreCreditAccountResolution {
+  case
+    store.get_effective_store_credit_account_by_owner_id_and_currency(
+      store,
+      owner_id,
+      money.currency_code,
+    )
+  {
+    Some(account) -> StoreCreditAccountResolved(account, identity)
+    None ->
+      case is_credit {
+        True -> {
+          let #(account_id, after_account_id) =
+            synthetic_identity.make_synthetic_gid(
+              identity,
+              "StoreCreditAccount",
+            )
+          StoreCreditAccountResolved(
+            StoreCreditAccountRecord(
+              id: account_id,
+              customer_id: owner_id,
+              cursor: None,
+              balance: Money(amount: "0.0", currency_code: money.currency_code),
+            ),
+            after_account_id,
+          )
+        }
+        False ->
+          StoreCreditAccountResolutionError(store_credit_account_not_found())
+      }
+  }
+}
+
+fn store_credit_id_kind(id: String) -> String {
+  case string.starts_with(id, "gid://shopify/StoreCreditAccount/") {
+    True -> "account"
+    False ->
+      case string.starts_with(id, "gid://shopify/Customer/") {
+        True -> "customer"
+        False ->
+          case string.starts_with(id, "gid://shopify/CompanyLocation/") {
+            True -> "company_location"
+            False -> "unknown"
+          }
+      }
+  }
+}
+
+fn store_credit_account_not_found() -> UserError {
+  UserError(
+    ["id"],
+    "Store credit account does not exist",
+    Some("ACCOUNT_NOT_FOUND"),
+  )
+}
+
+fn store_credit_owner_not_found() -> UserError {
+  UserError(["id"], "Owner does not exist", Some("OWNER_NOT_FOUND"))
+}
+
+fn is_supported_store_credit_currency(currency_code: String) -> Bool {
+  currency_code != "" && currency_code != "XXX" && currency_code != "XTS"
+}
+
+fn store_credit_expires_at_in_past(expires_at: String) -> Bool {
+  case iso_timestamp.parse_iso(expires_at) {
+    Ok(expires_ms) ->
+      case iso_timestamp.parse_iso(iso_timestamp.now_iso()) {
+        Ok(now_ms) -> expires_ms < now_ms
+        Error(_) -> False
+      }
+    Error(_) -> False
   }
 }
 
@@ -6693,6 +7183,7 @@ fn build_merged_customer(
     email_marketing_consent: email_source.email_marketing_consent,
     sms_marketing_consent: phone_source.sms_marketing_consent,
     default_address: default_address,
+    account_activation_token: None,
     created_at: one.created_at,
     updated_at: Some(timestamp),
   )

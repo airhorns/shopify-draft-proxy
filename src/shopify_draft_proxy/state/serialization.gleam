@@ -1674,6 +1674,7 @@ fn shop_policy_json(record: types.ShopPolicyRecord) -> Json {
     #("url", json.string(record.url)),
     #("createdAt", json.string(record.created_at)),
     #("updatedAt", json.string(record.updated_at)),
+    #("migratedToHtml", json.bool(record.migrated_to_html)),
   ])
 }
 
@@ -1682,6 +1683,7 @@ fn b2b_company_json(record: types.B2BCompanyRecord) -> Json {
     #("id", json.string(record.id)),
     #("cursor", optional_string(record.cursor)),
     #("data", store_property_data_json(record.data)),
+    #("mainContactId", optional_string(record.main_contact_id)),
     #("contactIds", json.array(record.contact_ids, json.string)),
     #("locationIds", json.array(record.location_ids, json.string)),
     #("contactRoleIds", json.array(record.contact_role_ids, json.string)),
@@ -1763,6 +1765,11 @@ fn product_json(record: types.ProductRecord) -> Json {
     #("vendor", optional_string(record.vendor)),
     #("productType", optional_string(record.product_type)),
     #("tags", json.array(record.tags, json.string)),
+    #("priceRangeMin", optional_string(record.price_range_min)),
+    #("priceRangeMax", optional_string(record.price_range_max)),
+    #("totalVariants", optional_int(record.total_variants)),
+    #("hasOnlyDefaultVariant", optional_bool(record.has_only_default_variant)),
+    #("hasOutOfStockVariants", optional_bool(record.has_out_of_stock_variants)),
     #("totalInventory", optional_int(record.total_inventory)),
     #("tracksInventory", optional_bool(record.tracks_inventory)),
     #("createdAt", optional_string(record.created_at)),
@@ -1885,6 +1892,16 @@ fn market_localization_json(record: types.MarketLocalizationRecord) -> Json {
     #("value", json.string(record.value)),
     #("updatedAt", json.string(record.updated_at)),
     #("outdated", json.bool(record.outdated)),
+  ])
+}
+
+fn market_localizable_content_json(
+  record: types.MarketLocalizableContentRecord,
+) -> Json {
+  json.object([
+    #("key", json.string(record.key)),
+    #("value", json.string(record.value)),
+    #("digest", json.string(record.digest)),
   ])
 }
 
@@ -2379,6 +2396,13 @@ fn product_metafield_json(record: types.ProductMetafieldRecord) -> Json {
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
     #("ownerType", optional_string(record.owner_type)),
+    #(
+      "marketLocalizableContent",
+      json.array(
+        record.market_localizable_content,
+        market_localizable_content_json,
+      ),
+    ),
   ])
 }
 
@@ -2714,8 +2738,24 @@ fn validation_json(record: types.ValidationRecord) -> Json {
     #("functionId", optional_string(record.function_id)),
     #("functionHandle", optional_string(record.function_handle)),
     #("shopifyFunctionId", optional_string(record.shopify_function_id)),
+    #("metafields", json.array(record.metafields, validation_metafield_json)),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
+  ])
+}
+
+fn validation_metafield_json(record: types.ValidationMetafieldRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("validationId", json.string(record.validation_id)),
+    #("namespace", json.string(record.namespace)),
+    #("key", json.string(record.key)),
+    #("type", optional_string(record.type_)),
+    #("value", optional_string(record.value)),
+    #("compareDigest", optional_string(record.compare_digest)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("ownerType", optional_string(record.owner_type)),
   ])
 }
 
@@ -2766,6 +2806,7 @@ fn shipping_package_json(record: types.ShippingPackageRecord) -> Json {
     #("id", json.string(record.id)),
     #("name", optional_string(record.name)),
     #("type", optional_string(record.type_)),
+    #("boxType", optional_string(record.box_type)),
     #("default", json.bool(record.default)),
     #("weight", optional_to_json(record.weight, shipping_package_weight_json)),
     #(
@@ -2886,6 +2927,7 @@ fn gift_card_json(record: types.GiftCardRecord) -> Json {
     #("legacyResourceId", json.string(record.legacy_resource_id)),
     #("lastCharacters", json.string(record.last_characters)),
     #("maskedCode", json.string(record.masked_code)),
+    #("code", optional_string(record.code)),
     #("enabled", json.bool(record.enabled)),
     #("notify", json.bool(record.notify)),
     #("deactivatedAt", optional_string(record.deactivated_at)),
@@ -2995,6 +3037,10 @@ fn customer_json(record: types.CustomerRecord) -> Json {
     #(
       "defaultAddress",
       optional_to_json(record.default_address, customer_default_address_json),
+    ),
+    #(
+      "accountActivationToken",
+      optional_string(record.account_activation_token),
     ),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
@@ -3616,6 +3662,14 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   )
   use shop_locales <- dict_field("shopLocales", shop_locale_decoder())
   use translations <- dict_field("translations", translation_decoder())
+  use shipping_packages <- dict_field(
+    "shippingPackages",
+    shipping_package_decoder(),
+  )
+  use shipping_package_order <- string_list_field("shippingPackageOrder")
+  use deleted_shipping_package_ids <- bool_dict_field(
+    "deletedShippingPackageIds",
+  )
   decode.success(store.BaseState(
     products: empty.products,
     product_order: empty.product_order,
@@ -3699,9 +3753,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     delivery_profiles: empty.delivery_profiles,
     delivery_profile_order: empty.delivery_profile_order,
     deleted_delivery_profile_ids: empty.deleted_delivery_profile_ids,
-    shipping_packages: empty.shipping_packages,
-    shipping_package_order: empty.shipping_package_order,
-    deleted_shipping_package_ids: empty.deleted_shipping_package_ids,
+    shipping_packages: shipping_packages,
+    shipping_package_order: shipping_package_order,
+    deleted_shipping_package_ids: deleted_shipping_package_ids,
     backup_region: backup_region,
     admin_platform_generic_nodes: empty.admin_platform_generic_nodes,
     admin_platform_taxonomy_categories: empty.admin_platform_taxonomy_categories,
@@ -4064,6 +4118,14 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
   use deleted_shop_locales <- bool_dict_field("deletedShopLocales")
   use translations <- dict_field("translations", translation_decoder())
   use deleted_translations <- bool_dict_field("deletedTranslations")
+  use shipping_packages <- dict_field(
+    "shippingPackages",
+    shipping_package_decoder(),
+  )
+  use shipping_package_order <- string_list_field("shippingPackageOrder")
+  use deleted_shipping_package_ids <- bool_dict_field(
+    "deletedShippingPackageIds",
+  )
   decode.success(store.StagedState(
     products: empty.products,
     product_order: empty.product_order,
@@ -4144,9 +4206,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     delivery_profiles: empty.delivery_profiles,
     delivery_profile_order: empty.delivery_profile_order,
     deleted_delivery_profile_ids: empty.deleted_delivery_profile_ids,
-    shipping_packages: empty.shipping_packages,
-    shipping_package_order: empty.shipping_package_order,
-    deleted_shipping_package_ids: empty.deleted_shipping_package_ids,
+    shipping_packages: shipping_packages,
+    shipping_package_order: shipping_package_order,
+    deleted_shipping_package_ids: deleted_shipping_package_ids,
     backup_region: backup_region,
     admin_platform_generic_nodes: empty.admin_platform_generic_nodes,
     admin_platform_taxonomy_categories: empty.admin_platform_taxonomy_categories,
@@ -4510,6 +4572,60 @@ fn order_decoder() -> Decoder(types.OrderRecord) {
   decode.success(types.OrderRecord(id: id, cursor: cursor, data: data))
 }
 
+fn shipping_package_decoder() -> Decoder(types.ShippingPackageRecord) {
+  use id <- decode.field("id", decode.string)
+  use name <- optional_string_field("name")
+  use type_ <- optional_string_field("type")
+  use box_type <- optional_string_field("boxType")
+  use default <- optional_field("default", False, decode.bool)
+  use weight <- optional_field(
+    "weight",
+    None,
+    decode.optional(shipping_package_weight_decoder()),
+  )
+  use dimensions <- optional_field(
+    "dimensions",
+    None,
+    decode.optional(shipping_package_dimensions_decoder()),
+  )
+  use created_at <- optional_field("createdAt", "", decode.string)
+  use updated_at <- optional_field("updatedAt", "", decode.string)
+  decode.success(types.ShippingPackageRecord(
+    id: id,
+    name: name,
+    type_: type_,
+    box_type: box_type,
+    default: default,
+    weight: weight,
+    dimensions: dimensions,
+    created_at: created_at,
+    updated_at: updated_at,
+  ))
+}
+
+fn shipping_package_weight_decoder() -> Decoder(
+  types.ShippingPackageWeightRecord,
+) {
+  use value <- optional_field("value", None, decode.optional(float_decoder()))
+  use unit <- optional_string_field("unit")
+  decode.success(types.ShippingPackageWeightRecord(value: value, unit: unit))
+}
+
+fn shipping_package_dimensions_decoder() -> Decoder(
+  types.ShippingPackageDimensionsRecord,
+) {
+  use length <- optional_field("length", None, decode.optional(float_decoder()))
+  use width <- optional_field("width", None, decode.optional(float_decoder()))
+  use height <- optional_field("height", None, decode.optional(float_decoder()))
+  use unit <- optional_string_field("unit")
+  decode.success(types.ShippingPackageDimensionsRecord(
+    length: length,
+    width: width,
+    height: height,
+    unit: unit,
+  ))
+}
+
 fn draft_order_variant_catalog_decoder() -> Decoder(
   types.DraftOrderVariantCatalogRecord,
 ) {
@@ -4839,6 +4955,7 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
   use url <- decode.field("url", decode.string)
   use created_at <- decode.field("createdAt", decode.string)
   use updated_at <- decode.field("updatedAt", decode.string)
+  use migrated_to_html <- optional_field("migratedToHtml", True, decode.bool)
   decode.success(types.ShopPolicyRecord(
     id: id,
     title: title,
@@ -4847,6 +4964,7 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
     url: url,
     created_at: created_at,
     updated_at: updated_at,
+    migrated_to_html: migrated_to_html,
   ))
 }
 
@@ -5288,6 +5406,19 @@ fn bulk_operation_decoder() -> Decoder(types.BulkOperationRecord) {
   ))
 }
 
+fn market_localizable_content_decoder() -> Decoder(
+  types.MarketLocalizableContentRecord,
+) {
+  use key <- decode.field("key", decode.string)
+  use value <- decode.field("value", decode.string)
+  use digest <- decode.field("digest", decode.string)
+  decode.success(types.MarketLocalizableContentRecord(
+    key: key,
+    value: value,
+    digest: digest,
+  ))
+}
+
 fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
   use id <- decode.field("id", decode.string)
   use owner_id <- decode.field("ownerId", decode.string)
@@ -5304,6 +5435,11 @@ fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
   use created_at <- optional_string_field("createdAt")
   use updated_at <- optional_string_field("updatedAt")
   use owner_type <- optional_string_field("ownerType")
+  use market_localizable_content <- optional_field(
+    "marketLocalizableContent",
+    [],
+    decode.list(of: market_localizable_content_decoder()),
+  )
   decode.success(types.ProductMetafieldRecord(
     id: id,
     owner_id: owner_id,
@@ -5316,6 +5452,7 @@ fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
     created_at: created_at,
     updated_at: updated_at,
     owner_type: owner_type,
+    market_localizable_content: market_localizable_content,
   ))
 }
 
@@ -5762,6 +5899,11 @@ fn validation_decoder() -> Decoder(types.ValidationRecord) {
   use function_id <- optional_string_field("functionId")
   use function_handle <- optional_string_field("functionHandle")
   use shopify_function_id <- optional_string_field("shopifyFunctionId")
+  use metafields <- optional_field(
+    "metafields",
+    [],
+    decode.list(of: validation_metafield_decoder()),
+  )
   use created_at <- optional_string_field("createdAt")
   use updated_at <- optional_string_field("updatedAt")
   decode.success(types.ValidationRecord(
@@ -5772,8 +5914,34 @@ fn validation_decoder() -> Decoder(types.ValidationRecord) {
     function_id: function_id,
     function_handle: function_handle,
     shopify_function_id: shopify_function_id,
+    metafields: metafields,
     created_at: created_at,
     updated_at: updated_at,
+  ))
+}
+
+fn validation_metafield_decoder() -> Decoder(types.ValidationMetafieldRecord) {
+  use id <- decode.field("id", decode.string)
+  use validation_id <- decode.field("validationId", decode.string)
+  use namespace <- decode.field("namespace", decode.string)
+  use key <- decode.field("key", decode.string)
+  use type_ <- optional_string_field("type")
+  use value <- optional_string_field("value")
+  use compare_digest <- optional_string_field("compareDigest")
+  use created_at <- optional_string_field("createdAt")
+  use updated_at <- optional_string_field("updatedAt")
+  use owner_type <- optional_string_field("ownerType")
+  decode.success(types.ValidationMetafieldRecord(
+    id: id,
+    validation_id: validation_id,
+    namespace: namespace,
+    key: key,
+    type_: type_,
+    value: value,
+    compare_digest: compare_digest,
+    created_at: created_at,
+    updated_at: updated_at,
+    owner_type: owner_type,
   ))
 }
 
@@ -5850,6 +6018,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
   use legacy_resource_id <- decode.field("legacyResourceId", decode.string)
   use last_characters <- decode.field("lastCharacters", decode.string)
   use masked_code <- decode.field("maskedCode", decode.string)
+  use code <- optional_string_field("code")
   use enabled <- decode.field("enabled", decode.bool)
   use notify <- optional_field("notify", True, decode.bool)
   use deactivated_at <- optional_string_field("deactivatedAt")
@@ -5878,6 +6047,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
     legacy_resource_id: legacy_resource_id,
     last_characters: last_characters,
     masked_code: masked_code,
+    code: code,
     enabled: enabled,
     notify: notify,
     deactivated_at: deactivated_at,

@@ -68,7 +68,7 @@ describe('Gleam JS HTTP adapter route surface', () => {
       expect(await getGleamJson(origin, '/__meta/config')).toEqual({
         status: 200,
         body: {
-          runtime: { readMode: 'snapshot' },
+          runtime: { readMode: 'snapshot', unsupportedMutationMode: 'passthrough' },
           proxy: { port: 0, shopifyAdminOrigin: 'https://shopify.com' },
           snapshot: { enabled: false, path: null },
         },

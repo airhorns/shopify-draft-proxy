@@ -1,0 +1,252 @@
+{
+  "setup": {
+    "variables": {
+      "synchronous": true,
+      "input": {
+        "title": "HAR592 Inventory Aggregate 1777950701775",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Title",
+            "position": 1,
+            "values": [
+              {
+                "name": "Default Title"
+              }
+            ]
+          }
+        ],
+        "variants": [
+          {
+            "optionValues": [
+              {
+                "optionName": "Title",
+                "name": "Default Title"
+              }
+            ],
+            "price": "10.00",
+            "inventoryItem": {
+              "tracked": true,
+              "requiresShipping": true
+            },
+            "inventoryQuantities": [
+              {
+                "locationId": "gid://shopify/Location/112829759794",
+                "name": "available",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "productSet": {
+          "product": {
+            "id": "gid://shopify/Product/10177003159858",
+            "totalVariants": 1,
+            "hasOnlyDefaultVariant": true,
+            "hasOutOfStockVariants": false,
+            "tracksInventory": true,
+            "totalInventory": 1,
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51126289400114",
+                  "inventoryQuantity": 1,
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53229391872306",
+                    "tracked": true,
+                    "inventoryLevels": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/InventoryLevel/150024945970?inventory_item_id=53229391872306",
+                          "location": {
+                            "id": "gid://shopify/Location/112829759794",
+                            "name": "HAR-571 transfer destination 20260505000619"
+                          },
+                          "quantities": [
+                            {
+                              "name": "available",
+                              "quantity": 1
+                            },
+                            {
+                              "name": "on_hand",
+                              "quantity": 1
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "productSetOperation": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 52,
+          "actualQueryCost": 17,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "adjust": {
+    "variables": {
+      "input": {
+        "name": "available",
+        "reason": "correction",
+        "referenceDocumentUri": "logistics://har-592/inventory-adjust/1777950701775",
+        "changes": [
+          {
+            "inventoryItemId": "gid://shopify/InventoryItem/53229391872306",
+            "locationId": "gid://shopify/Location/112829759794",
+            "delta": -1
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "inventoryAdjustQuantities": {
+          "inventoryAdjustmentGroup": {
+            "reason": "correction",
+            "referenceDocumentUri": "logistics://har-592/inventory-adjust/1777950701775",
+            "changes": [
+              {
+                "name": "available",
+                "delta": -1,
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53229391872306"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619"
+                }
+              },
+              {
+                "name": "on_hand",
+                "delta": -1,
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53229391872306"
+                },
+                "location": {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619"
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10177003159858",
+        "totalVariants": 1,
+        "hasOnlyDefaultVariant": true,
+        "hasOutOfStockVariants": true,
+        "tracksInventory": true,
+        "totalInventory": 1,
+        "variants": {
+          "nodes": [
+            {
+              "inventoryQuantity": 0,
+              "inventoryItem": {
+                "tracked": true,
+                "inventoryLevels": {
+                  "nodes": [
+                    {
+                      "location": {
+                        "id": "gid://shopify/Location/112829759794",
+                        "name": "HAR-571 transfer destination 20260505000619"
+                      },
+                      "quantities": [
+                        {
+                          "name": "available",
+                          "quantity": 0
+                        },
+                        {
+                          "name": "on_hand",
+                          "quantity": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 42,
+        "actualQueryCost": 8,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1992,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "InventoryAdjustDerivedFieldsDownstream",
+      "variables": {},
+      "query": "query InventoryAdjustDerivedFieldsDownstream($id: ID!) {\n  product(id: $id) {\n    id\n    totalVariants\n    hasOnlyDefaultVariant\n    hasOutOfStockVariants\n    tracksInventory\n    totalInventory\n    variants(first: 5) {\n      nodes {\n        inventoryQuantity\n        inventoryItem {\n          tracked\n          inventoryLevels(first: 5) {\n            nodes {\n              location {\n                id\n                name\n              }\n              quantities(names: [\"available\", \"on_hand\"]) {\n                name\n                quantity\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 46
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

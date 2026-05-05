@@ -39,12 +39,15 @@ defmodule ShopifyDraftProxy do
 
   def with_config(opts) when is_list(opts) do
     read_mode = Keyword.get(opts, :read_mode, :snapshot)
+    unsupported_mutation_mode =
+      unsupported_mutation_mode(Keyword.get(opts, :unsupported_mutation_mode, :passthrough))
+
     port = Keyword.get(opts, :port, 4000)
     origin = Keyword.get(opts, :shopify_admin_origin, "https://shopify.com")
     snapshot_path = option(Keyword.get(opts, :snapshot_path))
 
     raw =
-      {:config, read_mode, port, origin, snapshot_path}
+      {:config, read_mode, unsupported_mutation_mode, port, origin, snapshot_path}
       |> DraftProxy.with_config()
       |> DraftProxy.with_default_registry()
 
@@ -121,6 +124,11 @@ defmodule ShopifyDraftProxy do
 
   defp option(nil), do: :none
   defp option(value), do: {:some, value}
+
+  defp unsupported_mutation_mode(:passthrough), do: :passthrough_unsupported_mutations
+  defp unsupported_mutation_mode(:reject), do: :reject_unsupported_mutations
+  defp unsupported_mutation_mode(:passthrough_unsupported_mutations), do: :passthrough_unsupported_mutations
+  defp unsupported_mutation_mode(:reject_unsupported_mutations), do: :reject_unsupported_mutations
 
   defp from_option(:none), do: nil
   defp from_option({:some, value}), do: value

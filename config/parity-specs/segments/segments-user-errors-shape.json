@@ -1,0 +1,71 @@
+{
+  "scenarioId": "segments-user-errors-shape",
+  "operationNames": ["segmentCreate", "segmentUpdate", "segmentDelete", "customerSegmentMembersQueryCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segments-user-errors-shape.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/segments_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-create.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-712 live evidence for segmentCreate/segmentUpdate/segmentDelete UserError shape and customerSegmentMembersQueryCreate CustomerSegmentMembersQueryUserError shape. Shopify's default UserError type rejects selecting code, so strict parity selects __typename/field/message for default UserError payloads while runtime tests pin the proxy's local code:null projection.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-create-blank-name-and-query",
+        "capturePath": "$.cases[0].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate"
+      },
+      {
+        "name": "segment-update-empty-input",
+        "capturePath": "$.cases[2].response.payload.data.segmentUpdate",
+        "proxyPath": "$.data.segmentUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-update.graphql",
+          "variables": {
+            "id": "gid://shopify/Segment/9000001"
+          },
+          "localSetups": [
+            {
+              "kind": "seedSegments",
+              "count": 1
+            }
+          ]
+        }
+      },
+      {
+        "name": "segment-delete-bogus-id",
+        "capturePath": "$.cases[3].response.payload.data.segmentDelete",
+        "proxyPath": "$.data.segmentDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-delete.graphql",
+          "variablesCapturePath": "$.cases[3].request.variables"
+        }
+      },
+      {
+        "name": "member-query-both-selectors-rejected",
+        "capturePath": "$.cases[4].response.payload.data.customerSegmentMembersQueryCreate",
+        "proxyPath": "$.data.customerSegmentMembersQueryCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-member-query-create.graphql",
+          "variablesCapturePath": "$.cases[4].request.variables"
+        }
+      },
+      {
+        "name": "member-query-neither-selector-rejected",
+        "capturePath": "$.cases[5].response.payload.data.customerSegmentMembersQueryCreate",
+        "proxyPath": "$.data.customerSegmentMembersQueryCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-member-query-create.graphql",
+          "variablesCapturePath": "$.cases[5].request.variables"
+        }
+      }
+    ]
+  }
+}

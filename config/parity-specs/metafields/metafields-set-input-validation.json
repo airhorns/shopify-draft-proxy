@@ -1,0 +1,204 @@
+{
+  "scenarioId": "metafields-set-input-validation",
+  "operationNames": ["metafieldsSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafields-set-input-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+    "variablesCapturePath": "$.cases.shortNamespace.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-695 live Shopify evidence for metafieldsSet namespace/key validation, protected write namespaces, primitive value validation, JSON/color/date-time validation, and product_reference GID validation. The capture creates one disposable product owner and deletes it during cleanup; all compared mutation branches are validation-only and should not create metafields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "short-namespace-userErrors",
+        "capturePath": "$.cases.shortNamespace.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors"
+      },
+      {
+        "name": "short-key-userErrors",
+        "capturePath": "$.cases.shortKey.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.shortKey.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "long-namespace-userErrors",
+        "capturePath": "$.cases.longNamespace.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.longNamespace.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "long-key-userErrors",
+        "capturePath": "$.cases.longKey.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.longKey.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-character-namespace-userErrors",
+        "capturePath": "$.cases.invalidCharacterNamespace.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify Admin 2025-01 accepted punctuation/whitespace namespace probes in live capture, while HAR-695 requires the proxy to enforce the stricter internal Metafield model namespace character guardrail."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidCharacterNamespace.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-character-key-userErrors",
+        "capturePath": "$.cases.invalidCharacterKey.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Shopify Admin 2025-01 accepted punctuation/whitespace key probes in live capture, while HAR-695 requires the proxy to enforce the stricter internal Metafield model key character guardrail."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidCharacterKey.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "reserved-namespace-shopify_standard-userErrors",
+        "capturePath": "$.cases.reservedNamespaceShopifyStandard.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.reservedNamespaceShopifyStandard.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "reserved-namespace-protected-userErrors",
+        "capturePath": "$.cases.reservedNamespaceProtected.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.reservedNamespaceProtected.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "reserved-namespace-shopify-l10n-fields-userErrors",
+        "capturePath": "$.cases.reservedNamespaceShopifyL10nFields.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.reservedNamespaceShopifyL10nFields.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-number_integer-userErrors",
+        "capturePath": "$.cases.invalidValueNumberInteger.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueNumberInteger.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-boolean-userErrors",
+        "capturePath": "$.cases.invalidValueBoolean.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueBoolean.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-color-userErrors",
+        "capturePath": "$.cases.invalidValueColor.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueColor.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-date_time-userErrors",
+        "capturePath": "$.cases.invalidValueDateTime.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "expectedDifferences": [
+          {
+            "path": "$[0].message",
+            "matcher": "any-string",
+            "reason": "The local validator preserves the same INVALID_VALUE code/field while using a shorter deterministic date-time message."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueDateTime.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-value-json-userErrors",
+        "capturePath": "$.cases.invalidValueJson.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "expectedDifferences": [
+          {
+            "path": "$[0].message",
+            "matcher": "any-string",
+            "reason": "Shopify includes parser-specific JSON details; the proxy compares the deterministic INVALID_VALUE code and field path."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidValueJson.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-reference-userErrors",
+        "capturePath": "$.cases.invalidReference.response.data.metafieldsSet.userErrors",
+        "proxyPath": "$.data.metafieldsSet.userErrors",
+        "expectedDifferences": [
+          {
+            "path": "$[0].message",
+            "matcher": "any-string",
+            "reason": "Shopify echoes the invalid reference GID in the message; the proxy compares the deterministic INVALID_VALUE code and field path."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafields-set-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidReference.request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}

@@ -50,6 +50,49 @@ fn run(source: store.Store, query: String) -> String {
   json.to_string(data)
 }
 
+fn run_mutation_import_validator(inner_mutation: String) {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let upload_path = "/bulk/validators.jsonl"
+  let source =
+    store.stage_staged_upload_content(
+      store.new(),
+      upload_path,
+      "{\"input\":{}}\n",
+    )
+  let document =
+    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type } userErrors { field message code } } }"
+  let variables =
+    dict.from_list([
+      #("mutation", root_field.StringVal(inner_mutation)),
+      #("path", root_field.StringVal(upload_path)),
+    ])
+  bulk_operations.process_mutation(
+    source,
+    synthetic_identity.new(),
+    request_path,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+fn run_query_mutation(query_string: String) -> String {
+  let document =
+    "mutation { bulkOperationRunQuery(query: \""
+    <> query_string
+    <> "\") { bulkOperation { id status } userErrors { field message code } } }"
+  let outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  json.to_string(outcome.data)
+}
+
 fn bulk_operation(
   id: String,
   status: String,
@@ -189,6 +232,60 @@ pub fn run_query_stages_completed_operation_and_log_test() {
   assert list.length(store.get_log(outcome.store)) == 1
 }
 
+pub fn run_query_accepts_group_objects_true_false_and_default_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let fields =
+    "bulkOperation { id status type objectCount rootObjectCount fileSize url partialDataUrl query } userErrors { field message code }"
+  let query = "{ products { edges { node { id } } } }"
+  let document =
+    "mutation { default: bulkOperationRunQuery(query: \""
+    <> query
+    <> "\") { "
+    <> fields
+    <> " } explicitTrue: bulkOperationRunQuery(query: \""
+    <> query
+    <> "\", groupObjects: true) { "
+    <> fields
+    <> " } explicitFalse: bulkOperationRunQuery(query: \""
+    <> query
+    <> "\", groupObjects: false) { "
+    <> fields
+    <> " } }"
+  let outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(
+    response,
+    "\"default\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+  )
+  assert string.contains(
+    response,
+    "\"explicitTrue\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/2\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+  )
+  assert string.contains(
+    response,
+    "\"explicitFalse\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/3\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+  )
+  assert string.contains(response, "\"default\":{")
+  assert string.contains(response, "\"explicitTrue\":{")
+  assert string.contains(response, "\"explicitFalse\":{")
+  assert string.contains(response, "\"userErrors\":[]")
+  assert !string.contains(response, "groupObjects is not supported")
+  assert outcome.staged_resource_ids
+    == [
+      "gid://shopify/BulkOperation/1",
+      "gid://shopify/BulkOperation/2",
+      "gid://shopify/BulkOperation/3",
+    ]
+}
+
 pub fn run_query_exports_product_jsonl_and_metadata_test() {
   let source =
     store.new()
@@ -237,6 +334,68 @@ pub fn run_query_without_connection_returns_shopify_error_test() {
   assert outcome.staged_resource_ids == []
 }
 
+pub fn run_query_empty_string_returns_invalid_bulk_query_error_test() {
+  let response = run_query_mutation("")
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Invalid bulk query: syntax error, unexpected end of file\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_top_level_node_with_shopify_error_test() {
+  let response =
+    run_query_mutation("{ node(id: \\\"gid://shopify/Product/1\\\") { id } }")
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries cannot contain a top level `node` field.\",\"code\":\"INVALID\"},{\"field\":[\"query\"],\"message\":\"Bulk queries must contain at least one connection.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_nodes_selection_with_shopify_error_test() {
+  let response = run_query_mutation("{ products { nodes { id title } } }")
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'products'.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_more_than_five_connections_test() {
+  let response =
+    run_query_mutation(
+      "{ products { edges { node { id variants { edges { node { id } } } metafields { edges { node { id } } } collections { edges { node { id } } } media { edges { node { id } } } sellingPlanGroups { edges { node { id } } } } } } }",
+    )
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries cannot contain more than 5 connections.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_connection_nesting_depth_greater_than_two_test() {
+  let response =
+    run_query_mutation(
+      "{ collections { edges { node { id products { edges { node { id variants { edges { node { id metafields { edges { node { id } } } } } } } } } } } } }",
+    )
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries cannot contain connections with a nesting depth greater than 2.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_nested_connection_without_parent_id_test() {
+  let response =
+    run_query_mutation(
+      "{ products { edges { node { title variants { edges { node { id } } } } } } }",
+    )
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"The parent 'node' field for a nested connection must select the 'id' field without an alias and must be of 'ID' return type. Connection fields without 'id': products.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_accumulates_multiple_admin_query_errors_test() {
+  let response =
+    run_query_mutation(
+      "{ products { nodes { variants { edges { node { id } } } } } }",
+    )
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'products'.\",\"code\":\"INVALID\"},{\"field\":[\"query\"],\"message\":\"The parent 'node' field for a nested connection must select the 'id' field without an alias and must be of 'ID' return type. Connection fields without 'id': products.\",\"code\":\"INVALID\"}]}}}"
+}
+
 pub fn run_mutation_missing_upload_stages_failed_job_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let inner =
@@ -269,46 +428,65 @@ pub fn run_mutation_missing_upload_stages_failed_job_test() {
   assert jsonl == ""
 }
 
-pub fn run_mutation_unsupported_inner_root_fails_locally_test() {
-  let request_path = "/admin/api/2026-04/graphql.json"
-  let inner =
-    "mutation($input: CustomerInput!) { customerCreate(input: $input) { customer { id } userErrors { field message } } }"
-  let upload_path = "/bulk/unsupported.jsonl"
-  let source =
-    store.stage_staged_upload_content(
-      store.new(),
-      upload_path,
-      "{\"input\":{}}\n",
-    )
-  let document =
-    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"
-  let variables =
-    dict.from_list([
-      #("mutation", root_field.StringVal(inner)),
-      #("path", root_field.StringVal(upload_path)),
-    ])
-  let outcome =
-    bulk_operations.process_mutation(
-      source,
-      synthetic_identity.new(),
-      request_path,
-      document,
-      variables,
-      empty_upstream_context(),
-    )
+pub fn run_mutation_inner_parse_error_matches_shopify_validator_test() {
+  let outcome = run_mutation_import_validator("mutation { not parseable")
   let response = json.to_string(outcome.data)
-  assert string.contains(response, "\"status\":\"FAILED\"")
+  assert string.contains(response, "\"bulkOperation\":null")
   assert string.contains(
     response,
-    "\"message\":\"Unsupported bulk mutation import root. The proxy did not send this bulk import upstream at runtime.\"",
+    "\"field\":null,\"message\":\"Failed to parse the mutation - ",
   )
-  let assert [operation_id] = outcome.staged_resource_ids
-  let assert Some(jsonl) =
-    store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
-  assert string.contains(
-    jsonl,
-    "bulkOperationRunMutation locally supports only single-root Admin mutations with local staging support in the proxy.",
-  )
+  assert string.contains(response, "\"code\":\"INVALID_MUTATION\"")
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn run_mutation_query_document_matches_shopify_validator_test() {
+  let outcome =
+    run_mutation_import_validator(
+      "query { products { edges { node { id } } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Invalid operation type. Only `mutation` operations are supported.\",\"code\":\"INVALID_MUTATION\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn run_mutation_multiple_top_level_fields_matches_shopify_validator_test() {
+  let outcome =
+    run_mutation_import_validator(
+      "mutation { productCreate(input: $i) { product { id } } productUpdate(input: $j) { product { id } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"mutation\"],\"message\":\"You must specify a single top level mutation.\",\"code\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn run_mutation_disallowed_inner_root_matches_shopify_validator_test() {
+  let inner =
+    "mutation Probe($mutation: String!, $stagedUploadPath: String!, $clientIdentifier: String) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $stagedUploadPath, clientIdentifier: $clientIdentifier) { bulkOperation { id } userErrors { field message } } }"
+  let outcome = run_mutation_import_validator(inner)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"mutation\"],\"message\":\"You must use an allowed mutation name.\",\"code\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn run_mutation_multiple_connections_matches_shopify_validator_test() {
+  let outcome =
+    run_mutation_import_validator(
+      "mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { id } } } media(first: 1) { nodes { id } } } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"mutation\"],\"message\":\"Bulk mutations cannot contain more than 1 connection.\",\"code\":null}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn run_mutation_nested_connections_matches_shopify_validator_test() {
+  let outcome =
+    run_mutation_import_validator(
+      "mutation CreateProduct($product: ProductCreateInput!) { productCreate(product: $product) { product { variants(first: 1) { edges { node { metafields(first: 1) { nodes { id } } } } } } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"mutation\"],\"message\":\"Bulk mutations cannot contain more than 1 connection.\",\"code\":null},{\"field\":[\"mutation\"],\"message\":\"Bulk mutations cannot contain connections with a nesting depth greater than 1.\",\"code\":null}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 pub fn run_mutation_product_create_import_stages_product_and_result_test() {
@@ -320,7 +498,7 @@ pub fn run_mutation_product_create_import_stages_product_and_result_test() {
     store.stage_staged_upload_content(
       store.new(),
       upload_path,
-      "{\"product\":{\"title\":\"Bulk Created Board\",\"status\":\"DRAFT\"}}\n{\"product\":{\"title\":\"\",\"status\":\"DRAFT\"}}\n",
+      "{\"product\":{\"title\":\"Bulk Created Board\",\"vendor\":\"Hermes\",\"status\":\"DRAFT\"}}\n{\"product\":{\"title\":\"\",\"vendor\":\"Hermes\",\"status\":\"DRAFT\"}}\n",
     )
   let document =
     "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"
@@ -435,6 +613,11 @@ fn product_record(id: String, title: String) -> ProductRecord {
     vendor: None,
     product_type: None,
     tags: [],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: None,
+    has_only_default_variant: None,
+    has_out_of_stock_variants: None,
     total_inventory: Some(0),
     tracks_inventory: Some(False),
     created_at: None,

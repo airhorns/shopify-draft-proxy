@@ -289,6 +289,9 @@ Use this only when completion is blocked by missing required tools or missing au
     - why it blocks required acceptance/validation,
     - the exact human action needed to unblock,
     - and the most relevant failing command/error when applicable,
+  - add Linear reason labels before or while moving the issue to `Blocked on Human`:
+    - add `missing scopes` when the blocker is missing Shopify API scopes, app grants, store permissions, or another Shopify access credential needed for required conformance/parity work,
+    - add `broken environment` when the blocker is local environment setup or system software, such as the wrong Erlang/OTP, Gleam, Node, package-manager, or host runtime version,
   - move the issue to `Blocked on Human`,
   - then stop work and leave the issue alone until a human replies or moves it into a different state.
 - Keep both the workpad update and the Linear blocker comment concise and action-oriented.

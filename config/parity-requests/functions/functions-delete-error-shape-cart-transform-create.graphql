@@ -1,0 +1,12 @@
+mutation CartTransformCreateThenDelete($functionHandle: String!) {
+  cartTransformCreate(functionHandle: $functionHandle) {
+    cartTransform {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

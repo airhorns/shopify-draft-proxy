@@ -1,0 +1,31 @@
+{
+  "scenarioId": "app-revoke-access-scopes-error-codes",
+  "operationNames": ["appRevokeAccessScopes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "mutation-log-replay",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/apps/app-revoke-access-scopes-error-codes.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-error-codes.graphql"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-source-app",
+        "capturePath": "$.evidence.parity.expected.missingSourceApp.data.appRevokeAccessScopes",
+        "proxyPath": "$.data.appRevokeAccessScopes",
+        "selectedPaths": ["$.userErrors[*].field", "$.userErrors[*].message", "$.userErrors[*].code", "$.revoked"]
+      }
+    ]
+  },
+  "notes": "HAR-672 required scenarioId. The public Admin schema for the configured conformance credential exposes only scopes on appRevokeAccessScopes; focused Gleam runtime tests cover catalog-unknown, undeclared, required, implied, application-not-found, and app-not-installed branches."
+}

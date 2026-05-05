@@ -134,6 +134,45 @@ describe('JS live-hybrid passthrough', () => {
     );
   });
 
+  it('rejects unsupported mutations before upstream when configured', async () => {
+    let upstreamHits = 0;
+
+    await withUpstream(
+      (_req, res) => {
+        upstreamHits += 1;
+        res.writeHead(500, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ errors: [{ message: 'unsupported mutation leaked upstream' }] }));
+      },
+      async (origin) => {
+        const proxy = createDraftProxy({
+          ...baseConfig,
+          shopifyAdminOrigin: origin,
+          unsupportedMutationMode: 'reject',
+        });
+
+        const response = await proxy.processRequest({
+          method: 'POST',
+          path: '/admin/api/2026-04/graphql.json',
+          body: {
+            query: 'mutation { definitelyUnsupportedMutation { ok } }',
+          },
+        });
+
+        expect(response).toMatchObject({
+          status: 400,
+          body: {
+            errors: [
+              {
+                message: 'Unsupported mutation rejected by configuration: definitelyUnsupportedMutation',
+              },
+            ],
+          },
+        });
+        expect(upstreamHits).toBe(0);
+      },
+    );
+  });
+
   it('surfaces async upstream network failures as 502 JSON errors', async () => {
     await withUpstream(
       (req) => {
@@ -166,7 +205,11 @@ describe('JS live-hybrid passthrough', () => {
         res.end(JSON.stringify({ errors: [{ message: 'supported mutation leaked upstream' }] }));
       },
       async (origin) => {
-        const proxy = createDraftProxy({ ...baseConfig, shopifyAdminOrigin: origin });
+        const proxy = createDraftProxy({
+          ...baseConfig,
+          shopifyAdminOrigin: origin,
+          unsupportedMutationMode: 'reject',
+        });
 
         const response = await proxy.processRequest({
           method: 'POST',

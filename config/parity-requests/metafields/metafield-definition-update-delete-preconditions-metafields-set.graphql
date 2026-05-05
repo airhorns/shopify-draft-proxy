@@ -1,0 +1,17 @@
+mutation MetafieldDefinitionUpdateDeletePreconditionsMetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+  metafieldsSet(metafields: $metafields) {
+    metafields {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    userErrors {
+      field
+      message
+      code
+      elementIndex
+    }
+  }
+}

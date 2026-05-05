@@ -1,0 +1,28 @@
+#graphql
+mutation PaymentCustomizationMetafieldsUpdate($id: ID!, $input: PaymentCustomizationInput!) {
+  paymentCustomizationUpdate(id: $id, paymentCustomization: $input) {
+    paymentCustomization {
+      id
+      title
+      functionId
+      metafields(first: 5) {
+        edges {
+          node {
+            id
+            namespace
+            key
+            type
+            value
+            createdAt
+            updatedAt
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

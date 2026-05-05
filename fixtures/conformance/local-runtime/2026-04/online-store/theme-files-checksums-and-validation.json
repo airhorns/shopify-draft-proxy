@@ -1,0 +1,62 @@
+{
+  "primary": {
+    "variables": {}
+  },
+  "expected": {
+    "primary": {
+      "data": {
+        "themeCreate": {
+          "theme": {
+            "id": "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+          },
+          "userErrors": []
+        },
+        "first": {
+          "upsertedThemeFiles": [
+            {
+              "filename": "templates/index.json",
+              "checksumMd5": "5d41402abc4b2a76b9719d911017c592",
+              "size": 5,
+              "body": {
+                "content": "hello"
+              }
+            }
+          ],
+          "userErrors": []
+        },
+        "second": {
+          "upsertedThemeFiles": [
+            {
+              "filename": "templates/index.json",
+              "checksumMd5": "5eb63bbbe01eeed093cb22bb8f5acdc3",
+              "size": 11,
+              "body": {
+                "content": "hello world"
+              }
+            }
+          ],
+          "userErrors": []
+        },
+        "invalid": {
+          "upsertedThemeFiles": [],
+          "userErrors": [
+            {
+              "field": ["files", "0", "filename"],
+              "message": "Filename is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "evidence": {
+    "apiVersion": "2026-04",
+    "source": "local-runtime",
+    "notes": [
+      "HAR-585 records executable local-runtime parity evidence for supported theme file staging.",
+      "The checked scenario proves checksumMd5 changes with body content, size follows body byte length for selected ASCII payloads, and invalid filenames return INVALID userErrors without runtime Shopify writes."
+    ]
+  },
+  "upstreamCalls": []
+}
