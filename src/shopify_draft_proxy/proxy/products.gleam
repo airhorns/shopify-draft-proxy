@@ -6722,21 +6722,24 @@ fn product_metafield_from_json(
   case json_string_field(node, "id") {
     None -> None
     Some(id) ->
-      Some(ProductMetafieldRecord(
-        id: id,
-        owner_id: owner_id,
-        namespace: json_string_field(node, "namespace") |> option.unwrap(""),
-        key: json_string_field(node, "key") |> option.unwrap(""),
-        type_: json_string_field(node, "type"),
-        value: json_string_field(node, "value"),
-        compare_digest: json_string_field(node, "compareDigest"),
-        json_value: json_field(node, ["jsonValue"])
-          |> option.map(commit.json_value_to_json),
-        created_at: json_string_field(node, "createdAt"),
-        updated_at: json_string_field(node, "updatedAt"),
-        owner_type: json_string_field(node, "ownerType")
-          |> option.or(Some(owner_type)),
-      ))
+      Some(
+        ProductMetafieldRecord(
+          id: id,
+          owner_id: owner_id,
+          namespace: json_string_field(node, "namespace") |> option.unwrap(""),
+          key: json_string_field(node, "key") |> option.unwrap(""),
+          type_: json_string_field(node, "type"),
+          value: json_string_field(node, "value"),
+          compare_digest: json_string_field(node, "compareDigest"),
+          json_value: json_field(node, ["jsonValue"])
+            |> option.map(commit.json_value_to_json),
+          created_at: json_string_field(node, "createdAt"),
+          updated_at: json_string_field(node, "updatedAt"),
+          owner_type: json_string_field(node, "ownerType")
+            |> option.or(Some(owner_type)),
+          market_localizable_content: [],
+        ),
+      )
   }
 }
 
@@ -23825,6 +23828,10 @@ fn product_set_metafield_records(
             metafield.updated_at
           }),
           owner_type: Some("PRODUCT"),
+          market_localizable_content: option.map(existing, fn(metafield) {
+            metafield.market_localizable_content
+          })
+            |> option.unwrap([]),
         )
       #([metafield, ..records], next_identity, list.append(collected_ids, ids))
     })

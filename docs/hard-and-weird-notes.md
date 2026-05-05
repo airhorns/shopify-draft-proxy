@@ -1315,7 +1315,7 @@ Setup trap:
 - passing `access.admin` while creating a merchant-owned metaobject definition returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` with message `Admin access can only be specified on metaobject definitions that have an app-reserved type.`
 - practical consequence: for merchant-owned fixture setup, omit `access` from `metaobjectDefinitionCreate` and capture the default access through read queries instead of trying to force it in setup input
 
-HAR-242 implements local staging for definition create/update/delete plus a bounded `standardMetaobjectDefinitionEnable` template slice. Keep the associated-entry delete branch explicit: when `metaobjectsCount` is nonzero, the proxy returns a local unsupported userError because it does not yet model metaobject entries or Shopify's definition-delete cascade. Do not broaden this into entry deletion behavior until entry lifecycle fixtures exist.
+HAR-242 implements local staging for definition create/update/delete plus a bounded `standardMetaobjectDefinitionEnable` template slice. HAR-675 later widened definition delete so associated entries are locally tombstoned as a cascade instead of rejected before staging.
 
 HAR-245's 2026-04 schema-change capture added several easy traps:
 
@@ -1333,6 +1333,10 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 - `metaobjectCreate` field values that violate a `max` validation return `INVALID_VALUE` on `['metaobject', 'fields', '<index>']`; invalid JSON values also return `INVALID_VALUE` with an element key for the JSON field.
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
 - 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
+
+HAR-675 live parity work replaces the old local definition-delete associated-entry guardrail:
+
+- `metaobjectDefinitionDelete` accepts definitions with associated entries, returns the input definition GID as `deletedId`, and relies on Shopify to cascade related rows asynchronously upstream. The local model stages tombstones for the definition and every effective metaobject of that type so immediate downstream definition, id, handle, and type-catalog reads return null or empty results.
 
 HAR-673 live capture against Admin GraphQL 2026-04 added definition type validation details:
 

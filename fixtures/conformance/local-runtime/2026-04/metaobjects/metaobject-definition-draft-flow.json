@@ -20,7 +20,7 @@
     "Meta API log preserves original raw mutation request bodies in order for commit replay.",
     "Merchant-owned create with access.admin returns the captured ADMIN_ACCESS_INPUT_NOT_ALLOWED guardrail locally.",
     "Definitions with associated metaobjects return an explicit local unsupported userError until entry cascade behavior is modeled.",
-    "standardMetaobjectDefinitionEnable stages the bounded local template catalog and returns TEMPLATE_NOT_FOUND for unknown template types."
+    "standardMetaobjectDefinitionEnable stages definitions from the checked-in standard template catalog and returns RECORD_NOT_FOUND for unknown template types."
   ],
   "create": {
     "response": {
@@ -223,11 +223,11 @@
           "metaobjectDefinition": {
             "id": "gid://shopify/MetaobjectDefinition/5?shopify-draft-proxy=synthetic",
             "type": "shopify--qa-pair",
-            "name": "Q&A pair",
+            "name": "Question and Answer Pairs",
             "displayNameKey": "question",
             "standardTemplate": {
               "type": "shopify--qa-pair",
-              "name": "Q&A pair"
+              "name": "Question and Answer Pairs"
             },
             "fieldDefinitions": [
               {
@@ -247,6 +247,15 @@
                   "name": "multi_line_text_field",
                   "category": "TEXT"
                 }
+              },
+              {
+                "key": "sources",
+                "name": "Sources",
+                "required": false,
+                "type": {
+                  "name": "list.link",
+                  "category": "LINK"
+                }
               }
             ]
           },
@@ -263,8 +272,8 @@
           "userErrors": [
             {
               "field": ["type"],
-              "message": "A standard metaobject definition wasn't found for the specified type.",
-              "code": "TEMPLATE_NOT_FOUND"
+              "message": "Record not found",
+              "code": "RECORD_NOT_FOUND"
             }
           ]
         }
