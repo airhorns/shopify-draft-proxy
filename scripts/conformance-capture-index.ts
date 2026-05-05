@@ -326,6 +326,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-linkage-parity.json`,
       `${CAPTURE_ROOT}inventory-inactive-level-lifecycle-2026-04.json`,
+      'config/parity-specs/products/inventory-idempotency-directive-lifecycle-2026-04.json',
       'blocker notes when store topology is insufficient',
     ],
     cleanupBehavior: 'Creates disposable products; some success paths require a second safe location before capture.',
@@ -616,6 +617,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-quantity-contracts-2026-04.json`,
       'config/parity-specs/products/inventory-quantity-contracts-2026-04.json',
+      'config/parity-specs/products/inventory-quantity-idempotency-directive-2026-04.json',
     ],
     cleanupBehavior: 'Creates one disposable product, records set/adjust quantity contract branches, then deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -824,6 +826,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-lifecycle',
+    scriptPath: 'scripts/capture-location-lifecycle-conformance.mts',
+    purpose: 'locationActivate/locationDeactivate idempotency and read-after-write lifecycle behavior.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-activate-deactivate-with-idempotency-directive.json`,
+      'config/parity-specs/store-properties/location-activate-deactivate-with-idempotency-directive.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable non-online-fulfilling location, deactivates/reactivates it, then deactivates and deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'shop-policies',
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',
@@ -885,6 +901,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}order-*.json`, 'order blocker notes when credential/store access is insufficient'],
     cleanupBehavior: 'Creates/cancels disposable orders only after credential and store-state probes pass.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-edit-lifecycle-user-errors',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-lifecycle-user-errors-conformance.mts',
+    purpose:
+      'orderEditBegin/AddVariant/SetQuantity/Commit missing-resource userError payload roots for lifecycle validation.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}order-edit-lifecycle-user-errors.json`,
+      'config/parity-specs/orders/orderEdit-lifecycle-userErrors.json',
+      'config/parity-requests/orders/orderEdit-lifecycle-userErrors-*.graphql',
+    ],
+    cleanupBehavior: 'Validation-only order-edit probes use missing Shopify GIDs and do not create merchant resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'shipping-fulfillments',

@@ -1,0 +1,26 @@
+#graphql
+fragment LocationLifecycleFields on Location {
+  id
+  name
+  isActive
+  activatable
+  deactivatable
+  fulfillsOnlineOrders
+  hasActiveInventory
+  hasUnfulfilledOrders
+  deletable
+  shipsInventory
+}
+
+mutation LocationLifecycleDeactivateWithDirective($locationId: ID!, $idempotencyKey: String!) {
+  locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {
+    location {
+      ...LocationLifecycleFields
+    }
+    locationDeactivateUserErrors {
+      field
+      code
+      message
+    }
+  }
+}

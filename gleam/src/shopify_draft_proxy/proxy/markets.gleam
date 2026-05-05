@@ -69,6 +69,10 @@ type MarketConnectionItem {
   )
 }
 
+type MarketRegionInput {
+  MarketRegionInput(field: List(String), country_code: String)
+}
+
 pub fn is_markets_query_root(name: String) -> Bool {
   case name {
     "market"
@@ -1105,27 +1109,7 @@ fn handle_market_create(
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let name =
     graphql_helpers.read_arg_string_nonempty(input, "name") |> option.unwrap("")
-  let errors = case string.trim(name) {
-    "" -> [
-      user_error(["input", "name"], "Name can't be blank", "BLANK"),
-      user_error(
-        ["input", "name"],
-        "Name is too short (minimum is 2 characters)",
-        "TOO_SHORT",
-      ),
-    ]
-    trimmed ->
-      case string.length(trimmed) < 2 {
-        True -> [
-          user_error(
-            ["input", "name"],
-            "Name is too short (minimum is 2 characters)",
-            "TOO_SHORT",
-          ),
-        ]
-        False -> []
-      }
-  }
+  let errors = market_create_input_errors(store, input, name)
   case errors {
     [] -> {
       let #(id, next_identity) =
@@ -1160,6 +1144,146 @@ fn handle_market_create(
         [],
       )
   }
+}
+
+fn market_create_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> List(CapturedJsonValue) {
+  market_create_name_errors(name)
+  |> list.append(market_create_status_enabled_errors(input))
+  |> list.append(market_create_plan_limit_errors(store))
+  |> list.append(market_create_currency_errors(store, input))
+  |> list.append(market_create_region_errors(store, input))
+}
+
+fn market_create_name_errors(name: String) -> List(CapturedJsonValue) {
+  case string.trim(name) {
+    "" -> [
+      user_error(["input", "name"], "Name can't be blank", "BLANK"),
+      user_error(
+        ["input", "name"],
+        "Name is too short (minimum is 2 characters)",
+        "TOO_SHORT",
+      ),
+    ]
+    trimmed ->
+      case string.length(trimmed) < 2 {
+        True -> [
+          user_error(
+            ["input", "name"],
+            "Name is too short (minimum is 2 characters)",
+            "TOO_SHORT",
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn market_create_status_enabled_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  let status =
+    graphql_helpers.read_arg_string_nonempty(input, "status")
+    |> option.unwrap("ACTIVE")
+  let enabled =
+    graphql_helpers.read_arg_bool(input, "enabled")
+    |> option.unwrap(status == "ACTIVE")
+  case enabled == { status == "ACTIVE" } {
+    True -> []
+    False -> [
+      user_error(
+        ["input"],
+        "Invalid status and enabled combination.",
+        "INVALID_STATUS_AND_ENABLED_COMBINATION",
+      ),
+    ]
+  }
+}
+
+fn market_create_plan_limit_errors(store: Store) -> List(CapturedJsonValue) {
+  let market_count = store.list_effective_markets(store) |> list.length
+  case market_count >= default_market_plan_limit() {
+    True -> [
+      user_error(
+        ["input"],
+        "Shop has reached the maximum number of markets for the current plan.",
+        "SHOP_REACHED_PLAN_MARKETS_LIMIT",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn default_market_plan_limit() -> Int {
+  3
+}
+
+fn market_create_currency_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_object(input, "currencySettings") {
+    Some(currency_settings) ->
+      case
+        graphql_helpers.read_arg_string_nonempty(
+          currency_settings,
+          "baseCurrency",
+        )
+      {
+        Some(currency) ->
+          case valid_market_base_currency(store, currency) {
+            True -> []
+            False -> [
+              user_error(
+                ["input", "currencySettings", "baseCurrency"],
+                "Base currency is invalid",
+                "INVALID",
+              ),
+            ]
+          }
+        None -> []
+      }
+    None -> []
+  }
+}
+
+fn valid_market_base_currency(store: Store, currency: String) -> Bool {
+  valid_currency(currency) && market_base_currency_supported(store, currency)
+}
+
+fn market_base_currency_supported(store: Store, currency: String) -> Bool {
+  let known =
+    store.list_effective_markets(store)
+    |> list.filter_map(fn(record) {
+      captured_field(record.data, "currencySettings")
+      |> option.then(captured_field(_, "baseCurrency"))
+      |> option.then(captured_string_field(_, "currencyCode"))
+      |> option_to_result
+    })
+  list.contains(known, currency)
+  || list.contains(default_supported_market_base_currencies(), currency)
+}
+
+fn default_supported_market_base_currencies() -> List(String) {
+  ["CAD", "DKK", "MXN", "USD"]
+}
+
+fn market_create_region_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  let existing_codes = assigned_market_country_codes(store)
+  read_market_region_inputs(input)
+  |> list.filter_map(fn(region) {
+    case list.contains(existing_codes, region.country_code) {
+      True ->
+        Ok(user_error(region.field, "Code has already been taken", "TAKEN"))
+      False -> Error(Nil)
+    }
+  })
 }
 
 fn handle_market_update(
@@ -2792,6 +2916,7 @@ fn market_data(
   existing: Option(CapturedJsonValue),
 ) -> CapturedJsonValue {
   let existing_value = existing |> option.unwrap(CapturedObject([]))
+  let region_inputs = read_market_region_inputs(input)
   let name =
     read_arg_string_allow_empty(input, "name")
     |> option.or(captured_string_field(existing_value, "name"))
@@ -2803,6 +2928,12 @@ fn market_data(
   let enabled =
     graphql_helpers.read_arg_bool(input, "enabled")
     |> option.unwrap(status == "ACTIVE")
+  let market_type = case region_inputs {
+    [] ->
+      captured_string_field(existing_value, "type")
+      |> option.unwrap("NONE")
+    [_, ..] -> "REGION"
+  }
   captured_object_upsert(existing_value, [
     #("__typename", CapturedString("Market")),
     #("id", CapturedString(id)),
@@ -2810,10 +2941,16 @@ fn market_data(
     #("handle", CapturedString(market_handle(name))),
     #("status", CapturedString(status)),
     #("enabled", CapturedBool(enabled)),
+    #("type", CapturedString(market_type)),
+    #("conditions", market_conditions_data(region_inputs, existing_value)),
     #(
-      "type",
-      captured_field(existing_value, "type")
-        |> option.unwrap(CapturedString("NONE")),
+      "currencySettings",
+      market_currency_settings_data(input, region_inputs, existing_value),
+    ),
+    #(
+      "priceInclusions",
+      captured_field(existing_value, "priceInclusions")
+        |> option.unwrap(default_market_price_inclusions()),
     ),
     #(
       "catalogs",
@@ -2832,6 +2969,301 @@ fn market_handle(name: String) -> String {
   string.trim(name)
   |> string.lowercase
   |> string.replace(" ", "-")
+}
+
+fn read_market_region_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(MarketRegionInput) {
+  list.append(
+    read_legacy_market_region_inputs(input),
+    read_conditions_market_region_inputs(input),
+  )
+}
+
+fn read_legacy_market_region_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(MarketRegionInput) {
+  read_arg_object_array(input, "regions")
+  |> list.index_map(fn(region, index) {
+    case graphql_helpers.read_arg_string_nonempty(region, "countryCode") {
+      Some(code) ->
+        Ok(MarketRegionInput(
+          field: ["input", "regions", int.to_string(index), "countryCode"],
+          country_code: code,
+        ))
+      None -> Error(Nil)
+    }
+  })
+  |> result.values
+}
+
+fn read_conditions_market_region_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(MarketRegionInput) {
+  let regions_condition =
+    graphql_helpers.read_arg_object(input, "conditions")
+    |> option.then(graphql_helpers.read_arg_object(_, "regionsCondition"))
+    |> option.unwrap(dict.new())
+  read_arg_object_array(regions_condition, "regions")
+  |> list.index_map(fn(region, index) {
+    case graphql_helpers.read_arg_string_nonempty(region, "countryCode") {
+      Some(code) ->
+        Ok(MarketRegionInput(
+          field: [
+            "input",
+            "conditions",
+            "regionsCondition",
+            "regions",
+            int.to_string(index),
+            "countryCode",
+          ],
+          country_code: code,
+        ))
+      None -> Error(Nil)
+    }
+  })
+  |> result.values
+}
+
+fn assigned_market_country_codes(store: Store) -> List(String) {
+  store.list_effective_markets(store)
+  |> list.fold([], fn(codes, record) {
+    list.append(codes, market_country_codes(record.data))
+  })
+}
+
+fn market_country_codes(data: CapturedJsonValue) -> List(String) {
+  captured_field(data, "conditions")
+  |> option.then(captured_field(_, "regionsCondition"))
+  |> option.then(captured_field(_, "regions"))
+  |> option.map(region_codes_from_connection)
+  |> option.unwrap([])
+}
+
+fn region_codes_from_connection(connection: CapturedJsonValue) -> List(String) {
+  let node_codes =
+    captured_field(connection, "nodes")
+    |> option.map(fn(nodes) {
+      case nodes {
+        CapturedArray(items) ->
+          list.filter_map(items, fn(item) {
+            region_code_from_node(item) |> option_to_result
+          })
+        _ -> []
+      }
+    })
+    |> option.unwrap([])
+  let edge_codes =
+    captured_field(connection, "edges")
+    |> option.map(fn(edges) {
+      case edges {
+        CapturedArray(items) ->
+          list.filter_map(items, fn(edge) {
+            captured_field(edge, "node")
+            |> option.then(region_code_from_node)
+            |> option_to_result
+          })
+        _ -> []
+      }
+    })
+    |> option.unwrap([])
+  list.append(node_codes, edge_codes)
+}
+
+fn region_code_from_node(node: CapturedJsonValue) -> Option(String) {
+  captured_string_field(node, "code")
+  |> option.or(captured_string_field(node, "countryCode"))
+}
+
+fn market_conditions_data(
+  regions: List(MarketRegionInput),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case regions {
+    [] ->
+      captured_field(existing_value, "conditions")
+      |> option.unwrap(empty_market_conditions())
+    [_, ..] ->
+      CapturedObject([
+        #("conditionTypes", CapturedArray([CapturedString("REGION")])),
+        #(
+          "regionsCondition",
+          CapturedObject([
+            #("applicationLevel", CapturedString("SPECIFIED")),
+            #("regions", market_regions_connection(regions)),
+          ]),
+        ),
+      ])
+  }
+}
+
+fn empty_market_conditions() -> CapturedJsonValue {
+  CapturedObject([
+    #("conditionTypes", CapturedArray([])),
+    #(
+      "regionsCondition",
+      CapturedObject([
+        #("applicationLevel", CapturedString("SPECIFIED")),
+        #(
+          "regions",
+          CapturedObject([
+            #("edges", CapturedArray([])),
+            #("nodes", CapturedArray([])),
+            #("pageInfo", page_info_for_cursors([])),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
+fn market_regions_connection(
+  regions: List(MarketRegionInput),
+) -> CapturedJsonValue {
+  let nodes = list.map(regions, market_region_node)
+  let cursors = list.map(regions, fn(region) { region.country_code })
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(nodes, fn(node) {
+          let cursor =
+            captured_string_field(node, "code") |> option.unwrap("region")
+          CapturedObject([
+            #("cursor", CapturedString(cursor)),
+            #("node", node),
+          ])
+        }),
+      ),
+    ),
+    #("nodes", CapturedArray(nodes)),
+    #("pageInfo", page_info_for_cursors(cursors)),
+  ])
+}
+
+fn market_region_node(region: MarketRegionInput) -> CapturedJsonValue {
+  let currency = country_currency(region.country_code)
+  CapturedObject([
+    #("__typename", CapturedString("MarketRegionCountry")),
+    #(
+      "id",
+      CapturedString(
+        "gid://shopify/MarketRegionCountry/" <> region.country_code,
+      ),
+    ),
+    #("name", CapturedString(country_name(region.country_code))),
+    #("code", CapturedString(region.country_code)),
+    #("currency", currency_payload(currency)),
+  ])
+}
+
+fn market_currency_settings_data(
+  input: Dict(String, root_field.ResolvedValue),
+  regions: List(MarketRegionInput),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let settings =
+    graphql_helpers.read_arg_object(input, "currencySettings")
+    |> option.unwrap(dict.new())
+  let base_currency =
+    graphql_helpers.read_arg_string_nonempty(settings, "baseCurrency")
+    |> option.or(
+      captured_field(existing_value, "currencySettings")
+      |> option.then(captured_field(_, "baseCurrency"))
+      |> option.then(captured_string_field(_, "currencyCode")),
+    )
+    |> option.or(first_region_currency(regions))
+    |> option.unwrap("CAD")
+  let existing_settings =
+    captured_field(existing_value, "currencySettings")
+    |> option.unwrap(CapturedObject([]))
+  CapturedObject([
+    #("baseCurrency", currency_payload(base_currency)),
+    #(
+      "localCurrencies",
+      graphql_helpers.read_arg_bool(settings, "localCurrencies")
+        |> option.map(CapturedBool)
+        |> option.or(captured_field(existing_settings, "localCurrencies"))
+        |> option.unwrap(CapturedBool(False)),
+    ),
+    #(
+      "roundingEnabled",
+      graphql_helpers.read_arg_bool(settings, "roundingEnabled")
+        |> option.map(CapturedBool)
+        |> option.or(captured_field(existing_settings, "roundingEnabled"))
+        |> option.unwrap(CapturedBool(True)),
+    ),
+  ])
+}
+
+fn first_region_currency(regions: List(MarketRegionInput)) -> Option(String) {
+  case regions {
+    [first, ..] -> Some(country_currency(first.country_code))
+    [] -> None
+  }
+}
+
+fn currency_payload(currency: String) -> CapturedJsonValue {
+  CapturedObject([
+    #("currencyCode", CapturedString(currency)),
+    #("currencyName", CapturedString(currency_name(currency))),
+    #("enabled", CapturedBool(True)),
+  ])
+}
+
+fn default_market_price_inclusions() -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "inclusiveDutiesPricingStrategy",
+      CapturedString("ADD_DUTIES_AT_CHECKOUT"),
+    ),
+    #(
+      "inclusiveTaxPricingStrategy",
+      CapturedString("INCLUDES_TAXES_IN_PRICE_BASED_ON_COUNTRY"),
+    ),
+  ])
+}
+
+fn country_currency(country_code: String) -> String {
+  case country_code {
+    "CA" -> "CAD"
+    "CO" -> "COP"
+    "BR" -> "BRL"
+    "CL" -> "CLP"
+    "DK" -> "DKK"
+    "MX" -> "MXN"
+    "PE" -> "PEN"
+    "US" -> "USD"
+    _ -> "CAD"
+  }
+}
+
+fn country_name(country_code: String) -> String {
+  case country_code {
+    "BR" -> "Brazil"
+    "CA" -> "Canada"
+    "CL" -> "Chile"
+    "CO" -> "Colombia"
+    "DK" -> "Denmark"
+    "MX" -> "Mexico"
+    "PE" -> "Peru"
+    "US" -> "United States"
+    _ -> country_code
+  }
+}
+
+fn currency_name(currency: String) -> String {
+  case currency {
+    "BRL" -> "Brazilian Real"
+    "CAD" -> "Canadian Dollar"
+    "CLP" -> "Chilean Peso"
+    "COP" -> "Colombian Peso"
+    "DKK" -> "Danish Krone"
+    "MXN" -> "Mexican Peso"
+    "PEN" -> "Peruvian Sol"
+    "USD" -> "United States Dollar"
+    _ -> currency
+  }
 }
 
 fn catalog_data(
