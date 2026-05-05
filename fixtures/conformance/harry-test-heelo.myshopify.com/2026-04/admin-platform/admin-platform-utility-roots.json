@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-29T01:46:14.683Z",
+  "capturedAt": "2026-05-05T01:58:36.108Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "introspection": {
@@ -1250,8 +1250,8 @@
     ],
     "locations": [
       {
-        "id": "gid://shopify/Location/106318463282",
-        "name": "My Custom Location",
+        "id": "gid://shopify/Location/112829759794",
+        "name": "HAR-571 transfer destination 20260505000619",
         "isActive": true
       }
     ]
@@ -1558,7 +1558,7 @@
               "actualQueryCost": 7,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1989,
+                "currentlyAvailable": 1988,
                 "restoreRate": 100
               }
             }
@@ -2739,7 +2739,7 @@
               "actualQueryCost": 9,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1986,
+                "currentlyAvailable": 1980,
                 "restoreRate": 100
               }
             }
@@ -2783,8 +2783,8 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Location/106318463282",
-                  "name": "My Custom Location",
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
                   "isActive": true
                 }
               ]
@@ -2796,7 +2796,7 @@
               "actualQueryCost": 12,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1985,
+                "currentlyAvailable": 1984,
                 "restoreRate": 100
               }
             }
@@ -2811,7 +2811,7 @@
           "gid://shopify/Product/9801098789170",
           "gid://shopify/Collection/494967390514",
           "gid://shopify/Customer/9522206933298",
-          "gid://shopify/Location/106318463282"
+          "gid://shopify/Location/112829759794"
         ]
       },
       "result": {
@@ -2839,8 +2839,8 @@
               },
               {
                 "__typename": "Location",
-                "id": "gid://shopify/Location/106318463282",
-                "name": "My Custom Location",
+                "id": "gid://shopify/Location/112829759794",
+                "name": "HAR-571 transfer destination 20260505000619",
                 "isActive": true
               }
             ]
@@ -2851,7 +2851,7 @@
               "actualQueryCost": 1,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1999,
+                "currentlyAvailable": 1995,
                 "restoreRate": 100
               }
             }
@@ -2924,6 +2924,122 @@
                 {
                   "field": ["body"],
                   "message": "Errors validating schema:\n  Invalid handle 'har-374-missing'.\n"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "flowTriggerReceiveBodyAndHandleConflict": {
+      "query": "#graphql\n  mutation FlowTriggerReceiveBodyAndHandleConflict {\n    flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{}}\", handle: \"test\") {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "flowTriggerReceive": {
+              "userErrors": [
+                {
+                  "field": ["body"],
+                  "message": "Cannot use `handle` and `payload` arguments with `body` argument"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "flowTriggerReceiveEmptyHandleEmptyBody": {
+      "query": "#graphql\n  mutation FlowTriggerReceiveEmptyHandleEmptyBody {\n    flowTriggerReceive {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "flowTriggerReceive": {
+              "userErrors": [
+                {
+                  "field": ["handle"],
+                  "message": "`handle` and `payload` arguments are required"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "flowTriggerReceivePayloadOnlyNoHandle": {
+      "query": "#graphql\n  mutation FlowTriggerReceivePayloadOnlyNoHandle {\n    flowTriggerReceive(payload: { test: \"value\" }) {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "flowTriggerReceive": {
+              "userErrors": [
+                {
+                  "field": ["handle"],
+                  "message": "`handle` and `payload` arguments are required"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "flowTriggerReceiveEmptyHandleString": {
+      "query": "#graphql\n  mutation FlowTriggerReceiveEmptyHandleString {\n    flowTriggerReceive(handle: \"\") {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "flowTriggerReceive": {
+              "userErrors": [
+                {
+                  "field": ["handle"],
+                  "message": "`handle` and `payload` arguments are required"
                 }
               ]
             }
@@ -3110,7 +3226,7 @@
           "gid://shopify/Product/9801098789170",
           "gid://shopify/Collection/494967390514",
           "gid://shopify/Customer/9522206933298",
-          "gid://shopify/Location/106318463282"
+          "gid://shopify/Location/112829759794"
         ]
       },
       "query": "sha:har-525-hand-synthesized-admin-platform",
@@ -3139,8 +3255,8 @@
               },
               {
                 "__typename": "Location",
-                "id": "gid://shopify/Location/106318463282",
-                "name": "My Custom Location",
+                "id": "gid://shopify/Location/112829759794",
+                "name": "HAR-571 transfer destination 20260505000619",
                 "isActive": true
               }
             ]

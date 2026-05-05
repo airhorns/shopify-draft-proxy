@@ -9,7 +9,6 @@
 import gleam/bit_array
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
-import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -1522,37 +1521,52 @@ fn handle_flow_trigger_receive(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let args = graphql_helpers.field_args(field, variables)
-  let handle = read_string_arg(args, "handle")
+  let body = graphql_helpers.read_arg_string(args, "body")
+  let handle = graphql_helpers.read_arg_string(args, "handle")
   let payload = case dict.get(args, "payload") {
     Ok(value) -> value
     Error(_) -> root_field.NullVal
   }
-  let payload_string = resolved_value_to_string(payload)
-  let payload_bytes = string.length(payload_string)
-  let user_errors = case payload_bytes > flow_trigger_payload_limit_bytes {
-    True -> [
-      user_error(
-        ["body"],
-        "Errors validating schema:\n  Properties size exceeds the limit of "
-          <> int.to_string(flow_trigger_payload_limit_bytes)
-          <> " bytes.\n",
-        None,
-      ),
-    ]
-    False ->
-      case is_local_flow_trigger_handle(handle) {
-        True -> []
-        False -> [
+  let payload_json = resolved_value_to_json_string(payload)
+  let payload_bytes = string.byte_size(payload_json)
+  let body_present = string_option_present(body)
+  let handle_present = string_option_present(handle)
+  let payload_present = resolved_value_present(payload)
+  let user_errors = case body_present, handle_present, payload_present {
+    True, True, _ -> [flow_trigger_body_conflict_error()]
+    True, _, True -> [flow_trigger_body_conflict_error()]
+    False, False, _ -> [flow_trigger_missing_handle_error()]
+    _, _, _ ->
+      case payload_bytes > flow_trigger_payload_limit_bytes {
+        True -> [
           user_error(
             ["body"],
-            "Errors validating schema:\n  Invalid handle '" <> handle <> "'.\n",
+            "Errors validating schema:\n  Properties size exceeds the limit of "
+              <> int.to_string(flow_trigger_payload_limit_bytes)
+              <> " bytes.\n",
             None,
           ),
         ]
+        False -> {
+          let handle_value = handle |> option.unwrap("")
+          case is_known_missing_flow_trigger_handle(handle_value) {
+            True -> [flow_trigger_invalid_handle_error(handle_value)]
+            False -> []
+          }
+        }
       }
   }
   case user_errors {
     [] -> {
+      let record_handle = case handle {
+        Some(value) -> value
+        None -> "legacy-body"
+      }
+      let audit_payload = case body {
+        Some(value) -> value
+        None -> payload_json
+      }
+      let audit_payload_bytes = string.byte_size(audit_payload)
       let #(record_id, identity_after_id) =
         synthetic_identity.make_synthetic_gid(identity, "FlowTriggerReceive")
       let #(received_at, identity_after_time) =
@@ -1560,9 +1574,9 @@ fn handle_flow_trigger_receive(
       let record =
         AdminPlatformFlowTriggerRecord(
           id: record_id,
-          handle: handle,
-          payload_bytes: payload_bytes,
-          payload_sha256: crypto.sha256_hex(payload_string),
+          handle: record_handle,
+          payload_bytes: audit_payload_bytes,
+          payload_sha256: crypto.sha256_hex(audit_payload),
           received_at: received_at,
         )
       let #(_, next_store) =
@@ -1594,9 +1608,53 @@ fn handle_flow_trigger_receive(
   }
 }
 
-fn is_local_flow_trigger_handle(handle: String) -> Bool {
-  string.starts_with(handle, "local-")
-  || string.starts_with(handle, "har-374-local")
+fn flow_trigger_body_conflict_error() -> SourceValue {
+  user_error(
+    ["body"],
+    "Cannot use `handle` and `payload` arguments with `body` argument",
+    None,
+  )
+}
+
+fn flow_trigger_missing_handle_error() -> SourceValue {
+  user_error(["handle"], "`handle` and `payload` arguments are required", None)
+}
+
+fn flow_trigger_invalid_handle_error(handle: String) -> SourceValue {
+  user_error(
+    ["body"],
+    "Errors validating schema:\n  Invalid handle '" <> handle <> "'.\n",
+    None,
+  )
+}
+
+fn is_known_missing_flow_trigger_handle(handle: String) -> Bool {
+  handle == "har-374-missing"
+}
+
+fn string_option_present(value: Option(String)) -> Bool {
+  case value {
+    Some(value) -> string.trim(value) != ""
+    None -> False
+  }
+}
+
+fn resolved_value_present(value: root_field.ResolvedValue) -> Bool {
+  case value {
+    root_field.NullVal -> False
+    root_field.StringVal(value) -> string.trim(value) != ""
+    root_field.BoolVal(value) -> value
+    root_field.IntVal(_) -> True
+    root_field.FloatVal(_) -> True
+    root_field.ListVal(items) -> !list.is_empty(items)
+    root_field.ObjectVal(fields) -> !dict.is_empty(fields)
+  }
+}
+
+fn resolved_value_to_json_string(value: root_field.ResolvedValue) -> String {
+  value
+  |> root_field.resolved_value_to_json
+  |> json.to_string
 }
 
 fn flow_trigger_receive_source(errors: List(SourceValue)) {
@@ -1719,31 +1777,6 @@ fn read_string_arg(
   case dict.get(args, name) {
     Ok(root_field.StringVal(value)) -> value
     _ -> ""
-  }
-}
-
-fn resolved_value_to_string(value: root_field.ResolvedValue) -> String {
-  case value {
-    root_field.NullVal -> "null"
-    root_field.StringVal(value) -> "\"" <> value <> "\""
-    root_field.BoolVal(value) ->
-      case value {
-        True -> "true"
-        False -> "false"
-      }
-    root_field.IntVal(value) -> int.to_string(value)
-    root_field.FloatVal(value) -> float.to_string(value)
-    root_field.ListVal(values) ->
-      "[" <> string.join(list.map(values, resolved_value_to_string), ",") <> "]"
-    root_field.ObjectVal(fields) -> {
-      let entries =
-        dict.to_list(fields)
-        |> list.map(fn(pair) {
-          let #(key, child) = pair
-          "\"" <> key <> "\":" <> resolved_value_to_string(child)
-        })
-      "{" <> string.join(entries, ",") <> "}"
-    }
   }
 }
 

@@ -361,7 +361,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["flowTriggerReceive", "FlowTriggerReceive"],
       runtime_tests: ["tests/integration/admin-platform-query-shapes.test.ts"],
       support_notes: Some(
-        "HAR-374 records local Flow trigger receipts for explicit local handles without external delivery, preserves raw mutations for commit replay, and mirrors captured invalid-handle and 50000-byte payload validation branches.",
+        "HAR-735 records local Flow trigger receipts for non-blank handles without the historical local-prefix gate, preserves raw mutations for commit replay, and mirrors captured body-conflict, missing-handle, invalid-handle, and JSON byte-size payload validation branches.",
       ),
     ),
     RegistryEntry(

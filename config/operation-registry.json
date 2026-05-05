@@ -283,7 +283,7 @@
     "implemented": true,
     "matchNames": ["flowTriggerReceive", "FlowTriggerReceive"],
     "runtimeTests": ["tests/integration/admin-platform-query-shapes.test.ts"],
-    "supportNotes": "HAR-374 records local Flow trigger receipts for explicit local handles without external delivery, preserves raw mutations for commit replay, and mirrors captured invalid-handle and 50000-byte payload validation branches."
+    "supportNotes": "HAR-735 records local Flow trigger receipts for non-blank handles without the historical local-prefix gate, preserves raw mutations for commit replay, and mirrors captured body-conflict, missing-handle, invalid-handle, and JSON byte-size payload validation branches."
   },
   {
     "name": "app",
