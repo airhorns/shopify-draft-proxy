@@ -419,6 +419,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
+    domain: 'inventory',
+    captureId: 'inventory-deactivate-validation',
+    scriptPath: 'scripts/capture-inventory-deactivate-validation-conformance.mts',
+    purpose:
+      'inventoryDeactivate validation for 2026-04 non-zero committed/incoming/reserved quantities, missing inventory levels, only-location errors, and inventoryActivate available conflicts.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_orders',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-deactivate-validation-2026-04.json`,
+      'config/parity-specs/products/inventoryDeactivate-non-zero-quantities-parity.json',
+      'config/parity-specs/products/inventoryDeactivate-only-location-parity.json',
+    ],
+    cleanupBehavior: 'Creates disposable products and deletes them after recording validation branches.',
+    expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
     domain: 'metafields',
     captureId: 'product-metafield-mutations',
     scriptPath: 'scripts/capture-product-metafield-mutation-conformance.mts',

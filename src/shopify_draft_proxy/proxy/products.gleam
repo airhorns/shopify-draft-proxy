@@ -5489,6 +5489,18 @@ query ProductsHydrateNodes($ids: [ID!]!) {
         id
         tracked
         requiresShipping
+        inventoryLevels(first: 50) {
+          nodes {
+            id
+            isActive
+            location { id name }
+            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
         variant {
           id
           title
@@ -5998,7 +6010,14 @@ fn upsert_hydrated_inventory_level(
             inventory_levels: [],
           ),
         )
-      let item = InventoryItemRecord(..base_item, inventory_levels: [level])
+      let item =
+        InventoryItemRecord(
+          ..base_item,
+          inventory_levels: merge_hydrated_inventory_levels(
+            level,
+            base_item.inventory_levels,
+          ),
+        )
       let product =
         ProductRecord(
           id: product_id,
@@ -6084,6 +6103,22 @@ fn upsert_hydrated_inventory_level(
       |> store.upsert_base_product_variants([variant])
     }
     _, _, _, _ -> store
+  }
+}
+
+fn merge_hydrated_inventory_levels(
+  target: InventoryLevelRecord,
+  levels: List(InventoryLevelRecord),
+) -> List(InventoryLevelRecord) {
+  case list.any(levels, fn(level) { level.id == target.id }) {
+    True ->
+      list.map(levels, fn(level) {
+        case level.id == target.id {
+          True -> target
+          False -> level
+        }
+      })
+    False -> [target, ..levels]
   }
 }
 
@@ -16695,18 +16730,12 @@ fn handle_inventory_activate(
   let args = graphql_helpers.field_args(field, variables)
   let inventory_item_id = read_string_field(args, "inventoryItemId")
   let location_id = read_string_field(args, "locationId")
-  let user_errors = case dict.get(args, "available") {
-    Ok(_) -> [
-      ProductUserError(
-        ["available"],
-        "Not allowed to set available quantity when the item is already active at the location.",
-        None,
-      ),
-    ]
-    Error(_) -> []
+  let available_supplied = case dict.get(args, "available") {
+    Ok(_) -> True
+    Error(_) -> False
   }
-  let resolved = case inventory_item_id, location_id, user_errors {
-    Some(inventory_item_id), Some(location_id), [] -> {
+  let resolved = case inventory_item_id, location_id {
+    Some(inventory_item_id), Some(location_id) -> {
       case
         store.find_effective_variant_by_inventory_item_id(
           store,
@@ -16723,7 +16752,22 @@ fn handle_inventory_activate(
         None -> None
       }
     }
-    _, _, _ -> None
+    _, _ -> None
+  }
+  let user_errors = case resolved, available_supplied {
+    Some(#(_, level)), True -> {
+      case inventory_level_is_active(level) {
+        True -> [
+          ProductUserError(
+            ["available"],
+            "Not allowed to set available quantity when the item is already active at the location.",
+            None,
+          ),
+        ]
+        False -> []
+      }
+    }
+    _, _ -> []
   }
   let activation_result = case resolved, user_errors {
     Some(#(variant, level)), [] -> {
@@ -16787,18 +16831,12 @@ fn handle_inventory_deactivate(
         variant_inventory_levels(variant)
         |> active_inventory_levels
       case list.length(active_levels) <= 1 {
-        True -> [
-          NullableFieldUserError(
-            None,
-            "The product couldn't be unstocked from "
-              <> level.location.name
-              <> " because products need to be stocked at a minimum of 1 location.",
-          ),
-        ]
+        True -> [inventory_deactivate_only_state_error(level)]
         False -> []
       }
     }
-    None -> []
+    None ->
+      inventory_deactivate_missing_target_errors(store, inventory_level_id)
   }
   let next_store = case target, user_errors {
     Some(#(variant, level)), [] -> {
@@ -25927,6 +25965,69 @@ fn inventory_level_is_active(level: InventoryLevelRecord) -> Bool {
   case level.is_active {
     Some(False) -> False
     _ -> True
+  }
+}
+
+fn inventory_deactivate_only_state_error(
+  level: InventoryLevelRecord,
+) -> NullableFieldUserError {
+  NullableFieldUserError(
+    None,
+    "The product couldn't be unstocked from "
+      <> level.location.name
+      <> " because products need to be stocked at a minimum of 1 location.",
+  )
+}
+
+fn inventory_deactivate_item_not_found_error() -> NullableFieldUserError {
+  NullableFieldUserError(
+    None,
+    "The product couldn't be unstocked because the product was deleted.",
+  )
+}
+
+fn inventory_deactivate_location_deleted_error() -> NullableFieldUserError {
+  NullableFieldUserError(
+    None,
+    "The product couldn't be unstocked because the location was deleted.",
+  )
+}
+
+fn inventory_deactivate_missing_target_errors(
+  store: Store,
+  inventory_level_id: Option(String),
+) -> List(NullableFieldUserError) {
+  case inventory_level_id {
+    Some(id) -> {
+      case inventory_level_item_id(id) {
+        Some(item_id) ->
+          case
+            store.find_effective_variant_by_inventory_item_id(
+              store,
+              normalize_inventory_item_id(item_id),
+            )
+          {
+            Some(_) -> [inventory_deactivate_location_deleted_error()]
+            None -> [inventory_deactivate_item_not_found_error()]
+          }
+        None -> [inventory_deactivate_item_not_found_error()]
+      }
+    }
+    None -> [inventory_deactivate_item_not_found_error()]
+  }
+}
+
+fn normalize_inventory_item_id(id: String) -> String {
+  case string.starts_with(id, "gid://shopify/InventoryItem/") {
+    True -> id
+    False -> "gid://shopify/InventoryItem/" <> id
+  }
+}
+
+fn inventory_level_item_id(id: String) -> Option(String) {
+  case string.split(id, "?inventory_item_id=") {
+    [_, item_id] -> Some(item_id)
+    _ -> None
   }
 }
 
