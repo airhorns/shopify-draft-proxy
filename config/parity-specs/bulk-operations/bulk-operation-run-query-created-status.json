@@ -1,25 +1,24 @@
 {
-  "scenarioId": "bulk-operation-run-query-group-objects",
+  "scenarioId": "bulk-operation-run-query-created-status",
   "operationNames": ["bulkOperationRunQuery", "bulkOperation"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "assertionKinds": ["payload-shape", "lifecycle-parity", "downstream-read-parity"],
   "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-group-objects.json"
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-status-catalog-cancel.json"
   ],
-  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-group-objects-true.graphql",
-    "variablesCapturePath": "$.runs.runQueryGroupObjectsTrue.run.variables"
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-parity.graphql",
+    "variablesCapturePath": "$.lifecycle.queryExportToTerminal.run.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-721 captures Shopify Admin GraphQL 2026-04 accepting explicit groupObjects: true for bulkOperationRunQuery and preserving the omitted-argument default success path. The local proxy accepts true, false, and omitted groupObjects values while keeping the supported export mutation local-only; grouped JSONL ordering is not modeled separately because current acceptance only requires the argument contract and staged BulkOperation shape.",
+  "notes": "HAR-750 records Shopify's immediate bulkOperationRunQuery mutation response as a CREATED BulkOperation with terminal fields null and zero counters. The proxy still materializes the local result JSONL and terminal record immediately after the mutation response; the read-after target proves the deterministic subsequent-read transition.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "run-query-group-objects-true.bulkOperation",
-        "capturePath": "$.runs.runQueryGroupObjectsTrue.run.response.data.bulkOperationRunQuery.bulkOperation",
+        "name": "run-query-created-operation",
+        "capturePath": "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.bulkOperation",
         "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
         "expectedDifferences": [
           {
@@ -35,19 +34,19 @@
         ]
       },
       {
-        "name": "run-query-group-objects-true.userErrors",
-        "capturePath": "$.runs.runQueryGroupObjectsTrue.run.response.data.bulkOperationRunQuery.userErrors",
+        "name": "run-query-created-user-errors",
+        "capturePath": "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.userErrors",
         "proxyPath": "$.data.bulkOperationRunQuery.userErrors"
       },
       {
-        "name": "read-after-run-query-group-objects-true.bulkOperation",
-        "capturePath": "$.runs.runQueryGroupObjectsTrue.terminalOperation",
+        "name": "read-after-run-query-terminal-operation",
+        "capturePath": "$.lifecycle.queryExportToTerminal.terminalOperation",
         "proxyPath": "$.data.bulkOperation",
         "proxyRequest": {
           "documentPath": "config/parity-requests/bulk-operations/bulk-operation-by-id-parity.graphql",
           "variables": {
             "id": {
-              "fromProxyResponse": "run-query-group-objects-true.bulkOperation",
+              "fromProxyResponse": "run-query-created-operation",
               "path": "$.data.bulkOperationRunQuery.bulkOperation.id"
             }
           }
@@ -56,7 +55,7 @@
           {
             "path": "$.completedAt",
             "matcher": "iso-timestamp",
-            "reason": "The local proxy completes the synthetic export immediately with its own deterministic clock."
+            "reason": "The local proxy completes the synthetic export on the deterministic subsequent-read transition with its own clock."
           },
           {
             "path": "$.createdAt",
@@ -79,15 +78,6 @@
             "reason": "Shopify returns a signed storage URL while the proxy serves an in-memory local result URL."
           }
         ]
-      },
-      {
-        "name": "run-query-group-objects-default.userErrors",
-        "capturePath": "$.runs.runQueryGroupObjectsDefault.run.response.data.bulkOperationRunQuery.userErrors",
-        "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-group-objects-default.graphql",
-          "variablesCapturePath": "$.runs.runQueryGroupObjectsDefault.run.variables"
-        }
       }
     ]
   }

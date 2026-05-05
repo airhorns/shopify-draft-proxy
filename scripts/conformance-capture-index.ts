@@ -2526,6 +2526,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-mutation-created-status',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-mutation-created-status-conformance.ts',
+    purpose:
+      'bulkOperationRunMutation immediate CREATED response for valid uploaded JSONL plus no-such-file null-operation branch.',
+    requiredAuthScopes: ['bulk operation access and product write access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-mutation-created-status.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-created-status.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-created-status.graphql',
+    ],
+    cleanupBehavior:
+      'Uploads one JSONL file, submits one productCreate bulk mutation, waits for terminal status, and deletes the created product when the result JSONL exposes its id.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-in-progress-throttle',
     environment: { SHOPIFY_CONFORMANCE_BULK_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-bulk-operation-in-progress-conformance.ts',
@@ -2667,6 +2684,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the fixture records public field/message evidence and augments replay expectations with the internal typed code contract.',
+  },
+  {
+    domain: 'gift-cards',
+    captureId: 'gift-card-update-noop',
+    scriptPath: 'scripts/capture-gift-card-update-noop-conformance.ts',
+    purpose:
+      'Gift-card update no-op behavior for present note, expiresOn, and templateSuffix fields whose values equal current gift-card state, plus the truly empty input branch.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-update-noop.json`,
+      'config/parity-specs/gift-cards/gift-card-update-noop.json',
+      'config/parity-requests/gift-cards/gift-card-update-noop.graphql',
+      'config/parity-requests/gift-cards/gift-card-update-noop-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable gift card with known editable fields, records no-op update branches, and deactivates the setup gift card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the fixture records public field/message evidence and augments replay expectations with the internal typed code contract for the empty-input branch.',
   },
   {
     domain: 'gift-cards',

@@ -3861,6 +3861,7 @@ fn validate_customer_create(
     Ok(root_field.NullVal) | Error(_) -> []
     Ok(_) -> [UserError(["id"], "Cannot specify ID on creation", None)]
   }
+  let nested_id_errors = validate_customer_create_nested_resource_ids(input)
   let consent_required_errors =
     customer_create_consent_required_errors(input, email, phone)
   let presence_errors = case email, phone {
@@ -3880,14 +3881,51 @@ fn validate_customer_create(
   let local_errors = validate_customer_input_fields(store, input, None)
   list.append(
     list.append(
-      list.append(
-        list.append(id_errors, presence_errors),
-        consent_required_errors,
-      ),
-      local_errors,
+      list.append(list.append(id_errors, presence_errors), nested_id_errors),
+      consent_required_errors,
     ),
-    validate_upstream_duplicate_customer(input, local_errors, None, upstream),
+    list.append(
+      local_errors,
+      validate_upstream_duplicate_customer(input, local_errors, None, upstream),
+    ),
   )
+}
+
+fn validate_customer_create_nested_resource_ids(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case customer_create_nested_id_errors(input, "addresses") {
+    [] -> customer_create_nested_id_errors(input, "metafields")
+    address_errors -> address_errors
+  }
+}
+
+fn customer_create_nested_id_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(UserError) {
+  read_obj_list_objects(input, key)
+  |> list.index_map(fn(item, index) {
+    case dict.get(item, "id") {
+      Ok(root_field.NullVal) | Error(_) -> []
+      Ok(_) -> [
+        UserError(
+          field: [key, int.to_string(index), "id"],
+          message: customer_create_nested_id_message(key),
+          code: Some("INVALID"),
+        ),
+      ]
+    }
+  })
+  |> list.flatten()
+}
+
+fn customer_create_nested_id_message(key: String) -> String {
+  case key {
+    "addresses" -> "Cannot specify address ID on creation"
+    "metafields" -> "Cannot specify metafield ID on creation"
+    _ -> "Cannot specify ID on creation"
+  }
 }
 
 fn customer_create_consent_required_errors(
@@ -6886,7 +6924,14 @@ fn user_error_source(err: UserError) -> SourceValue {
 fn read_obj_addresses(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(Dict(String, root_field.ResolvedValue)) {
-  case dict.get(input, "addresses") {
+  read_obj_list_objects(input, "addresses")
+}
+
+fn read_obj_list_objects(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(input, key) {
     Ok(root_field.ListVal(items)) ->
       list.filter_map(items, fn(item) {
         case item {

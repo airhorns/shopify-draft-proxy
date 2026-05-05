@@ -1,0 +1,49 @@
+mutation GiftCardUpdateNoop($id: ID!, $note: String!, $expiresOn: Date!, $templateSuffix: String!) {
+  noteNoop: giftCardUpdate(id: $id, input: { note: $note }) {
+    giftCard {
+      id
+      note
+      updatedAt
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  expiresNoop: giftCardUpdate(id: $id, input: { expiresOn: $expiresOn }) {
+    giftCard {
+      id
+      expiresOn
+      updatedAt
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  templateNoop: giftCardUpdate(id: $id, input: { templateSuffix: $templateSuffix }) {
+    giftCard {
+      id
+      templateSuffix
+      updatedAt
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  emptyInput: giftCardUpdate(id: $id, input: {}) {
+    giftCard {
+      id
+      note
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

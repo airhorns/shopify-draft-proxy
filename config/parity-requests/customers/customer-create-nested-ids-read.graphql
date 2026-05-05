@@ -1,0 +1,14 @@
+query CustomerCreateNestedIdsRead($query: String!) {
+  customers(first: 5, query: $query) {
+    nodes {
+      id
+      email
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
