@@ -16,10 +16,11 @@ import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type AppInstallationRecord, type AppRecord, type AppSubscriptionRecord,
-  type Money, AccessScopeRecord, AppInstallationRecord, AppRecord,
-  AppSubscriptionLineItemPlan, AppSubscriptionLineItemRecord,
-  AppSubscriptionRecord, AppUsagePricing, DelegatedAccessTokenRecord, Money,
+  type AccessScopeRecord, type AppInstallationRecord, type AppRecord,
+  type AppSubscriptionRecord, type Money, AccessScopeRecord,
+  AppInstallationRecord, AppRecord, AppSubscriptionLineItemPlan,
+  AppSubscriptionLineItemRecord, AppSubscriptionRecord, AppUsagePricing,
+  DelegatedAccessTokenRecord, Money,
 }
 
 // ----------- Helpers -----------
@@ -29,6 +30,18 @@ fn money(amount: String, code: String) -> Money {
 }
 
 fn app(id: String, handle: String, api_key: String) -> AppRecord {
+  app_with_requested_scopes(id, handle, api_key, [
+    AccessScopeRecord(handle: "read_products", description: None),
+    AccessScopeRecord(handle: "write_products", description: None),
+  ])
+}
+
+fn app_with_requested_scopes(
+  id: String,
+  handle: String,
+  api_key: String,
+  requested_access_scopes: List(AccessScopeRecord),
+) -> AppRecord {
   AppRecord(
     id: id,
     api_key: Some(api_key),
@@ -37,23 +50,28 @@ fn app(id: String, handle: String, api_key: String) -> AppRecord {
     developer_name: Some("test-dev"),
     embedded: Some(True),
     previously_installed: Some(False),
-    requested_access_scopes: [
-      AccessScopeRecord(handle: "read_products", description: None),
-      AccessScopeRecord(handle: "write_products", description: None),
-    ],
+    requested_access_scopes: requested_access_scopes,
   )
 }
 
 fn installation(id: String, app_id: String) -> AppInstallationRecord {
+  installation_with_scopes(id, app_id, [
+    AccessScopeRecord(handle: "read_products", description: None),
+    AccessScopeRecord(handle: "write_products", description: None),
+  ])
+}
+
+fn installation_with_scopes(
+  id: String,
+  app_id: String,
+  access_scopes: List(AccessScopeRecord),
+) -> AppInstallationRecord {
   AppInstallationRecord(
     id: id,
     app_id: app_id,
     launch_url: Some("https://launch"),
     uninstall_url: None,
-    access_scopes: [
-      AccessScopeRecord(handle: "read_products", description: None),
-      AccessScopeRecord(handle: "write_products", description: None),
-    ],
+    access_scopes: access_scopes,
     active_subscription_ids: [],
     all_subscription_ids: [],
     one_time_purchase_ids: [],
@@ -85,6 +103,25 @@ fn run_mutation(store_in: store.Store, document: String) -> String {
 fn seeded_with_installation() -> store.Store {
   let a = app("gid://shopify/App/100", "shopify-draft-proxy", "key-100")
   let i = installation("gid://shopify/AppInstallation/100", a.id)
+  store.upsert_base_app_installation(store.new(), i, a)
+}
+
+fn seeded_with_optional_read_products() -> store.Store {
+  let a =
+    app_with_requested_scopes(
+      "gid://shopify/App/100",
+      "shopify-draft-proxy",
+      "key-100",
+      [AccessScopeRecord(handle: "write_products", description: None)],
+    )
+  let i =
+    installation_with_scopes("gid://shopify/AppInstallation/100", a.id, [
+      AccessScopeRecord(
+        handle: "read_products",
+        description: Some("Read products"),
+      ),
+      AccessScopeRecord(handle: "write_products", description: None),
+    ])
   store.upsert_base_app_installation(store.new(), i, a)
 }
 
@@ -175,11 +212,11 @@ pub fn app_uninstall_marks_installation_uninstalled_test() {
 pub fn revoke_access_scopes_removes_granted_test() {
   let outcome =
     run_mutation_outcome(
-      seeded_with_installation(),
-      "mutation { appRevokeAccessScopes(scopes: [\"read_products\"]) { revoked { handle } userErrors { field message code } } }",
+      seeded_with_optional_read_products(),
+      "mutation { appRevokeAccessScopes(scopes: [\"read_products\"]) { revoked { handle description } userErrors { field message code } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[{\"handle\":\"read_products\"}],\"userErrors\":[]}}}"
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[{\"handle\":\"read_products\",\"description\":\"Read products\"}],\"userErrors\":[]}}}"
   let assert Some(install) =
     store.get_effective_app_installation_by_id(
       outcome.store,
@@ -189,14 +226,59 @@ pub fn revoke_access_scopes_removes_granted_test() {
     == ["write_products"]
 }
 
-pub fn revoke_access_scopes_unknown_emits_user_error_test() {
+pub fn revoke_access_scopes_unknown_rejects_atomically_test() {
+  let outcome =
+    run_mutation_outcome(
+      seeded_with_installation(),
+      "mutation { appRevokeAccessScopes(scopes: [\"read_products\", \"fake_scope\"]) { revoked { handle } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"The requested list of scopes to revoke includes invalid handles.\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
+  let assert Some(install) =
+    store.get_effective_app_installation_by_id(
+      outcome.store,
+      "gid://shopify/AppInstallation/100",
+    )
+  assert list.map(install.access_scopes, fn(s) { s.handle })
+    == ["read_products", "write_products"]
+}
+
+pub fn revoke_access_scopes_required_scope_rejects_atomically_test() {
+  let outcome =
+    run_mutation_outcome(
+      seeded_with_installation(),
+      "mutation { appRevokeAccessScopes(scopes: [\"read_products\"]) { revoked { handle } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"Required access scopes can't be revoked.\",\"code\":\"CANNOT_REVOKE_REQUIRED_SCOPES\"}]}}}"
+  let assert Some(install) =
+    store.get_effective_app_installation_by_id(
+      outcome.store,
+      "gid://shopify/AppInstallation/100",
+    )
+  assert list.map(install.access_scopes, fn(s) { s.handle })
+    == ["read_products", "write_products"]
+}
+
+pub fn revoke_access_scopes_unknown_app_id_test() {
   let body =
     run_mutation(
       seeded_with_installation(),
-      "mutation { appRevokeAccessScopes(scopes: [\"admin_secrets\"]) { revoked { handle } userErrors { field message code } } }",
+      "mutation { appRevokeAccessScopes(id: \"gid://shopify/App/404\", scopes: [\"read_products\"]) { revoked { handle } userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"Access scope 'admin_secrets' is not granted.\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Application could not be found.\",\"code\":\"APPLICATION_CANNOT_BE_FOUND\"}]}}}"
+}
+
+pub fn revoke_access_scopes_missing_installation_test() {
+  let a = app("gid://shopify/App/100", "shopify-draft-proxy", "key-100")
+  let body =
+    run_mutation(
+      store.upsert_base_app(store.new(), a),
+      "mutation { appRevokeAccessScopes(scopes: [\"read_products\"]) { revoked { handle } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"id\"],\"message\":\"App is not installed.\",\"code\":\"APP_NOT_INSTALLED\"}]}}}"
 }
 
 // ----------- delegateAccessTokenCreate / Destroy -----------

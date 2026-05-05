@@ -1,0 +1,13 @@
+mutation AppRevokeAccessScopesMixedFakeScope {
+  appRevokeAccessScopes(scopes: ["read_products", "fake_scope"]) {
+    revoked {
+      handle
+      description
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

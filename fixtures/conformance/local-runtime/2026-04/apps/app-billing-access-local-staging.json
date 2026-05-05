@@ -210,17 +210,12 @@
         "revoke": {
           "data": {
             "appRevokeAccessScopes": {
-              "revoked": [
-                {
-                  "handle": "write_products",
-                  "description": null
-                }
-              ],
+              "revoked": [],
               "userErrors": [
                 {
                   "field": ["scopes"],
-                  "message": "Access scope 'write_orders' is not granted.",
-                  "code": "UNKNOWN_SCOPES"
+                  "message": "Required access scopes can't be revoked.",
+                  "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
                 }
               ]
             }
@@ -232,6 +227,12 @@
               "accessScopes": [
                 {
                   "handle": "read_products"
+                },
+                {
+                  "handle": "write_products"
+                },
+                {
+                  "handle": "write_orders"
                 }
               ]
             }
@@ -326,11 +327,11 @@
     },
     "accessAndInstall": {
       "mutationPayloads": [
-        "appRevokeAccessScopes returns revoked access scope handles plus userErrors for unknown/not-granted scopes.",
+        "appRevokeAccessScopes rejects required-scope revocation atomically.",
         "appUninstall returns the staged app object."
       ],
       "downstreamReads": [
-        "currentAppInstallation.accessScopes excludes locally revoked scopes.",
+        "currentAppInstallation.accessScopes remains unchanged after a failed required-scope revocation.",
         "currentAppInstallation returns null after staged appUninstall."
       ]
     },
