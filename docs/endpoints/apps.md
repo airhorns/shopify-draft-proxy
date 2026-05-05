@@ -52,7 +52,7 @@ Current modeled behavior:
 - `appSubscriptionCreate` stages a pending subscription, usage/recurring line-item pricing details, trial days, and a synthetic local confirmation URL.
 - `appSubscriptionCancel` stages cancellation only for `PENDING`, `ACCEPTED`, and `ACTIVE` subscriptions. `CANCELLED`, `DECLINED`, `EXPIRED`, `FROZEN`, and other non-cancellable statuses return an `id` userError shaped like Shopify's invalid transition payload without mutating local state. Unknown subscription IDs return an `id` userError with a record-not-found message and no error code.
 - `appSubscriptionLineItemUpdate` and `appSubscriptionTrialExtend` mutate staged subscription state and return userErrors for unknown local IDs.
-- `appUsageRecordCreate` stages usage records under staged usage line items and exposes them through `AppSubscriptionLineItem.usageRecords`.
+- `appUsageRecordCreate` stages usage records only for usage-pricing line items. It rejects recurring line items, over-255-character idempotency keys, currency mismatches against the line item's capped amount, and charges whose proposed cumulative `balanceUsed` would exceed `cappedAmount`. Successful creates increment `AppUsagePricing.balanceUsed`, expose the staged record through `AppSubscriptionLineItem.usageRecords`, and reuse the prior staged record when the same idempotency key is repeated for the same line item.
 - `appRevokeAccessScopes` removes locally granted scopes from the current app installation and returns per-scope errors for requested scopes that are not locally granted.
 - `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
 - `delegateAccessTokenCreate` accepts the current singular `delegateAccessScope` input, returns the selected scope through the payload's `accessScopes` list, and stores only a SHA-256 hash plus redacted preview in meta-visible state. The older local fixture shape using `input.accessScopes` remains tolerated for compatibility but is not the documented Admin API input shape; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current `delegateAccessScope` input.
@@ -100,6 +100,7 @@ The capture records:
 - `tests/unit/app-billing-conformance-fixture.test.ts`
 - `config/parity-specs/apps/app-billing-access-local-staging.json`, including
   app-domain generic Node read targets
+- `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
