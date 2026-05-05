@@ -1,0 +1,111 @@
+{
+  "scenarioId": "marketing-engagement-currency-validation",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "operationNames": ["marketingActivityCreateExternal", "marketingEngagementCreate"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-currency-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-engagement-currency-validation.graphql",
+    "variables": {
+      "activityInput": {
+        "title": "HAR-684 Currency Validation Campaign",
+        "remoteId": "har-684-currency-validation",
+        "status": "ACTIVE",
+        "remoteUrl": "https://example.com/har-684-currency-validation",
+        "tactic": "NEWSLETTER",
+        "marketingChannelType": "EMAIL",
+        "budget": {
+          "budgetType": "DAILY",
+          "total": {
+            "amount": "100.00",
+            "currencyCode": "USD"
+          }
+        },
+        "utm": {
+          "campaign": "har-684-currency-validation",
+          "source": "newsletter",
+          "medium": "email"
+        }
+      },
+      "remoteId": "har-684-currency-validation",
+      "activityId": "gid://shopify/MarketingActivity/1",
+      "mismatchedInputEngagement": {
+        "occurredOn": "2026-04-01",
+        "isCumulative": false,
+        "utcOffset": "+00:00",
+        "adSpend": {
+          "amount": "10.00",
+          "currencyCode": "USD"
+        },
+        "sales": {
+          "amount": "30.00",
+          "currencyCode": "EUR"
+        }
+      },
+      "activityCurrencyMismatchEngagement": {
+        "occurredOn": "2026-04-02",
+        "isCumulative": false,
+        "utcOffset": "+00:00",
+        "adSpend": {
+          "amount": "10.00",
+          "currencyCode": "EUR"
+        }
+      },
+      "remoteActivityCurrencyMismatchEngagement": {
+        "occurredOn": "2026-04-03",
+        "isCumulative": false,
+        "utcOffset": "+00:00",
+        "sales": {
+          "amount": "30.00",
+          "currencyCode": "EUR"
+        }
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-684 captures Shopify's marketingEngagementCreate currency validation: mismatched adSpend/sales currencies and engagement currency differing from a USD-budget activity through both activity ID and remote ID resolution. The capture also records that an unrecognized channelHandle returns INVALID_CHANNEL_HANDLE before currency validation; recognized channel-handle currency behavior remains covered by runtime tests because the conformance shop exposes no recognized channel handle.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "input-mismatch-user-errors",
+        "capturePath": "$.operations.inputCurrencyMismatch.response.data.marketingEngagementCreate.userErrors",
+        "proxyPath": "$.data.inputMismatchByRemoteId.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "input-mismatch-null-engagement",
+        "capturePath": "$.operations.inputCurrencyMismatch.response.data.marketingEngagementCreate.marketingEngagement",
+        "proxyPath": "$.data.inputMismatchByRemoteId.marketingEngagement",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "activity-mismatch-by-id-user-errors",
+        "capturePath": "$.operations.activityCurrencyMismatchById.response.data.marketingEngagementCreate.userErrors",
+        "proxyPath": "$.data.activityMismatchById.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "activity-mismatch-by-id-null-engagement",
+        "capturePath": "$.operations.activityCurrencyMismatchById.response.data.marketingEngagementCreate.marketingEngagement",
+        "proxyPath": "$.data.activityMismatchById.marketingEngagement",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "activity-mismatch-by-remote-id-user-errors",
+        "capturePath": "$.operations.activityCurrencyMismatchByRemoteId.response.data.marketingEngagementCreate.userErrors",
+        "proxyPath": "$.data.activityMismatchByRemoteId.userErrors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "activity-mismatch-by-remote-id-null-engagement",
+        "capturePath": "$.operations.activityCurrencyMismatchByRemoteId.response.data.marketingEngagementCreate.marketingEngagement",
+        "proxyPath": "$.data.activityMismatchByRemoteId.marketingEngagement",
+        "upstreamCapturePath": null
+      }
+    ]
+  }
+}
