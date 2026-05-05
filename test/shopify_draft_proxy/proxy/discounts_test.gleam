@@ -525,6 +525,83 @@ pub fn code_basic_product_class_tag_settings_skip_class_error_test() {
     == "{\"data\":{\"productTagStacking\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"combinesWith\",\"productDiscountsWithTagsOnSameCartLine\"],\"message\":\"The shop's plan does not allow setting `productDiscountsWithTagsOnSameCartLine`.\",\"code\":\"PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_NOT_ENTITLED\",\"extraInfo\":null}]}}}"
 }
 
+pub fn code_basic_discount_class_follows_customer_gets_items_test() {
+  let order_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Order class\", code: \"ORDER-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { discountClasses discountClass } } } userErrors { message } } }",
+    )
+  let product_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Product class\", code: \"PRODUCT-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { discountClasses discountClass } } } userErrors { message } } }",
+    )
+  let collection_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Collection class\", code: \"COLLECTION-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { collections: { add: [\"gid://shopify/Collection/1\"] } } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { discountClasses discountClass } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(order_outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"ORDER\"],\"discountClass\":\"ORDER\"}},\"userErrors\":[]}}}"
+  assert json.to_string(product_outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"PRODUCT\"],\"discountClass\":\"PRODUCT\"}},\"userErrors\":[]}}}"
+  assert json.to_string(collection_outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"PRODUCT\"],\"discountClass\":\"PRODUCT\"}},\"userErrors\":[]}}}"
+}
+
+pub fn explicit_singular_discount_class_overrides_basic_inference_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Explicit class\", code: \"EXPLICIT-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", discountClass: ORDER, customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { discountClasses discountClass } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"ORDER\"],\"discountClass\":\"ORDER\"}},\"userErrors\":[]}}}"
+}
+
+pub fn bxgy_and_free_shipping_default_discount_classes_test() {
+  let bxgy_outcome =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGY-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBxgy { discountClasses discountClass } } } userErrors { message } } }",
+    )
+  let free_shipping_outcome =
+    run_mutation(
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Free shipping\", code: \"SHIP-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeFreeShipping { discountClasses discountClass } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(bxgy_outcome.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"PRODUCT\"],\"discountClass\":\"PRODUCT\"}},\"userErrors\":[]}}}"
+  assert json.to_string(free_shipping_outcome.data)
+    == "{\"data\":{\"discountCodeFreeShippingCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"SHIPPING\"],\"discountClass\":\"SHIPPING\"}},\"userErrors\":[]}}}"
+}
+
+pub fn discount_nodes_filter_by_discount_class_test() {
+  let order_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Order class\", code: \"ORDER-FILTER\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let product_outcome =
+    run_mutation_from(
+      order_outcome.store,
+      order_outcome.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Product class\", code: \"PRODUCT-FILTER\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let bxgy_outcome =
+    run_mutation_from(
+      product_outcome.store,
+      product_outcome.identity,
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY class\", code: \"BXGY-FILTER\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      bxgy_outcome.store,
+      "query { discountNodes(first: 10, query: \"discount_class:product\") { nodes { discount { ... on DiscountCodeBasic { title discountClass } ... on DiscountCodeBxgy { title discountClass } } } } discountNodesCount(query: \"discount_class:product\") { count precision } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"discountNodes\":{\"nodes\":[{\"discount\":{\"title\":\"Product class\",\"discountClass\":\"PRODUCT\"}},{\"discount\":{\"title\":\"BXGY class\",\"discountClass\":\"PRODUCT\"}}]},\"discountNodesCount\":{\"count\":2,\"precision\":\"EXACT\"}}"
+}
+
 pub fn code_basic_rejects_cart_line_tag_overlap_as_bad_request_test() {
   let outcome =
     run_mutation(

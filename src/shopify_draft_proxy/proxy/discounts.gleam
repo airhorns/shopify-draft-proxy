@@ -33,6 +33,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -530,43 +531,39 @@ fn filter_discounts(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> List(DiscountRecord) {
-  let query = read_string_arg(field, variables, "query")
-  case query {
-    None -> records
-    Some(query) -> {
-      let q = string.lowercase(query)
-      case string.contains(q, "code:") {
-        True -> []
-        False ->
-          list.filter(records, fn(record) {
-            let status_ok = case string.contains(q, "status:active") {
-              True -> record.status == "ACTIVE"
-              False ->
-                case string.contains(q, "status:scheduled") {
-                  True -> record.status == "SCHEDULED"
-                  False ->
-                    case string.contains(q, "status:expired") {
-                      True -> record.status == "EXPIRED"
-                      False -> True
-                    }
-                }
-            }
-            let type_ok = case string.contains(q, "type:app") {
-              True -> record.discount_type == "app"
-              False ->
-                case string.contains(q, "type:free_shipping") {
-                  True -> record.discount_type == "free_shipping"
-                  False ->
-                    case string.contains(q, "type:code") {
-                      True -> record.owner_kind == "code"
-                      False -> True
-                    }
-                }
-            }
-            status_ok && type_ok
-          })
-      }
-    }
+  search_query_parser.apply_search_query(
+    records,
+    read_string_arg(field, variables, "query"),
+    search_query_parser.default_parse_options(),
+    discount_matches_positive_search_term,
+  )
+}
+
+fn discount_matches_positive_search_term(
+  record: DiscountRecord,
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  let value = search_query_parser.normalize_search_query_value(term.value)
+  case term.field {
+    Some("code") -> False
+    Some("status") -> string.lowercase(record.status) == value
+    Some("type") | Some("discount_type") ->
+      discount_matches_type_filter(record, value)
+    Some("discount_class") | Some("discountClass") ->
+      string.lowercase(discount_class_for_record(record)) == value
+    _ -> True
+  }
+}
+
+fn discount_matches_type_filter(record: DiscountRecord, value: String) -> Bool {
+  case value {
+    "app" -> record.discount_type == "app"
+    "free_shipping" | "free-shipping" -> record.discount_type == "free_shipping"
+    "code" -> record.owner_kind == "code"
+    "automatic" -> record.owner_kind == "automatic"
+    "basic" -> record.discount_type == "basic"
+    "bxgy" -> record.discount_type == "bxgy"
+    _ -> True
   }
 }
 
@@ -1891,6 +1888,8 @@ fn build_discount_record(
     existing
     |> option.then(fn(record) { discount_record_timestamp(record, "createdAt") })
     |> option.unwrap(mutation_timestamp)
+  let discount_classes = discount_classes_for_input(input, discount_type)
+  let discount_class = primary_discount_class(discount_classes)
   let discount =
     SrcObject(
       dict.from_list([
@@ -1904,10 +1903,8 @@ fn build_discount_record(
         #("createdAt", SrcString(created_at)),
         #("updatedAt", SrcString(mutation_timestamp)),
         #("asyncUsageCount", SrcInt(0)),
-        #(
-          "discountClasses",
-          string_list_source(discount_classes_for_input(input, discount_type)),
-        ),
+        #("discountClasses", string_list_source(discount_classes)),
+        #("discountClass", SrcString(discount_class)),
         #(
           "combinesWith",
           object_value_or_default(input, "combinesWith", combines_default()),
@@ -2096,12 +2093,20 @@ fn discount_classes_for_input(
   input: Dict(String, root_field.ResolvedValue),
   discount_type: String,
 ) -> List(String) {
-  case read_string_array(input, "discountClasses", []) {
-    [_, ..] as classes -> classes
-    [] ->
-      case discount_type {
-        "basic" -> infer_basic_discount_classes(input)
-        _ -> default_discount_classes(discount_type)
+  case discount_type {
+    "free_shipping" -> default_discount_classes(discount_type)
+    _ ->
+      case read_string(input, "discountClass") {
+        Some(discount_class) -> [discount_class]
+        None ->
+          case read_string_array(input, "discountClasses", []) {
+            [_, ..] as classes -> classes
+            [] ->
+              case discount_type {
+                "basic" -> infer_basic_discount_classes(input)
+                _ -> default_discount_classes(discount_type)
+              }
+          }
       }
   }
 }
@@ -2111,13 +2116,56 @@ fn infer_basic_discount_classes(
 ) -> List(String) {
   case customer_gets_items_fields(input) {
     Some(items) ->
-      case
-        dict.has_key(items, "products") || dict.has_key(items, "collections")
-      {
+      case items_targets_entitled_resources(items) {
         True -> ["PRODUCT"]
         False -> ["ORDER"]
       }
     None -> ["ORDER"]
+  }
+}
+
+fn items_targets_entitled_resources(
+  items: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.has_key(items, "products")
+  || dict.has_key(items, "productVariants")
+  || dict.has_key(items, "collections")
+}
+
+fn primary_discount_class(classes: List(String)) -> String {
+  case classes {
+    [first, ..] -> first
+    [] -> "ORDER"
+  }
+}
+
+fn discount_class_for_record(record: DiscountRecord) -> String {
+  case captured_to_source(record.payload) {
+    SrcObject(fields) -> {
+      let discount = case record.owner_kind {
+        "automatic" ->
+          dict.get(fields, "automaticDiscount") |> result.unwrap(SrcNull)
+        _ -> dict.get(fields, "codeDiscount") |> result.unwrap(SrcNull)
+      }
+      case discount {
+        SrcObject(discount_fields) ->
+          case dict.get(discount_fields, "discountClass") {
+            Ok(SrcString(class)) -> class
+            _ ->
+              case dict.get(discount_fields, "discountClasses") {
+                Ok(SrcList([SrcString(class), ..])) -> class
+                _ ->
+                  default_discount_classes(record.discount_type)
+                  |> primary_discount_class
+              }
+          }
+        _ ->
+          default_discount_classes(record.discount_type)
+          |> primary_discount_class
+      }
+    }
+    _ ->
+      default_discount_classes(record.discount_type) |> primary_discount_class
   }
 }
 

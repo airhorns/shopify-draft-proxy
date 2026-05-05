@@ -1,0 +1,58 @@
+{
+  "scenarioId": "discount-class-inference",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBxgyCreate",
+    "discountCodeFreeShippingCreate",
+    "discountNodes",
+    "discountNodesCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-class-inference.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-class-inference-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.requests.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-class-create-selected-fields",
+        "capturePath": "$.create.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.basicAll.codeDiscountNode.codeDiscount",
+          "$.basicAll.userErrors",
+          "$.basicProduct.codeDiscountNode.codeDiscount",
+          "$.basicProduct.userErrors",
+          "$.basicCollection.codeDiscountNode.codeDiscount",
+          "$.basicCollection.userErrors",
+          "$.bxgy.codeDiscountNode.codeDiscount",
+          "$.bxgy.userErrors",
+          "$.freeShipping.codeDiscountNode.codeDiscount",
+          "$.freeShipping.userErrors"
+        ]
+      },
+      {
+        "name": "discount-class-product-filter-count",
+        "capturePath": "$.readProductClass.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.discountNodesCount"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-class-inference-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.requests.readProductClass.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Executable parity coverage for Shopify discount class inference on code basic all-items/order, product-entitled basic, collection-entitled basic, BXGY/product, and free-shipping/shipping discountClasses plus a follow-up `discountNodesCount(query: \"discount_class:product ...\")` read. The public 2026-04 Admin schema exposes `discountClasses` and accepts `discount_class:` filtering; singular `discountClass` and singular explicit input are local runtime coverage only because they are not public GraphQL fields in the captured schema."
+}
