@@ -1228,9 +1228,9 @@ fn handle_bulk_operation_run_mutation(
           None,
           [
             UserError(
-              field: Some(["mutation"]),
+              field: None,
               message: "Bulk mutation is required.",
-              code: Some("INVALID"),
+              code: Some("INVALID_MUTATION"),
             ),
           ],
           fragments,
@@ -1249,9 +1249,9 @@ fn handle_bulk_operation_run_mutation(
           None,
           [
             UserError(
-              field: Some(["stagedUploadPath"]),
+              field: None,
               message: "Staged upload path is required.",
-              code: Some("INVALID"),
+              code: Some("INVALID_STAGED_UPLOAD_FILE"),
             ),
           ],
           fragments,
@@ -1294,23 +1294,27 @@ fn handle_bulk_operation_run_mutation(
             )
             None ->
               case store.get_staged_upload_content(store, path) {
-                None ->
-                  stage_failed_run_mutation(
-                    store,
-                    identity,
-                    field,
-                    fragments,
-                    key,
-                    mutation_string,
-                    "",
-                    [
-                      UserError(
-                        field: Some(["stagedUploadPath"]),
-                        message: "Staged upload content was not found for the provided stagedUploadPath.",
-                        code: None,
-                      ),
-                    ],
-                  )
+                None -> #(
+                  MutationFieldResult(
+                    key: key,
+                    payload: serialize_run_mutation_payload(
+                      field,
+                      None,
+                      [
+                        UserError(
+                          field: None,
+                          message: "The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.",
+                          code: Some("NO_SUCH_FILE"),
+                        ),
+                      ],
+                      fragments,
+                    ),
+                    staged_resource_ids: [],
+                    log_drafts: [],
+                  ),
+                  store,
+                  identity,
+                )
                 Some(content) ->
                   stage_supported_run_mutation(
                     store,
@@ -1376,42 +1380,6 @@ fn inner_mutation_validation_user_errors(
         UserError(field: Some(["mutation"]), message: message, code: None)
       })
   }
-}
-
-fn stage_failed_run_mutation(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  field: Selection,
-  fragments: FragmentMap,
-  key: String,
-  mutation: String,
-  result_jsonl: String,
-  user_errors: List(UserError),
-) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  let #(operation, next_store, next_identity) =
-    build_and_stage_mutation_operation(
-      store,
-      identity,
-      "FAILED",
-      mutation,
-      result_jsonl,
-      0,
-    )
-  #(
-    MutationFieldResult(
-      key: key,
-      payload: serialize_run_mutation_payload(
-        field,
-        Some(operation),
-        user_errors,
-        fragments,
-      ),
-      staged_resource_ids: [operation.id],
-      log_drafts: [],
-    ),
-    next_store,
-    next_identity,
-  )
 }
 
 fn stage_supported_run_mutation(
