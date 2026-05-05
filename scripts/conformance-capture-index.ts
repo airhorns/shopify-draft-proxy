@@ -2890,6 +2890,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-address-country-province-validation',
+    scriptPath: 'scripts/capture-customer-address-country-province-validation.mts',
+    purpose:
+      'Customer address country/province Atlas validation and normalization across CustomerInput and dedicated address mutations.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-address-country-province-validation.json`,
+      'config/parity-specs/customers/customer_address_country_province_validation.json',
+      'config/parity-requests/customers/customer-address-country-province-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable customers for valid, display-conflict, and no-zone branches; deletes them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Captured evidence shows countryCode wins over conflicting country display text and SG province input is ignored because SG has no zones.',
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-account-page-data-erasure',
     scriptPath: 'scripts/capture-customer-account-page-data-erasure-conformance.ts',
     purpose: 'Customer Account page reads plus customer data-erasure request/cancel success and validation payloads.',
