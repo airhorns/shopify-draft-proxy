@@ -144,6 +144,201 @@ mutation StageValidationUpdateShape {
       code
     }
   }
+  active11: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 11", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active12: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 12", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active13: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 13", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active14: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 14", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active15: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 15", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active16: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 16", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active17: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 17", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active18: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 18", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active19: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 19", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active20: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 20", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active21: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 21", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active22: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 22", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active23: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 23", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active24: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 24", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active25: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 25", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
   inactiveCapSubject: validationCreate(
     validation: { functionHandle: "validation-alpha", title: "Inactive cap subject", enable: false }
   ) {

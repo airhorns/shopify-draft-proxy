@@ -33,8 +33,9 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Argument, type Location, type Selection, Argument, EnumValue, Field,
-  ListValue, NullValue, ObjectValue, StringValue, VariableValue,
+  type Argument, type Location, type Selection, type Value, Argument,
+  BooleanValue, EnumValue, Field, FloatValue, IntValue, ListValue, NullValue,
+  ObjectValue, StringValue, VariableValue,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parser as graphql_parser
@@ -522,6 +523,7 @@ pub fn validate_mutation_field_against_schema(
           arguments,
           operation_name,
           operation_path,
+          source_body,
           schema,
         )
       let literal_errors =
@@ -546,9 +548,16 @@ fn validate_literal_input_object_fields(
   arguments: List(Argument),
   operation_name: String,
   operation_path: String,
+  source_body: String,
   schema: MutationSchema,
 ) -> List(Json) {
   case operation_name {
+    "backupRegionUpdate" ->
+      validate_backup_region_update_literal_region(
+        arguments,
+        operation_path,
+        source_body,
+      )
     // Most Shopify mutations are resolver-lenient for missing fields
     // inside top-level inline inputs. Live locationAdd is stricter for
     // LocationAddInput.name/address, so mirror that targeted parser
@@ -564,6 +573,74 @@ fn validate_literal_input_object_fields(
         schema,
       )
     _ -> []
+  }
+}
+
+fn validate_backup_region_update_literal_region(
+  arguments: List(Argument),
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case find_argument(arguments, "region") {
+    Some(Argument(value: ObjectValue(fields: fields, loc: object_loc), ..)) ->
+      validate_backup_region_country_code_literal(
+        fields,
+        object_loc,
+        operation_path,
+        source_body,
+      )
+    _ -> []
+  }
+}
+
+fn validate_backup_region_country_code_literal(
+  fields: List(ast.ObjectField),
+  object_loc: Option(Location),
+  operation_path: String,
+  source_body: String,
+) -> List(Json) {
+  case find_object_field(fields, "countryCode") {
+    None -> [
+      build_missing_required_input_object_attribute_error_with_location(
+        operation_path,
+        "backupRegionUpdate",
+        "region",
+        "BackupRegionUpdateInput",
+        "countryCode",
+        "CountryCode!",
+        object_loc,
+        source_body,
+      ),
+    ]
+    Some(ast.ObjectField(value: NullValue(..), ..)) -> [
+      build_invalid_input_object_attribute_error_with_location(
+        operation_path,
+        "backupRegionUpdate",
+        "region",
+        "BackupRegionUpdateInput",
+        "countryCode",
+        "CountryCode!",
+        "null",
+        object_loc,
+        source_body,
+      ),
+    ]
+    Some(ast.ObjectField(value: EnumValue(..), ..)) -> []
+    Some(ast.ObjectField(value: StringValue(..), ..)) -> []
+    Some(ast.ObjectField(value: VariableValue(..), ..)) -> []
+    Some(ast.ObjectField(value: value, ..)) -> [
+      build_invalid_input_object_attribute_error_with_location(
+        operation_path,
+        "backupRegionUpdate",
+        "region",
+        "BackupRegionUpdateInput",
+        "countryCode",
+        "CountryCode!",
+        literal_value_preview(value),
+        object_loc,
+        source_body,
+      ),
+    ]
   }
 }
 
@@ -696,6 +773,55 @@ fn build_missing_required_input_object_attribute_error(
   ])
 }
 
+fn build_missing_required_input_object_attribute_error_with_location(
+  operation_path: String,
+  operation_name: String,
+  argument_name: String,
+  input_object_name: String,
+  input_field_name: String,
+  input_field_type: String,
+  loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Argument '"
+        <> input_field_name
+        <> "' on InputObject '"
+        <> input_object_name
+        <> "' is required. Expected type "
+        <> input_field_type,
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, operation_name, argument_name, input_field_name],
+          json.string,
+        ),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("missingRequiredInputObjectAttribute")),
+          #("argumentName", json.string(input_field_name)),
+          #("argumentType", json.string(input_field_type)),
+          #("inputObjectType", json.string(input_object_name)),
+        ]),
+      ),
+    ]),
+  )
+}
+
 fn build_null_input_object_attribute_error(
   operation_path: String,
   operation_name: String,
@@ -733,6 +859,73 @@ fn build_null_input_object_attribute_error(
       ]),
     ),
   ])
+}
+
+fn build_invalid_input_object_attribute_error_with_location(
+  operation_path: String,
+  operation_name: String,
+  argument_name: String,
+  input_object_name: String,
+  input_field_name: String,
+  input_field_type: String,
+  value: String,
+  loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Argument '"
+        <> input_field_name
+        <> "' on InputObject '"
+        <> input_object_name
+        <> "' has an invalid value ("
+        <> value
+        <> "). Expected type '"
+        <> input_field_type
+        <> "'.",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, operation_name, argument_name, input_field_name],
+          json.string,
+        ),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("InputObject")),
+          #("argumentName", json.string(input_field_name)),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn literal_value_preview(value: Value) -> String {
+  case value {
+    IntValue(value: value, ..) -> value
+    FloatValue(value: value, ..) -> value
+    StringValue(value: value, ..) -> "\"" <> value <> "\""
+    BooleanValue(value: True, ..) -> "true"
+    BooleanValue(value: False, ..) -> "false"
+    NullValue(..) -> "null"
+    EnumValue(value: value, ..) -> value
+    ListValue(..) -> "[]"
+    ObjectValue(..) -> "{}"
+    VariableValue(variable: variable) -> "$" <> variable.name.value
+  }
 }
 
 fn validate_top_level_args(
