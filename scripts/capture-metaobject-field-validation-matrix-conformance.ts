@@ -249,7 +249,7 @@ function validationCases(metaobjectDefinitionId: string): ValidationCase[] {
         key: `list_${typeCase.key}`,
         type: `list.${typeCase.type}`,
         value: listValue(listItemValue),
-        note: typeCase.note,
+        ...(typeCase.note ? { note: typeCase.note } : {}),
         ...(definitionValidations ? { definitionValidations } : {}),
       };
     });
@@ -423,15 +423,14 @@ try {
     userErrorsPath('metaobjectDefinitionCreate'),
     'target-definition-create',
   );
-  definitionIds.push(
-    extractString(
-      targetDefinitionCreate.response,
-      ['data', 'metaobjectDefinitionCreate', 'metaobjectDefinition', 'id'],
-      'target-definition-create',
-    ),
+  const targetDefinitionId = extractString(
+    targetDefinitionCreate.response,
+    ['data', 'metaobjectDefinitionCreate', 'metaobjectDefinition', 'id'],
+    'target-definition-create',
   );
+  definitionIds.push(targetDefinitionId);
 
-  const cases = validationCases(definitionIds[0]);
+  const cases = validationCases(targetDefinitionId);
   const definitionCreate = await captureGraphql('definition-create', queries.definitionCreate, {
     definition: {
       type: matrixType,
@@ -457,13 +456,12 @@ try {
     },
   });
   assertNoUserErrors(setupMetaobjectCreate.response, userErrorsPath('metaobjectCreate'), 'setup-metaobject-create');
-  createdMetaobjectIds.push(
-    extractString(
-      setupMetaobjectCreate.response,
-      ['data', 'metaobjectCreate', 'metaobject', 'id'],
-      'setup-metaobject-create',
-    ),
+  const setupMetaobjectId = extractString(
+    setupMetaobjectCreate.response,
+    ['data', 'metaobjectCreate', 'metaobject', 'id'],
+    'setup-metaobject-create',
   );
+  createdMetaobjectIds.push(setupMetaobjectId);
 
   const invalidCreateCases: Record<string, Capture> = {};
   const invalidUpdateCases: Record<string, Capture> = {};
@@ -481,7 +479,7 @@ try {
     invalidCreateCases[typeCase.name] = createCapture;
 
     const updateVariables = updateVariablesFor(typeCase);
-    updateVariables.id = createdMetaobjectIds[0];
+    updateVariables['id'] = setupMetaobjectId;
     invalidUpdateCases[typeCase.name] = await captureGraphql(
       `update-${typeCase.name}`,
       queries.update,
