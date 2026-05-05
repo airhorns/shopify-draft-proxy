@@ -1277,13 +1277,41 @@ fn serialize_translation(
             "outdated" -> #(key, json.bool(translation.outdated))
             "updatedAt" -> #(key, json.string(translation.updated_at))
             "__typename" -> #(key, json.string("Translation"))
-            "market" -> #(key, json.null())
+            "market" -> #(
+              key,
+              serialize_translation_market(translation.market_id, selection),
+            )
             _ -> #(key, json.null())
           }
         _ -> #(key, json.null())
       }
     })
   json.object(entries)
+}
+
+fn serialize_translation_market(
+  market_id: Option(String),
+  field: Selection,
+) -> Json {
+  case market_id {
+    None -> json.null()
+    Some(id) -> {
+      let entries =
+        list.map(selections_of(field), fn(selection) {
+          let key = get_field_response_key(selection)
+          case selection {
+            Field(name: name, ..) ->
+              case name.value {
+                "id" -> #(key, json.string(id))
+                "__typename" -> #(key, json.string("Market"))
+                _ -> #(key, json.null())
+              }
+            _ -> #(key, json.null())
+          }
+        })
+      json.object(entries)
+    }
+  }
 }
 
 fn serialize_translatable_resources_root(
@@ -2000,17 +2028,6 @@ fn handle_translations_remove(
     ]
     _ -> []
   }
-  let market_errors = case market_ids {
-    [] -> []
-    _ -> [
-      TranslationError(
-        field: ["marketIds"],
-        message: "Market-specific translations are not supported for this local resource branch",
-        code: "MARKET_CUSTOM_CONTENT_NOT_ALLOWED",
-      ),
-    ]
-  }
-
   let resource_errors = case resource {
     Some(record) -> {
       let key_validation =
@@ -2038,30 +2055,33 @@ fn handle_translations_remove(
   let errors =
     list.append(
       initial_errors,
-      list.append(
-        key_errors,
-        list.append(locale_errors, list.append(market_errors, resource_errors)),
-      ),
+      list.append(key_errors, list.append(locale_errors, resource_errors)),
     )
 
   let #(removed, store_after) = case errors, resource {
     [], Some(record) -> {
+      let market_targets = case market_ids {
+        [] -> [None]
+        _ -> list.map(market_ids, Some)
+      }
       let #(removed, store_acc) =
         list.fold(locales, #([], store_in), fn(outer_acc, loc) {
           list.fold(keys, outer_acc, fn(inner_acc, k) {
-            let #(removed_acc, store_step) = inner_acc
-            let #(removed_record, store_next) =
-              store.remove_translation(
-                store_step,
-                record.resource_id,
-                loc,
-                k,
-                None,
-              )
-            case removed_record {
-              Some(t) -> #(list.append(removed_acc, [t]), store_next)
-              None -> #(removed_acc, store_next)
-            }
+            list.fold(market_targets, inner_acc, fn(market_acc, market_id) {
+              let #(removed_acc, store_step) = market_acc
+              let #(removed_record, store_next) =
+                store.remove_translation(
+                  store_step,
+                  record.resource_id,
+                  loc,
+                  k,
+                  market_id,
+                )
+              case removed_record {
+                Some(t) -> #(list.append(removed_acc, [t]), store_next)
+                None -> #(removed_acc, store_next)
+              }
+            })
           })
         })
       #(removed, store_acc)
@@ -2247,25 +2267,11 @@ fn validate_and_build_translations(
           }
         _, _ -> []
       }
-      let market_errors = case
-        graphql_helpers.read_arg_string(input, "marketId")
-      {
-        Some(_) -> [
-          TranslationError(
-            field: list.append(prefix, ["marketId"]),
-            message: "Market-specific translations are not supported for this local resource branch",
-            code: "MARKET_CUSTOM_CONTENT_NOT_ALLOWED",
-          ),
-        ]
-        None -> []
-      }
+      let market_id = graphql_helpers.read_arg_string(input, "marketId")
       let row_errors =
         list.append(
           locale_errs,
-          list.append(
-            key_errors,
-            list.append(value_errors, list.append(digest_errors, market_errors)),
-          ),
+          list.append(key_errors, list.append(value_errors, digest_errors)),
         )
       let new_errors = list.append(errors_acc, row_errors)
       let can_record = case row_errors, maybe_locale, value, content {
@@ -2291,7 +2297,7 @@ fn validate_and_build_translations(
               locale: loc,
               value: v,
               translatable_content_digest: supplied_digest_value,
-              market_id: None,
+              market_id: market_id,
               updated_at: timestamp,
               outdated: False,
             )
