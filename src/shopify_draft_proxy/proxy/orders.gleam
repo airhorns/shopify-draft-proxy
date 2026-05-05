@@ -3923,7 +3923,7 @@ fn handle_order_lifecycle_mutation(
               field,
               None,
               [
-                #(["id"], "Order does not exist"),
+                mutation_user_error(["id"], "Order does not exist"),
               ],
               fragments,
             )
@@ -3941,7 +3941,7 @@ fn handle_order_lifecycle_mutation(
                   field,
                   None,
                   [
-                    #(["id"], "Order does not exist"),
+                    mutation_user_error(["id"], "Order does not exist"),
                   ],
                   fragments,
                 )
@@ -4010,7 +4010,7 @@ fn apply_order_lifecycle_update(
 fn serialize_order_mutation_payload(
   field: Selection,
   order: Option(OrderRecord),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(OrderMutationUserError),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -4026,7 +4026,7 @@ fn serialize_order_mutation_payload(
             "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
-                serialize_user_error(child, error)
+                serialize_order_mutation_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
@@ -4218,7 +4218,7 @@ fn handle_order_invoice_send(
                 field,
                 None,
                 [
-                  #(["id"], "Order does not exist"),
+                  mutation_user_error(["id"], "Order does not exist"),
                 ],
                 fragments,
               ),
@@ -4232,7 +4232,7 @@ fn handle_order_invoice_send(
             field,
             None,
             [
-              #(["id"], "Order does not exist"),
+              mutation_user_error(["id"], "Order does not exist"),
             ],
             fragments,
           ),
@@ -4286,7 +4286,7 @@ fn handle_order_mark_as_paid_mutation(
               field,
               None,
               [
-                #(["id"], "Order does not exist"),
+                mutation_user_error(["id"], "Order does not exist"),
               ],
               fragments,
             )
@@ -4303,33 +4303,50 @@ fn handle_order_mark_as_paid_mutation(
                   field,
                   None,
                   [
-                    #(["id"], "Order does not exist"),
+                    mutation_user_error(["id"], "Order does not exist"),
                   ],
                   fragments,
                 )
               #(key, payload, hydrated_store, identity, [], [], [])
             }
             Some(order) -> {
-              let #(updated_order, next_identity) =
-                apply_order_mark_as_paid_update(order, identity)
-              let next_store = store.stage_order(hydrated_store, updated_order)
-              let payload =
-                serialize_order_mutation_payload(
-                  field,
-                  Some(updated_order),
-                  [],
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  "orderMarkAsPaid",
-                  [id],
-                  store.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some("Locally staged orderMarkAsPaid in shopify-draft-proxy."),
-                )
-              #(key, payload, next_store, next_identity, [id], [], [draft])
+              case order_mark_as_paid_invalid_error(order) {
+                Some(error) -> {
+                  let payload =
+                    serialize_order_mutation_payload(
+                      field,
+                      Some(order),
+                      [error],
+                      fragments,
+                    )
+                  #(key, payload, hydrated_store, identity, [], [], [])
+                }
+                None -> {
+                  let #(updated_order, next_identity) =
+                    apply_order_mark_as_paid_update(order, identity)
+                  let next_store =
+                    store.stage_order(hydrated_store, updated_order)
+                  let payload =
+                    serialize_order_mutation_payload(
+                      field,
+                      Some(updated_order),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "orderMarkAsPaid",
+                      [id],
+                      store.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged orderMarkAsPaid in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, next_store, next_identity, [id], [], [draft])
+                }
+              }
             }
           }
         }
@@ -4338,39 +4355,77 @@ fn handle_order_mark_as_paid_mutation(
   }
 }
 
+fn order_mark_as_paid_invalid_error(
+  order: OrderRecord,
+) -> Option(OrderMutationUserError) {
+  case order_cancelled(order) {
+    True ->
+      Some(invalid_id_user_error("Order is cancelled and cannot be marked paid"))
+    False ->
+      case captured_string_field(order.data, "displayFinancialStatus") {
+        Some("PAID") ->
+          Some(invalid_id_user_error("Order cannot be marked as paid."))
+        Some("REFUNDED") ->
+          Some(invalid_id_user_error("Order cannot be marked as paid."))
+        Some("PARTIALLY_REFUNDED") ->
+          Some(invalid_id_user_error("Order cannot be marked as paid."))
+        Some("VOIDED") ->
+          Some(invalid_id_user_error("Order cannot be marked as paid."))
+        _ -> None
+      }
+  }
+}
+
+fn order_cancelled(order: OrderRecord) -> Bool {
+  case captured_object_field(order.data, "cancelledAt") {
+    Some(CapturedNull) | None -> False
+    _ -> True
+  }
+}
+
+fn invalid_id_user_error(message: String) -> OrderMutationUserError {
+  order_mutation_user_error([UserErrorField("id")], message, Some("INVALID"))
+}
+
 fn apply_order_mark_as_paid_update(
   order: OrderRecord,
   identity: SyntheticIdentityRegistry,
 ) -> #(OrderRecord, SyntheticIdentityRegistry) {
-  case captured_string_field(order.data, "displayFinancialStatus") {
-    Some("PAID") -> #(order, identity)
-    _ -> {
-      let #(timestamp, next_identity) =
-        synthetic_identity.make_synthetic_timestamp(identity)
-      let amount_set = order_payment_amount_set(order)
-      let currency_code = captured_money_set_currency(amount_set)
-      let transaction =
-        CapturedObject([
-          #("kind", CapturedString("SALE")),
-          #("status", CapturedString("SUCCESS")),
-          #("gateway", CapturedString("manual")),
-          #("amountSet", amount_set),
-        ])
-      let updated_data =
-        order.data
-        |> replace_captured_object_fields([
-          #("updatedAt", CapturedString(timestamp)),
-          #("displayFinancialStatus", CapturedString("PAID")),
-          #("paymentGatewayNames", CapturedArray([CapturedString("manual")])),
-          #("totalOutstandingSet", money_set_string("0.0", currency_code)),
-          #(
-            "transactions",
-            CapturedArray(list.append(order_transactions(order), [transaction])),
-          ),
-        ])
-      #(OrderRecord(..order, data: updated_data), next_identity)
-    }
-  }
+  let #(transaction_id, identity_after_transaction) =
+    synthetic_identity.make_synthetic_gid(identity, "OrderTransaction")
+  let #(timestamp, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_transaction)
+  let amount_set = order_payment_amount_set(order)
+  let currency_code = captured_money_set_currency(amount_set)
+  let presentment_currency_code = order_presentment_currency_code(order)
+  let transaction =
+    CapturedObject([
+      #("id", CapturedString(transaction_id)),
+      #("kind", CapturedString("SALE")),
+      #("status", CapturedString("SUCCESS")),
+      #("gateway", CapturedString("manual")),
+      #("amountSet", amount_set),
+    ])
+  let updated_data =
+    order.data
+    |> replace_captured_object_fields([
+      #("updatedAt", CapturedString(timestamp)),
+      #("displayFinancialStatus", CapturedString("PAID")),
+      #("paymentGatewayNames", CapturedArray([CapturedString("manual")])),
+      #(
+        "totalOutstandingSet",
+        money_set_string_with_presentment(
+          "0.0",
+          currency_code,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "transactions",
+        CapturedArray(list.append(order_transactions(order), [transaction])),
+      ),
+    ])
+  #(OrderRecord(..order, data: updated_data), next_identity)
 }
 
 fn order_payment_amount_set(order: OrderRecord) -> CapturedJsonValue {
@@ -4384,10 +4439,12 @@ fn order_payment_amount_set(order: OrderRecord) -> CapturedJsonValue {
       }
     None -> None
   }
-  outstanding
-  |> option.or(captured_object_field(order.data, "currentTotalPriceSet"))
-  |> option.or(captured_object_field(order.data, "totalPriceSet"))
-  |> option.unwrap(money_set_string("0.0", order_currency_code(order)))
+  let amount_set =
+    outstanding
+    |> option.or(captured_object_field(order.data, "currentTotalPriceSet"))
+    |> option.or(captured_object_field(order.data, "totalPriceSet"))
+    |> option.unwrap(money_set_string("0.0", order_currency_code(order)))
+  complete_money_bag(amount_set, order_presentment_currency_code(order))
 }
 
 fn order_currency_code(order: OrderRecord) -> String {
@@ -4398,6 +4455,17 @@ fn order_currency_code(order: OrderRecord) -> String {
   |> option.unwrap("CAD")
 }
 
+fn order_presentment_currency_code(order: OrderRecord) -> String {
+  captured_string_field(order.data, "presentmentCurrencyCode")
+  |> option.or(
+    captured_object_field(order.data, "currentTotalPriceSet")
+    |> option.or(captured_object_field(order.data, "totalOutstandingSet"))
+    |> option.or(captured_object_field(order.data, "totalPriceSet"))
+    |> option.then(captured_money_set_presentment_currency),
+  )
+  |> option.unwrap(order_currency_code(order))
+}
+
 fn captured_money_set_currency(value: CapturedJsonValue) -> String {
   case captured_object_field(value, "shopMoney") {
     Some(shop_money) ->
@@ -4406,9 +4474,27 @@ fn captured_money_set_currency(value: CapturedJsonValue) -> String {
   }
 }
 
+fn captured_money_set_presentment_currency(
+  value: CapturedJsonValue,
+) -> Option(String) {
+  case captured_object_field(value, "presentmentMoney") {
+    Some(presentment_money) ->
+      captured_string_field(presentment_money, "currencyCode")
+    None -> None
+  }
+}
+
 fn money_set_string(
   amount: String,
   currency_code: String,
+) -> CapturedJsonValue {
+  money_set_string_with_presentment(amount, currency_code, currency_code)
+}
+
+fn money_set_string_with_presentment(
+  amount: String,
+  currency_code: String,
+  presentment_currency_code: String,
 ) -> CapturedJsonValue {
   CapturedObject([
     #(
@@ -4418,7 +4504,50 @@ fn money_set_string(
         #("currencyCode", CapturedString(currency_code)),
       ]),
     ),
+    #(
+      "presentmentMoney",
+      CapturedObject([
+        #("amount", CapturedString(amount)),
+        #("currencyCode", CapturedString(presentment_currency_code)),
+      ]),
+    ),
   ])
+}
+
+fn complete_money_bag(
+  amount_set: CapturedJsonValue,
+  fallback_presentment_currency_code: String,
+) -> CapturedJsonValue {
+  let shop_amount = captured_money_set_amount(amount_set)
+  let shop_currency = captured_money_set_currency(amount_set)
+  let presentment_money = case
+    captured_object_field(amount_set, "presentmentMoney")
+  {
+    Some(value) -> value
+    None ->
+      CapturedObject([
+        #("amount", CapturedString(shop_amount)),
+        #("currencyCode", CapturedString(fallback_presentment_currency_code)),
+      ])
+  }
+  CapturedObject([
+    #(
+      "shopMoney",
+      CapturedObject([
+        #("amount", CapturedString(shop_amount)),
+        #("currencyCode", CapturedString(shop_currency)),
+      ]),
+    ),
+    #("presentmentMoney", presentment_money),
+  ])
+}
+
+fn captured_money_set_amount(value: CapturedJsonValue) -> String {
+  case captured_object_field(value, "shopMoney") {
+    Some(shop_money) ->
+      captured_string_field(shop_money, "amount") |> option.unwrap("0.0")
+    None -> "0.0"
+  }
 }
 
 fn order_transactions(order: OrderRecord) -> List(CapturedJsonValue) {
@@ -16496,7 +16625,7 @@ fn maybe_hydrate_order_by_id(
     False -> {
       let query =
         "query OrdersOrderHydrate($id: ID!) {
-  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } } totalReceivedSet { shopMoney { amount currencyCode } } totalRefundedSet { shopMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } transactions { id kind status gateway amountSet { shopMoney { amount currencyCode } } } refunds { id note totalRefundedSet { shopMoney { amount currencyCode } } refundLineItems(first: 10) { nodes { id quantity restockType lineItem { id title } subtotalSet { shopMoney { amount currencyCode } } } } transactions(first: 10) { nodes { id kind status gateway amountSet { shopMoney { amount currencyCode } } } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity currentQuantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } variant { id title sku } } } }
+  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus presentmentCurrencyCode paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } transactions { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } refunds { id note totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } refundLineItems(first: 10) { nodes { id quantity restockType lineItem { id title } subtotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } transactions(first: 10) { nodes { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity currentQuantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } variant { id title sku } } } }
 }
 "
       let variables = json.object([#("id", json.string(order_id))])

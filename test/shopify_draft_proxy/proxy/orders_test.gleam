@@ -5745,6 +5745,10 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
               amount
               currencyCode
             }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
           }
           transactions {
             kind
@@ -5752,6 +5756,10 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
             gateway
             amountSet {
               shopMoney {
+                amount
+                currencyCode
+              }
+              presentmentMoney {
                 amount
                 currencyCode
               }
@@ -5786,7 +5794,7 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
       empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
+    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == [order_id]
   assert list.length(outcome.log_drafts) == 1
 
@@ -5802,6 +5810,10 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
             amount
             currencyCode
           }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
         }
         transactions {
           kind
@@ -5812,6 +5824,10 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
               amount
               currencyCode
             }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
           }
         }
       }
@@ -5819,7 +5835,243 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
   "
   let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
   assert json.to_string(read)
-    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]}}}"
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]}}}"
+}
+
+pub fn orders_order_mark_as_paid_invalid_states_do_not_stage_test() {
+  let cases = [
+    #("PAID", "Order cannot be marked as paid."),
+    #("REFUNDED", "Order cannot be marked as paid."),
+    #("PARTIALLY_REFUNDED", "Order cannot be marked as paid."),
+    #("VOIDED", "Order cannot be marked as paid."),
+  ]
+  list.each(cases, fn(item) {
+    let #(status, message) = item
+    let order_id = "gid://shopify/Order/mark-as-paid-" <> status
+    let seeded =
+      store.new()
+      |> store.upsert_base_orders([
+        mark_as_paid_order_record(
+          order_id,
+          status,
+          types.CapturedNull,
+          "19.0",
+          "CAD",
+          None,
+        ),
+      ])
+    let outcome =
+      orders.process_mutation(
+        seeded,
+        synthetic_identity.new(),
+        "/admin/api/2026-04/graphql.json",
+        mark_as_paid_validation_mutation(),
+        mark_as_paid_variables(order_id),
+        empty_upstream_context(),
+      )
+    assert json.to_string(outcome.data)
+      == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\""
+      <> order_id
+      <> "\",\"displayFinancialStatus\":\""
+      <> status
+      <> "\",\"paymentGatewayNames\":[\"previous\"],\"transactions\":[]},\"userErrors\":[{\"field\":[\"id\"],\"message\":\""
+      <> message
+      <> "\",\"code\":\"INVALID\"}]}}}"
+    assert outcome.staged_resource_ids == []
+    assert outcome.log_drafts == []
+  })
+}
+
+pub fn orders_order_mark_as_paid_cancelled_order_does_not_stage_test() {
+  let order_id = "gid://shopify/Order/mark-as-paid-cancelled"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      mark_as_paid_order_record(
+        order_id,
+        "PENDING",
+        types.CapturedString("2024-01-02T00:00:00.000Z"),
+        "19.0",
+        "CAD",
+        None,
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mark_as_paid_validation_mutation(),
+      mark_as_paid_variables(order_id),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/mark-as-paid-cancelled\",\"displayFinancialStatus\":\"PENDING\",\"paymentGatewayNames\":[\"previous\"],\"transactions\":[]},\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Order is cancelled and cannot be marked paid\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_order_mark_as_paid_multi_currency_uses_presentment_currency_test() {
+  let order_id = "gid://shopify/Order/mark-as-paid-multi-currency"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      mark_as_paid_order_record(
+        order_id,
+        "PENDING",
+        types.CapturedNull,
+        "12.5",
+        "USD",
+        Some("CAD"),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mark_as_paid_money_bag_mutation(),
+      mark_as_paid_variables(order_id),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/mark-as-paid-multi-currency\",\"presentmentCurrencyCode\":\"CAD\",\"displayFinancialStatus\":\"PAID\",\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"amountSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [order_id]
+  assert list.length(outcome.log_drafts) == 1
+}
+
+fn mark_as_paid_order_record(
+  order_id: String,
+  display_financial_status: String,
+  cancelled_at: types.CapturedJsonValue,
+  amount: String,
+  currency_code: String,
+  presentment_currency_code: Option(String),
+) -> types.OrderRecord {
+  let presentment_fields = case presentment_currency_code {
+    Some(value) -> [#("presentmentCurrencyCode", types.CapturedString(value))]
+    None -> []
+  }
+  types.OrderRecord(
+    id: order_id,
+    cursor: None,
+    data: types.CapturedObject(list.append(
+      [
+        #("id", types.CapturedString(order_id)),
+        #(
+          "displayFinancialStatus",
+          types.CapturedString(display_financial_status),
+        ),
+        #("cancelledAt", cancelled_at),
+        #(
+          "paymentGatewayNames",
+          types.CapturedArray([types.CapturedString("previous")]),
+        ),
+        #(
+          "totalOutstandingSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString(amount)),
+                #("currencyCode", types.CapturedString(currency_code)),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "currentTotalPriceSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString(amount)),
+                #("currencyCode", types.CapturedString(currency_code)),
+              ]),
+            ),
+          ]),
+        ),
+        #("transactions", types.CapturedArray([])),
+      ],
+      presentment_fields,
+    )),
+  )
+}
+
+fn mark_as_paid_variables(
+  order_id: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  dict.from_list([
+    #(
+      "input",
+      root_field.ObjectVal(
+        dict.from_list([#("id", root_field.StringVal(order_id))]),
+      ),
+    ),
+  ])
+}
+
+fn mark_as_paid_validation_mutation() -> String {
+  "
+    mutation OrderMarkAsPaidValidation($input: OrderMarkAsPaidInput!) {
+      orderMarkAsPaid(input: $input) {
+        order {
+          id
+          displayFinancialStatus
+          paymentGatewayNames
+          transactions {
+            kind
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+fn mark_as_paid_money_bag_mutation() -> String {
+  "
+    mutation OrderMarkAsPaidMoneyBag($input: OrderMarkAsPaidInput!) {
+      orderMarkAsPaid(input: $input) {
+        order {
+          id
+          presentmentCurrencyCode
+          displayFinancialStatus
+          totalOutstandingSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          transactions {
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+              presentmentMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
 }
 
 pub fn orders_order_edit_missing_id_validation_guardrails_test() {
