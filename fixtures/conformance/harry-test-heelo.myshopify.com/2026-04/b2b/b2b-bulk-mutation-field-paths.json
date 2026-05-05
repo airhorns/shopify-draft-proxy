@@ -1,0 +1,835 @@
+{
+  "scenarioId": "b2b-bulk-mutation-field-paths",
+  "capturedAt": "2026-05-05T21:05:46.305Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-754",
+    "plan": "Create disposable B2B records, record Shopify userErrors[].field paths for bulk B2B list inputs, and clean up created companies."
+  },
+  "primaryCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754CompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          title\n          isMainContact\n          roleAssignments(first: 5) { nodes { id role { id name } companyLocation { id name } } }\n        }\n        contacts(first: 5) { nodes { id title isMainContact } }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-754 B2B bulk fields 1778015142158",
+            "note": "HAR-754 B2B bulk mutation field path parity",
+            "externalId": "har-754-primary-1778015142158"
+          },
+          "companyContact": {
+            "firstName": "Har",
+            "lastName": "Bulk",
+            "email": "har-754-primary-1778015142158@example.com",
+            "title": "Buyer"
+          },
+          "companyLocation": {
+            "name": "HAR-754 B2B bulk fields 1778015142158 HQ",
+            "phone": "+16135550101",
+            "billingAddress": {
+              "address1": "754 Bulk Way",
+              "city": "Toronto",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5438406962",
+            "name": "HAR-754 B2B bulk fields 1778015142158",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10148774194",
+              "title": "Buyer",
+              "isMainContact": true,
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44647121202",
+                    "role": {
+                      "id": "gid://shopify/CompanyContactRole/10668278066",
+                      "name": "Ordering only"
+                    },
+                    "companyLocation": {
+                      "id": "gid://shopify/CompanyLocation/8247148850",
+                      "name": "HAR-754 B2B bulk fields 1778015142158 HQ"
+                    }
+                  }
+                ]
+              }
+            },
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10148774194",
+                  "title": "Buyer",
+                  "isMainContact": true
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8247148850",
+                  "name": "HAR-754 B2B bulk fields 1778015142158 HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10668245298",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10668278066",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 37,
+          "actualQueryCost": 26,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1974,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondCompanyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754CompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          title\n          isMainContact\n          roleAssignments(first: 5) { nodes { id role { id name } companyLocation { id name } } }\n        }\n        contacts(first: 5) { nodes { id title isMainContact } }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-754 B2B bulk fields 1778015142158 delete",
+            "note": "HAR-754 B2B bulk mutation field path parity",
+            "externalId": "har-754-delete-company-1778015142158"
+          },
+          "companyContact": {
+            "firstName": "Har",
+            "lastName": "Bulk",
+            "email": "har-754-delete-company-1778015142158@example.com",
+            "title": "Buyer"
+          },
+          "companyLocation": {
+            "name": "HAR-754 B2B bulk fields 1778015142158 delete HQ",
+            "phone": "+16135550101",
+            "billingAddress": {
+              "address1": "754 Bulk Way",
+              "city": "Toronto",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5438439730",
+            "name": "HAR-754 B2B bulk fields 1778015142158 delete",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10148806962",
+              "title": "Buyer",
+              "isMainContact": true,
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44647153970",
+                    "role": {
+                      "id": "gid://shopify/CompanyContactRole/10668343602",
+                      "name": "Ordering only"
+                    },
+                    "companyLocation": {
+                      "id": "gid://shopify/CompanyLocation/8247181618",
+                      "name": "HAR-754 B2B bulk fields 1778015142158 delete HQ"
+                    }
+                  }
+                ]
+              }
+            },
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10148806962",
+                  "title": "Buyer",
+                  "isMainContact": true
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8247181618",
+                  "name": "HAR-754 B2B bulk fields 1778015142158 delete HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10668310834",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10668343602",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 37,
+          "actualQueryCost": 26,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1974,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companiesDelete": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754CompaniesDelete($companyIds: [ID!]!) {\n    companiesDelete(companyIds: $companyIds) {\n      deletedCompanyIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyIds": ["gid://shopify/Company/5438439730", "gid://shopify/Company/999999999999"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companiesDelete": {
+          "deletedCompanyIds": ["gid://shopify/Company/5438439730"],
+          "userErrors": [
+            {
+              "field": ["companyIds", "1"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactCreate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754ContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact { id title company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438406962",
+        "input": {
+          "firstName": "Har",
+          "lastName": "Deleted",
+          "email": "har-754-delete-contact-1778015142158@example.com",
+          "title": "Delete candidate"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": {
+            "id": "gid://shopify/CompanyContact/10148839730",
+            "title": "Delete candidate",
+            "company": {
+              "id": "gid://shopify/Company/5438406962"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactsDelete": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754ContactsDelete($companyContactIds: [ID!]!) {\n    companyContactsDelete(companyContactIds: $companyContactIds) {\n      deletedCompanyContactIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactIds": ["gid://shopify/CompanyContact/10148839730", "gid://shopify/CompanyContact/999999999999"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactsDelete": {
+          "deletedCompanyContactIds": ["gid://shopify/CompanyContact/10148839730"],
+          "userErrors": [
+            {
+              "field": ["companyContactIds", "1"],
+              "message": "The company contact doesn't exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateForDelete": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754LocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438406962",
+        "input": {
+          "name": "HAR-754 B2B bulk fields 1778015142158 delete location",
+          "phone": "+16135550102"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8247214386",
+            "name": "HAR-754 B2B bulk fields 1778015142158 delete location",
+            "company": {
+              "id": "gid://shopify/Company/5438406962"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationsDelete": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754LocationsDelete($companyLocationIds: [ID!]!) {\n    companyLocationsDelete(companyLocationIds: $companyLocationIds) {\n      deletedCompanyLocationIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationIds": ["gid://shopify/CompanyLocation/8247214386", "gid://shopify/CompanyLocation/999999999999"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationsDelete": {
+          "deletedCompanyLocationIds": ["gid://shopify/CompanyLocation/8247214386"],
+          "userErrors": [
+            {
+              "field": ["companyLocationIds", "1"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactAssignRoles": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754ContactAssignRoles($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {\n    companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10148774194",
+        "rolesToAssign": [
+          {
+            "companyLocationId": "gid://shopify/CompanyLocation/999999999999",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10668245298"
+          },
+          {
+            "companyLocationId": "gid://shopify/CompanyLocation/8247148850",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/999999999999"
+          },
+          {
+            "companyLocationId": "gid://shopify/CompanyLocation/999999999999",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/999999999999"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactAssignRoles": {
+          "roleAssignments": [],
+          "userErrors": [
+            {
+              "field": ["rolesToAssign", "0", "companyLocationId"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            {
+              "field": ["rolesToAssign", "1", "companyContactRoleId"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            {
+              "field": ["rolesToAssign", "2", "companyLocationId"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationAssignRoles": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754LocationAssignRoles($companyLocationId: ID!, $rolesToAssign: [CompanyLocationRoleAssign!]!) {\n    companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8247148850",
+        "rolesToAssign": [
+          {
+            "companyContactId": "gid://shopify/CompanyContact/999999999999",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10668278066"
+          },
+          {
+            "companyContactId": "gid://shopify/CompanyContact/10148774194",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/999999999999"
+          },
+          {
+            "companyContactId": "gid://shopify/CompanyContact/999999999999",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/999999999999"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignRoles": {
+          "roleAssignments": [],
+          "userErrors": [
+            {
+              "field": ["rolesToAssign", "0"],
+              "message": "Company contact does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            {
+              "field": ["rolesToAssign", "1"],
+              "message": "Company role does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            },
+            {
+              "field": ["rolesToAssign", "2"],
+              "message": "Company contact does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactRevokeLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754LocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438406962",
+        "input": {
+          "name": "HAR-754 B2B bulk fields 1778015142158 contact revoke location",
+          "phone": "+16135550103"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8247247154",
+            "name": "HAR-754 B2B bulk fields 1778015142158 contact revoke location",
+            "company": {
+              "id": "gid://shopify/Company/5438406962"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactRevokeAssignmentCreate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754ContactAssignRoles($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {\n    companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10148774194",
+        "rolesToAssign": [
+          {
+            "companyLocationId": "gid://shopify/CompanyLocation/8247247154",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10668245298"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactAssignRoles": {
+          "roleAssignments": [
+            {
+              "id": "gid://shopify/CompanyContactRoleAssignment/44647186738"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactRevokeRoles": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754ContactRevokeRoles($companyContactId: ID!, $roleAssignmentIds: [ID!]!) {\n    companyContactRevokeRoles(companyContactId: $companyContactId, roleAssignmentIds: $roleAssignmentIds) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10148774194",
+        "roleAssignmentIds": [
+          "gid://shopify/CompanyContactRoleAssignment/44647186738",
+          "gid://shopify/CompanyContactRoleAssignment/999999999999"
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactRevokeRoles": {
+          "revokedRoleAssignmentIds": ["gid://shopify/CompanyContactRoleAssignment/44647186738"],
+          "userErrors": [
+            {
+              "field": ["roleAssignmentIds", "1"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationRevokeLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754LocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438406962",
+        "input": {
+          "name": "HAR-754 B2B bulk fields 1778015142158 location revoke location",
+          "phone": "+16135550104"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8247279922",
+            "name": "HAR-754 B2B bulk fields 1778015142158 location revoke location",
+            "company": {
+              "id": "gid://shopify/Company/5438406962"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationRevokeAssignmentCreate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754LocationAssignRoles($companyLocationId: ID!, $rolesToAssign: [CompanyLocationRoleAssign!]!) {\n    companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8247279922",
+        "rolesToAssign": [
+          {
+            "companyContactId": "gid://shopify/CompanyContact/10148774194",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10668278066"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignRoles": {
+          "roleAssignments": [
+            {
+              "id": "gid://shopify/CompanyContactRoleAssignment/44647219506"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationRevokeRoles": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754LocationRevokeRoles($companyLocationId: ID!, $rolesToRevoke: [ID!]!) {\n    companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $rolesToRevoke) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8247279922",
+        "rolesToRevoke": [
+          "gid://shopify/CompanyContactRoleAssignment/44647219506",
+          "gid://shopify/CompanyContactRoleAssignment/999999999999"
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationRevokeRoles": {
+          "revokedRoleAssignmentIds": ["gid://shopify/CompanyContactRoleAssignment/44647219506"],
+          "userErrors": [
+            {
+              "field": ["rolesToRevoke", "1"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "staffAssign": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754AssignStaff($companyLocationId: ID!, $staffMemberIds: [ID!]!) {\n    companyLocationAssignStaffMembers(companyLocationId: $companyLocationId, staffMemberIds: $staffMemberIds) {\n      companyLocationStaffMemberAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8247148850",
+        "staffMemberIds": ["gid://shopify/StaffMember/999999999999"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignStaffMembers": {
+          "companyLocationStaffMemberAssignments": null,
+          "userErrors": [
+            {
+              "field": ["staffMemberIds", "0"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "staffRemove": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754RemoveStaff($companyLocationStaffMemberAssignmentIds: [ID!]!) {\n    companyLocationRemoveStaffMembers(\n      companyLocationStaffMemberAssignmentIds: $companyLocationStaffMemberAssignmentIds\n    ) {\n      deletedCompanyLocationStaffMemberAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationStaffMemberAssignmentIds": ["gid://shopify/CompanyLocationStaffMemberAssignment/999999999999"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationRemoveStaffMembers": {
+          "deletedCompanyLocationStaffMemberAssignmentIds": null,
+          "userErrors": [
+            {
+              "field": ["companyLocationStaffMemberAssignmentIds", "0"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation HAR754CompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5438406962"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5438406962",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {},
+  "upstreamCalls": []
+}

@@ -107,6 +107,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-bulk-mutation-field-paths',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-bulk-mutation-field-paths-conformance.mts',
+    purpose:
+      'B2B bulk mutation userErrors field paths for list-indexed company/contact/location delete, role assignment, role revoke, and staff assignment/removal validation branches.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-bulk-mutation-field-paths.json`,
+      'config/parity-specs/b2b/b2b-bulk-mutation-field-paths.json',
+      'config/parity-requests/b2b/b2b-bulk-field-paths-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable B2B companies, contacts, locations, and role assignments; bulk-delete/revoke scenario steps remove most setup records and the script deletes the primary company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Staff assignment evidence uses Shopify validation for an invalid StaffMember input shape because the current conformance token cannot read staffMembers/currentStaffMember IDs.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-string-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-string-validation-conformance.mts',
