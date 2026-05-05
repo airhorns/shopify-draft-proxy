@@ -1,0 +1,26 @@
+mutation WebhookSubscriptionTopicFormatNameUpdate($id: ID!, $webhookSubscription: WebhookSubscriptionInput!) {
+  webhookSubscriptionUpdate(id: $id, webhookSubscription: $webhookSubscription) {
+    webhookSubscription {
+      id
+      topic
+      format
+      filter
+      createdAt
+      updatedAt
+      endpoint {
+        __typename
+        ... on WebhookHttpEndpoint {
+          callbackUrl
+        }
+        ... on WebhookPubSubEndpoint {
+          pubSubProject
+          pubSubTopic
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
