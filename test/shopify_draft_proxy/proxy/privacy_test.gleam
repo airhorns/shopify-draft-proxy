@@ -31,9 +31,16 @@ pub fn data_sale_opt_out_existing_customer_readback_and_log_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(
       proxy,
-      "mutation { customerCreate(input: { email: \"privacy@example.com\", firstName: \"Privacy\" }) { customer { id email dataSaleOptOut } userErrors { field message code } } }",
+      "mutation { customerCreate(input: { email: \"privacy@example.com\", firstName: \"Privacy\", locale: \"fr\", tags: [\"vip\", \"privacy\"] }) { customer { id email dataSaleOptOut } userErrors { field message code } } }",
     )
   assert create_status == 200
+
+  let #(Response(status: update_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", verifiedEmail: false }) { customer { id verifiedEmail } userErrors { field message code } } }",
+    )
+  assert update_status == 200
 
   let #(Response(status: opt_status, body: opt_body, ..), proxy) =
     graphql(
@@ -50,17 +57,17 @@ pub fn data_sale_opt_out_existing_customer_readback_and_log_test() {
   let #(Response(status: read_status, body: read_body, ..), proxy) =
     graphql(
       proxy,
-      "query { customer(id: \"gid://shopify/Customer/1\") { id email dataSaleOptOut } customerByIdentifier(identifier: { emailAddress: \"privacy@example.com\" }) { id email dataSaleOptOut } }",
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email dataSaleOptOut tags locale verifiedEmail } customerByIdentifier(identifier: { emailAddress: \"privacy@example.com\" }) { id email dataSaleOptOut tags locale verifiedEmail } }",
     )
   assert read_status == 200
   let read_json = json.to_string(read_body)
   assert string.contains(
     read_json,
-    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"privacy@example.com\",\"dataSaleOptOut\":true}",
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"privacy@example.com\",\"dataSaleOptOut\":true,\"tags\":[\"privacy\",\"vip\"],\"locale\":\"fr\",\"verifiedEmail\":false}",
   )
   assert string.contains(
     read_json,
-    "\"customerByIdentifier\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"privacy@example.com\",\"dataSaleOptOut\":true}",
+    "\"customerByIdentifier\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"privacy@example.com\",\"dataSaleOptOut\":true,\"tags\":[\"privacy\",\"vip\"],\"locale\":\"fr\",\"verifiedEmail\":false}",
   )
 
   let log_request =
@@ -93,15 +100,23 @@ pub fn data_sale_opt_out_unknown_email_creates_opted_out_customer_test() {
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(
       proxy,
-      "query { customer(id: \"gid://shopify/Customer/1\") { id email dataSaleOptOut defaultEmailAddress { emailAddress } } }",
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email dataSaleOptOut tags locale verifiedEmail state defaultEmailAddress { emailAddress } } customers(query: \"tag:created-by-dns-form\", first: 5) { nodes { id email tags } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } }",
     )
   assert read_status == 200
   let read_json = json.to_string(read_body)
   assert string.contains(read_json, "\"email\":\"new-privacy@example.com\"")
   assert string.contains(read_json, "\"dataSaleOptOut\":true")
+  assert string.contains(read_json, "\"tags\":[\"created-by-dns-form\"]")
+  assert string.contains(read_json, "\"locale\":\"en\"")
+  assert string.contains(read_json, "\"verifiedEmail\":true")
+  assert string.contains(read_json, "\"state\":\"DISABLED\"")
   assert string.contains(
     read_json,
     "\"defaultEmailAddress\":{\"emailAddress\":\"new-privacy@example.com\"}",
+  )
+  assert string.contains(
+    read_json,
+    "\"customers\":{\"nodes\":[{\"id\":\"gid://shopify/Customer/1\",\"email\":\"new-privacy@example.com\",\"tags\":[\"created-by-dns-form\"]}]",
   )
 }
 

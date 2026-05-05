@@ -1022,6 +1022,7 @@ fn matches_gift_card_term(
         Some(record.masked_code),
         term,
       )
+      || search_query_parser.matches_search_query_text(record.code, term)
     Some("id") -> {
       let id_normalized =
         search_query_parser.normalize_search_query_value(record.id)
@@ -1652,6 +1653,7 @@ fn gift_card_record_from_json(
         legacy_resource_id: gift_card_tail(id),
         last_characters: last_characters,
         masked_code: masked_code,
+        code: None,
         enabled: option.unwrap(json_get_bool(node, "enabled"), True),
         notify: option.unwrap(json_get_bool(node, "notify"), True),
         deactivated_at: json_get_string(node, "deactivatedAt"),
@@ -1839,8 +1841,8 @@ fn handle_gift_card_create(
         empty_payload([
           UserError(
             field: ["input", "initialValue"],
-            code: None,
-            message: "Initial value must be greater than zero",
+            code: Some("GREATER_THAN"),
+            message: "must be greater than 0",
           ),
         ])
       let json_payload =
@@ -1862,83 +1864,111 @@ fn handle_gift_card_create(
       )
     }
     False -> {
-      let code =
-        normalize_gift_card_code(
-          graphql_helpers.read_arg_string_nonempty(input, "code"),
-          gid,
-        )
-      let last_chars = last_characters_from_code(code)
-      let masked = masked_code_string(last_chars)
-      let #(now, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let recipient_attributes =
-        read_recipient_attributes(dict_get(input, "recipientAttributes"), None)
-      let recipient_id = case
-        graphql_helpers.read_arg_string_nonempty(input, "recipientId")
-      {
-        Some(s) -> Some(s)
-        None ->
-          case recipient_attributes {
-            Some(attrs) -> attrs.id
-            None -> None
+      let raw_code = graphql_helpers.read_arg_string(input, "code")
+      let customer_id =
+        graphql_helpers.read_arg_string_nonempty(input, "customerId")
+      case validate_gift_card_create_code(store, raw_code, gid) {
+        Error(error) ->
+          gift_card_create_error_result(
+            key,
+            field,
+            fragments,
+            variables,
+            store,
+            identity_after_id,
+            error,
+          )
+        Ok(code) -> {
+          case gift_card_create_customer_user_error(store, customer_id) {
+            Some(error) ->
+              gift_card_create_error_result(
+                key,
+                field,
+                fragments,
+                variables,
+                store,
+                identity_after_id,
+                error,
+              )
+            None -> {
+              let last_chars = last_characters_from_code(code)
+              let masked = masked_code_string(last_chars)
+              let #(now, identity_after_ts) =
+                synthetic_identity.make_synthetic_timestamp(identity_after_id)
+              let recipient_attributes =
+                read_recipient_attributes(
+                  dict_get(input, "recipientAttributes"),
+                  None,
+                )
+              let recipient_id = case
+                graphql_helpers.read_arg_string_nonempty(input, "recipientId")
+              {
+                Some(s) -> Some(s)
+                None ->
+                  case recipient_attributes {
+                    Some(attrs) -> attrs.id
+                    None -> None
+                  }
+              }
+              let record =
+                GiftCardRecord(
+                  id: gid,
+                  legacy_resource_id: gift_card_tail(gid),
+                  last_characters: last_chars,
+                  masked_code: masked,
+                  code: Some(code),
+                  enabled: True,
+                  notify: True,
+                  deactivated_at: None,
+                  expires_on: graphql_helpers.read_arg_string_nonempty(
+                    input,
+                    "expiresOn",
+                  ),
+                  note: graphql_helpers.read_arg_string_nonempty(input, "note"),
+                  template_suffix: graphql_helpers.read_arg_string_nonempty(
+                    input,
+                    "templateSuffix",
+                  ),
+                  created_at: now,
+                  updated_at: now,
+                  initial_value: initial_value,
+                  balance: initial_value,
+                  customer_id: customer_id,
+                  recipient_id: recipient_id,
+                  source: Some("api_client"),
+                  recipient_attributes: recipient_attributes,
+                  transactions: [],
+                )
+              let #(_, store_after) =
+                store.stage_create_gift_card(store, record)
+              let payload =
+                GiftCardPayload(
+                  gift_card: Some(record),
+                  gift_card_code: Some(code),
+                  gift_card_transaction: None,
+                  user_errors: [],
+                )
+              let json_payload =
+                gift_card_payload_json(
+                  payload,
+                  "GiftCardCreatePayload",
+                  field,
+                  fragments,
+                  variables,
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: json_payload,
+                  staged_resource_ids: [record.id],
+                ),
+                store_after,
+                identity_after_ts,
+              )
+            }
           }
+        }
       }
-      let record =
-        GiftCardRecord(
-          id: gid,
-          legacy_resource_id: gift_card_tail(gid),
-          last_characters: last_chars,
-          masked_code: masked,
-          enabled: True,
-          notify: True,
-          deactivated_at: None,
-          expires_on: graphql_helpers.read_arg_string_nonempty(
-            input,
-            "expiresOn",
-          ),
-          note: graphql_helpers.read_arg_string_nonempty(input, "note"),
-          template_suffix: graphql_helpers.read_arg_string_nonempty(
-            input,
-            "templateSuffix",
-          ),
-          created_at: now,
-          updated_at: now,
-          initial_value: initial_value,
-          balance: initial_value,
-          customer_id: graphql_helpers.read_arg_string_nonempty(
-            input,
-            "customerId",
-          ),
-          recipient_id: recipient_id,
-          source: Some("api_client"),
-          recipient_attributes: recipient_attributes,
-          transactions: [],
-        )
-      let #(_, store_after) = store.stage_create_gift_card(store, record)
-      let payload =
-        GiftCardPayload(
-          gift_card: Some(record),
-          gift_card_code: Some(code),
-          gift_card_transaction: None,
-          user_errors: [],
-        )
-      let json_payload =
-        gift_card_payload_json(
-          payload,
-          "GiftCardCreatePayload",
-          field,
-          fragments,
-          variables,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: json_payload,
-          staged_resource_ids: [record.id],
-        ),
-        store_after,
-        identity_after_ts,
-      )
     }
   }
 }
@@ -2530,6 +2560,69 @@ fn invalid_user_error(field: List(String), message: String) -> UserError {
   UserError(field: field, code: Some("INVALID"), message: message)
 }
 
+fn gift_card_create_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  error: UserError,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload = empty_payload([error])
+  let json_payload =
+    gift_card_payload_json(
+      payload,
+      "GiftCardCreatePayload",
+      field,
+      fragments,
+      variables,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: json_payload,
+      staged_resource_ids: [],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn gift_card_code_user_error(code: String, message: String) -> UserError {
+  UserError(field: ["input", "code"], code: Some(code), message: message)
+}
+
+fn gift_card_duplicate_code_user_error() -> UserError {
+  UserError(
+    field: ["input", "code"],
+    code: None,
+    message: "Code has already been taken",
+  )
+}
+
+fn gift_card_create_customer_not_found_user_error() -> UserError {
+  UserError(
+    field: ["input", "customerId"],
+    code: Some("CUSTOMER_NOT_FOUND"),
+    message: "The customer could not be found.",
+  )
+}
+
+fn gift_card_create_customer_user_error(
+  store: Store,
+  customer_id: Option(String),
+) -> Option(UserError) {
+  case customer_id {
+    None -> None
+    Some(id) ->
+      case store.get_effective_customer_by_id(store, id) {
+        Some(_) -> None
+        None -> Some(gift_card_create_customer_not_found_user_error())
+      }
+  }
+}
+
 fn notification_trial_user_error() -> UserError {
   invalid_user_error(
     ["base"],
@@ -2829,21 +2922,65 @@ fn gift_card_tail(id: String) -> String {
 fn normalize_gift_card_code(
   raw: Option(String),
   fallback_id: String,
-) -> String {
+) -> Result(String, UserError) {
   case raw {
-    None -> proxy_code(fallback_id)
+    None -> Ok(proxy_code(fallback_id))
     Some(value) -> {
-      let trimmed = remove_whitespace(value)
-      case string.length(trimmed) {
-        0 -> proxy_code(fallback_id)
-        _ -> string.lowercase(trimmed)
+      let normalized = normalize_provided_gift_card_code(value)
+      let length = string.length(normalized)
+      case length < 8 {
+        True ->
+          Error(gift_card_code_user_error(
+            "TOO_SHORT",
+            "Code must be at least 8 characters long",
+          ))
+        False ->
+          case length > 20 {
+            True ->
+              Error(gift_card_code_user_error(
+                "TOO_LONG",
+                "Code must be at most 20 characters long",
+              ))
+            False ->
+              case gift_card_code_is_alphanumeric(normalized) {
+                True -> Ok(normalized)
+                False ->
+                  Error(gift_card_code_user_error(
+                    "INVALID",
+                    "Code can only contain letters(a-z) and numbers(0-9)",
+                  ))
+              }
+          }
       }
     }
   }
 }
 
+fn validate_gift_card_create_code(
+  store: Store,
+  raw: Option(String),
+  fallback_id: String,
+) -> Result(String, UserError) {
+  case normalize_gift_card_code(raw, fallback_id) {
+    Error(error) -> Error(error)
+    Ok(code) ->
+      case gift_card_code_is_taken(store, code) {
+        True -> Error(gift_card_duplicate_code_user_error())
+        False -> Ok(code)
+      }
+  }
+}
+
 fn proxy_code(fallback_id: String) -> String {
-  "proxy" <> pad_start_zero(gift_card_tail(fallback_id), 8)
+  let padded = pad_start_zero(gift_card_tail(fallback_id), 16)
+  let length = string.length(padded)
+  let hex = case length > 16 {
+    True -> string.slice(padded, length - 16, 16)
+    False -> padded
+  }
+  string.to_graphemes(hex)
+  |> list.map(substitute_shopify_generated_code_char)
+  |> string.join("")
 }
 
 fn pad_start_zero(value: String, width: Int) -> String {
@@ -2854,30 +2991,59 @@ fn pad_start_zero(value: String, width: Int) -> String {
   }
 }
 
+fn normalize_provided_gift_card_code(value: String) -> String {
+  string.to_graphemes(value)
+  |> list.filter(fn(g) {
+    case g {
+      " " | "\t" | "\n" | "\r" | "-" -> False
+      _ -> True
+    }
+  })
+  |> string.join("")
+  |> string.trim
+  |> string.lowercase
+}
+
+fn gift_card_code_is_alphanumeric(code: String) -> Bool {
+  string.to_graphemes(code)
+  |> list.all(is_gift_card_code_character)
+}
+
+fn is_gift_card_code_character(char: String) -> Bool {
+  case char {
+    "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" -> True
+    "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" -> True
+    "u" | "v" | "w" | "x" | "y" | "z" -> True
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    _ -> False
+  }
+}
+
+fn substitute_shopify_generated_code_char(char: String) -> String {
+  case char {
+    "0" -> "g"
+    "1" -> "h"
+    _ -> string.lowercase(char)
+  }
+}
+
+fn gift_card_code_is_taken(store: Store, code: String) -> Bool {
+  store.list_effective_gift_cards(store)
+  |> list.any(fn(record) { record.code == Some(code) })
+}
+
 fn last_characters_from_code(code: String) -> String {
   let length = string.length(code)
   let suffix = case length >= 4 {
     True -> string.slice(code, length - 4, 4)
     False -> code
   }
-  pad_start_zero(string.uppercase(suffix), 4)
+  pad_start_zero(suffix, 4)
 }
 
 fn masked_code_string(last_chars: String) -> String {
   "\u{2022}\u{2022}\u{2022}\u{2022} \u{2022}\u{2022}\u{2022}\u{2022} \u{2022}\u{2022}\u{2022}\u{2022} "
   <> last_chars
-}
-
-fn remove_whitespace(value: String) -> String {
-  string.to_graphemes(value)
-  |> list.filter(fn(g) {
-    case g {
-      " " | "\t" | "\n" | "\r" -> False
-      _ -> True
-    }
-  })
-  |> string.join("")
-  |> string.trim
 }
 
 // ---------------------------------------------------------------------------

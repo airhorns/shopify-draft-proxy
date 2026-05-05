@@ -33,6 +33,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
   SelectedFieldOptions, SerializeConnectionConfig, SrcList, SrcNull, SrcString,
@@ -730,7 +731,7 @@ pub fn process_mutation_with_headers(
     request_path,
     document,
     variables,
-    read_requesting_api_client_id(request_headers),
+    app_identity.read_requesting_api_client_id(request_headers),
   )
 }
 
@@ -1242,10 +1243,7 @@ fn build_webhook_from_create_input(
         read_optional_string_array(input, "metafieldNamespaces"),
         [],
       ),
-      filter: case read_optional_string(input, "filter") {
-        Some(s) -> Some(s)
-        None -> Some("")
-      },
+      filter: read_optional_string(input, "filter"),
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
       endpoint: Some(endpoint_from_uri(uri)),
@@ -1689,24 +1687,6 @@ fn kafka_user_errors() -> List(UserError) {
       message: "Address is not a valid kafka topic",
     ),
   ]
-}
-
-fn read_requesting_api_client_id(
-  request_headers: Dict(String, String),
-) -> Option(String) {
-  let found =
-    dict.to_list(request_headers)
-    |> list.find_map(fn(header) {
-      let #(name, value) = header
-      case string.lowercase(name) == "x-shopify-draft-proxy-api-client-id" {
-        True -> Ok(value)
-        False -> Error(Nil)
-      }
-    })
-  case found {
-    Ok(value) -> Some(value)
-    Error(_) -> None
-  }
 }
 
 fn validate_webhook_filter_input(

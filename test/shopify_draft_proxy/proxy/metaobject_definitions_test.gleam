@@ -1,5 +1,10 @@
 import gleam/dict
+import gleam/int
 import gleam/json
+import gleam/list
+import gleam/option.{Some}
+import gleam/string
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
@@ -8,8 +13,21 @@ import shopify_draft_proxy/state/synthetic_identity
 
 const path = "/admin/api/2026-04/graphql.json"
 
+const test_api_client_id = "999001"
+
 fn run_query(s: store.Store, query: String) -> String {
   let assert Ok(data) = metaobject_definitions.process(s, query, dict.new())
+  json.to_string(data)
+}
+
+fn run_query_with_api_client_id(s: store.Store, query: String) -> String {
+  let assert Ok(data) =
+    metaobject_definitions.process_with_requesting_api_client_id(
+      s,
+      query,
+      dict.new(),
+      Some(test_api_client_id),
+    )
   json.to_string(data)
 }
 
@@ -26,6 +44,26 @@ fn run_mutation(
       query,
       dict.new(),
       empty_upstream_context(),
+    )
+  outcome
+}
+
+fn run_mutation_with_api_client_id(
+  s: store.Store,
+  identity: synthetic_identity.SyntheticIdentityRegistry,
+  query: String,
+) -> mutation_helpers.MutationOutcome {
+  let outcome =
+    metaobject_definitions.process_mutation_with_headers(
+      s,
+      identity,
+      path,
+      query,
+      dict.new(),
+      empty_upstream_context(),
+      dict.from_list([
+        #(app_identity.api_client_id_header, test_api_client_id),
+      ]),
     )
   outcome
 }
@@ -55,6 +93,48 @@ fn create_definition_query(type_: String) -> String {
   }"
 }
 
+fn create_definition_with_field_key_query(
+  type_: String,
+  key: String,
+) -> String {
+  "mutation {
+    metaobjectDefinitionCreate(definition: {
+      type: \"" <> type_ <> "\",
+      name: \"Codex Rows\",
+      displayNameKey: \"" <> key <> "\",
+      fieldDefinitions: [
+        { key: \"" <> key <> "\", name: \"Title\", type: \"single_line_text_field\", required: true }
+      ]
+    }) {
+      metaobjectDefinition { id type displayNameKey fieldDefinitions { key } }
+      userErrors { field message code elementKey elementIndex }
+    }
+  }"
+}
+
+fn create_definition_with_access_query(type_: String) -> String {
+  "mutation {
+    metaobjectDefinitionCreate(definition: {
+      type: \"" <> type_ <> "\",
+      name: \"App Rows\",
+      access: { admin: MERCHANT_READ_WRITE },
+      fieldDefinitions: [
+        { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true }
+      ]
+    }) {
+      metaobjectDefinition { id type access { admin storefront } fieldDefinitions { key } }
+      userErrors { field message code elementKey elementIndex }
+    }
+  }"
+}
+
+fn int_range(from from: Int, to to: Int) -> List(Int) {
+  case from > to {
+    True -> []
+    False -> [from, ..int_range(from + 1, to)]
+  }
+}
+
 pub fn is_metaobject_root_predicates_test() {
   assert metaobject_definitions.is_metaobject_definitions_query_root(
     "metaobject",
@@ -79,6 +159,139 @@ pub fn empty_reads_match_shopify_like_no_data_test() {
     )
   assert result
     == "{\"data\":{\"metaobject\":null,\"metaobjectDefinitions\":{\"nodes\":[],\"pageInfo\":{\"hasNextPage\":false,\"startCursor\":null,\"endCursor\":null}}}}"
+}
+
+pub fn definition_create_rejects_invalid_type_values_test() {
+  let too_short =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("AB"),
+    )
+  assert json.to_string(too_short.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type is too short (minimum is 3 characters)\",\"code\":\"TOO_SHORT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let invalid =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("Has Spaces!"),
+    )
+  assert json.to_string(invalid.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let too_long_type = string.repeat("x", times: 256)
+  let too_long =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query(too_long_type),
+    )
+  assert json.to_string(too_long.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_create_resolves_app_type_before_storage_test() {
+  let outcome =
+    run_mutation_with_api_client_id(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_access_query("$app:My_Thing"),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"app--999001--my_thing\",\"access\":{\"admin\":\"MERCHANT_READ_WRITE\",\"storefront\":\"NONE\"},\"fieldDefinitions\":[{\"key\":\"title\"}]},\"userErrors\":[]}}}"
+
+  let read_back =
+    run_query_with_api_client_id(
+      outcome.store,
+      "{ metaobjectDefinitionByType(type: \"$app:My_Thing\") { id type } }",
+    )
+  assert read_back
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"app--999001--my_thing\"}}}"
+}
+
+pub fn definition_create_rejects_admin_access_for_non_app_type_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_access_query("app--999001--manual"),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"access\",\"admin\"],\"message\":\"Admin access can only be specified on metaobject definitions that have an app-reserved type.\",\"code\":\"ADMIN_ACCESS_INPUT_NOT_ALLOWED\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_create_downcases_type_before_uniqueness_test() {
+  let first =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("MyType"),
+    )
+  assert json.to_string(first.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"mytype\",\"displayNameKey\":\"title\",\"capabilities\":{\"publishable\":{\"enabled\":true},\"translatable\":{\"enabled\":false}},\"fieldDefinitions\":[{\"key\":\"title\",\"name\":\"Title\",\"required\":true,\"type\":{\"name\":\"single_line_text_field\",\"category\":\"TEXT\"}},{\"key\":\"body\",\"name\":\"Body\",\"required\":false,\"type\":{\"name\":\"multi_line_text_field\",\"category\":\"TEXT\"}}],\"metaobjectsCount\":0},\"userErrors\":[]}}}"
+
+  let duplicate =
+    run_mutation(first.store, first.identity, create_definition_query("mytype"))
+  assert json.to_string(duplicate.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type has already been taken\",\"code\":\"TAKEN\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_create_rejects_invalid_field_key_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_key_query("codex_rows_invalid_key", "Title"),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\",\"key\"],\"message\":\"is invalid\",\"code\":\"INVALID\",\"elementKey\":\"Title\",\"elementIndex\":0}]}}}"
+}
+
+pub fn definition_update_validates_type_and_field_key_test() {
+  let created =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_field_key_query(
+        "codex_rows_update_validation",
+        "title",
+      ),
+    )
+
+  let invalid_type_update =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { type: \"ab\" }
+        ) {
+          metaobjectDefinition { id type }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(invalid_type_update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type is too short (minimum is 3 characters)\",\"code\":\"TOO_SHORT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let invalid_key_update =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { fieldDefinitions: [{ update: { key: \"BadKey\", name: \"Bad\" } }] }
+        ) {
+          metaobjectDefinition { id type fieldDefinitions { key name } }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(invalid_key_update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"fieldDefinitions\",\"0\",\"key\"],\"message\":\"is invalid\",\"code\":\"INVALID\",\"elementKey\":\"BadKey\",\"elementIndex\":0}]}}}"
 }
 
 pub fn definition_and_entry_lifecycle_stages_locally_test() {
@@ -185,4 +398,102 @@ pub fn update_upsert_delete_and_bulk_delete_stage_locally_test() {
     )
   assert read_back
     == "{\"data\":{\"metaobjects\":{\"nodes\":[]},\"definition\":{\"metaobjectsCount\":0}}}"
+}
+
+pub fn bulk_delete_empty_ids_returns_empty_job_success_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metaobjectBulkDelete(where: { ids: [] }) { job { id done } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectBulkDelete\":{\"job\":{\"id\":\"gid://shopify/Job/1\",\"done\":false},\"userErrors\":[]}}}"
+}
+
+pub fn bulk_delete_unknown_type_returns_type_not_found_user_error_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metaobjectBulkDelete(where: { type: \"does_not_exist\" }) { job { id done } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectBulkDelete\":{\"job\":null,\"userErrors\":[{\"field\":[\"where\",\"type\"],\"message\":\"No metaobject definition exists for type \\\"does_not_exist\\\"\",\"code\":\"RECORD_NOT_FOUND\"}]}}}"
+}
+
+pub fn bulk_delete_known_empty_type_returns_empty_job_success_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_empty_type"),
+    )
+  let outcome =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectBulkDelete(where: { type: \"codex_empty_type\" }) { job { id done } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectBulkDelete\":{\"job\":{\"id\":\"gid://shopify/Job/2\",\"done\":false},\"userErrors\":[]}}}"
+}
+
+pub fn bulk_delete_with_type_and_ids_returns_top_level_error_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metaobjectBulkDelete(where: { type: \"codex_rows\", ids: [] }) { job { id done } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"errors\":[{\"message\":\"MetaobjectBulkDeleteWhereCondition requires exactly one of type, ids\",\"locations\":[{\"line\":1,\"column\":12},{\"line\":1,\"column\":62}],\"path\":[\"metaobjectBulkDelete\"],\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"}}],\"data\":{\"metaobjectBulkDelete\":null}}"
+}
+
+pub fn bulk_delete_ids_caps_to_first_250_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_many_rows"),
+    )
+  let seeded =
+    list.fold(int_range(1, 251), definition_outcome, fn(acc, index) {
+      run_mutation(
+        acc.store,
+        acc.identity,
+        "mutation { metaobjectCreate(metaobject: { type: \"codex_many_rows\", handle: \"row-"
+          <> int.to_string(index)
+          <> "\", fields: [{ key: \"title\", value: \"Row "
+          <> int.to_string(index)
+          <> "\" }] }) { metaobject { id } userErrors { message } } }",
+      )
+    })
+  let id_literals =
+    int_range(2, 252)
+    |> list.map(fn(index) {
+      "\"gid://shopify/Metaobject/"
+      <> int.to_string(index)
+      <> "?shopify-draft-proxy=synthetic\""
+    })
+    |> string.join(", ")
+  let bulk_delete =
+    run_mutation(
+      seeded.store,
+      seeded.identity,
+      "mutation { metaobjectBulkDelete(where: { ids: ["
+        <> id_literals
+        <> "] }) { job { id done } userErrors { field message code elementIndex } } }",
+    )
+  assert json.to_string(bulk_delete.data)
+    == "{\"data\":{\"metaobjectBulkDelete\":{\"job\":{\"id\":\"gid://shopify/Job/253\",\"done\":true},\"userErrors\":[]}}}"
+
+  let read_back =
+    run_query(
+      bulk_delete.store,
+      "{ deleted: metaobject(id: \"gid://shopify/Metaobject/251?shopify-draft-proxy=synthetic\") { id } retained: metaobject(id: \"gid://shopify/Metaobject/252?shopify-draft-proxy=synthetic\") { id handle } definition: metaobjectDefinitionByType(type: \"codex_many_rows\") { metaobjectsCount } }",
+    )
+  assert read_back
+    == "{\"data\":{\"deleted\":null,\"retained\":{\"id\":\"gid://shopify/Metaobject/252?shopify-draft-proxy=synthetic\",\"handle\":\"row-251\"},\"definition\":{\"metaobjectsCount\":1}}}"
 }

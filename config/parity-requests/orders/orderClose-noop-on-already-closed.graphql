@@ -1,0 +1,14 @@
+mutation OrderCloseNoopOnAlreadyClosed($input: OrderCloseInput!) {
+  orderClose(input: $input) {
+    order {
+      id
+      closed
+      closedAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

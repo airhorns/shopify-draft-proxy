@@ -1,0 +1,200 @@
+{
+  "scenarioId": "metaobject-definition-create-validation",
+  "operationNames": ["metaobjectDefinitionCreate", "metaobjectDefinitionUpdate", "metaobjectDefinitionByType"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-definition-create-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-create.graphql",
+    "variablesCapturePath": "$.tooShort.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "too-short-create",
+        "capturePath": "$.tooShort.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "invalid-format-create",
+        "capturePath": "$.invalidFormat.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-create.graphql",
+          "variablesCapturePath": "$.invalidFormat.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "app-prefixed-create",
+        "capturePath": "$.appPrefixed.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-create.graphql",
+          "variablesCapturePath": "$.appPrefixed.request.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          },
+          {
+            "path": "$.metaobjectDefinition.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          },
+          {
+            "path": "$.metaobjectDefinition.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          }
+        ]
+      },
+      {
+        "name": "app-read-by-type",
+        "capturePath": "$.appReadByType.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-read-by-type.graphql",
+          "variablesCapturePath": "$.appReadByType.request.variables",
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinitionByType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy reads back the staged synthetic definition ID while Shopify returns the live-store ID."
+          },
+          {
+            "path": "$.metaobjectDefinitionByType.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          },
+          {
+            "path": "$.metaobjectDefinitionByType.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          }
+        ]
+      },
+      {
+        "name": "successful-create",
+        "capturePath": "$.successfulCreate.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-create.graphql",
+          "variablesCapturePath": "$.successfulCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy stages a synthetic metaobject definition ID while Shopify returns the live-store ID."
+          },
+          {
+            "path": "$.metaobjectDefinition.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          },
+          {
+            "path": "$.metaobjectDefinition.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          }
+        ]
+      },
+      {
+        "name": "success-read-by-type",
+        "capturePath": "$.successReadByType.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-read-by-type.graphql",
+          "variablesCapturePath": "$.successReadByType.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinitionByType.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy reads back the staged synthetic definition ID while Shopify returns the live-store ID."
+          },
+          {
+            "path": "$.metaobjectDefinitionByType.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          },
+          {
+            "path": "$.metaobjectDefinitionByType.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-case-create",
+        "capturePath": "$.duplicateCase.response.data.metaobjectDefinitionCreate",
+        "proxyPath": "$.data.metaobjectDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-create.graphql",
+          "variablesCapturePath": "$.duplicateCase.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "valid-update",
+        "capturePath": "$.validUpdate.response.data.metaobjectDefinitionUpdate",
+        "proxyPath": "$.data.metaobjectDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "app-prefixed-create",
+              "path": "$.data.metaobjectDefinitionCreate.metaobjectDefinition.id"
+            },
+            "definition": {
+              "fromCapturePath": "$.validUpdate.request.variables.definition"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobjectDefinition.id",
+            "matcher": "shopify-gid:MetaobjectDefinition",
+            "reason": "The local proxy updates the staged synthetic definition ID while Shopify returns the live-store ID."
+          },
+          {
+            "path": "$.metaobjectDefinition.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged writes at replay time."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-673 live validation evidence for metaobjectDefinitionCreate type length/format, `$app:` namespace resolution to the active app id, and lowercased type uniqueness, plus a valid metaobjectDefinitionUpdate branch so the scenario exercises the update root. Unit tests cover the local field-key guardrail because Shopify 2026-04 accepted an uppercase key when it was introduced through a definition update create operation. The capture records the successful create followed by the duplicate-case create in one Shopify session; the cassette includes the duplicate type's hydrate-by-type response for cold LiveHybrid duplicate detection."
+}
