@@ -2421,7 +2421,9 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["locationActivate", "LocationActivate"],
       runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
-      support_notes: None,
+      support_notes: Some(
+        "Stages lifecycle activation locally. Numeric Admin API routes >= 2026-04 require field-level @idempotent(key: ...); earlier numeric routes keep the captured optional-directive behavior. Operation-level @idempotent is treated as absent because live 2026-04 rejects that directive location.",
+      ),
     ),
     RegistryEntry(
       name: "locationDeactivate",
@@ -2431,7 +2433,9 @@ pub fn default_registry() -> List(RegistryEntry) {
       implemented: True,
       match_names: ["locationDeactivate", "LocationDeactivate"],
       runtime_tests: ["tests/integration/location-query-shapes.test.ts"],
-      support_notes: None,
+      support_notes: Some(
+        "Stages lifecycle deactivation locally. Numeric Admin API routes >= 2026-04 require field-level @idempotent(key: ...); earlier numeric routes keep the captured optional-directive behavior. The captured unstocked disposable-location branch preserves activatable/deactivatable flags and clears local stockability without runtime Shopify writes.",
+      ),
     ),
     RegistryEntry(
       name: "locationDelete",

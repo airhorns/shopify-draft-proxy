@@ -773,6 +773,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-lifecycle',
+    scriptPath: 'scripts/capture-location-lifecycle-conformance.mts',
+    purpose: 'locationActivate/locationDeactivate idempotency and read-after-write lifecycle behavior.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [`${CAPTURE_ROOT}location-activate-deactivate-with-idempotency-directive.json`],
+    cleanupBehavior:
+      'Creates one disposable non-online-fulfilling location, deactivates/reactivates it, then deactivates and deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'shop-policies',
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',
