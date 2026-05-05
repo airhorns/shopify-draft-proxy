@@ -1,0 +1,289 @@
+{
+  "scenarioId": "customer-invite-email-validation",
+  "operationNames": ["customerCreate", "customerSendAccountInviteEmail", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation", "state-machine"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-invite-email-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-invite-email-validation-create.graphql",
+    "variablesCapturePath": "$.cases.blankSubject.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-774 live Shopify evidence for customerSendAccountInviteEmail email override validation. Each validation branch creates a disposable customer, runs one invite mutation, verifies state is unchanged, and deletes the customer during cleanup. A valid phone-customer to override is covered by the runtime test because live Shopify currently returns a generic outbound-delivery failure for success-path invite attempts in the conformance shop.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-subject-create-userErrors",
+        "capturePath": "$.cases.blankSubject.create.response.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors"
+      },
+      {
+        "name": "blank-subject-userErrors",
+        "capturePath": "$.cases.blankSubject.invite.response.data.customerSendAccountInviteEmail.userErrors",
+        "proxyPath": "$.data.customerSendAccountInviteEmail.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-invite.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "email": { "fromCapturePath": "$.cases.blankSubject.invite.variables.email" }
+          }
+        }
+      },
+      {
+        "name": "blank-subject-state",
+        "capturePath": "$.cases.blankSubject.readAfterInvite.response.data.customer.state",
+        "proxyPath": "$.data.customer.state",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" }
+          }
+        }
+      },
+      {
+        "name": "invalid-to-create-userErrors",
+        "capturePath": "$.cases.invalidTo.create.response.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.invalidTo.create.variables"
+        }
+      },
+      {
+        "name": "invalid-to-userErrors",
+        "capturePath": "$.cases.invalidTo.invite.response.data.customerSendAccountInviteEmail.userErrors",
+        "proxyPath": "$.data.customerSendAccountInviteEmail.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-invite.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "invalid-to-create-userErrors",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "email": { "fromCapturePath": "$.cases.invalidTo.invite.variables.email" }
+          }
+        }
+      },
+      {
+        "name": "invalid-to-state",
+        "capturePath": "$.cases.invalidTo.readAfterInvite.response.data.customer.state",
+        "proxyPath": "$.data.customer.state",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": { "fromProxyResponse": "invalid-to-create-userErrors", "path": "$.data.customerCreate.customer.id" }
+          }
+        }
+      },
+      {
+        "name": "invalid-from-create-userErrors",
+        "capturePath": "$.cases.invalidFrom.create.response.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.invalidFrom.create.variables"
+        }
+      },
+      {
+        "name": "invalid-from-userErrors",
+        "capturePath": "$.cases.invalidFrom.invite.response.data.customerSendAccountInviteEmail.userErrors",
+        "proxyPath": "$.data.customerSendAccountInviteEmail.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-invite.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "invalid-from-create-userErrors",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "email": { "fromCapturePath": "$.cases.invalidFrom.invite.variables.email" }
+          }
+        }
+      },
+      {
+        "name": "invalid-from-state",
+        "capturePath": "$.cases.invalidFrom.readAfterInvite.response.data.customer.state",
+        "proxyPath": "$.data.customer.state",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": { "fromProxyResponse": "invalid-from-create-userErrors", "path": "$.data.customerCreate.customer.id" }
+          }
+        }
+      },
+      {
+        "name": "invalid-bcc-create-userErrors",
+        "capturePath": "$.cases.invalidBcc.create.response.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.invalidBcc.create.variables"
+        }
+      },
+      {
+        "name": "invalid-bcc-userErrors",
+        "capturePath": "$.cases.invalidBcc.invite.response.data.customerSendAccountInviteEmail.userErrors",
+        "proxyPath": "$.data.customerSendAccountInviteEmail.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-invite.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "invalid-bcc-create-userErrors",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "email": { "fromCapturePath": "$.cases.invalidBcc.invite.variables.email" }
+          }
+        }
+      },
+      {
+        "name": "invalid-bcc-state",
+        "capturePath": "$.cases.invalidBcc.readAfterInvite.response.data.customer.state",
+        "proxyPath": "$.data.customer.state",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": { "fromProxyResponse": "invalid-bcc-create-userErrors", "path": "$.data.customerCreate.customer.id" }
+          }
+        }
+      },
+      {
+        "name": "oversized-subject-create-userErrors",
+        "capturePath": "$.cases.oversizedSubject.create.response.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.oversizedSubject.create.variables"
+        }
+      },
+      {
+        "name": "oversized-subject-userErrors",
+        "capturePath": "$.cases.oversizedSubject.invite.response.data.customerSendAccountInviteEmail.userErrors",
+        "proxyPath": "$.data.customerSendAccountInviteEmail.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-invite.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "oversized-subject-create-userErrors",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "email": { "fromCapturePath": "$.cases.oversizedSubject.invite.variables.email" }
+          }
+        }
+      },
+      {
+        "name": "oversized-subject-state",
+        "capturePath": "$.cases.oversizedSubject.readAfterInvite.response.data.customer.state",
+        "proxyPath": "$.data.customer.state",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "oversized-subject-create-userErrors",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "oversized-custom-message-create-userErrors",
+        "capturePath": "$.cases.oversizedCustomMessage.create.response.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.oversizedCustomMessage.create.variables"
+        }
+      },
+      {
+        "name": "oversized-custom-message-userErrors",
+        "capturePath": "$.cases.oversizedCustomMessage.invite.response.data.customerSendAccountInviteEmail.userErrors",
+        "proxyPath": "$.data.customerSendAccountInviteEmail.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-invite.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "oversized-custom-message-create-userErrors",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "email": { "fromCapturePath": "$.cases.oversizedCustomMessage.invite.variables.email" }
+          }
+        }
+      },
+      {
+        "name": "oversized-custom-message-state",
+        "capturePath": "$.cases.oversizedCustomMessage.readAfterInvite.response.data.customer.state",
+        "proxyPath": "$.data.customer.state",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "oversized-custom-message-create-userErrors",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "html-custom-message-create-userErrors",
+        "capturePath": "$.cases.htmlCustomMessage.create.response.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-create.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases.htmlCustomMessage.create.variables"
+        }
+      },
+      {
+        "name": "html-custom-message-userErrors",
+        "capturePath": "$.cases.htmlCustomMessage.invite.response.data.customerSendAccountInviteEmail.userErrors",
+        "proxyPath": "$.data.customerSendAccountInviteEmail.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-invite.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "html-custom-message-create-userErrors",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "email": { "fromCapturePath": "$.cases.htmlCustomMessage.invite.variables.email" }
+          }
+        }
+      },
+      {
+        "name": "html-custom-message-state",
+        "capturePath": "$.cases.htmlCustomMessage.readAfterInvite.response.data.customer.state",
+        "proxyPath": "$.data.customer.state",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-invite-email-validation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "html-custom-message-create-userErrors",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

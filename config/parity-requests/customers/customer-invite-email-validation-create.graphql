@@ -1,0 +1,12 @@
+mutation CustomerInviteEmailValidationCreate($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      state
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

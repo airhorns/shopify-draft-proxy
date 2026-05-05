@@ -44,22 +44,23 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type CustomerAccountPageRecord, type CustomerAddressRecord,
-  type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
-  type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
-  type CustomerDefaultPhoneNumberRecord,
+  type CapturedJsonValue, type CustomerAccountPageRecord,
+  type CustomerAddressRecord, type CustomerCatalogConnectionRecord,
+  type CustomerCatalogPageInfoRecord, type CustomerDefaultAddressRecord,
+  type CustomerDefaultEmailAddressRecord, type CustomerDefaultPhoneNumberRecord,
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMergeRequestRecord, type CustomerMetafieldRecord,
   type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord, type Money,
-  type ProductMetafieldRecord, type StoreCreditAccountRecord,
-  type StoreCreditAccountTransactionRecord, CustomerAccountPageRecord,
-  CustomerAddressRecord, CustomerCatalogPageInfoRecord,
-  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
-  CustomerMergeRequestRecord, CustomerMetafieldRecord,
-  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  Money, StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
+  type OrderRecord, type ProductMetafieldRecord, type StoreCreditAccountRecord,
+  type StoreCreditAccountTransactionRecord, CapturedObject, CapturedString,
+  CustomerAccountPageRecord, CustomerAddressRecord,
+  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerEmailMarketingConsentRecord, CustomerMergeRequestRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
+  CustomerSmsMarketingConsentRecord, Money, StoreCreditAccountRecord,
+  StoreCreditAccountTransactionRecord,
 }
 
 pub type CustomersError {
@@ -68,6 +69,15 @@ pub type CustomersError {
 
 type UserError {
   UserError(field: List(String), message: String, code: Option(String))
+}
+
+type AddressZoneResolution {
+  AddressZoneResolution(
+    country: Option(String),
+    country_code: Option(String),
+    province: Option(String),
+    province_code: Option(String),
+  )
 }
 
 type StoreCreditAccountResolution {
@@ -513,6 +523,17 @@ fn read_obj_string(
         "" -> None
         _ -> Some(s)
       }
+    Ok(root_field.IntVal(i)) -> Some(int.to_string(i))
+    _ -> None
+  }
+}
+
+fn read_obj_raw_string(
+  obj: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(obj, name) {
+    Ok(root_field.StringVal(s)) -> Some(s)
     Ok(root_field.IntVal(i)) -> Some(int.to_string(i))
     _ -> None
   }
@@ -3861,6 +3882,7 @@ fn validate_customer_create(
     Ok(_) -> [UserError(["id"], "Cannot specify ID on creation", None)]
   }
   let nested_id_errors = validate_customer_create_nested_resource_ids(input)
+  let address_errors = validate_customer_address_inputs(input, [])
   let consent_required_errors =
     customer_create_consent_required_errors(input, email, phone)
   let presence_errors = case email, phone {
@@ -3884,7 +3906,7 @@ fn validate_customer_create(
       consent_required_errors,
     ),
     list.append(
-      local_errors,
+      list.append(local_errors, address_errors),
       validate_upstream_duplicate_customer(input, local_errors, None, upstream),
     ),
   )
@@ -4064,6 +4086,21 @@ fn validate_customer_input_fields(
   list.append(scalar_errors, length_errors)
 }
 
+fn validate_customer_address_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+  field_prefix: List(String),
+) -> List(UserError) {
+  read_obj_addresses(input)
+  |> list.index_map(fn(address_input, index) {
+    validate_address_input(
+      address_input,
+      None,
+      list.append(field_prefix, ["addresses", int.to_string(index)]),
+    )
+  })
+  |> list.flatten()
+}
+
 fn validate_email(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
@@ -4222,6 +4259,7 @@ fn handle_customer_update(
             list.flatten([
               inline_consent_update_errors(input),
               input_errors,
+              validate_customer_address_inputs(input, []),
               validate_upstream_duplicate_customer(
                 input,
                 input_errors,
@@ -4254,50 +4292,83 @@ fn handle_customer_update(
               )
             }
             [] -> {
-              let #(timestamp, after_ts) =
-                synthetic_identity.make_synthetic_timestamp(identity)
               let updated =
-                update_customer_from_input(existing, input, timestamp)
-              let #(stored, store_after_customer) =
-                store.stage_update_customer(store, updated)
-              let store_after_metafields = case
-                read_customer_metafields(input, stored.id, after_ts)
-              {
-                [] -> store_after_customer
-                metafields ->
-                  store.stage_customer_metafields(
-                    store_after_customer,
-                    stored.id,
-                    metafields,
-                  )
-              }
-              let #(payload_customer, store_after_addresses) =
-                replace_customer_input_addresses(
-                  store_after_metafields,
-                  stored,
+                update_customer_from_input(
+                  existing,
                   input,
+                  option.unwrap(existing.updated_at, ""),
                 )
-              let payload =
-                customer_payload_json(
-                  store_after_addresses,
-                  "CustomerUpdatePayload",
-                  Some(payload_customer),
-                  None,
-                  None,
-                  [],
-                  field,
-                  fragments,
-                )
-              #(
-                MutationFieldResult(
-                  get_field_response_key(field),
-                  payload,
-                  [payload_customer.id],
-                  "customerUpdate",
-                ),
-                store_after_addresses,
-                after_ts,
-              )
+              case customer_identity_presence_errors(updated) {
+                [_, ..] as errors -> {
+                  let payload =
+                    customer_payload_json(
+                      store,
+                      "CustomerUpdatePayload",
+                      None,
+                      None,
+                      None,
+                      errors,
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [],
+                      "customerUpdate",
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+                [] -> {
+                  let #(timestamp, after_ts) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let updated =
+                    update_customer_from_input(existing, input, timestamp)
+                  let #(stored, store_after_customer) =
+                    store.stage_update_customer(store, updated)
+                  let store_after_metafields = case
+                    read_customer_metafields(input, stored.id, after_ts)
+                  {
+                    [] -> store_after_customer
+                    metafields ->
+                      store.stage_customer_metafields(
+                        store_after_customer,
+                        stored.id,
+                        metafields,
+                      )
+                  }
+                  let #(payload_customer, store_after_addresses) =
+                    replace_customer_input_addresses(
+                      store_after_metafields,
+                      stored,
+                      input,
+                    )
+                  let payload =
+                    customer_payload_json(
+                      store_after_addresses,
+                      "CustomerUpdatePayload",
+                      Some(payload_customer),
+                      None,
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [payload_customer.id],
+                      "customerUpdate",
+                    ),
+                    store_after_addresses,
+                    after_ts,
+                  )
+                }
+              }
             }
           }
         }
@@ -4320,6 +4391,38 @@ fn handle_customer_update(
         "CustomerUpdatePayload",
         "customerUpdate",
       )
+  }
+}
+
+fn customer_identity_presence_errors(
+  customer: CustomerRecord,
+) -> List(UserError) {
+  case customer_has_contact_identity(customer) {
+    True -> []
+    False -> [
+      UserError(
+        [],
+        "A name, phone number, or email address must be present",
+        Some("INVALID"),
+      ),
+    ]
+  }
+}
+
+fn customer_has_contact_identity(customer: CustomerRecord) -> Bool {
+  option_has_text(customer.first_name)
+  || option_has_text(customer.last_name)
+  || option_has_text(customer.email)
+  || option_has_text(
+    customer.default_phone_number
+    |> option.then(fn(value) { value.phone_number }),
+  )
+}
+
+fn option_has_text(value: Option(String)) -> Bool {
+  case value {
+    Some(text) -> string.trim(text) != ""
+    None -> False
   }
 }
 
@@ -4362,23 +4465,17 @@ fn handle_customer_set(
   let identifier =
     graphql_helpers.read_arg_object(args, "identifier")
     |> option.unwrap(dict.new())
-  case
-    find_customer_by_identifier(store, identifier),
-    read_obj_string(input, "id")
-  {
-    Some(existing), _ -> {
-      let #(timestamp, after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity)
-      let updated = update_customer_from_input(existing, input, timestamp)
-      let #(stored, next_store) = store.stage_update_customer(store, updated)
+  let address_errors = validate_customer_address_inputs(input, ["input"])
+  case address_errors {
+    [_, ..] as errors -> {
       let payload =
         customer_payload_json(
-          next_store,
+          store,
           "CustomerSetPayload",
-          Some(stored),
           None,
           None,
-          [],
+          None,
+          errors,
           field,
           fragments,
         )
@@ -4386,16 +4483,19 @@ fn handle_customer_set(
         MutationFieldResult(
           get_field_response_key(field),
           payload,
-          [stored.id],
+          [],
           "customerSet",
         ),
-        next_store,
-        after_ts,
+        store,
+        identity,
       )
     }
-    None, Some(customer_id) ->
-      case store.get_effective_customer_by_id(store, customer_id) {
-        Some(existing) -> {
+    [] ->
+      case
+        find_customer_by_identifier(store, identifier),
+        read_obj_string(input, "id")
+      {
+        Some(existing), _ -> {
           let #(timestamp, after_ts) =
             synthetic_identity.make_synthetic_timestamp(identity)
           let updated = update_customer_from_input(existing, input, timestamp)
@@ -4423,9 +4523,41 @@ fn handle_customer_set(
             after_ts,
           )
         }
-        None -> create_from_set(store, identity, field, fragments, input)
+        None, Some(customer_id) ->
+          case store.get_effective_customer_by_id(store, customer_id) {
+            Some(existing) -> {
+              let #(timestamp, after_ts) =
+                synthetic_identity.make_synthetic_timestamp(identity)
+              let updated =
+                update_customer_from_input(existing, input, timestamp)
+              let #(stored, next_store) =
+                store.stage_update_customer(store, updated)
+              let payload =
+                customer_payload_json(
+                  next_store,
+                  "CustomerSetPayload",
+                  Some(stored),
+                  None,
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [stored.id],
+                  "customerSet",
+                ),
+                next_store,
+                after_ts,
+              )
+            }
+            None -> create_from_set(store, identity, field, fragments, input)
+          }
+        None, None -> create_from_set(store, identity, field, fragments, input)
       }
-    None, None -> create_from_set(store, identity, field, fragments, input)
   }
 }
 
@@ -4655,28 +4787,61 @@ fn handle_customer_delete(
     Some(customer_id) ->
       case store.get_effective_customer_by_id(store, customer_id) {
         Some(_) -> {
-          let next_store = store.stage_delete_customer(store, customer_id)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerDeletePayload",
-              None,
-              Some(customer_id),
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [customer_id],
-              "customerDelete",
-            ),
-            next_store,
-            identity,
-          )
+          case customer_has_associated_orders(store, customer_id) {
+            True -> {
+              let payload =
+                customer_payload_json(
+                  store,
+                  "CustomerDeletePayload",
+                  None,
+                  None,
+                  None,
+                  [
+                    UserError(
+                      ["id"],
+                      "Customer can’t be deleted because they have associated orders",
+                      None,
+                    ),
+                  ],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [],
+                  "customerDelete",
+                ),
+                store,
+                identity,
+              )
+            }
+            False -> {
+              let next_store = store.stage_delete_customer(store, customer_id)
+              let payload =
+                customer_payload_json(
+                  next_store,
+                  "CustomerDeletePayload",
+                  None,
+                  Some(customer_id),
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [customer_id],
+                  "customerDelete",
+                ),
+                next_store,
+                identity,
+              )
+            }
+          }
         }
         None -> {
           let payload =
@@ -4732,6 +4897,49 @@ fn handle_customer_delete(
   }
 }
 
+fn customer_has_associated_orders(store: Store, customer_id: String) -> Bool {
+  case store.list_effective_customer_order_summaries(store, customer_id) {
+    [_, ..] -> True
+    [] ->
+      store.list_effective_orders(store)
+      |> list.any(fn(order) { order_customer_id(order) == Some(customer_id) })
+  }
+}
+
+fn order_customer_id(order: OrderRecord) -> Option(String) {
+  captured_object_field(order.data, "customer")
+  |> option.then(fn(customer) { captured_string_field(customer, "id") })
+}
+
+fn captured_object_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedObject(fields) ->
+      fields
+      |> list.find_map(fn(pair) {
+        let #(key, item) = pair
+        case key == name {
+          True -> Ok(item)
+          False -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn captured_string_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(String) {
+  case captured_object_field(value, name) {
+    Some(CapturedString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
 fn handle_customer_address_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -4750,28 +4958,15 @@ fn handle_customer_address_create(
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
         Some(customer) -> {
-          let #(address_id, after_id) =
-            synthetic_identity.make_synthetic_gid(identity, "MailingAddress")
-          let existing_count =
-            store.list_effective_customer_addresses(store, id) |> list.length()
-          let address =
-            build_address(
-              address_id,
-              id,
-              existing_count,
-              address_input,
-              customer.first_name,
-              customer.last_name,
-            )
-          case find_duplicate_customer_address(store, id, address, None) {
-            Some(_) -> {
+          case validate_address_input(address_input, None, ["address"]) {
+            [_, ..] as errors -> {
               let payload =
                 address_payload_json(
                   store,
                   "CustomerAddressCreatePayload",
                   None,
                   None,
-                  [UserError(["address"], "Address already exists", None)],
+                  errors,
                   field,
                   fragments,
                 )
@@ -4786,44 +4981,92 @@ fn handle_customer_address_create(
                 identity,
               )
             }
-            None -> {
-              let #(_, store_after_address) =
-                store.stage_upsert_customer_address(store, address)
-              let next_store = case
-                set_default || customer.default_address == None
-              {
-                True -> {
-                  let updated =
-                    CustomerRecord(
-                      ..customer,
-                      default_address: Some(address_to_default(address)),
-                    )
-                  let #(_, s) =
-                    store.stage_update_customer(store_after_address, updated)
-                  s
-                }
-                False -> store_after_address
-              }
-              let payload =
-                address_payload_json(
-                  next_store,
-                  "CustomerAddressCreatePayload",
-                  Some(address),
-                  None,
-                  [],
-                  field,
-                  fragments,
+            [] -> {
+              let #(address_id, after_id) =
+                synthetic_identity.make_synthetic_gid(
+                  identity,
+                  "MailingAddress",
                 )
-              #(
-                MutationFieldResult(
-                  get_field_response_key(field),
-                  payload,
-                  [address.id],
-                  "customerAddressCreate",
-                ),
-                next_store,
-                after_id,
-              )
+              let existing_count =
+                store.list_effective_customer_addresses(store, id)
+                |> list.length()
+              let address =
+                build_address(
+                  address_id,
+                  id,
+                  existing_count,
+                  address_input,
+                  customer.first_name,
+                  customer.last_name,
+                )
+              case find_duplicate_customer_address(store, id, address, None) {
+                Some(_) -> {
+                  let payload =
+                    address_payload_json(
+                      store,
+                      "CustomerAddressCreatePayload",
+                      None,
+                      None,
+                      [
+                        UserError(["address"], "Address already exists", None),
+                      ],
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [],
+                      "customerAddressCreate",
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+                None -> {
+                  let #(_, store_after_address) =
+                    store.stage_upsert_customer_address(store, address)
+                  let next_store = case
+                    set_default || customer.default_address == None
+                  {
+                    True -> {
+                      let updated =
+                        CustomerRecord(
+                          ..customer,
+                          default_address: Some(address_to_default(address)),
+                        )
+                      let #(_, s) =
+                        store.stage_update_customer(
+                          store_after_address,
+                          updated,
+                        )
+                      s
+                    }
+                    False -> store_after_address
+                  }
+                  let payload =
+                    address_payload_json(
+                      next_store,
+                      "CustomerAddressCreatePayload",
+                      Some(address),
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [address.id],
+                      "customerAddressCreate",
+                    ),
+                    next_store,
+                    after_id,
+                  )
+                }
+              }
             }
           }
         }
@@ -4883,45 +5126,75 @@ fn handle_customer_address_update(
                 Some(existing) ->
                   case existing.customer_id == customer.id {
                     True -> {
-                      let updated = merge_address(existing, address_input)
-                      let #(_, store_after_address) =
-                        store.stage_upsert_customer_address(store, updated)
-                      let next_store = case set_default {
-                        True -> {
-                          let #(_, s) =
-                            store.stage_update_customer(
-                              store_after_address,
-                              CustomerRecord(
-                                ..customer,
-                                default_address: Some(address_to_default(
-                                  updated,
-                                )),
-                              ),
+                      case
+                        validate_address_input(address_input, Some(existing), [
+                          "address",
+                        ])
+                      {
+                        [_, ..] as errors -> {
+                          let payload =
+                            address_payload_json(
+                              store,
+                              "CustomerAddressUpdatePayload",
+                              None,
+                              None,
+                              errors,
+                              field,
+                              fragments,
                             )
-                          s
+                          #(
+                            MutationFieldResult(
+                              get_field_response_key(field),
+                              payload,
+                              [],
+                              "customerAddressUpdate",
+                            ),
+                            store,
+                            identity,
+                          )
                         }
-                        False -> store_after_address
+                        [] -> {
+                          let updated = merge_address(existing, address_input)
+                          let #(_, store_after_address) =
+                            store.stage_upsert_customer_address(store, updated)
+                          let next_store = case set_default {
+                            True -> {
+                              let #(_, s) =
+                                store.stage_update_customer(
+                                  store_after_address,
+                                  CustomerRecord(
+                                    ..customer,
+                                    default_address: Some(address_to_default(
+                                      updated,
+                                    )),
+                                  ),
+                                )
+                              s
+                            }
+                            False -> store_after_address
+                          }
+                          let payload =
+                            address_payload_json(
+                              next_store,
+                              "CustomerAddressUpdatePayload",
+                              Some(updated),
+                              None,
+                              [],
+                              field,
+                              fragments,
+                            )
+                          #(
+                            MutationFieldResult(
+                              get_field_response_key(field),
+                              payload,
+                              [updated.id],
+                              "customerAddressUpdate",
+                            ),
+                            next_store,
+                            identity,
+                          )
+                        }
                       }
-                      let payload =
-                        address_payload_json(
-                          next_store,
-                          "CustomerAddressUpdatePayload",
-                          Some(updated),
-                          None,
-                          [],
-                          field,
-                          fragments,
-                        )
-                      #(
-                        MutationFieldResult(
-                          get_field_response_key(field),
-                          payload,
-                          [updated.id],
-                          "customerAddressUpdate",
-                        ),
-                        next_store,
-                        identity,
-                      )
                     }
                     False ->
                       address_ownership_result(
@@ -5660,6 +5933,7 @@ fn token_safe_customer_id(customer_id: String) -> String {
 fn handle_account_invite(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
   let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
+  let email_input = read_account_invite_email_input(args)
   case customer_id {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
@@ -5668,22 +5942,44 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
             customer_account_invitable(customer)
           {
             True -> {
-              let updated = CustomerRecord(..customer, state: Some("INVITED"))
-              let #(_, next_store) = store.stage_update_customer(store, updated)
-              #(
-                customer_payload_json(
-                  next_store,
-                  "CustomerSendAccountInviteEmailPayload",
-                  Some(updated),
-                  None,
-                  None,
+              let email_errors =
+                validate_account_invite_email(customer, email_input)
+              case email_errors {
+                [] -> {
+                  let updated =
+                    CustomerRecord(..customer, state: Some("INVITED"))
+                  let #(_, next_store) =
+                    store.stage_update_customer(store, updated)
+                  #(
+                    customer_payload_json(
+                      next_store,
+                      "CustomerSendAccountInviteEmailPayload",
+                      Some(updated),
+                      None,
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    [id],
+                  )
+                }
+                _ -> #(
+                  customer_payload_json(
+                    store,
+                    "CustomerSendAccountInviteEmailPayload",
+                    None,
+                    None,
+                    None,
+                    email_errors,
+                    field,
+                    fragments,
+                  ),
+                  store,
                   [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                [id],
-              )
+                )
+              }
             }
             False -> #(
               customer_payload_json(
@@ -5742,6 +6038,147 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
         "Customer can't be found",
         None,
       )
+  }
+}
+
+fn read_account_invite_email_input(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(args, "email") {
+    Ok(root_field.ObjectVal(input)) -> Some(input)
+    _ -> None
+  }
+}
+
+fn validate_account_invite_email(
+  customer: CustomerRecord,
+  email_input: Option(Dict(String, root_field.ResolvedValue)),
+) -> List(UserError) {
+  case email_input {
+    None -> []
+    Some(input) -> {
+      [
+        validate_account_invite_subject(input),
+        validate_account_invite_to(customer, input),
+        validate_account_invite_from(input),
+        validate_account_invite_bcc(input),
+        validate_account_invite_custom_message(input),
+      ]
+      |> list.flatten()
+    }
+  }
+}
+
+fn validate_account_invite_subject(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_raw_string(input, "subject") {
+    None | Some("") -> [
+      UserError(["email", "subject"], "Subject can't be blank", Some("INVALID")),
+    ]
+    Some(subject) ->
+      case string.length(subject) > 1000 {
+        True -> [account_invite_send_error()]
+        False -> []
+      }
+  }
+}
+
+fn validate_account_invite_to(
+  customer: CustomerRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_raw_string(input, "to") {
+    None | Some("") -> []
+    Some(to) ->
+      case customer.email {
+        Some(email) if email != "" -> [
+          UserError(
+            ["email", "to"],
+            "To must be blank when the customer has an email address",
+            Some("INVALID"),
+          ),
+        ]
+        _ ->
+          case valid_account_invite_email_address(to) {
+            True -> []
+            False -> [
+              UserError(["email", "to"], "To is invalid", Some("INVALID")),
+            ]
+          }
+      }
+  }
+}
+
+fn validate_account_invite_from(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "from") {
+    Ok(_) -> [
+      UserError(["email", "from"], "From Sender is invalid", Some("INVALID")),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_account_invite_bcc(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  let bcc = read_obj_array_strings(input, "bcc")
+  case bcc {
+    [] -> []
+    _ -> [
+      UserError(
+        ["email", "bcc"],
+        account_invite_bcc_message(bcc),
+        Some("INVALID"),
+      ),
+    ]
+  }
+}
+
+fn validate_account_invite_custom_message(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_raw_string(input, "customMessage") {
+    Some(message) -> {
+      let invalid =
+        string.length(message) > 5000
+        || string.contains(message, "<")
+        || string.contains(message, ">")
+      case invalid {
+        True -> [account_invite_send_error()]
+        False -> []
+      }
+    }
+    _ -> []
+  }
+}
+
+fn account_invite_bcc_message(bcc: List(String)) -> String {
+  "Bcc "
+  <> string.join(
+    list.map(bcc, fn(address) { address <> " is not a valid bcc address" }),
+    " and ",
+  )
+}
+
+fn account_invite_send_error() -> UserError {
+  UserError(
+    ["customerId"],
+    "Error sending account invite to customer.",
+    Some("INVALID"),
+  )
+}
+
+fn valid_account_invite_email_address(email: String) -> Bool {
+  case string.split(email, "@") {
+    [local, domain] ->
+      local != ""
+      && domain != ""
+      && string.contains(domain, ".")
+      && !string.contains(email, " ")
+    _ -> False
   }
 }
 
@@ -7003,13 +7440,7 @@ fn build_address(
     read_obj_string(input, "firstName") |> option.or(fallback_first_name)
   let last_name =
     read_obj_string(input, "lastName") |> option.or(fallback_last_name)
-  let country_code =
-    read_obj_string(input, "countryCode")
-    |> option.or(read_obj_string(input, "countryCodeV2"))
-  let province_code = read_obj_string(input, "provinceCode")
-  let country = country_name(country_code, read_obj_string(input, "country"))
-  let province =
-    province_name(province_code, read_obj_string(input, "province"))
+  let #(zone, _) = resolve_address_zone(input, None, [])
   CustomerAddressRecord(
     id: id,
     customer_id: customer_id,
@@ -7021,17 +7452,17 @@ fn build_address(
     address2: read_obj_string(input, "address2"),
     city: read_obj_string(input, "city"),
     company: read_obj_string(input, "company"),
-    province: province,
-    province_code: province_code,
-    country: country,
-    country_code_v2: country_code,
+    province: zone.province,
+    province_code: zone.province_code,
+    country: zone.country,
+    country_code_v2: zone.country_code,
     zip: read_obj_string(input, "zip"),
     phone: read_obj_string(input, "phone"),
     name: build_display_name(first_name, last_name, None),
     formatted_area: formatted_area(
       read_obj_string(input, "city"),
-      province_code,
-      country,
+      zone.province_code,
+      zone.country,
     ),
   )
 }
@@ -7044,22 +7475,7 @@ fn merge_address(
     read_obj_string(input, "firstName") |> option.or(existing.first_name)
   let last_name =
     read_obj_string(input, "lastName") |> option.or(existing.last_name)
-  let country_code =
-    read_obj_string(input, "countryCode")
-    |> option.or(read_obj_string(input, "countryCodeV2"))
-    |> option.or(existing.country_code_v2)
-  let province_code =
-    read_obj_string(input, "provinceCode") |> option.or(existing.province_code)
-  let country =
-    country_name(
-      country_code,
-      read_obj_string(input, "country") |> option.or(existing.country),
-    )
-  let province =
-    province_name(
-      province_code,
-      read_obj_string(input, "province") |> option.or(existing.province),
-    )
+  let #(zone, _) = resolve_address_zone(input, Some(existing), [])
   CustomerAddressRecord(
     ..existing,
     first_name: first_name,
@@ -7068,17 +7484,17 @@ fn merge_address(
     address2: read_obj_string(input, "address2") |> option.or(existing.address2),
     city: read_obj_string(input, "city") |> option.or(existing.city),
     company: read_obj_string(input, "company") |> option.or(existing.company),
-    province: province,
-    province_code: province_code,
-    country: country,
-    country_code_v2: country_code,
+    province: zone.province,
+    province_code: zone.province_code,
+    country: zone.country,
+    country_code_v2: zone.country_code,
     zip: read_obj_string(input, "zip") |> option.or(existing.zip),
     phone: read_obj_string(input, "phone") |> option.or(existing.phone),
     name: build_display_name(first_name, last_name, None),
     formatted_area: formatted_area(
       read_obj_string(input, "city") |> option.or(existing.city),
-      province_code,
-      country,
+      zone.province_code,
+      zone.country,
     ),
   )
 }
@@ -7373,15 +7789,274 @@ fn dedupe(items: List(String)) -> List(String) {
   })
 }
 
-fn country_name(code, fallback) {
-  case code {
-    Some("CA") -> Some("Canada")
-    Some("US") -> Some("United States")
-    _ -> fallback
+fn validate_address_input(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CustomerAddressRecord),
+  field_prefix: List(String),
+) -> List(UserError) {
+  let #(_, errors) = resolve_address_zone(input, existing, field_prefix)
+  errors
+}
+
+fn resolve_address_zone(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CustomerAddressRecord),
+  field_prefix: List(String),
+) -> #(AddressZoneResolution, List(UserError)) {
+  let code_input =
+    first_non_empty_string([
+      read_obj_string(input, "countryCode"),
+      read_obj_string(input, "countryCodeV2"),
+    ])
+  let country_input = read_obj_string(input, "country") |> non_empty_string
+  let existing_code =
+    existing
+    |> option.then(fn(address) { non_empty_string(address.country_code_v2) })
+  let existing_country =
+    existing |> option.then(fn(address) { non_empty_string(address.country) })
+  let country_result =
+    resolve_country(code_input, country_input, existing_code, existing_country)
+  case country_result {
+    AddressCountryInvalid -> #(AddressZoneResolution(None, None, None, None), [
+      UserError(
+        list.append(field_prefix, ["country"]),
+        "Country is invalid",
+        Some("INVALID"),
+      ),
+    ])
+    AddressCountryResolved(country_code, country_name, zones) -> {
+      let province_result =
+        resolve_province(input, existing, zones, field_prefix)
+      case province_result {
+        Error(_) -> #(
+          AddressZoneResolution(
+            Some(country_name),
+            Some(country_code),
+            None,
+            None,
+          ),
+          [
+            UserError(
+              list.append(field_prefix, ["province"]),
+              "Province is invalid",
+              Some("INVALID"),
+            ),
+          ],
+        )
+        Ok(#(province_code, province_name)) -> #(
+          AddressZoneResolution(
+            Some(country_name),
+            Some(country_code),
+            province_name,
+            province_code,
+          ),
+          [],
+        )
+      }
+    }
+    AddressCountryAbsent -> {
+      let province_code =
+        first_non_empty_string([
+          read_obj_string(input, "provinceCode"),
+          existing
+            |> option.then(fn(address) {
+              non_empty_string(address.province_code)
+            }),
+        ])
+      let province =
+        legacy_province_name(
+          province_code,
+          first_non_empty_string([
+            read_obj_string(input, "province"),
+            existing
+              |> option.then(fn(address) { non_empty_string(address.province) }),
+          ]),
+        )
+      #(AddressZoneResolution(None, None, province, province_code), [])
+    }
   }
 }
 
-fn province_name(code, fallback) {
+type CountryResolution {
+  AddressCountryResolved(String, String, List(#(String, String)))
+  AddressCountryAbsent
+  AddressCountryInvalid
+}
+
+fn resolve_country(
+  code_input: Option(String),
+  country_input: Option(String),
+  existing_code: Option(String),
+  existing_country: Option(String),
+) -> CountryResolution {
+  case code_input {
+    Some(code) ->
+      case country_catalog_by_code(code) {
+        Some(#(catalog_code, catalog_name, zones)) ->
+          AddressCountryResolved(catalog_code, catalog_name, zones)
+        None -> AddressCountryInvalid
+      }
+    None -> {
+      let country_name = country_input |> option.or(existing_country)
+      case country_name {
+        Some(name) ->
+          case country_catalog_by_name(name) {
+            Some(#(catalog_code, catalog_name, zones)) ->
+              AddressCountryResolved(catalog_code, catalog_name, zones)
+            None -> AddressCountryInvalid
+          }
+        None ->
+          case existing_code {
+            Some(code) ->
+              case country_catalog_by_code(code) {
+                Some(#(catalog_code, catalog_name, zones)) ->
+                  AddressCountryResolved(catalog_code, catalog_name, zones)
+                None -> AddressCountryInvalid
+              }
+            None -> AddressCountryAbsent
+          }
+      }
+    }
+  }
+}
+
+fn resolve_province(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(CustomerAddressRecord),
+  zones: List(#(String, String)),
+  _field_prefix: List(String),
+) -> Result(#(Option(String), Option(String)), Nil) {
+  case zones {
+    [] -> Ok(#(None, None))
+    [_, ..] -> {
+      let province_code =
+        first_non_empty_string([
+          read_obj_string(input, "provinceCode"),
+          existing
+            |> option.then(fn(address) {
+              non_empty_string(address.province_code)
+            }),
+        ])
+      let province_name =
+        first_non_empty_string([
+          read_obj_string(input, "province"),
+          existing
+            |> option.then(fn(address) { non_empty_string(address.province) }),
+        ])
+      case province_code {
+        Some(code) ->
+          case zone_name_by_code(zones, code) {
+            Some(name) ->
+              Ok(#(Some(zone_code_by_input(zones, code)), Some(name)))
+            None -> Error(Nil)
+          }
+        None ->
+          case province_name {
+            Some(name) ->
+              case zone_by_name(zones, name) {
+                Some(#(code, display_name)) ->
+                  Ok(#(Some(code), Some(display_name)))
+                None -> Error(Nil)
+              }
+            None -> Ok(#(None, None))
+          }
+      }
+    }
+  }
+}
+
+fn first_non_empty_string(values: List(Option(String))) -> Option(String) {
+  case values {
+    [] -> None
+    [first, ..rest] ->
+      case non_empty_string(first) {
+        Some(value) -> Some(value)
+        None -> first_non_empty_string(rest)
+      }
+  }
+}
+
+fn non_empty_string(value: Option(String)) -> Option(String) {
+  case value {
+    Some(raw) -> {
+      let trimmed = string.trim(raw)
+      case trimmed {
+        "" -> None
+        _ -> Some(trimmed)
+      }
+    }
+    None -> None
+  }
+}
+
+fn country_catalog_by_code(
+  code: String,
+) -> Option(#(String, String, List(#(String, String)))) {
+  case string.uppercase(code) {
+    "CA" -> Some(#("CA", "Canada", canada_zones()))
+    "US" -> Some(#("US", "United States", united_states_zones()))
+    "SG" -> Some(#("SG", "Singapore", []))
+    _ -> None
+  }
+}
+
+fn country_catalog_by_name(
+  name: String,
+) -> Option(#(String, String, List(#(String, String)))) {
+  case string.lowercase(string.trim(name)) {
+    "canada" -> country_catalog_by_code("CA")
+    "united states" | "united states of america" | "usa" | "us" ->
+      country_catalog_by_code("US")
+    "singapore" -> country_catalog_by_code("SG")
+    _ -> None
+  }
+}
+
+fn zone_name_by_code(
+  zones: List(#(String, String)),
+  code: String,
+) -> Option(String) {
+  let normalized = string.uppercase(code)
+  zones
+  |> list.find(fn(zone) {
+    let #(zone_code, _) = zone
+    zone_code == normalized
+  })
+  |> result_to_option()
+  |> option.map(fn(zone) {
+    let #(_, name) = zone
+    name
+  })
+}
+
+fn zone_code_by_input(zones: List(#(String, String)), code: String) -> String {
+  let normalized = string.uppercase(code)
+  zones
+  |> list.find(fn(zone) {
+    let #(zone_code, _) = zone
+    zone_code == normalized
+  })
+  |> result.map(fn(zone) {
+    let #(zone_code, _) = zone
+    zone_code
+  })
+  |> result.unwrap(normalized)
+}
+
+fn zone_by_name(
+  zones: List(#(String, String)),
+  name: String,
+) -> Option(#(String, String)) {
+  let normalized = string.lowercase(string.trim(name))
+  zones
+  |> list.find(fn(zone) {
+    let #(_, zone_name) = zone
+    string.lowercase(zone_name) == normalized
+  })
+  |> result_to_option()
+}
+
+fn legacy_province_name(code, fallback) {
   case code {
     Some("ON") -> Some("Ontario")
     Some("QC") -> Some("Quebec")
@@ -7392,23 +8067,102 @@ fn province_name(code, fallback) {
   }
 }
 
+fn canada_zones() -> List(#(String, String)) {
+  [
+    #("AB", "Alberta"),
+    #("BC", "British Columbia"),
+    #("MB", "Manitoba"),
+    #("NB", "New Brunswick"),
+    #("NL", "Newfoundland and Labrador"),
+    #("NT", "Northwest Territories"),
+    #("NS", "Nova Scotia"),
+    #("NU", "Nunavut"),
+    #("ON", "Ontario"),
+    #("PE", "Prince Edward Island"),
+    #("QC", "Quebec"),
+    #("SK", "Saskatchewan"),
+    #("YT", "Yukon"),
+  ]
+}
+
+fn united_states_zones() -> List(#(String, String)) {
+  [
+    #("AL", "Alabama"),
+    #("AK", "Alaska"),
+    #("AZ", "Arizona"),
+    #("AR", "Arkansas"),
+    #("CA", "California"),
+    #("CO", "Colorado"),
+    #("CT", "Connecticut"),
+    #("DE", "Delaware"),
+    #("DC", "District of Columbia"),
+    #("FL", "Florida"),
+    #("GA", "Georgia"),
+    #("HI", "Hawaii"),
+    #("ID", "Idaho"),
+    #("IL", "Illinois"),
+    #("IN", "Indiana"),
+    #("IA", "Iowa"),
+    #("KS", "Kansas"),
+    #("KY", "Kentucky"),
+    #("LA", "Louisiana"),
+    #("ME", "Maine"),
+    #("MD", "Maryland"),
+    #("MA", "Massachusetts"),
+    #("MI", "Michigan"),
+    #("MN", "Minnesota"),
+    #("MS", "Mississippi"),
+    #("MO", "Missouri"),
+    #("MT", "Montana"),
+    #("NE", "Nebraska"),
+    #("NV", "Nevada"),
+    #("NH", "New Hampshire"),
+    #("NJ", "New Jersey"),
+    #("NM", "New Mexico"),
+    #("NY", "New York"),
+    #("NC", "North Carolina"),
+    #("ND", "North Dakota"),
+    #("OH", "Ohio"),
+    #("OK", "Oklahoma"),
+    #("OR", "Oregon"),
+    #("PA", "Pennsylvania"),
+    #("RI", "Rhode Island"),
+    #("SC", "South Carolina"),
+    #("SD", "South Dakota"),
+    #("TN", "Tennessee"),
+    #("TX", "Texas"),
+    #("UT", "Utah"),
+    #("VT", "Vermont"),
+    #("VA", "Virginia"),
+    #("WA", "Washington"),
+    #("WV", "West Virginia"),
+    #("WI", "Wisconsin"),
+    #("WY", "Wyoming"),
+  ]
+}
+
 fn formatted_area(city, province_code, country) {
   let city_region =
     [city, province_code]
     |> list.filter_map(non_empty_option_string)
     |> string.join(" ")
-  let parts =
-    [
-      case city_region {
-        "" -> None
-        value -> Some(value)
-      },
-      country,
-    ]
-    |> list.filter_map(non_empty_option_string)
-  case parts {
-    [] -> None
-    _ -> Some(string.join(parts, ", "))
+  case city_region, country {
+    value, Some(country_name) if value == country_name -> Some(country_name)
+    _, _ -> {
+      let parts =
+        [
+          case city_region {
+            "" -> None
+            value -> Some(value)
+          },
+          country,
+        ]
+        |> list.filter_map(non_empty_option_string)
+      case parts {
+        [] -> None
+        _ -> Some(string.join(parts, ", "))
+      }
+    }
   }
 }
 

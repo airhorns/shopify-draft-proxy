@@ -1167,11 +1167,7 @@ fn create_discount(
       )
     Some(input) -> {
       let top_level_errors =
-        validate_cart_line_combination_tag_top_level_errors(
-          input,
-          field,
-          document,
-        )
+        validate_discount_top_level_errors(input, field, document)
       case top_level_errors {
         [_, ..] ->
           MutationResult(
@@ -1320,11 +1316,7 @@ fn update_discount(
   case id, input {
     Some(id), Some(input) -> {
       let top_level_errors =
-        validate_cart_line_combination_tag_top_level_errors(
-          input,
-          field,
-          document,
-        )
+        validate_discount_top_level_errors(input, field, document)
       case top_level_errors {
         [_, ..] ->
           MutationResult(
@@ -1779,58 +1771,107 @@ fn redeem_code_bulk_delete(
   upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
-  let discount_id = read_string_arg(field, variables, "discountId")
-  let ids = read_string_list_arg(field, variables, "ids")
-  // Same Pattern 2 hydration as redeem_code_bulk_add: pull the prior
-  // record from upstream so that staged code-deletions overlay on top
-  // of the real codes connection. See the comment on the add handler.
-  let #(store, identity) = case discount_id {
-    Some(id) -> maybe_hydrate_discount(store, identity, id, upstream)
-    None -> #(store, identity)
-  }
-  let #(next_store, identity_after_update) = case discount_id {
-    Some(id) ->
-      case store.get_effective_discount_by_id(store, id) {
-        Some(record) -> {
-          let #(updated_at, identity) =
-            synthetic_identity.make_synthetic_timestamp(identity)
-          let updated = remove_codes_by_ids(record, ids, updated_at)
-          let #(_, s) = store.stage_discount(store, updated)
-          #(s, identity)
-        }
+  let args =
+    root_field.get_field_arguments(field, variables)
+    |> result.unwrap(dict.new())
+  let discount_id = read_string(args, "discountId")
+  let selector_errors = validate_redeem_code_bulk_delete_selector_shape(args)
+  case selector_errors {
+    [_, ..] ->
+      MutationResult(
+        key,
+        redeem_code_bulk_delete_payload(
+          field,
+          fragments,
+          SrcNull,
+          selector_errors,
+        ),
+        store,
+        identity,
+        [],
+        [],
+      )
+    [] -> {
+      // Same Pattern 2 hydration as redeem_code_bulk_add: pull the prior
+      // record from upstream before validating discount existence so real
+      // Shopify-side discounts can be targeted by local staged deletions.
+      let #(store, identity) = case discount_id {
+        Some(id) -> maybe_hydrate_discount(store, identity, id, upstream)
         None -> #(store, identity)
       }
-    None -> #(store, identity)
-  }
-  let #(job_id, next_identity) =
-    make_discount_async_gid(store, identity_after_update, "Job")
-  let payload =
-    project_graphql_value(
-      SrcObject(
-        dict.from_list([
-          #(
-            "job",
+      let user_errors =
+        validate_redeem_code_bulk_delete_after_hydrate(store, args)
+      case user_errors {
+        [_, ..] ->
+          MutationResult(
+            key,
+            redeem_code_bulk_delete_payload(
+              field,
+              fragments,
+              SrcNull,
+              user_errors,
+            ),
+            store,
+            identity,
+            [],
+            [],
+          )
+        [] -> {
+          let #(next_store, identity_after_update) = case discount_id {
+            Some(id) ->
+              case store.get_effective_discount_by_id(store, id) {
+                Some(record) -> {
+                  let ids =
+                    redeem_code_bulk_delete_target_ids(store, record, args)
+                  let #(updated_at, identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let updated = remove_codes_by_ids(record, ids, updated_at)
+                  let #(_, s) = store.stage_discount(store, updated)
+                  #(s, identity)
+                }
+                None -> #(store, identity)
+              }
+            None -> #(store, identity)
+          }
+          let #(job_id, next_identity) =
+            make_discount_async_gid(store, identity_after_update, "Job")
+          let job =
             SrcObject(
               dict.from_list([
                 #("id", SrcString(job_id)),
                 #("done", SrcBool(True)),
                 #("query", SrcNull),
               ]),
-            ),
-          ),
-          #("userErrors", SrcList([])),
-        ]),
-      ),
-      child_fields(field),
-      fragments,
-    )
-  MutationResult(
-    key,
-    payload,
-    next_store,
-    next_identity,
-    option_to_list(discount_id),
-    [],
+            )
+          MutationResult(
+            key,
+            redeem_code_bulk_delete_payload(field, fragments, job, []),
+            next_store,
+            next_identity,
+            option_to_list(discount_id),
+            [],
+          )
+        }
+      }
+    }
+  }
+}
+
+fn redeem_code_bulk_delete_payload(
+  field: Selection,
+  fragments: FragmentMap,
+  job: SourceValue,
+  user_errors: List(SourceValue),
+) -> Json {
+  project_graphql_value(
+    SrcObject(
+      dict.from_list([
+        #("job", job),
+        #("userErrors", SrcList(user_errors)),
+      ]),
+    ),
+    child_fields(field),
+    fragments,
   )
 }
 
@@ -2222,7 +2263,11 @@ fn validate_discount_input(
   require_code: Bool,
   ignored_discount_id: Option(String),
 ) -> List(SourceValue) {
-  let errors = validate_discount_code_input(input_name, input, require_code)
+  let errors =
+    list.append(
+      validate_discount_code_input(input_name, input, require_code),
+      validate_context_customer_selection_conflict(input_name, input),
+    )
   let errors = case read_string(input, "code") {
     Some(code) ->
       case errors {
@@ -2300,6 +2345,35 @@ fn validate_discount_input(
     "basicCodeDiscount" ->
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
+  }
+}
+
+fn validate_context_customer_selection_conflict(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case
+    input_value_is_present(input, "context"),
+    input_value_is_present(input, "customerSelection")
+  {
+    True, True -> [
+      user_error(
+        [input_name, "context"],
+        "Only one of context or customerSelection can be provided.",
+        "INVALID",
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn input_value_is_present(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(input, name) {
+    Ok(root_field.NullVal) | Error(_) -> False
+    Ok(_) -> True
   }
 }
 
@@ -3578,6 +3652,64 @@ fn nested_has_all(value: root_field.ResolvedValue, child: String) -> Bool {
   }
 }
 
+fn validate_discount_top_level_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> List(Json) {
+  list.append(
+    validate_customer_gets_value_type_top_level_errors(input, field, document),
+    validate_cart_line_combination_tag_top_level_errors(input, field, document),
+  )
+}
+
+fn validate_customer_gets_value_type_top_level_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> List(Json) {
+  case customer_gets_value_fields(input) {
+    Some(fields) ->
+      case customer_gets_value_type_count(fields) > 1 {
+        True -> [
+          json.object([
+            #(
+              "message",
+              json.string(
+                "A discount can only have one of percentage, discountOnQuantity or discountAmount.",
+              ),
+            ),
+            #("locations", field_locations_json(field, document)),
+            #(
+              "extensions",
+              json.object([#("code", json.string("BAD_REQUEST"))]),
+            ),
+            #("path", json.array([get_field_response_key(field)], json.string)),
+          ]),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn customer_gets_value_type_count(
+  fields: Dict(String, root_field.ResolvedValue),
+) -> Int {
+  let count = case dict.has_key(fields, "percentage") {
+    True -> 1
+    False -> 0
+  }
+  let count = case dict.has_key(fields, "discountAmount") {
+    True -> count + 1
+    False -> count
+  }
+  case dict.has_key(fields, "discountOnQuantity") {
+    True -> count + 1
+    False -> count
+  }
+}
+
 fn validate_cart_line_combination_tag_top_level_errors(
   input: Dict(String, root_field.ResolvedValue),
   field: Selection,
@@ -3804,6 +3936,148 @@ fn validate_bulk_selector(
   }
 }
 
+fn validate_redeem_code_bulk_delete_selector_shape(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  let count =
+    redeem_code_ids_selector_present(args)
+    + selector_present(args, "search")
+    + selector_present(args, "savedSearchId")
+    + selector_present(args, "saved_search_id")
+  case count {
+    0 -> [
+      user_error_null_field(
+        "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
+        "MISSING_ARGUMENT",
+      ),
+    ]
+    n if n > 1 -> [
+      user_error_null_field(
+        "Only one of 'ids', 'search' or 'saved_search_id' is allowed.",
+        "TOO_MANY_ARGUMENTS",
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_redeem_code_bulk_delete_after_hydrate(
+  store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_string(args, "discountId") {
+    Some(id) ->
+      case store.get_effective_discount_by_id(store, id) {
+        None -> [
+          user_error(["discountId"], "Code discount does not exist.", "INVALID"),
+        ]
+        Some(_) ->
+          case redeem_code_ids_selector_is_empty(args) {
+            True -> [
+              user_error_null_field_with_code(
+                "Something went wrong, please try again.",
+                None,
+              ),
+            ]
+            False ->
+              list.append(
+                validate_redeem_code_bulk_delete_search_selector(args),
+                validate_redeem_code_bulk_delete_saved_search_selector(
+                  store,
+                  args,
+                ),
+              )
+          }
+      }
+    None -> [
+      user_error(["discountId"], "Code discount does not exist.", "INVALID"),
+    ]
+  }
+}
+
+fn validate_redeem_code_bulk_delete_search_selector(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_string(args, "search") {
+    Some(search) ->
+      case string.trim(search) {
+        "" -> [user_error(["search"], "'Search' can't be blank.", "BLANK")]
+        _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_redeem_code_bulk_delete_saved_search_selector(
+  store: Store,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_bulk_saved_search_id(args) {
+    Some(id) ->
+      case store.get_effective_saved_search_by_id(store, id) {
+        Some(_) -> []
+        None -> [
+          user_error(["savedSearchId"], "Invalid 'saved_search_id'.", "INVALID"),
+        ]
+      }
+    None -> []
+  }
+}
+
+fn redeem_code_bulk_delete_target_ids(
+  store: Store,
+  record: DiscountRecord,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  case dict.has_key(args, "ids") {
+    True -> read_string_array(args, "ids", [])
+    False ->
+      case read_string(args, "search") {
+        Some(query) -> redeem_code_ids_matching_query(record, query)
+        None ->
+          case read_bulk_saved_search_id(args) {
+            Some(id) ->
+              case store.get_effective_saved_search_by_id(store, id) {
+                Some(saved_search) ->
+                  redeem_code_ids_matching_query(record, saved_search.query)
+                None -> []
+              }
+            None -> []
+          }
+      }
+  }
+}
+
+fn redeem_code_ids_matching_query(
+  record: DiscountRecord,
+  query: String,
+) -> List(String) {
+  existing_code_nodes(record)
+  |> search_query_parser.apply_search_query(
+    Some(query),
+    search_query_parser.default_parse_options(),
+    redeem_code_matches_positive_search_term,
+  )
+  |> list.map(fn(pair) { pair.0 })
+}
+
+fn redeem_code_matches_positive_search_term(
+  pair: #(String, String),
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  let #(_id, code) = pair
+  case term.field {
+    Some("code") ->
+      search_query_parser.matches_search_query_string(
+        Some(code),
+        search_query_parser.search_query_term_value(term),
+        search_query_parser.ExactMatch,
+        search_query_parser.default_string_match_options(),
+      )
+    _ -> search_query_parser.matches_search_query_text(Some(code), term)
+  }
+}
+
 fn bulk_missing_selector_message(root: String) -> String {
   case root {
     "discountAutomaticBulkDelete" ->
@@ -3882,6 +4156,24 @@ fn selector_present(
     Ok(root_field.NullVal) | Error(_) -> 0
     Ok(root_field.ListVal([])) -> 0
     _ -> 1
+  }
+}
+
+fn redeem_code_ids_selector_present(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Int {
+  case dict.has_key(args, "ids") {
+    True -> 1
+    False -> 0
+  }
+}
+
+fn redeem_code_ids_selector_is_empty(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(args, "ids") {
+    Ok(root_field.NullVal) | Ok(root_field.ListVal([])) -> True
+    _ -> False
   }
 }
 
@@ -4072,11 +4364,18 @@ fn user_error_with_code(
 }
 
 fn user_error_null_field(message: String, code: String) -> SourceValue {
+  user_error_null_field_with_code(message, Some(code))
+}
+
+fn user_error_null_field_with_code(
+  message: String,
+  code: Option(String),
+) -> SourceValue {
   SrcObject(
     dict.from_list([
       #("field", SrcNull),
       #("message", SrcString(message)),
-      #("code", SrcString(code)),
+      #("code", code |> option.map(SrcString) |> option.unwrap(SrcNull)),
       #("extraInfo", SrcNull),
     ]),
   )
@@ -4176,17 +4475,6 @@ fn read_string_array(
         }
       })
     _ -> fallback
-  }
-}
-
-fn read_string_list_arg(
-  field: Selection,
-  variables: Dict(String, root_field.ResolvedValue),
-  name: String,
-) -> List(String) {
-  case root_field.get_field_arguments(field, variables) {
-    Ok(args) -> read_string_array(args, name, [])
-    Error(_) -> []
   }
 }
 
