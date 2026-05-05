@@ -30,9 +30,9 @@ import parity/diff.{type Mismatch}
 import parity/json_value.{type JsonValue, JArray, JObject, JString}
 import parity/jsonpath
 import parity/spec.{
-  type LocalSetup, type Spec, type Target, NoVariables, OverrideRequest,
-  ProxyLog, ProxyResponse, ProxyState, ReusePrimary, SeedSegments,
-  VariablesFromCapture, VariablesFromFile, VariablesInline,
+  type Spec, type Target, NoVariables, OverrideRequest, ProxyLog, ProxyResponse,
+  ProxyState, ReusePrimary, VariablesFromCapture, VariablesFromFile,
+  VariablesInline,
 }
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
@@ -41,11 +41,8 @@ import shopify_draft_proxy/proxy/draft_proxy.{type Response}
 import shopify_draft_proxy/proxy/operation_registry
 import shopify_draft_proxy/proxy/operation_registry_data
 import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, Config, DraftProxy, LiveHybrid,
-  PassthroughUnsupportedMutations, Request,
+  type DraftProxy, Config, LiveHybrid, PassthroughUnsupportedMutations, Request,
 }
-import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/types.{SegmentRecord}
 import simplifile
 
 pub type RunError {
@@ -163,7 +160,6 @@ pub fn run_with_config(
     "<primary>",
   ))
   let primary_vars = replace_customer_one_variables(capture, primary_vars)
-  let proxy = apply_local_setups(proxy, parsed.proxy_request.local_setups)
   use #(primary_response, proxy, primary_op) <- result.try(execute(
     proxy,
     primary_doc,
@@ -541,7 +537,6 @@ fn actual_response_for(
             named_responses,
             target.name,
           ))
-          let proxy = apply_local_setups(proxy, request.local_setups)
           use #(response, next_proxy, executed) <- result.try(execute(
             proxy,
             document,
@@ -560,45 +555,6 @@ fn actual_response_for(
           Ok(#(value, next_proxy, Some(executed)))
         }
       }
-    }
-  }
-}
-
-fn apply_local_setups(
-  proxy: DraftProxy,
-  local_setups: List(LocalSetup),
-) -> DraftProxy {
-  list.fold(local_setups, proxy, fn(acc, setup) {
-    case setup {
-      SeedSegments(count) -> seed_staged_segments(acc, count)
-    }
-  })
-}
-
-fn seed_staged_segments(proxy: DraftProxy, count: Int) -> DraftProxy {
-  DraftProxy(..proxy, store: seed_segment_records(proxy.store, 1, count))
-}
-
-fn seed_segment_records(
-  store_in: store.Store,
-  next: Int,
-  remaining: Int,
-) -> store.Store {
-  case remaining <= 0 {
-    True -> store_in
-    False -> {
-      let suffix = int.to_string(next)
-      let id = "gid://shopify/Segment/900000" <> suffix
-      let record =
-        SegmentRecord(
-          id: id,
-          name: Some("Parity seed segment " <> suffix),
-          query: Some("number_of_orders >= 1"),
-          creation_date: Some("2024-01-01T00:00:00.000Z"),
-          last_edit_date: Some("2024-01-01T00:00:00.000Z"),
-        )
-      let #(_, seeded_store) = store.upsert_staged_segment(store_in, record)
-      seed_segment_records(seeded_store, next + 1, remaining - 1)
     }
   }
 }

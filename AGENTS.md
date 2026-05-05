@@ -137,8 +137,10 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   `expectedDifferences` merely to make parity tests pass. Opaque Shopify
   connection cursors are an acceptable expected difference because
   clients must not depend on their internal encoding. **Do not pre-seed
-  `base_state` from the captured response** — the runner no longer
-  supports that pattern, and `seedX` keys in capture files are banned.
+  parity runner state** — `base_state` seeding, `proxyRequest.localSetups`,
+  artificial `localRuntimeCases`, and `seedX` keys in capture files are
+  banned. A parity scenario must earn state through its replayed requests
+  or cassette-backed upstream reads.
 - Before handing off a fidelity PR, check the recent rejected-review lessons:
   - If behavior is claimed to match Shopify, include executable parity
     evidence (a checked-in parity spec running through `pnpm gleam:test`)

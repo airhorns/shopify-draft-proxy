@@ -23,20 +23,33 @@
         "proxyPath": "$.data.segmentCreate"
       },
       {
+        "name": "segment-update-setup",
+        "capturePath": "$.cases[1].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses synthetic segment IDs while Shopify returns live store IDs."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-create.graphql",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        }
+      },
+      {
         "name": "segment-update-empty-input",
         "capturePath": "$.cases[2].response.payload.data.segmentUpdate",
         "proxyPath": "$.data.segmentUpdate",
         "proxyRequest": {
           "documentPath": "config/parity-requests/segments/segments-user-errors-shape-segment-update.graphql",
           "variables": {
-            "id": "gid://shopify/Segment/9000001"
-          },
-          "localSetups": [
-            {
-              "kind": "seedSegments",
-              "count": 1
+            "id": {
+              "fromProxyResponse": "segment-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
             }
-          ]
+          }
         }
       },
       {

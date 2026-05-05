@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.cases[0].request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-713 live Shopify evidence covers segmentCreate/segmentUpdate name and query length errors. The segment-limit branch is executed with a parity-runner local setup that seeds 6000 staged segments before the limit request, avoiding thousands of live segment writes while preserving strict user-error comparison.",
+  "notes": "HAR-713 live Shopify evidence covers segmentCreate/segmentUpdate name and query length errors. The segment-limit branch is intentionally not included in this parity spec because the previous runner setup pre-seeded 6000 staged segments, which is not valid parity evidence.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -88,24 +88,6 @@
               "fromCapturePath": "$.cases[4].request.variables.query"
             }
           }
-        }
-      },
-      {
-        "name": "segment-create-limit-reached",
-        "capturePath": "$.localRuntimeCases.segmentCreateLimitReached.response.payload.data.segmentCreate",
-        "proxyPath": "$.data.segmentCreate",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/segments/segment-create-limit-validation.graphql",
-          "variables": {
-            "name": "extra",
-            "query": "number_of_orders >= 1"
-          },
-          "localSetups": [
-            {
-              "kind": "seedSegments",
-              "count": 6000
-            }
-          ]
         }
       }
     ]

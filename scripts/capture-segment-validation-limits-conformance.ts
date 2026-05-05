@@ -198,28 +198,9 @@ await writeFile(
       storeDomain,
       apiVersion,
       cases,
-      localRuntimeCases: {
-        segmentCreateLimitReached: {
-          response: {
-            payload: {
-              data: {
-                segmentCreate: {
-                  segment: null,
-                  userErrors: [
-                    {
-                      field: ['base'],
-                      message: 'Segment limit reached',
-                    },
-                  ],
-                },
-              },
-            },
-          },
-        },
-      },
       notes: [
         'Live Shopify evidence covers segmentCreate/segmentUpdate name and query length validation.',
-        'The segment-limit branch is exercised by the parity runner with a local staged 6000-segment setup to avoid creating thousands of disposable live segments.',
+        'The segment-limit branch is not parity-covered here because pre-seeding local staged segments is invalid parity evidence.',
       ],
       upstreamCalls: [],
     },

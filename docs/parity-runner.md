@@ -70,21 +70,13 @@ billing interval and `trialDays`. The executable local-runtime proof is
 `comparison.mode` is the comparison contract for the target payloads. It
 is distinct from proxy runtime read mode, which the runner owns.
 
-`proxyRequest.localSetups` is a narrow runner hook for executable local
-state setup that is not sourced from captured Shopify payloads. Use it
-only when live setup would be impractical or unsafe, and compare against
-an explicit captured or documented runtime case. It is not a replacement
-for cassette playback, and it must not reintroduce `seedX` keys in
-capture files.
-
-```jsonc
-{
-  "proxyRequest": {
-    "documentPath": "config/parity-requests/segments/segment-create-limit-validation.graphql",
-    "localSetups": [{ "kind": "seedSegments", "count": 6000 }],
-  },
-}
-```
+Parity specs must not include `proxyRequest.localSetups` or any other
+runner setup hook that pre-seeds proxy state before the request is
+executed. If the proxy needs existing Shopify state to answer a request,
+the operation handler must model that state from earlier scenario
+requests or from cassette-backed upstream reads. If that is not
+implemented yet, keep the gap out of the checked-in parity spec and
+track the missing fidelity work outside the scenario corpus.
 
 ## Cassette shape
 
@@ -502,9 +494,11 @@ Per-scenario steps:
 ## Seed Keys Are Forbidden
 
 Capture files must not carry top-level `seedProducts`, `seedCustomers`,
-`seedDiscounts`, or similar `seedX` keys. Those keys were inputs to the
-unsupported seed-based runner. The cheating-lint test fails the build if
-they reappear under `fixtures/conformance/**`.
+`seedDiscounts`, `localRuntimeCases`, or similar artificial setup keys.
+Parity specs must not carry `localSetups`. Those keys were inputs to the
+unsupported seed-based runner. The schema and corpus tests reject
+`localSetups` and `localRuntimeCases`; seed-style fixture keys remain
+banned by policy and should be removed rather than expanded.
 
 ## Why we changed
 
