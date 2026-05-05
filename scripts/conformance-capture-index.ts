@@ -2670,6 +2670,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-update-noop',
+    scriptPath: 'scripts/capture-gift-card-update-noop-conformance.ts',
+    purpose:
+      'Gift-card update no-op behavior for present note, expiresOn, and templateSuffix fields whose values equal current gift-card state, plus the truly empty input branch.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-update-noop.json`,
+      'config/parity-specs/gift-cards/gift-card-update-noop.json',
+      'config/parity-requests/gift-cards/gift-card-update-noop.graphql',
+      'config/parity-requests/gift-cards/gift-card-update-noop-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable gift card with known editable fields, records no-op update branches, and deactivates the setup gift card.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the fixture records public field/message evidence and augments replay expectations with the internal typed code contract for the empty-input branch.',
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-notification-validation',
     scriptPath: 'scripts/capture-gift-card-notification-validation-conformance.ts',
     purpose: 'Gift-card notification validation branches that fail before customer-visible notification dispatch.',

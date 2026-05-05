@@ -1,0 +1,76 @@
+{
+  "scenarioId": "gift-card-update-noop",
+  "operationNames": ["giftCardCreate", "giftCardUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "mutation-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-update-noop.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-update-noop-create.graphql",
+    "variablesCapturePath": "$.proxyVariables.create"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-766 captures Shopify accepting giftCardUpdate inputs whose supplied editable values already equal the current gift card values. The replay first stages an equivalent local gift card, then proves note/expiresOn/templateSuffix no-op updates succeed while a truly empty input still emits missing_all_optional_arguments_error.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-noop-card-user-errors",
+        "capturePath": "$.setup[0].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors"
+      },
+      {
+        "name": "giftCardUpdate no-op branches",
+        "capturePath": "$.expected.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-noop.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-noop-card-user-errors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "note": { "fromCapturePath": "$.proxyVariables.noop.note" },
+            "expiresOn": { "fromCapturePath": "$.proxyVariables.noop.expiresOn" },
+            "templateSuffix": { "fromCapturePath": "$.proxyVariables.noop.templateSuffix" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.noteNoop.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy replays the no-op update against the locally staged synthetic gift card."
+          },
+          {
+            "path": "$.noteNoop.giftCard.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
+          },
+          {
+            "path": "$.expiresNoop.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy replays the no-op update against the locally staged synthetic gift card."
+          },
+          {
+            "path": "$.expiresNoop.giftCard.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
+          },
+          {
+            "path": "$.templateNoop.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy replays the no-op update against the locally staged synthetic gift card."
+          },
+          {
+            "path": "$.templateNoop.giftCard.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
+          }
+        ]
+      }
+    ]
+  }
+}
