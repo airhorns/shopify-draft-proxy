@@ -251,6 +251,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Shopify retains company order history after cancellation, so the order-history company delete may return a cleanup userError in the fixture.',
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-no-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-no-input-validation-conformance.mts',
+    purpose:
+      'B2B empty-object input validation for company/contact/location update roots and company contact create, plus readback proving the validation branches are no-ops.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-no-input-validation.json`,
+      'config/parity-specs/b2b/b2b-no-input-validation.json',
+      'config/parity-requests/b2b/b2b-no-input-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company with a contact and location, records validation failures and unchanged readback, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The capture also records null-only probes showing the public schema does not treat null-only keys as a uniform NO_INPUT branch.',
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
