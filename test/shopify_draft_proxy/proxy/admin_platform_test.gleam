@@ -739,6 +739,38 @@ pub fn flow_utility_mutations_stage_without_sensitive_state_test() {
   )
 }
 
+pub fn flow_generate_signature_payload_validation_does_not_stage_test() {
+  let cases = [
+    #("oops", "unexpected token at 'oops'"),
+    #("", "unexpected token at ''"),
+    #("{\"foo\":[1,2,]}", "unexpected token at '{\\\"foo\\\":[1,2,]}'"),
+    #("1", "payload must be a JSON object or array"),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(payload, expected_message) = test_case
+    let outcome =
+      admin_platform.process_mutation(
+        store.new(),
+        synthetic_identity.new(),
+        "/admin/api/2026-04/graphql.json",
+        flow_generate_signature_document(payload),
+        empty_vars(),
+        empty_upstream_context(),
+      )
+
+    let body = json.to_string(outcome.data)
+    assert string.contains(body, "\"payload\":null")
+    assert string.contains(body, "\"signature\":null")
+    assert string.contains(body, "\"field\":[\"payload\"]")
+    assert string.contains(body, "Errors validating schema:\\n  ")
+    assert string.contains(body, expected_message)
+    assert outcome.staged_resource_ids == []
+    assert store.get_log(outcome.store) == []
+    assert outcome.store.staged_state.admin_platform_flow_signature_order == []
+  })
+}
+
 pub fn flow_validation_branches_do_not_stage_test() {
   let outcome =
     admin_platform.process_mutation(
@@ -756,6 +788,12 @@ pub fn flow_validation_branches_do_not_stage_test() {
   assert string.contains(body, "Invalid handle 'har-374-missing'.")
   assert outcome.staged_resource_ids == []
   assert store.get_log(outcome.store) == []
+}
+
+fn flow_generate_signature_document(payload: String) -> String {
+  "mutation { flowGenerateSignature(id: \"gid://shopify/FlowTrigger/374\", payload: "
+  <> json.to_string(json.string(payload))
+  <> ") { payload signature userErrors { field message } } }"
 }
 
 pub fn flow_trigger_receive_validation_matches_shopify_test() {

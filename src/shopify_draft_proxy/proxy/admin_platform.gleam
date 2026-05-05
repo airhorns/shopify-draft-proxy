@@ -1694,38 +1694,122 @@ fn handle_flow_generate_signature(
         [],
       )
     True -> {
-      let signature =
-        crypto.sha256_hex(flow_signature_secret <> "|" <> id <> "|" <> payload)
-      let #(record_id, identity_after_id) =
-        synthetic_identity.make_synthetic_gid(identity, "FlowGenerateSignature")
-      let #(created_at, identity_after_time) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let record =
-        AdminPlatformFlowSignatureRecord(
-          id: record_id,
-          flow_trigger_id: id,
-          payload_sha256: crypto.sha256_hex(payload),
-          signature_sha256: crypto.sha256_hex(signature),
-          created_at: created_at,
-        )
-      let #(_, next_store) =
-        store.stage_admin_platform_flow_signature(store, record)
-      MutationFieldResult(
-        project_selection(
-          flow_generate_signature_source(payload, signature),
-          field,
-          fragments,
-        ),
-        [],
-        next_store,
-        identity_after_time,
-        [record_id],
-        [
-          "Generated a deterministic proxy-local Flow signature without exposing or storing a Shopify secret.",
-        ],
-      )
+      case validate_flow_signature_payload(payload) {
+        Error(message) ->
+          MutationFieldResult(
+            project_selection(
+              flow_generate_signature_error_source(message),
+              field,
+              fragments,
+            ),
+            [],
+            store,
+            identity,
+            [],
+            [],
+          )
+        Ok(_) -> {
+          let signature =
+            crypto.sha256_hex(
+              flow_signature_secret <> "|" <> id <> "|" <> payload,
+            )
+          let #(record_id, identity_after_id) =
+            synthetic_identity.make_synthetic_gid(
+              identity,
+              "FlowGenerateSignature",
+            )
+          let #(created_at, identity_after_time) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_id)
+          let record =
+            AdminPlatformFlowSignatureRecord(
+              id: record_id,
+              flow_trigger_id: id,
+              payload_sha256: crypto.sha256_hex(payload),
+              signature_sha256: crypto.sha256_hex(signature),
+              created_at: created_at,
+            )
+          let #(_, next_store) =
+            store.stage_admin_platform_flow_signature(store, record)
+          MutationFieldResult(
+            project_selection(
+              flow_generate_signature_source(payload, signature),
+              field,
+              fragments,
+            ),
+            [],
+            next_store,
+            identity_after_time,
+            [record_id],
+            [
+              "Generated a deterministic proxy-local Flow signature without exposing or storing a Shopify secret.",
+            ],
+          )
+        }
+      }
     }
   }
+}
+
+type FlowSignaturePayloadJson {
+  FlowSignaturePayloadObject
+  FlowSignaturePayloadArray
+}
+
+fn validate_flow_signature_payload(
+  payload: String,
+) -> Result(FlowSignaturePayloadJson, String) {
+  let payload_decoder =
+    decode.one_of(
+      decode.dict(decode.string, decode.dynamic)
+        |> decode.map(fn(_) { FlowSignaturePayloadObject }),
+      or: [
+        decode.list(decode.dynamic)
+        |> decode.map(fn(_) { FlowSignaturePayloadArray }),
+      ],
+    )
+
+  case json.parse(from: payload, using: payload_decoder) {
+    Ok(kind) -> Ok(kind)
+    Error(error) -> Error(flow_signature_payload_error_message(error, payload))
+  }
+}
+
+fn flow_signature_payload_error_message(
+  error: json.DecodeError,
+  payload: String,
+) -> String {
+  "Errors validating schema:\n  "
+  <> flow_signature_payload_parser_message(error, payload)
+  <> "\n"
+}
+
+fn flow_signature_payload_parser_message(
+  error: json.DecodeError,
+  payload: String,
+) -> String {
+  case error {
+    json.UnableToDecode(_) -> "payload must be a JSON object or array"
+    json.UnexpectedEndOfInput -> "unexpected token at '" <> payload <> "'"
+    json.UnexpectedByte(_) -> "unexpected token at '" <> payload <> "'"
+    json.UnexpectedSequence(_) -> "unexpected token at '" <> payload <> "'"
+  }
+}
+
+fn flow_generate_signature_error_source(message: String) {
+  src_object([
+    #("__typename", SrcString("FlowGenerateSignaturePayload")),
+    #("payload", SrcNull),
+    #("signature", SrcNull),
+    #(
+      "userErrors",
+      SrcList([
+        src_object([
+          #("field", SrcList([SrcString("payload")])),
+          #("message", SrcString(message)),
+        ]),
+      ]),
+    ),
+  ])
 }
 
 fn valid_flow_trigger_id(id: String) -> Bool {
