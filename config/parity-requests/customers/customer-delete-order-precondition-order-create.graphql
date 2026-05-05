@@ -1,0 +1,17 @@
+mutation CustomerDeleteOrderPreconditionOrderCreate($order: OrderCreateOrderInput!) {
+  orderCreate(order: $order) {
+    order {
+      id
+      customer {
+        id
+        email
+        displayName
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

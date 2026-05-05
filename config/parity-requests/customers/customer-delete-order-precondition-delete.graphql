@@ -1,0 +1,9 @@
+mutation CustomerDeleteOrderPreconditionDelete($input: CustomerDeleteInput!) {
+  customerDelete(input: $input) {
+    deletedCustomerId
+    userErrors {
+      field
+      message
+    }
+  }
+}

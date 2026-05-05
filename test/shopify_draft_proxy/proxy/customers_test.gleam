@@ -76,6 +76,101 @@ fn assert_missing_customer_error(body: json.Json) {
   )
 }
 
+pub fn customer_delete_blocks_when_customer_has_staged_order_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"blocked-delete@example.test\", firstName: \"Blocked\", lastName: \"Delete\" }) { customer { id email } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: order_status, body: order_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { orderCreate(order: { email: \"blocked-order@example.test\", customerId: \"gid://shopify/Customer/1\", currency: \"CAD\", lineItems: [{ title: \"Blocking line\", quantity: 1, priceSet: { shopMoney: { amount: \"9.99\", currencyCode: \"CAD\" } } }] }) { order { id customer { id email displayName } } userErrors { field message code } } }",
+    )
+  assert order_status == 200
+  assert string.contains(
+    json.to_string(order_body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\"",
+  )
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerDelete(input: { id: \"gid://shopify/Customer/1\" }) { deletedCustomerId userErrors { field message } } }",
+    )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"customerDelete\":{\"deletedCustomerId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Customer can’t be deleted because they have associated orders\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"id\":\"gid://shopify/Customer/1\"",
+  )
+}
+
+pub fn customer_delete_succeeds_when_customer_has_no_orders_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"delete-no-orders@example.test\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerDelete(input: { id: \"gid://shopify/Customer/1\" }) { deletedCustomerId userErrors { field message } } }",
+    )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"customerDelete\":{\"deletedCustomerId\":\"gid://shopify/Customer/1\",\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email } }",
+    )
+  assert read_status == 200
+  assert json.to_string(read_body) == "{\"data\":{\"customer\":null}}"
+}
+
+pub fn customer_delete_ignores_staged_draft_orders_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"draft-only-delete@example.test\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: draft_status, body: draft_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { draftOrderCreate(input: { purchasingEntity: { customerId: \"gid://shopify/Customer/1\" }, email: \"draft-only-delete@example.test\", lineItems: [{ title: \"Draft-only line\", quantity: 1, originalUnitPrice: \"5.00\" }] }) { draftOrder { id customer { id } } userErrors { field message } } }",
+    )
+  assert draft_status == 200
+  assert string.contains(json.to_string(draft_body), "\"userErrors\":[]")
+
+  let #(Response(status: delete_status, body: delete_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerDelete(input: { id: \"gid://shopify/Customer/1\" }) { deletedCustomerId userErrors { field message } } }",
+    )
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"customerDelete\":{\"deletedCustomerId\":\"gid://shopify/Customer/1\",\"userErrors\":[]}}}"
+}
+
 fn customer_with_state(id: String, state: String) -> CustomerRecord {
   CustomerRecord(
     id: id,
