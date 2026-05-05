@@ -1,0 +1,22 @@
+query DiscountRedeemCodeBulkValidationCreationRead($id: ID!) {
+  discountRedeemCodeBulkCreation(id: $id) {
+    done
+    codesCount
+    importedCount
+    failedCount
+    codes(first: 10) {
+      nodes {
+        code
+        errors {
+          field
+          message
+          code
+          extraInfo
+        }
+        discountRedeemCode {
+          code
+        }
+      }
+    }
+  }
+}

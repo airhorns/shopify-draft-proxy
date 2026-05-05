@@ -273,6 +273,85 @@ pub fn redeem_code_bulk_mutations_bump_discount_updated_at_test() {
     == "{\"codeDiscountNode\":{\"codeDiscount\":{\"updatedAt\":\"2024-01-01T00:00:02.000Z\",\"codes\":{\"nodes\":[{\"code\":\"EXTRA\"}]}}}}"
 }
 
+pub fn redeem_code_bulk_add_rejects_unknown_empty_and_oversized_inputs_test() {
+  let unknown =
+    run_mutation(
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/0\", codes: [{ code: \"ABC\" }]) { bulkCreation { codesCount } userErrors { field message code extraInfo } } }",
+    )
+  let created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Bulk\", code: \"BULK\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let empty =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codes: []) { bulkCreation { codesCount } userErrors { field message code extraInfo } } }",
+    )
+  let too_many_codes =
+    string.repeat("{ code: \"MAX\" },", 250) <> "{ code: \"MAX\" }"
+  let too_many =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codes: ["
+        <> too_many_codes
+        <> "]) { bulkCreation { codesCount } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(unknown.data)
+    == "{\"data\":{\"discountRedeemCodeBulkAdd\":{\"bulkCreation\":null,\"userErrors\":[{\"field\":[\"discountId\"],\"message\":\"Code discount does not exist.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(empty.data)
+    == "{\"data\":{\"discountRedeemCodeBulkAdd\":{\"bulkCreation\":null,\"userErrors\":[{\"field\":[\"codes\"],\"message\":\"Codes can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert string.contains(
+    json.to_string(too_many.data),
+    "\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"",
+  )
+  assert string.contains(
+    json.to_string(too_many.data),
+    "The input array size of 251 is greater than the maximum allowed of 250.",
+  )
+}
+
+pub fn redeem_code_bulk_add_records_per_code_failures_on_bulk_creation_test() {
+  let created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Bulk\", code: \"BULK\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let long_code = string.repeat("X", 256)
+  let added =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codes: [{ code: \"\" }, { code: \"LINE\\nBAD\" }, { code: \"CR\\rBAD\" }, { code: \""
+        <> long_code
+        <> "\" }, { code: \"DUP\" }, { code: \"DUP\" }, { code: \"OK\" }]) { bulkCreation { id done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { id code } } } } userErrors { field message code extraInfo } } }",
+    )
+  let assert Ok(creation) =
+    discounts.handle_discount_query(
+      added.store,
+      "query { discountRedeemCodeBulkCreation(id: \"gid://shopify/DiscountRedeemCodeBulkCreation/3?shopify-draft-proxy=synthetic\") { done codesCount importedCount failedCount codes(first: 10) { nodes { code errors { field message code extraInfo } discountRedeemCode { code } } } } }",
+      dict.new(),
+    )
+  let assert Ok(read) =
+    discounts.handle_discount_query(
+      added.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { codes(first: 10) { nodes { code } } codesCount { count precision } } } byDup: codeDiscountNodeByCode(code: \"DUP\") { id } byOk: codeDiscountNodeByCode(code: \"OK\") { id } }",
+      dict.new(),
+    )
+
+  assert string.contains(
+    json.to_string(added.data),
+    "\"bulkCreation\":{\"id\":\"gid://shopify/DiscountRedeemCodeBulkCreation/3?shopify-draft-proxy=synthetic\",\"done\":false,\"codesCount\":7,\"importedCount\":0,\"failedCount\":0",
+  )
+  assert json.to_string(creation)
+    == "{\"discountRedeemCodeBulkCreation\":{\"done\":true,\"codesCount\":7,\"importedCount\":2,\"failedCount\":5,\"codes\":{\"nodes\":[{\"code\":\"\",\"errors\":[{\"field\":[\"code\"],\"message\":\"is too short (minimum is 1 character)\",\"code\":null,\"extraInfo\":null}],\"discountRedeemCode\":null},{\"code\":\"LINE\\nBAD\",\"errors\":[{\"field\":[\"code\"],\"message\":\"cannot contain newline characters.\",\"code\":null,\"extraInfo\":null}],\"discountRedeemCode\":null},{\"code\":\"CR\\rBAD\",\"errors\":[{\"field\":[\"code\"],\"message\":\"cannot contain newline characters.\",\"code\":null,\"extraInfo\":null}],\"discountRedeemCode\":null},{\"code\":\""
+    <> long_code
+    <> "\",\"errors\":[{\"field\":[\"code\"],\"message\":\"is too long (maximum is 255 characters)\",\"code\":null,\"extraInfo\":null}],\"discountRedeemCode\":null},{\"code\":\"DUP\",\"errors\":[],\"discountRedeemCode\":{\"code\":\"DUP\"}},{\"code\":\"DUP\",\"errors\":[{\"field\":[\"code\"],\"message\":\"Codes must be unique within BulkDiscountCodeCreation\",\"code\":null,\"extraInfo\":null}],\"discountRedeemCode\":null},{\"code\":\"OK\",\"errors\":[],\"discountRedeemCode\":{\"code\":\"OK\"}}]}}}"
+  assert json.to_string(read)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"codes\":{\"nodes\":[{\"code\":\"BULK\"},{\"code\":\"DUP\"},{\"code\":\"OK\"}]},\"codesCount\":{\"count\":3,\"precision\":\"EXACT\"}}},\"byDup\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"},\"byOk\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"}}"
+}
+
 pub fn code_discount_creates_reject_missing_and_blank_codes_test() {
   let missing_basic =
     run_mutation(

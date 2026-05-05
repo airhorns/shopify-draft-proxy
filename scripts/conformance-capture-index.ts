@@ -1986,6 +1986,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-redeem-code-bulk-add-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-redeem-code-bulk-validation-conformance.ts',
+    purpose:
+      'discountRedeemCodeBulkAdd unknown discount, empty/oversized code list, and per-code async validation behavior.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-redeem-code-bulk-add-validation.json`,
+      'config/parity-specs/discounts/discount-redeem-code-bulk-add-validation.json',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-validation-*.graphql',
+    ],
+    cleanupBehavior: 'Creates a disposable code discount and deletes it after validation probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-update-edge-cases',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-update-edge-cases-conformance.ts',

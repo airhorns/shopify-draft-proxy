@@ -1,0 +1,23 @@
+query DiscountRedeemCodeBulkValidationRead($discountId: ID!, $duplicateCode: String!, $validCode: String!) {
+  codeDiscountNode(id: $discountId) {
+    codeDiscount {
+      ... on DiscountCodeBasic {
+        codes(first: 10) {
+          nodes {
+            code
+          }
+        }
+        codesCount {
+          count
+          precision
+        }
+      }
+    }
+  }
+  duplicate: codeDiscountNodeByCode(code: $duplicateCode) {
+    id
+  }
+  valid: codeDiscountNodeByCode(code: $validCode) {
+    id
+  }
+}
