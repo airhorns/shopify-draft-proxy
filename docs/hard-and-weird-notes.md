@@ -3156,3 +3156,29 @@ Practical rule:
   `CUSTOMER_EMAIL_MUST_EXIST`) while preserving the observed field/message
   shapes; re-record parity if Shopify's public Admin API starts returning those
   more specific enum values
+
+## 78. `productSet` commit replay preserved `ProductSetInput` during HAR-548 probes
+
+HAR-548 re-ran the QA-reported `ProductSetInput isn't a defined input type`
+commit replay failure against `harry-test-heelo.myshopify.com`.
+
+Observed behavior:
+
+- `corepack pnpm conformance:probe` resolved the active target to Admin GraphQL
+  `2025-01` on `harry-test-heelo.myshopify.com`
+- an instrumented `__meta/commit` replay posted to
+  `/admin/api/2025-01/graphql.json` with the original
+  `$input: ProductSetInput!` declaration still present in the JSON `query`
+- Shopify returned HTTP 200 with `data.productSet.userErrors: []`; the
+  disposable product was deleted immediately after the probe
+- the same minimal replay shape also returned HTTP 200 with empty userErrors on
+  `/admin/api/2024-01/graphql.json` and `/admin/api/2023-10/graphql.json` for
+  this store, so the exact QA top-level GraphQL error was not reproducible with
+  the current credential and store state
+
+Practical rule:
+
+- keep commit replay tests focused on the invariant the proxy controls: the
+  staged log must retain the original document, variables, and route path so
+  `__meta/commit` sends the same `ProductSetInput` declaration Shopify saw at
+  staging time
