@@ -1,0 +1,141 @@
+{
+  "scenarioId": "metafield-definition-non-product-owner-types",
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldDefinitionUpdate",
+    "metafieldDefinitionDelete",
+    "metafieldDefinition",
+    "metafieldDefinitions"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "read-after-write",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-non-product-owner-types.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metafield_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-create.graphql",
+    "variablesCapturePath": "$.captures[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-customer-definition-payload",
+        "capturePath": "$.captures[0].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "create-order-definition-payload",
+        "capturePath": "$.captures[1].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-create.graphql",
+          "variablesCapturePath": "$.captures[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "create-company-definition-payload",
+        "capturePath": "$.captures[2].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-create.graphql",
+          "variablesCapturePath": "$.captures[2].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "update-customer-definition-payload",
+        "capturePath": "$.captures[3].response.data.metafieldDefinitionUpdate",
+        "proxyPath": "$.data.metafieldDefinitionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-update.graphql",
+          "variablesCapturePath": "$.captures[3].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy updates the staged synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-create-customer-detail",
+        "capturePath": "$.captures[4].response.data.metafieldDefinition",
+        "proxyPath": "$.data.metafieldDefinition",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy returns its staged synthetic definition ID for the downstream read."
+          }
+        ]
+      },
+      {
+        "name": "delete-customer-definition-payload",
+        "capturePath": "$.captures[5].response.data.metafieldDefinitionDelete",
+        "proxyPath": "$.data.metafieldDefinitionDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-delete.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.metafieldDefinitionCreate.createdDefinition.id"
+            },
+            "deleteAllAssociatedMetafields": true
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedDefinitionId",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy deletes the staged synthetic definition ID while Shopify deleted the live-store definition ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-691 records non-product metafield definition lifecycle evidence for CUSTOMER, ORDER, and COMPANY. The scenario starts from an empty local store, stages each captured create locally, updates and reads the CUSTOMER definition, then deletes the staged CUSTOMER definition. The fixture cleanup deletes the live ORDER and COMPANY definitions left after the captured lifecycle."
+}
