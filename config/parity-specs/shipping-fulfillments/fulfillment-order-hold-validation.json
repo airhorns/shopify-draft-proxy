@@ -1,0 +1,338 @@
+{
+  "scenarioId": "fulfillment-order-hold-validation",
+  "operationNames": ["fulfillmentOrderHold"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "validation-branch-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-hold-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+    "variablesCapturePath": "$.workflows.validation.firstHold.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first-hold-partial-success",
+        "capturePath": "$.workflows.validation.firstHold.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local synthetic IDs for split-off fulfillment orders."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy generates stable session-local synthetic line-item IDs for split-off fulfillment orders."
+          },
+          {
+            "path": "$.remainingFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-handle-user-error",
+        "capturePath": "$.workflows.validation.duplicateHandle.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.duplicateHandle.variables"
+        }
+      },
+      {
+        "name": "held-partial-not-splittable-user-error",
+        "capturePath": "$.workflows.validation.notSplittable.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.notSplittable.variables"
+        }
+      },
+      {
+        "name": "second-hold-append-success",
+        "capturePath": "$.workflows.validation.secondHold.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.secondHold.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "additional-hold-4",
+        "capturePath": "$.workflows.validation.additionalHolds[0].response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.additionalHolds[0].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "additional-hold-5",
+        "capturePath": "$.workflows.validation.additionalHolds[1].response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.additionalHolds[1].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "additional-hold-6",
+        "capturePath": "$.workflows.validation.additionalHolds[2].response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.additionalHolds[2].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "additional-hold-7",
+        "capturePath": "$.workflows.validation.additionalHolds[3].response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.additionalHolds[3].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "additional-hold-8",
+        "capturePath": "$.workflows.validation.additionalHolds[4].response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.additionalHolds[4].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "additional-hold-9",
+        "capturePath": "$.workflows.validation.additionalHolds[5].response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.additionalHolds[5].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "additional-hold-10",
+        "capturePath": "$.workflows.validation.additionalHolds[6].response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.additionalHolds[6].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "additional-hold-11",
+        "capturePath": "$.workflows.validation.additionalHolds[7].response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.additionalHolds[7].variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentHold.id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.fulfillmentHolds[*].id",
+            "matcher": "shopify-gid:FulfillmentHold",
+            "reason": "The proxy generates stable session-local synthetic hold IDs; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates."
+          }
+        ]
+      },
+      {
+        "name": "hold-limit-user-error",
+        "capturePath": "$.workflows.validation.limitReached.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.limitReached.variables"
+        }
+      },
+      {
+        "name": "zero-quantity-user-error",
+        "capturePath": "$.workflows.validation.zeroQuantity.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.zeroQuantity.variables"
+        }
+      },
+      {
+        "name": "duplicate-line-items-user-error",
+        "capturePath": "$.workflows.validation.duplicateLineItems.response.payload.data.fulfillmentOrderHold",
+        "proxyPath": "$.data.fulfillmentOrderHold",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-hold-validation.graphql",
+          "variablesCapturePath": "$.workflows.validation.duplicateLineItems.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-552 captured 2026-04 fulfillmentOrderHold validation and multiple-hold behavior. The May 5, 2026 live capture shows Shopify permits 10 active holds per requesting app on one fulfillment order and returns FULFILLMENT_ORDER_HOLD_LIMIT_REACHED on the 11th attempted active hold; earlier ticket text expecting the third hold to fail was stale."
+}

@@ -1,0 +1,241 @@
+{
+  "scenarioId": "online-store/page-handle-dedupe-and-takenness",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-05T02:20:27.721Z",
+  "interactions": [
+    {
+      "name": "pageCreate-about-first",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStorePageHandleDedupeAndTakenness($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "page": {
+            "title": "HAR 551 20260505022026 About"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/159587533106",
+              "title": "HAR 551 20260505022026 About",
+              "handle": "har-551-20260505022026-about"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageCreate-about-second",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStorePageHandleDedupeAndTakenness($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "page": {
+            "title": "HAR 551 20260505022026 About"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/159587565874",
+              "title": "HAR 551 20260505022026 About",
+              "handle": "har-551-20260505022026-about-1"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageCreate-explicit-handle-taken",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStorePageHandleDedupeAndTakenness($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "page": {
+            "title": "HAR 551 20260505022026 About Explicit",
+            "handle": "har-551-20260505022026-about"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": null,
+            "userErrors": [
+              {
+                "field": ["page", "handle"],
+                "message": "Handle has already been taken",
+                "code": "TAKEN"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageCreate-punctuation-title",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStorePageHandleDedupeAndTakenness($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page {\n        id\n        title\n        handle\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "page": {
+            "title": "HAR 551 20260505022026 Hello, World!"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/159587598642",
+              "title": "HAR 551 20260505022026 Hello, World!",
+              "handle": "har-551-20260505022026-hello-world"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "pageDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStorePageHandleCleanup($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/159587598642"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/159587598642",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStorePageHandleCleanup($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/159587565874"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/159587565874",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStorePageHandleCleanup($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/159587533106"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/159587533106",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

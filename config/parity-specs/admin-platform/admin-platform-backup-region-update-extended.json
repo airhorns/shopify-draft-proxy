@@ -1,0 +1,74 @@
+{
+  "scenarioId": "admin-platform-backup-region-update-extended",
+  "operationNames": ["backupRegionUpdate", "backupRegion"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/admin-platform/admin-platform-backup-region-update-extended.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/admin_platform_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-omitted.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-737 executable parity for backupRegionUpdate omitted/null current-state semantics, a harry-test-heelo non-CA success branch using AE, read-after-write, and REGION_NOT_FOUND validation. The capture restores the live store back to CA after recording. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on the test store/API, so omitted/null expected envelopes are derived from the captured current backupRegion plus the captured empty userErrors shape, matching HAR-737's source resolver contract.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "omitted-region-returns-current",
+        "capturePath": "$.expected.backupRegionUpdateOmitted",
+        "proxyPath": "$.data.backupRegionUpdate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "omitted-region-current-backup-region",
+        "capturePath": "$.captures.backupRegionAfterIdempotentUpdate.result.payload.data.backupRegion",
+        "proxyPath": "$.data.backupRegionUpdate.backupRegion",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "null-region-returns-current",
+        "capturePath": "$.expected.backupRegionUpdateNull",
+        "proxyPath": "$.data.backupRegionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-null.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "non-ca-supported-country",
+        "capturePath": "$.captures.backupRegionUpdateNonCa.result.payload.data.backupRegionUpdate",
+        "proxyPath": "$.data.backupRegionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-ae.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-write-non-ca",
+        "capturePath": "$.captures.backupRegionAfterNonCaUpdate.result.payload.data.backupRegion",
+        "proxyPath": "$.data.backupRegion",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-read.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unknown-region-validation",
+        "capturePath": "$.captures.backupRegionUpdateInvalid.result.payload.data.backupRegionUpdate",
+        "proxyPath": "$.data.backupRegionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/admin-platform/admin-platform-backup-region-update-invalid.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
