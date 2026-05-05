@@ -1304,10 +1304,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'discounts',
     captureId: 'discount-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-validation-conformance.ts',
     purpose: 'Discount validation guardrails without broad lifecycle side effects.',
     requiredAuthScopes: ['read_discounts', 'write_discounts'],
-    fixtureOutputs: [`${CAPTURE_ROOT}discount-validation.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-validation-branches.json`,
+      `${CAPTURE_ROOT}discount-code-required-blank-validation.json`,
+    ],
     cleanupBehavior: 'Validation-oriented; deletes any created disposable discount artifacts.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
