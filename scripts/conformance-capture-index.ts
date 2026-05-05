@@ -107,6 +107,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-staff-assignment-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-staff-assignment-validation-conformance.ts',
+    purpose:
+      'B2B company location staff-member assignment validation for unknown StaffMember IDs and unknown CompanyLocationStaffMemberAssignment IDs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-staff-assignment-validation.json`,
+      'config/parity-specs/b2b/staff_assign_unknown_user.json',
+      'config/parity-specs/b2b/staff_remove_unknown_assignment.json',
+      'config/parity-requests/b2b/b2b-staff-assignment-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company location, records validation failures that do not stage staff assignments, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The current conformance credential still receives ACCESS_DENIED for staffMembers(first:), so valid-staff partial-success assignment remains runtime-test-backed until an eligible staff catalog credential is available.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-bulk-mutation-field-paths',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-bulk-mutation-field-paths-conformance.mts',
@@ -2684,6 +2704,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable gift cards for success/generated-code validation and deactivates them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
+    captureId: 'gift-card-create-initial-value-limit',
+    scriptPath: 'scripts/capture-gift-card-create-initial-value-limit-conformance.ts',
+    purpose:
+      'Gift-card create initialValue validation at the configured issue limit, one cent over the issue limit, and a well-over-limit value.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-create-initial-value-limit.json`,
+      'config/parity-specs/gift-cards/gift-card-create-initial-value-limit.json',
+      'config/parity-requests/gift-cards/gift-card-create-initial-value-limit.graphql',
+    ],
+    cleanupBehavior:
+      'Reads giftCardConfiguration.issueLimit, creates one boundary-success disposable gift card, deactivates any created gift cards during cleanup, and expects over-limit branches to create no gift cards.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

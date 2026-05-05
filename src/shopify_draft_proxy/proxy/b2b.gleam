@@ -461,10 +461,10 @@ fn empty_payload(errors: List(UserError)) -> Payload {
 }
 
 fn status_for(result: RootResult) -> store.EntryStatus {
-  case result.payload.user_errors, result.staged_ids {
-    [], [_, ..] -> store.Staged
+  case result.staged_ids, result.payload.user_errors {
+    [_, ..], _ -> store.Staged
     [], [] -> store.Staged
-    _, _ -> store.Failed
+    [], _ -> store.Failed
   }
 }
 
@@ -1521,6 +1521,13 @@ fn append_unique(items: List(String), value: String) -> List(String) {
     True -> items
     False -> list.append(items, [value])
   }
+}
+
+fn append_unique_list(
+  items: List(String),
+  values: List(String),
+) -> List(String) {
+  list.fold(values, items, fn(acc, value) { append_unique(acc, value) })
 }
 
 fn has_duplicate_strings(items: List(String)) -> Bool {
@@ -4525,6 +4532,67 @@ fn assignment_ref(assignment: SourceValue, key: String) -> Option(String) {
   }
 }
 
+fn assignment_matches_filters(
+  assignment: SourceValue,
+  contact_filter: Option(String),
+  location_filter: Option(String),
+) -> Bool {
+  let contact_matches = case contact_filter {
+    Some(id) -> assignment_ref(assignment, "companyContactId") == Some(id)
+    None -> True
+  }
+  let location_matches = case location_filter {
+    Some(id) -> assignment_ref(assignment, "companyLocationId") == Some(id)
+    None -> True
+  }
+  contact_matches && location_matches
+}
+
+fn append_unique_assignment(
+  assignments: List(SourceValue),
+  assignment: SourceValue,
+) -> List(SourceValue) {
+  let id = source_id(assignment)
+  case list.any(assignments, fn(item) { source_id(item) == id }) {
+    True -> assignments
+    False -> list.append(assignments, [assignment])
+  }
+}
+
+fn list_effective_role_assignments(store: Store) -> List(SourceValue) {
+  let from_contacts =
+    store.list_effective_b2b_company_contacts(store)
+    |> list.fold([], fn(assignments, contact) {
+      read_object_sources(data_get(contact.data, "roleAssignments"))
+      |> list.fold(assignments, append_unique_assignment)
+    })
+  store.list_effective_b2b_company_locations(store)
+  |> list.fold(from_contacts, fn(assignments, location) {
+    read_object_sources(data_get(location.data, "roleAssignments"))
+    |> list.fold(assignments, append_unique_assignment)
+  })
+}
+
+fn get_effective_contact(
+  id: Option(String),
+  store: Store,
+) -> Option(B2BCompanyContactRecord) {
+  case id {
+    Some(id) -> store.get_effective_b2b_company_contact_by_id(store, id)
+    None -> None
+  }
+}
+
+fn get_effective_location(
+  id: Option(String),
+  store: Store,
+) -> Option(B2BCompanyLocationRecord) {
+  case id {
+    Some(id) -> store.get_effective_b2b_company_location_by_id(store, id)
+    None -> None
+  }
+}
+
 fn resolve_role_assignments(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -4884,15 +4952,16 @@ fn handle_contact_assign_roles_under_limit(
       None,
       Some("rolesToAssign"),
     )
-  let #(store, staged) = case errors {
-    [] -> stage_role_assignments(store, assignments)
-    _ -> #(store, [])
-  }
+  let #(store, staged) = stage_role_assignments(store, assignments)
+  let company_contact =
+    read_string(args, "companyContactId")
+    |> get_effective_contact(store)
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: case errors {
-      [] -> assignments
-      _ -> []
-    }),
+    Payload(
+      ..empty_payload(errors),
+      company_contact: company_contact,
+      role_assignments: assignments,
+    ),
     store,
     identity,
     staged,
@@ -4938,15 +5007,16 @@ fn handle_location_assign_roles_under_limit(
       read_string(args, "companyLocationId"),
       Some("rolesToAssign"),
     )
-  let #(store, staged) = case errors {
-    [] -> stage_role_assignments(store, assignments)
-    _ -> #(store, [])
-  }
+  let #(store, staged) = stage_role_assignments(store, assignments)
+  let company_location =
+    read_string(args, "companyLocationId")
+    |> get_effective_location(store)
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: case errors {
-      [] -> assignments
-      _ -> []
-    }),
+    Payload(
+      ..empty_payload(errors),
+      company_location: company_location,
+      role_assignments: assignments,
+    ),
     store,
     identity,
     staged,
@@ -4972,7 +5042,13 @@ fn revoke_role_assignments(
             let current =
               read_object_sources(data_get(contact.data, "roleAssignments"))
             let #(next, removed_here) =
-              filter_removed_assignments(current, assignment_ids, revoke_all)
+              filter_removed_role_assignments(
+                current,
+                assignment_ids,
+                contact_filter,
+                location_filter,
+                revoke_all,
+              )
             case list.length(next) == list.length(current) {
               True -> acc
               False -> {
@@ -4990,51 +5066,72 @@ fn revoke_role_assignments(
                     current_store,
                     updated,
                   )
-                #(next_store, list.append(removed, removed_here))
+                #(next_store, append_unique_list(removed, removed_here))
               }
             }
           }
         }
       },
     )
-  let #(store, removed) =
-    list.fold(
-      store.list_effective_b2b_company_locations(store),
-      #(store, removed),
-      fn(acc, location) {
-        let #(current_store, removed) = acc
-        case location_filter {
-          Some(id) if id != location.id -> acc
-          _ -> {
-            let current =
-              read_object_sources(data_get(location.data, "roleAssignments"))
-            let #(next, removed_here) =
-              filter_removed_assignments(current, assignment_ids, revoke_all)
-            case list.length(next) == list.length(current) {
-              True -> acc
-              False -> {
-                let updated =
-                  B2BCompanyLocationRecord(
-                    ..location,
-                    data: put_source(
-                      location.data,
-                      "roleAssignments",
-                      SrcList(next),
-                    ),
-                  )
-                let #(_, next_store) =
-                  store.upsert_staged_b2b_company_location(
-                    current_store,
-                    updated,
-                  )
-                #(next_store, list.append(removed, removed_here))
-              }
+  list.fold(
+    store.list_effective_b2b_company_locations(store),
+    #(store, removed),
+    fn(acc, location) {
+      let #(current_store, removed) = acc
+      case location_filter {
+        Some(id) if id != location.id -> acc
+        _ -> {
+          let current =
+            read_object_sources(data_get(location.data, "roleAssignments"))
+          let #(next, removed_here) =
+            filter_removed_role_assignments(
+              current,
+              assignment_ids,
+              contact_filter,
+              location_filter,
+              revoke_all,
+            )
+          case list.length(next) == list.length(current) {
+            True -> acc
+            False -> {
+              let updated =
+                B2BCompanyLocationRecord(
+                  ..location,
+                  data: put_source(
+                    location.data,
+                    "roleAssignments",
+                    SrcList(next),
+                  ),
+                )
+              let #(_, next_store) =
+                store.upsert_staged_b2b_company_location(current_store, updated)
+              #(next_store, append_unique_list(removed, removed_here))
             }
           }
         }
-      },
-    )
-  #(store, list.unique(removed))
+      }
+    },
+  )
+}
+
+fn filter_removed_role_assignments(
+  assignments: List(SourceValue),
+  ids: List(String),
+  contact_filter: Option(String),
+  location_filter: Option(String),
+  revoke_all: Bool,
+) -> #(List(SourceValue), List(String)) {
+  list.fold(assignments, #([], []), fn(acc, assignment) {
+    let #(kept, removed) = acc
+    let id = source_id(assignment)
+    let should_remove =
+      { revoke_all || list.contains(ids, id) }
+      && assignment_matches_filters(assignment, contact_filter, location_filter)
+    case should_remove {
+      True -> #(kept, append_unique(removed, id))
+      False -> #(list.append(kept, [assignment]), removed)
+    }
+  })
 }
 
 fn filter_removed_assignments(
@@ -5049,25 +5146,6 @@ fn filter_removed_assignments(
     case should_remove {
       True -> #(kept, list.append(removed, [id]))
       False -> #(list.append(kept, [assignment]), removed)
-    }
-  })
-}
-
-fn missing_indexed_id_errors(
-  requested_ids: List(String),
-  found_ids: List(String),
-  field: String,
-) -> List(UserError) {
-  requested_ids
-  |> list.index_map(fn(id, index) { #(id, index) })
-  |> list.fold([], fn(errors, entry) {
-    let #(id, index) = entry
-    case list.contains(found_ids, id) {
-      True -> errors
-      False ->
-        list.append(errors, [
-          resource_not_found(indexed_field_path(field, index)),
-        ])
     }
   })
 }
@@ -5141,29 +5219,44 @@ fn handle_contact_revoke_roles_under_limit(
   revoke_all: Bool,
   role_assignment_ids: List(String),
 ) -> RootResult {
-  let #(store, revoked) =
-    revoke_role_assignments(
-      store,
-      role_assignment_ids,
-      read_string(args, "companyContactId"),
-      None,
-      revoke_all,
-    )
-  let errors = case revoke_all {
-    True -> []
-    False ->
-      missing_indexed_id_errors(
-        role_assignment_ids,
+  let contact_id = read_string(args, "companyContactId")
+  let company_contact = get_effective_contact(contact_id, store)
+  case contact_id, company_contact {
+    Some(_), Some(_) -> {
+      let #(revoked, errors) =
+        resolve_role_revocations(
+          store,
+          role_assignment_ids,
+          "roleAssignmentIds",
+          contact_id,
+          None,
+          revoke_all,
+        )
+      let #(store, _) =
+        revoke_role_assignments(store, revoked, contact_id, None, revoke_all)
+      let company_contact = get_effective_contact(contact_id, store)
+      RootResult(
+        Payload(
+          ..empty_payload(errors),
+          company_contact: company_contact,
+          revoked_role_assignment_ids: revoked,
+        ),
+        store,
+        identity,
         revoked,
-        "roleAssignmentIds",
+      )
+    }
+    _, _ ->
+      RootResult(
+        Payload(
+          ..empty_payload([resource_not_found(["companyContactId"])]),
+          company_contact: None,
+        ),
+        store,
+        identity,
+        [],
       )
   }
-  RootResult(
-    Payload(..empty_payload(errors), revoked_role_assignment_ids: revoked),
-    store,
-    identity,
-    revoked,
-  )
 }
 
 fn handle_location_revoke_roles(
@@ -5196,22 +5289,103 @@ fn handle_location_revoke_roles_under_limit(
   args,
   roles_to_revoke: List(String),
 ) -> RootResult {
-  let #(store, revoked) =
-    revoke_role_assignments(
-      store,
-      roles_to_revoke,
-      None,
-      read_string(args, "companyLocationId"),
-      False,
-    )
-  let errors =
-    missing_indexed_id_errors(roles_to_revoke, revoked, "rolesToRevoke")
-  RootResult(
-    Payload(..empty_payload(errors), revoked_role_assignment_ids: revoked),
-    store,
-    identity,
-    revoked,
-  )
+  let location_id = read_string(args, "companyLocationId")
+  let company_location = get_effective_location(location_id, store)
+  case location_id, company_location {
+    Some(_), Some(_) -> {
+      let #(revoked, errors) =
+        resolve_role_revocations(
+          store,
+          roles_to_revoke,
+          "rolesToRevoke",
+          None,
+          location_id,
+          False,
+        )
+      let #(store, _) =
+        revoke_role_assignments(store, revoked, None, location_id, False)
+      let company_location = get_effective_location(location_id, store)
+      RootResult(
+        Payload(
+          ..empty_payload(errors),
+          company_location: company_location,
+          revoked_role_assignment_ids: revoked,
+        ),
+        store,
+        identity,
+        revoked,
+      )
+    }
+    _, _ ->
+      RootResult(
+        Payload(
+          ..empty_payload([resource_not_found(["companyLocationId"])]),
+          company_location: None,
+        ),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn resolve_role_revocations(
+  store: Store,
+  ids: List(String),
+  arg_name: String,
+  contact_filter: Option(String),
+  location_filter: Option(String),
+  revoke_all: Bool,
+) -> #(List(String), List(UserError)) {
+  case revoke_all {
+    True -> {
+      let revoked =
+        list_effective_role_assignments(store)
+        |> list.filter(fn(assignment) {
+          assignment_matches_filters(
+            assignment,
+            contact_filter,
+            location_filter,
+          )
+        })
+        |> list.map(source_id)
+      #(revoked, [])
+    }
+    False ->
+      list.index_fold(ids, #([], []), fn(acc, id, index) {
+        let #(revoked, errors) = acc
+        case
+          list.contains(revoked, id)
+          || !role_assignment_can_be_revoked(
+            store,
+            id,
+            contact_filter,
+            location_filter,
+          )
+        {
+          True -> #(
+            revoked,
+            list.append(errors, [
+              resource_not_found([arg_name, int.to_string(index)]),
+            ]),
+          )
+          False -> #(list.append(revoked, [id]), errors)
+        }
+      })
+  }
+}
+
+fn role_assignment_can_be_revoked(
+  store: Store,
+  id: String,
+  contact_filter: Option(String),
+  location_filter: Option(String),
+) -> Bool {
+  list_effective_role_assignments(store)
+  |> list.any(fn(assignment) {
+    source_id(assignment) == id
+    && assignment_matches_filters(assignment, contact_filter, location_filter)
+  })
 }
 
 fn handle_assign_address(
@@ -5437,9 +5611,54 @@ fn handle_assign_staff_under_limit(
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
-          let errors = invalid_staff_member_id_errors(staff_member_ids)
-          case errors {
-            [_, ..] ->
+          let #(assignments, errors, identity) =
+            list.index_fold(
+              staff_member_ids,
+              #([], [], identity),
+              fn(acc, staff_id, index) {
+                let #(items, errors, current_identity) = acc
+                case staff_member_exists(store, staff_id) {
+                  True -> {
+                    let #(id, next_identity) =
+                      make_gid(
+                        current_identity,
+                        "CompanyLocationStaffMemberAssignment",
+                      )
+                    let assignment =
+                      src_object([
+                        #(
+                          "__typename",
+                          SrcString("CompanyLocationStaffMemberAssignment"),
+                        ),
+                        #("id", SrcString(id)),
+                        #("staffMemberId", SrcString(staff_id)),
+                        #("companyLocationId", SrcString(location.id)),
+                        #(
+                          "staffMember",
+                          src_object([
+                            #("__typename", SrcString("StaffMember")),
+                            #("id", SrcString(staff_id)),
+                          ]),
+                        ),
+                        #("companyLocation", location_source(location)),
+                      ])
+                    #(list.append(items, [assignment]), errors, next_identity)
+                  }
+                  False -> #(
+                    items,
+                    list.append(errors, [
+                      resource_not_found([
+                        "staffMemberIds",
+                        int.to_string(index),
+                      ]),
+                    ]),
+                    current_identity,
+                  )
+                }
+              },
+            )
+          case assignments {
+            [] ->
               RootResult(
                 Payload(
                   ..empty_payload(errors),
@@ -5449,35 +5668,7 @@ fn handle_assign_staff_under_limit(
                 identity,
                 [],
               )
-            [] -> {
-              let #(assignments, identity) =
-                list.fold(staff_member_ids, #([], identity), fn(acc, staff_id) {
-                  let #(items, current_identity) = acc
-                  let #(id, next_identity) =
-                    make_gid(
-                      current_identity,
-                      "CompanyLocationStaffMemberAssignment",
-                    )
-                  let assignment =
-                    src_object([
-                      #(
-                        "__typename",
-                        SrcString("CompanyLocationStaffMemberAssignment"),
-                      ),
-                      #("id", SrcString(id)),
-                      #("staffMemberId", SrcString(staff_id)),
-                      #("companyLocationId", SrcString(location.id)),
-                      #(
-                        "staffMember",
-                        src_object([
-                          #("__typename", SrcString("StaffMember")),
-                          #("id", SrcString(staff_id)),
-                        ]),
-                      ),
-                      #("companyLocation", location_source(location)),
-                    ])
-                  #(list.append(items, [assignment]), next_identity)
-                })
+            [_, ..] -> {
               let current =
                 read_object_sources(data_get(
                   location.data,
@@ -5496,7 +5687,7 @@ fn handle_assign_staff_under_limit(
                 store.upsert_staged_b2b_company_location(store, updated)
               RootResult(
                 Payload(
-                  ..empty_payload([]),
+                  ..empty_payload(errors),
                   company_location_staff_member_assignments: assignments,
                 ),
                 store,
@@ -5530,28 +5721,11 @@ fn handle_assign_staff_under_limit(
   }
 }
 
-fn invalid_staff_member_id_errors(ids: List(String)) -> List(UserError) {
-  ids
-  |> list.index_map(fn(id, index) { #(id, index) })
-  |> list.fold([], fn(errors, entry) {
-    let #(id, index) = entry
-    case valid_staff_member_id(id) {
-      True -> errors
-      False ->
-        list.append(errors, [
-          resource_not_found(indexed_field_path("staffMemberIds", index)),
-        ])
-    }
-  })
-}
-
-fn valid_staff_member_id(id: String) -> Bool {
-  valid_shopify_gid_type(id, "StaffMember")
-  && !string.ends_with(id, "/999999999999")
-}
-
-fn valid_shopify_gid_type(id: String, resource_type: String) -> Bool {
-  string.starts_with(id, "gid://shopify/" <> resource_type <> "/")
+fn staff_member_exists(store: Store, staff_id: String) -> Bool {
+  case store.get_effective_admin_platform_generic_node_by_id(store, staff_id) {
+    Some(record) -> record.typename == "StaffMember"
+    None -> False
+  }
 }
 
 fn handle_remove_staff(
@@ -5581,6 +5755,21 @@ fn handle_remove_staff_under_limit(
   identity: SyntheticIdentityRegistry,
   ids: List(String),
 ) -> RootResult {
+  let existing_ids = effective_staff_assignment_ids(store)
+  let valid_ids = list.filter(ids, fn(id) { list.contains(existing_ids, id) })
+  let errors =
+    list.index_fold(ids, [], fn(errors, id, index) {
+      case list.contains(existing_ids, id) {
+        True -> errors
+        False ->
+          list.append(errors, [
+            resource_not_found([
+              "companyLocationStaffMemberAssignmentIds",
+              int.to_string(index),
+            ]),
+          ])
+      }
+    })
   let #(store, removed, staged) =
     list.fold(
       store.list_effective_b2b_company_locations(store),
@@ -5590,7 +5779,7 @@ fn handle_remove_staff_under_limit(
         let current =
           read_object_sources(data_get(location.data, "staffMemberAssignments"))
         let #(next, removed_here) =
-          filter_removed_assignments(current, ids, False)
+          filter_removed_assignments(current, valid_ids, False)
         case list.length(next) == list.length(current) {
           True -> acc
           False -> {
@@ -5614,12 +5803,6 @@ fn handle_remove_staff_under_limit(
         }
       },
     )
-  let errors =
-    missing_indexed_id_errors(
-      ids,
-      removed,
-      "companyLocationStaffMemberAssignmentIds",
-    )
   RootResult(
     Payload(
       ..empty_payload(errors),
@@ -5629,6 +5812,14 @@ fn handle_remove_staff_under_limit(
     identity,
     list.append(staged, removed),
   )
+}
+
+fn effective_staff_assignment_ids(store: Store) -> List(String) {
+  store.list_effective_b2b_company_locations(store)
+  |> list.flat_map(fn(location) {
+    read_object_sources(data_get(location.data, "staffMemberAssignments"))
+    |> list.map(source_id)
+  })
 }
 
 fn handle_tax_settings_update(
