@@ -146,6 +146,12 @@ still does not synthesize a broader staff catalog, but missing staff-member and
 staff-assignment IDs use Shopify's indexed user error paths and null payload
 shape for the failed list-valued fields.
 
+HAR-755 adds the B2B package's request-level bulk action guard before per-entry
+processing. The local bulk delete, role assignment/revoke, and location staff
+assignment/removal roots reject lists with more than 50 entries with a single
+`LIMIT_REACHED` userError at the bare top-level argument path and leave the
+staged B2B graph unchanged.
+
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`

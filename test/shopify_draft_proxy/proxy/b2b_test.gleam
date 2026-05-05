@@ -1,6 +1,6 @@
-import gleam/dict
+import gleam/dict.{type Dict}
 import gleam/int
-import gleam/json
+import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
@@ -10,8 +10,9 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type CustomerRecord, B2BCompanyRecord, CustomerRecord, ShopLocaleRecord,
-  StorePropertyString,
+  type B2BCompanyContactRecord, type B2BCompanyLocationRecord,
+  type CustomerRecord, type StorePropertyValue, B2BCompanyRecord, CustomerRecord,
+  ShopLocaleRecord, StorePropertyList, StorePropertyObject, StorePropertyString,
 }
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
@@ -160,6 +161,205 @@ fn seed_company_with_contact_and_location(
   assert status == 200
   assert string.contains(json.to_string(body), "\"userErrors\":[]")
   proxy
+}
+
+fn seed_companies_with_contacts_and_locations(
+  proxy: draft_proxy.DraftProxy,
+  count: Int,
+) -> draft_proxy.DraftProxy {
+  seed_companies_with_contacts_and_locations_loop(proxy, 1, count)
+}
+
+fn seed_companies_with_contacts_and_locations_loop(
+  proxy: draft_proxy.DraftProxy,
+  index: Int,
+  count: Int,
+) -> draft_proxy.DraftProxy {
+  case index > count {
+    True -> proxy
+    False -> {
+      let proxy =
+        seed_company_with_contact_and_location(
+          proxy,
+          "HAR 755 Bulk " <> int.to_string(index),
+          "har755-bulk-" <> int.to_string(index) <> "@example.com",
+        )
+      seed_companies_with_contacts_and_locations_loop(proxy, index + 1, count)
+    }
+  }
+}
+
+fn create_locations(
+  proxy: draft_proxy.DraftProxy,
+  company_id: String,
+  count: Int,
+) -> draft_proxy.DraftProxy {
+  create_locations_loop(proxy, company_id, 1, count)
+}
+
+fn create_locations_loop(
+  proxy: draft_proxy.DraftProxy,
+  company_id: String,
+  index: Int,
+  count: Int,
+) -> draft_proxy.DraftProxy {
+  case index > count {
+    True -> proxy
+    False -> {
+      let #(Response(status: status, body: body, ..), proxy) =
+        graphql(
+          proxy,
+          "mutation { companyLocationCreate(companyId: \""
+            <> company_id
+            <> "\", input: { name: \"HAR 755 Extra "
+            <> int.to_string(index)
+            <> "\" }) { companyLocation { id } userErrors { field message code } } }",
+        )
+      assert status == 200
+      assert string.contains(json.to_string(body), "\"userErrors\":[]")
+      create_locations_loop(proxy, company_id, index + 1, count)
+    }
+  }
+}
+
+fn create_contacts(
+  proxy: draft_proxy.DraftProxy,
+  company_id: String,
+  count: Int,
+) -> draft_proxy.DraftProxy {
+  create_contacts_loop(proxy, company_id, 1, count)
+}
+
+fn create_contacts_loop(
+  proxy: draft_proxy.DraftProxy,
+  company_id: String,
+  index: Int,
+  count: Int,
+) -> draft_proxy.DraftProxy {
+  case index > count {
+    True -> proxy
+    False -> {
+      let #(Response(status: status, body: body, ..), proxy) =
+        graphql(
+          proxy,
+          "mutation { companyContactCreate(companyId: \""
+            <> company_id
+            <> "\", input: { email: \"har755-contact-"
+            <> int.to_string(index)
+            <> "@example.com\" }) { companyContact { id } userErrors { field message code } } }",
+        )
+      assert status == 200
+      assert string.contains(json.to_string(body), "\"userErrors\":[]")
+      create_contacts_loop(proxy, company_id, index + 1, count)
+    }
+  }
+}
+
+fn graphql_string_list(items: List(String)) -> String {
+  "["
+  <> string.join(list.map(items, fn(item) { "\"" <> item <> "\"" }), ",")
+  <> "]"
+}
+
+fn staff_member_ids(count: Int) -> List(String) {
+  staff_member_ids_loop(1, count, [])
+}
+
+fn staff_member_ids_loop(
+  index: Int,
+  count: Int,
+  acc: List(String),
+) -> List(String) {
+  case index > count {
+    True -> list.reverse(acc)
+    False ->
+      staff_member_ids_loop(index + 1, count, [
+        "gid://shopify/StaffMember/" <> int.to_string(index),
+        ..acc
+      ])
+  }
+}
+
+fn contact_role_specs_for_locations(
+  locations: List(B2BCompanyLocationRecord),
+  role_id: String,
+) -> String {
+  "["
+  <> string.join(
+    list.map(locations, fn(location) {
+      "{ companyLocationId: \""
+      <> location.id
+      <> "\", companyContactRoleId: \""
+      <> role_id
+      <> "\" }"
+    }),
+    ",",
+  )
+  <> "]"
+}
+
+fn location_role_specs_for_contacts(
+  contacts: List(B2BCompanyContactRecord),
+  role_id: String,
+) -> String {
+  "["
+  <> string.join(
+    list.map(contacts, fn(contact) {
+      "{ companyContactId: \""
+      <> contact.id
+      <> "\", companyContactRoleId: \""
+      <> role_id
+      <> "\" }"
+    }),
+    ",",
+  )
+  <> "]"
+}
+
+fn store_property_list_length(
+  data: Dict(String, StorePropertyValue),
+  field: String,
+) -> Int {
+  case dict.get(data, field) {
+    Ok(StorePropertyList(items)) -> list.length(items)
+    _ -> 0
+  }
+}
+
+fn store_property_list_ids(
+  data: Dict(String, StorePropertyValue),
+  field: String,
+) -> List(String) {
+  case dict.get(data, field) {
+    Ok(StorePropertyList(items)) -> store_property_ids_loop(items, [])
+    _ -> []
+  }
+}
+
+fn store_property_ids_loop(
+  items: List(StorePropertyValue),
+  acc: List(String),
+) -> List(String) {
+  case items {
+    [] -> list.reverse(acc)
+    [StorePropertyObject(fields), ..rest] ->
+      case dict.get(fields, "id") {
+        Ok(StorePropertyString(id)) ->
+          store_property_ids_loop(rest, [id, ..acc])
+        _ -> store_property_ids_loop(rest, acc)
+      }
+    [_, ..rest] -> store_property_ids_loop(rest, acc)
+  }
+}
+
+fn assert_bulk_limit_error(body: Json, field: String) {
+  let body_json = json.to_string(body)
+  assert string.contains(
+    body_json,
+    "\"userErrors\":[{\"field\":[\""
+      <> field
+      <> "\"],\"message\":\"Cannot perform more than 50 actions in a single request.\",\"code\":\"LIMIT_REACHED\"}]",
+  )
 }
 
 pub fn b2b_company_create_readback_and_log_test() {
@@ -1211,6 +1411,310 @@ pub fn b2b_bulk_revoke_and_staff_user_errors_include_input_indices_test() {
     "\"field\":[\"companyLocationStaffMemberAssignmentIds\",\"1\"]",
   )
   assert string.contains(remove_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+}
+
+pub fn b2b_bulk_delete_roots_reject_more_than_50_without_mutation_test() {
+  let proxy = seed_companies_with_contacts_and_locations(draft_proxy.new(), 51)
+  let company_ids =
+    store.list_effective_b2b_companies(proxy.store)
+    |> list.map(fn(company) { company.id })
+  let contact_ids =
+    store.list_effective_b2b_company_contacts(proxy.store)
+    |> list.map(fn(contact) { contact.id })
+  let location_ids =
+    store.list_effective_b2b_company_locations(proxy.store)
+    |> list.map(fn(location) { location.id })
+
+  let #(Response(status: companies_status, body: companies_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companiesDelete(companyIds: "
+        <> graphql_string_list(company_ids)
+        <> ") { deletedCompanyIds userErrors { field message code } } }",
+    )
+  assert companies_status == 200
+  assert_bulk_limit_error(companies_body, "companyIds")
+  assert list.length(store.list_effective_b2b_companies(proxy.store)) == 51
+
+  let #(Response(status: contacts_status, body: contacts_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactsDelete(companyContactIds: "
+        <> graphql_string_list(contact_ids)
+        <> ") { deletedCompanyContactIds userErrors { field message code } } }",
+    )
+  assert contacts_status == 200
+  assert_bulk_limit_error(contacts_body, "companyContactIds")
+  assert list.length(store.list_effective_b2b_company_contacts(proxy.store))
+    == 51
+
+  let #(Response(status: locations_status, body: locations_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationsDelete(companyLocationIds: "
+        <> graphql_string_list(location_ids)
+        <> ") { deletedCompanyLocationIds userErrors { field message code } } }",
+    )
+  assert locations_status == 200
+  assert_bulk_limit_error(locations_body, "companyLocationIds")
+  assert list.length(store.list_effective_b2b_company_locations(proxy.store))
+    == 51
+}
+
+pub fn b2b_bulk_assign_roots_reject_more_than_50_without_mutation_test() {
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "HAR 755 Contact Assign Limit",
+      "har755-contact-assign@example.com",
+    )
+  let assert [company, ..] = store.list_effective_b2b_companies(proxy.store)
+  let assert [role_id, ..] = company.contact_role_ids
+  let proxy = create_locations(proxy, company.id, 51)
+  let assert [contact, ..] =
+    store.list_effective_b2b_company_contacts(proxy.store)
+  let contact_assignment_count =
+    store_property_list_length(contact.data, "roleAssignments")
+  let contact_role_specs =
+    contact_role_specs_for_locations(
+      store.list_effective_b2b_company_locations(proxy.store),
+      role_id,
+    )
+  let #(Response(status: contact_status, body: contact_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactAssignRoles(companyContactId: \""
+        <> contact.id
+        <> "\", rolesToAssign: "
+        <> contact_role_specs
+        <> ") { roleAssignments { id } userErrors { field message code } } }",
+    )
+  assert contact_status == 200
+  assert_bulk_limit_error(contact_body, "rolesToAssign")
+  let assert Some(contact_after) =
+    store.get_effective_b2b_company_contact_by_id(proxy.store, contact.id)
+  assert store_property_list_length(contact_after.data, "roleAssignments")
+    == contact_assignment_count
+
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "HAR 755 Location Assign Limit",
+      "har755-location-assign@example.com",
+    )
+  let assert [company, ..] = store.list_effective_b2b_companies(proxy.store)
+  let assert [role_id, ..] = company.contact_role_ids
+  let proxy = create_contacts(proxy, company.id, 51)
+  let assert [location, ..] =
+    store.list_effective_b2b_company_locations(proxy.store)
+  let location_assignment_count =
+    store_property_list_length(location.data, "roleAssignments")
+  let location_role_specs =
+    location_role_specs_for_contacts(
+      store.list_effective_b2b_company_contacts(proxy.store),
+      role_id,
+    )
+  let #(Response(status: location_status, body: location_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignRoles(companyLocationId: \""
+        <> location.id
+        <> "\", rolesToAssign: "
+        <> location_role_specs
+        <> ") { roleAssignments { id } userErrors { field message code } } }",
+    )
+  assert location_status == 200
+  assert_bulk_limit_error(location_body, "rolesToAssign")
+  let assert Some(location_after) =
+    store.get_effective_b2b_company_location_by_id(proxy.store, location.id)
+  assert store_property_list_length(location_after.data, "roleAssignments")
+    == location_assignment_count
+
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "HAR 755 Staff Assign Limit",
+      "har755-staff-assign@example.com",
+    )
+  let assert [location, ..] =
+    store.list_effective_b2b_company_locations(proxy.store)
+  let staff_assignment_count =
+    store_property_list_length(location.data, "staffMemberAssignments")
+  let #(Response(status: staff_status, body: staff_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignStaffMembers(companyLocationId: \""
+        <> location.id
+        <> "\", staffMemberIds: "
+        <> graphql_string_list(staff_member_ids(51))
+        <> ") { companyLocationStaffMemberAssignments { id } userErrors { field message code } } }",
+    )
+  assert staff_status == 200
+  assert_bulk_limit_error(staff_body, "staffMemberIds")
+  let assert Some(staff_location_after) =
+    store.get_effective_b2b_company_location_by_id(proxy.store, location.id)
+  assert store_property_list_length(
+      staff_location_after.data,
+      "staffMemberAssignments",
+    )
+    == staff_assignment_count
+}
+
+pub fn b2b_bulk_revoke_roots_reject_more_than_50_without_mutation_test() {
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "HAR 755 Contact Revoke Limit",
+      "har755-contact-revoke-limit@example.com",
+    )
+  let assert [company, ..] = store.list_effective_b2b_companies(proxy.store)
+  let assert [role_id, ..] = company.contact_role_ids
+  let assert [initial_location, ..] =
+    store.list_effective_b2b_company_locations(proxy.store)
+  let assert [contact, ..] =
+    store.list_effective_b2b_company_contacts(proxy.store)
+  let proxy = create_locations(proxy, company.id, 50)
+  let extra_locations =
+    store.list_effective_b2b_company_locations(proxy.store)
+    |> list.filter(fn(location) { location.id != initial_location.id })
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactAssignRoles(companyContactId: \""
+        <> contact.id
+        <> "\", rolesToAssign: "
+        <> contact_role_specs_for_locations(extra_locations, role_id)
+        <> ") { roleAssignments { id } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  assert string.contains(json.to_string(assign_body), "\"userErrors\":[]")
+  let assert Some(contact_with_assignments) =
+    store.get_effective_b2b_company_contact_by_id(proxy.store, contact.id)
+  let contact_assignment_ids =
+    store_property_list_ids(contact_with_assignments.data, "roleAssignments")
+  assert list.length(contact_assignment_ids) == 51
+  let #(Response(status: revoke_status, body: revoke_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactRevokeRoles(companyContactId: \""
+        <> contact.id
+        <> "\", roleAssignmentIds: "
+        <> graphql_string_list(contact_assignment_ids)
+        <> ") { revokedRoleAssignmentIds userErrors { field message code } } }",
+    )
+  assert revoke_status == 200
+  assert_bulk_limit_error(revoke_body, "roleAssignmentIds")
+  let assert Some(contact_after_revoke) =
+    store.get_effective_b2b_company_contact_by_id(proxy.store, contact.id)
+  assert store_property_list_length(
+      contact_after_revoke.data,
+      "roleAssignments",
+    )
+    == 51
+
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "HAR 755 Location Revoke Limit",
+      "har755-location-revoke-limit@example.com",
+    )
+  let assert [company, ..] = store.list_effective_b2b_companies(proxy.store)
+  let assert [role_id, ..] = company.contact_role_ids
+  let assert [location, ..] =
+    store.list_effective_b2b_company_locations(proxy.store)
+  let assert [initial_contact, ..] =
+    store.list_effective_b2b_company_contacts(proxy.store)
+  let proxy = create_contacts(proxy, company.id, 50)
+  let extra_contacts =
+    store.list_effective_b2b_company_contacts(proxy.store)
+    |> list.filter(fn(contact) { contact.id != initial_contact.id })
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignRoles(companyLocationId: \""
+        <> location.id
+        <> "\", rolesToAssign: "
+        <> location_role_specs_for_contacts(extra_contacts, role_id)
+        <> ") { roleAssignments { id } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  assert string.contains(json.to_string(assign_body), "\"userErrors\":[]")
+  let assert Some(location_with_assignments) =
+    store.get_effective_b2b_company_location_by_id(proxy.store, location.id)
+  let location_assignment_ids =
+    store_property_list_ids(location_with_assignments.data, "roleAssignments")
+  assert list.length(location_assignment_ids) == 51
+  let #(Response(status: revoke_status, body: revoke_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationRevokeRoles(companyLocationId: \""
+        <> location.id
+        <> "\", rolesToRevoke: "
+        <> graphql_string_list(location_assignment_ids)
+        <> ") { revokedRoleAssignmentIds userErrors { field message code } } }",
+    )
+  assert revoke_status == 200
+  assert_bulk_limit_error(revoke_body, "rolesToRevoke")
+  let assert Some(location_after_revoke) =
+    store.get_effective_b2b_company_location_by_id(proxy.store, location.id)
+  assert store_property_list_length(
+      location_after_revoke.data,
+      "roleAssignments",
+    )
+    == 51
+
+  let proxy =
+    seed_company_with_contact_and_location(
+      draft_proxy.new(),
+      "HAR 755 Staff Remove Limit",
+      "har755-staff-remove-limit@example.com",
+    )
+  let assert [location, ..] =
+    store.list_effective_b2b_company_locations(proxy.store)
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignStaffMembers(companyLocationId: \""
+        <> location.id
+        <> "\", staffMemberIds: "
+        <> graphql_string_list(staff_member_ids(50))
+        <> ") { companyLocationStaffMemberAssignments { id } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  assert string.contains(json.to_string(assign_body), "\"userErrors\":[]")
+  let #(Response(status: assign_one_status, body: assign_one_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignStaffMembers(companyLocationId: \""
+        <> location.id
+        <> "\", staffMemberIds: [\"gid://shopify/StaffMember/51\"]) { companyLocationStaffMemberAssignments { id } userErrors { field message code } } }",
+    )
+  assert assign_one_status == 200
+  assert string.contains(json.to_string(assign_one_body), "\"userErrors\":[]")
+  let assert Some(location_with_staff) =
+    store.get_effective_b2b_company_location_by_id(proxy.store, location.id)
+  let staff_assignment_ids =
+    store_property_list_ids(location_with_staff.data, "staffMemberAssignments")
+  assert list.length(staff_assignment_ids) == 51
+  let #(Response(status: remove_status, body: remove_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationRemoveStaffMembers(companyLocationStaffMemberAssignmentIds: "
+        <> graphql_string_list(staff_assignment_ids)
+        <> ") { deletedCompanyLocationStaffMemberAssignmentIds userErrors { field message code } } }",
+    )
+  assert remove_status == 200
+  assert_bulk_limit_error(
+    remove_body,
+    "companyLocationStaffMemberAssignmentIds",
+  )
+  let assert Some(location_after_remove) =
+    store.get_effective_b2b_company_location_by_id(proxy.store, location.id)
+  assert store_property_list_length(
+      location_after_remove.data,
+      "staffMemberAssignments",
+    )
+    == 51
 }
 
 pub fn b2b_email_delivery_root_is_not_local_support_test() {
