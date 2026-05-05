@@ -1,0 +1,276 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T00:08:58.223Z",
+  "startedAt": "2026-05-05T00:08:56.867Z",
+  "notes": [
+    "HAR-571 fulfillmentServiceDelete TRANSFER capture with destination validation and valid delete behavior.",
+    "The active app schema exposes fulfillmentServiceDelete.userErrors as UserError without a selectable code field, so code parity is covered by local runtime tests rather than this live capture."
+  ],
+  "captures": {
+    "existingLocations": {
+      "query": "query FulfillmentServiceDeleteTransferLocations($first: Int!) {\n    locations(first: $first) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n      }\n    }\n  }",
+      "variables": {
+        "first": 20
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "destinationCreate": {
+      "query": "mutation FulfillmentServiceDeleteTransferLocationAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "HAR-571 transfer destination 20260505000856",
+          "address": {
+            "countryCode": "US",
+            "address1": "123 Broadway",
+            "city": "New York",
+            "provinceCode": "NY",
+            "zip": "10006"
+          },
+          "fulfillsOnlineOrders": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112829956402",
+                "name": "HAR-571 transfer destination 20260505000856",
+                "isActive": true
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "serviceCreate": {
+      "query": "mutation FulfillmentServiceDeleteTransferCreate($name: String!) {\n    fulfillmentServiceCreate(\n      name: $name\n      trackingSupport: true\n      inventoryManagement: true\n      requiresShippingMethod: true\n    ) {\n      fulfillmentService {\n        id\n        handle\n        serviceName\n        location {\n          id\n          name\n          isFulfillmentService\n          fulfillsOnlineOrders\n          shipsInventory\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "name": "HAR-571 transfer FS 20260505000856"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/71918158130?id=true",
+                "handle": "har-571-transfer-fs-20260505000856",
+                "serviceName": "HAR-571 transfer FS 20260505000856",
+                "location": {
+                  "id": "gid://shopify/Location/112829989170",
+                  "name": "HAR-571 transfer FS 20260505000856",
+                  "isFulfillmentService": true,
+                  "fulfillsOnlineOrders": true,
+                  "shipsInventory": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidDestination": {
+      "query": "mutation FulfillmentServiceDeleteTransfer(\n    $id: ID!\n    $destinationLocationId: ID!\n  ) {\n    fulfillmentServiceDelete(\n      id: $id\n      destinationLocationId: $destinationLocationId\n      inventoryAction: TRANSFER\n    ) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71918158130?id=true",
+        "destinationLocationId": "gid://shopify/Location/999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Invalid destination location."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "validTransfer": {
+      "query": "mutation FulfillmentServiceDeleteTransfer(\n    $id: ID!\n    $destinationLocationId: ID!\n  ) {\n    fulfillmentServiceDelete(\n      id: $id\n      destinationLocationId: $destinationLocationId\n      inventoryAction: TRANSFER\n    ) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71918158130?id=true",
+        "destinationLocationId": "gid://shopify/Location/112829956402"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/71918158130",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "destinationDeactivate": {
+        "query": "mutation FulfillmentServiceDeleteTransferCleanupDeactivate(\n    $locationId: ID!\n    $destinationLocationId: ID!\n  ) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: \"har-571-cleanup-deactivate-20260505000856\") {\n      location {\n        id\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "locationId": "gid://shopify/Location/112829956402",
+          "destinationLocationId": "gid://shopify/Location/112829759794"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationDeactivate": {
+                "location": {
+                  "id": "gid://shopify/Location/112829956402"
+                },
+                "locationDeactivateUserErrors": [
+                  {
+                    "field": ["locationId"],
+                    "message": "%{location_name} has incoming inventory. You'll be able to deactivate it once the inventory has been received.",
+                    "code": "TEMPORARILY_BLOCKED_FROM_DEACTIVATION_ERROR"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      "destinationDelete": {
+        "query": "mutation FulfillmentServiceDeleteTransferCleanupDeleteLocation($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+        "variables": {
+          "locationId": "gid://shopify/Location/112829956402"
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationDelete": {
+                "deletedLocationId": null,
+                "locationDeleteUserErrors": [
+                  {
+                    "field": ["locationId"],
+                    "message": "The location cannot be deleted while it is active.",
+                    "code": "LOCATION_IS_ACTIVE"
+                  }
+                ]
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
