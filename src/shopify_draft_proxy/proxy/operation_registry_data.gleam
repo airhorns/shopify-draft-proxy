@@ -502,7 +502,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["appRevokeAccessScopes", "AppRevokeAccessScopes"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-364 stages access-scope revocation locally against the current app installation and surfaces requested unknown-scope userErrors without changing the real app grant.",
+        "HAR-672 stages optional access-scope revocation locally against the current app installation and differentiates unknown, undeclared, required, implied, missing-source, missing-app, and not-installed userErrors without changing the real app grant.",
       ),
     ),
     RegistryEntry(

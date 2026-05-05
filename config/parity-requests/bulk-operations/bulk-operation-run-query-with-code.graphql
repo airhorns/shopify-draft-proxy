@@ -1,0 +1,13 @@
+mutation BulkOperationRunQueryUserErrorCodes($query: String!) {
+  bulkOperationRunQuery(query: $query) {
+    bulkOperation {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

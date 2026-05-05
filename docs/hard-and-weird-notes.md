@@ -1304,6 +1304,13 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
 - 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
 
+HAR-673 live capture against Admin GraphQL 2026-04 added definition type validation details:
+
+- `metaobjectDefinitionCreate` resolves `$app:<rest>` to the requesting app namespace before validation/storage; the conformance app resolved to `app--347082227713--<rest>`, and local parity replays provide that app identity through `x-shopify-draft-proxy-api-client-id`.
+- definition type validation returns `TOO_SHORT`, `TOO_LONG`, or `INVALID` on `["definition", "type"]` after app namespace resolution and lowercasing. The captured invalid-format message is the longer service message: `Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.`
+- uppercase definition types are downcased before storage and duplicate checks; a create with `HAR_673_CASE...` stored `har_673_case...`, and a follow-up lower-case create returned `TAKEN`.
+- Shopify 2026-04 accepted an uppercase field definition key introduced through `metaobjectDefinitionUpdate` field creation during this capture. Keep local field-key guardrails unit-tested, but do not claim live parity for that update branch without a later capture that rejects it.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:
@@ -1855,9 +1862,11 @@ The HAR-375 `fileAcknowledgeUpdateFailed` capture added a few Files API quirks:
   that failed-created file returns `NON_READY_STATE`; this root appears to be
   for failed updates to otherwise READY files, not generic FAILED media cleanup
 - a safely staged bad-source `fileUpdate` on the capture shop stayed `READY`
-  with a null update image and could be acknowledged successfully, so the proxy
-  should model acknowledgement state separately from the public `fileStatus`
-  rather than inventing a visible `FAILED -> READY` transition
+  with a null update image and could be acknowledged successfully; until the
+  proxy models Shopify's internal `MediaError` / `mediaWarnings` rows and
+  separate mediaable or preview-image failure statuses, acknowledgement should
+  remain a READY-file payload-shape no-op rather than stamping synthetic state
+  or inventing a visible `FAILED -> READY` transition
 
 Practical rule:
 
@@ -2974,7 +2983,7 @@ Captured facts:
 Practical rule:
 
 - keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
-- treat credit/debit transaction support as locally staged runtime behavior backed by current integration tests until live transaction scopes are added and successful payloads can be captured
+- credit/debit transaction success and validation behavior is now backed by live 2025-01 captures with transaction scopes, including typed `GiftCardCreditTransaction` payloads and failure branches for expired, deactivated, mismatched currency, and invalid/future `processedAt`
 
 ## 72. Finance/risk/POS roots need strong data minimization
 

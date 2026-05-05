@@ -1,0 +1,123 @@
+mutation DiscountCodeRequiredBlankValidation(
+  $basicMissing: DiscountCodeBasicInput!
+  $basicEmpty: DiscountCodeBasicInput!
+  $basicNewline: DiscountCodeBasicInput!
+  $basicTooLong: DiscountCodeBasicInput!
+  $bxgyMissing: DiscountCodeBxgyInput!
+  $bxgyEmpty: DiscountCodeBxgyInput!
+  $bxgyNewline: DiscountCodeBxgyInput!
+  $freeShippingMissing: DiscountCodeFreeShippingInput!
+  $freeShippingEmpty: DiscountCodeFreeShippingInput!
+  $freeShippingNewline: DiscountCodeFreeShippingInput!
+) {
+  basicMissing: discountCodeBasicCreate(basicCodeDiscount: $basicMissing) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  basicEmpty: discountCodeBasicCreate(basicCodeDiscount: $basicEmpty) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  basicNewline: discountCodeBasicCreate(basicCodeDiscount: $basicNewline) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  basicTooLong: discountCodeBasicCreate(basicCodeDiscount: $basicTooLong) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bxgyMissing: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyMissing) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bxgyEmpty: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyEmpty) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bxgyNewline: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyNewline) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  freeShippingMissing: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingMissing) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  freeShippingEmpty: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingEmpty) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  freeShippingNewline: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingNewline) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

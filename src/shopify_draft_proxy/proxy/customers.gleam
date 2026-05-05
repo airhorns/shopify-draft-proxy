@@ -164,7 +164,8 @@ fn should_passthrough_in_live_hybrid(
     parse_operation.QueryOperation, "customerByIdentifier" -> True
     parse_operation.QueryOperation, "customer" ->
       !local_has_customer_id(proxy, variables)
-    parse_operation.QueryOperation, "customers" -> True
+    parse_operation.QueryOperation, "customers" ->
+      list.is_empty(store.list_effective_customers(proxy.store))
     _, _ -> False
   }
 }
