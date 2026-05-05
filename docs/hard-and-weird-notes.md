@@ -1855,9 +1855,11 @@ The HAR-375 `fileAcknowledgeUpdateFailed` capture added a few Files API quirks:
   that failed-created file returns `NON_READY_STATE`; this root appears to be
   for failed updates to otherwise READY files, not generic FAILED media cleanup
 - a safely staged bad-source `fileUpdate` on the capture shop stayed `READY`
-  with a null update image and could be acknowledged successfully, so the proxy
-  should model acknowledgement state separately from the public `fileStatus`
-  rather than inventing a visible `FAILED -> READY` transition
+  with a null update image and could be acknowledged successfully; until the
+  proxy models Shopify's internal `MediaError` / `mediaWarnings` rows and
+  separate mediaable or preview-image failure statuses, acknowledgement should
+  remain a READY-file payload-shape no-op rather than stamping synthetic state
+  or inventing a visible `FAILED -> READY` transition
 
 Practical rule:
 
