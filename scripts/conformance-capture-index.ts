@@ -848,6 +848,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'standard-metaobject-definition-enable-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
+    purpose:
+      'Standard metaobject definition template catalog, successful enablement, unknown-template RECORD_NOT_FOUND, idempotent duplicate enable, and read-after-enable behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metaobject-templates.json`,
+      `${CAPTURE_ROOT}standard-metaobject-definition-enable-catalog.json`,
+      'src/shopify_draft_proxy/proxy/metaobject_standard_templates_data.gleam',
+      'config/parity-specs/metaobjects/standard-metaobject-definition-enable-catalog.json',
+      'config/parity-requests/metaobjects/standard-metaobject-definition-enable-*.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily enables standard definitions on the disposable shop, captures their payloads, and deletes every created definition after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-field-validation-matrix',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-field-validation-matrix-conformance.ts',

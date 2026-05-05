@@ -1,0 +1,5285 @@
+{
+  "kind": "shopify-standard-metaobject-template-catalog",
+  "capturedAt": "2026-05-05T17:15:03.180Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "source": "Derived from standardMetaobjectDefinitionEnable round-trip captures against the disposable conformance shop; live definition instance IDs and timestamps are stripped.",
+  "templateTypes": [
+    "shopify--qa-pair",
+    "shopify--accessory-size",
+    "shopify--age-group",
+    "shopify--battery-type",
+    "shopify--color-pattern",
+    "shopify--fabric",
+    "shopify--finish",
+    "shopify--flavor",
+    "shopify--jewelry-material",
+    "shopify--material",
+    "shopify--neckline",
+    "shopify--occasion",
+    "shopify--one-piece-style",
+    "shopify--ring-size",
+    "shopify--shoe-size",
+    "shopify--size",
+    "shopify--sleeve-length-type",
+    "shopify--style",
+    "shopify--target-gender",
+    "shopify--theme",
+    "shopify--toe-style",
+    "shopify--top-length-type",
+    "shopify--waist-rise",
+    "shopify--watch-band-material",
+    "shopify--pants-length-type",
+    "shopify--closure-type",
+    "shopify--fit-type"
+  ],
+  "templates": [
+    {
+      "type": "shopify--qa-pair",
+      "name": "Question and Answer Pairs",
+      "description": "Question and answer pairs that describe a merchant's shop.",
+      "displayNameKey": "question",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "NONE"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "question",
+          "name": "Question",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": []
+        },
+        {
+          "key": "answer",
+          "name": "Answer",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "multi_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": []
+        },
+        {
+          "key": "sources",
+          "name": "Sources",
+          "description": null,
+          "required": false,
+          "type": {
+            "name": "list.link",
+            "category": "LINK"
+          },
+          "validations": []
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--qa-pair",
+        "name": "Question and Answer Pairs"
+      }
+    },
+    {
+      "type": "shopify--accessory-size",
+      "name": "Accessory size",
+      "description": "Defines the size of an accessory product, such as one size or compact",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base accessory size",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "accessory-size"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--accessory-size",
+        "name": "Accessory size"
+      }
+    },
+    {
+      "type": "shopify--age-group",
+      "name": "Age group",
+      "description": "Defines the target age range for a product, such as adults or kids",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base age group",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "age-group"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--age-group",
+        "name": "Age group"
+      }
+    },
+    {
+      "type": "shopify--battery-type",
+      "name": "Battery type",
+      "description": "Distinguishes between types of batteries, such as disposable or rechargeable ",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base battery type",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "battery-type"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--battery-type",
+        "name": "Battery type"
+      }
+    },
+    {
+      "type": "shopify--color-pattern",
+      "name": "Color",
+      "description": "Defines the primary color or pattern, such as blue or striped",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "color",
+          "name": "Color",
+          "description": null,
+          "required": false,
+          "type": {
+            "name": "color",
+            "category": "COLOR"
+          },
+          "validations": []
+        },
+        {
+          "key": "image",
+          "name": "Image",
+          "description": null,
+          "required": false,
+          "type": {
+            "name": "file_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "file_type_options",
+              "value": "[\"Image\"]"
+            }
+          ]
+        },
+        {
+          "key": "color_taxonomy_reference",
+          "name": "Base color",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "list.product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "color"
+            },
+            {
+              "name": "list.min",
+              "value": "1"
+            },
+            {
+              "name": "list.max",
+              "value": "4"
+            }
+          ]
+        },
+        {
+          "key": "pattern_taxonomy_reference",
+          "name": "Base pattern",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "pattern"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": true,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--color-pattern",
+        "name": "Color"
+      }
+    },
+    {
+      "type": "shopify--fabric",
+      "name": "Fabric",
+      "description": "Identifies the type of fabric used in a product, for example, cotton or denim",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base fabric",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "fabric"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--fabric",
+        "name": "Fabric"
+      }
+    },
+    {
+      "type": "shopify--finish",
+      "name": "Finish",
+      "description": "Describes the surface quality of a product, like satin or matte",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base finish",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "finish"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--finish",
+        "name": "Finish"
+      }
+    },
+    {
+      "type": "shopify--flavor",
+      "name": "Flavor",
+      "description": "Specifies the taste or flavor of a product, e.g. vanilla, mint",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base flavor",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "flavor"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--flavor",
+        "name": "Flavor"
+      }
+    },
+    {
+      "type": "shopify--jewelry-material",
+      "name": "Jewelry material",
+      "description": "Identifies the main material used in jewelry items, such as gold or enamel",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base jewelry material",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "jewelry-material"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--jewelry-material",
+        "name": "Jewelry material"
+      }
+    },
+    {
+      "type": "shopify--material",
+      "name": "Material",
+      "description": "Defines a product's primary material, such as cotton or wool",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base material",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "material"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--material",
+        "name": "Material"
+      }
+    },
+    {
+      "type": "shopify--neckline",
+      "name": "Neckline",
+      "description": "Used to describe the neck shape of a garment, such as V-neck or boat",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base neckline",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "neckline"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--neckline",
+        "name": "Neckline"
+      }
+    },
+    {
+      "type": "shopify--occasion",
+      "name": "Occasion",
+      "description": "Specifies the suitable event or setting for a product, e.g. casual, formal",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base occasion",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "occasion"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--occasion",
+        "name": "Occasion"
+      }
+    },
+    {
+      "type": "shopify--one-piece-style",
+      "name": "One-piece style",
+      "description": "Identifies the specific style of a one-piece garment, like a jumpsuit or romper",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base one-piece style",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "one-piece-style"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--one-piece-style",
+        "name": "One-piece style"
+      }
+    },
+    {
+      "type": "shopify--ring-size",
+      "name": "Ring size",
+      "description": "Specifies the size of a ring, such as L or 6.5",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base ring size",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "ring-size"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--ring-size",
+        "name": "Ring size"
+      }
+    },
+    {
+      "type": "shopify--shoe-size",
+      "name": "Shoe size",
+      "description": "Used to define the size of footwear, e.g. Extra large (XL), 9.5",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base shoe size",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "shoe-size"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--shoe-size",
+        "name": "Shoe size"
+      }
+    },
+    {
+      "type": "shopify--size",
+      "name": "Size",
+      "description": "Used to specify the size of a product, such as 0-3 months or Extra large (XL)",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base size",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "size"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--size",
+        "name": "Size"
+      }
+    },
+    {
+      "type": "shopify--sleeve-length-type",
+      "name": "Sleeve length type",
+      "description": "Specifies the style of sleeves on clothing items, such as short or sleeveless",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base sleeve length type",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "sleeve-length-type"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--sleeve-length-type",
+        "name": "Sleeve length type"
+      }
+    },
+    {
+      "type": "shopify--style",
+      "name": "Style",
+      "description": "Describes the style of a product, typically for window treatments; e.g. vertical blind, pleated shades",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base style",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "style"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--style",
+        "name": "Style"
+      }
+    },
+    {
+      "type": "shopify--target-gender",
+      "name": "Target gender",
+      "description": "Identifies the intended gender for a product, such as female, male or unisex",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base target gender",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "target-gender"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--target-gender",
+        "name": "Target gender"
+      }
+    },
+    {
+      "type": "shopify--theme",
+      "name": "Theme",
+      "description": "Describes the product's primary theme or motif, such as sport, space, or holidays",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base theme",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "theme"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--theme",
+        "name": "Theme"
+      }
+    },
+    {
+      "type": "shopify--toe-style",
+      "name": "Toe style",
+      "description": "Defines the shape or design of a shoe's toe, such as open or pointed",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base toe style",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "toe-style"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--toe-style",
+        "name": "Toe style"
+      }
+    },
+    {
+      "type": "shopify--top-length-type",
+      "name": "Top length type",
+      "description": "Defines the length of tops or shirts, like crop top or long",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base top length type",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "top-length-type"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--top-length-type",
+        "name": "Top length type"
+      }
+    },
+    {
+      "type": "shopify--waist-rise",
+      "name": "Waist rise",
+      "description": "Indicates where on the waist a garment sits, like low, medium or high",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base waist rise",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "waist-rise"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--waist-rise",
+        "name": "Waist rise"
+      }
+    },
+    {
+      "type": "shopify--watch-band-material",
+      "name": "Watch/Band material",
+      "description": "Specifies the type of material for watch bands, such as nylon or silicone",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base watch/band material",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "watch-band-material"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--watch-band-material",
+        "name": "Watch/Band material"
+      }
+    },
+    {
+      "type": "shopify--pants-length-type",
+      "name": "Pants length type",
+      "description": "Used to defines the length of pants, such as cropped or long",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base pants length type",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "pants-length-type"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--pants-length-type",
+        "name": "Pants length type"
+      }
+    },
+    {
+      "type": "shopify--closure-type",
+      "name": "Closure type",
+      "description": "Defines the method used to fasten or secure a product, such as zipper or buckles",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base closure type",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "closure-type"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--closure-type",
+        "name": "Closure type"
+      }
+    },
+    {
+      "type": "shopify--fit-type",
+      "name": "Fit type",
+      "description": "Describes the fit type for vehicle parts and accessories, like custom or universal",
+      "displayNameKey": "label",
+      "access": {
+        "admin": "PUBLIC_READ_WRITE",
+        "storefront": "PUBLIC_READ"
+      },
+      "capabilities": {
+        "publishable": {
+          "enabled": false
+        },
+        "translatable": {
+          "enabled": true
+        },
+        "renderable": {
+          "enabled": false
+        },
+        "onlineStore": {
+          "enabled": false
+        }
+      },
+      "fieldDefinitions": [
+        {
+          "key": "label",
+          "name": "Label",
+          "description": null,
+          "required": true,
+          "type": {
+            "name": "single_line_text_field",
+            "category": "TEXT"
+          },
+          "validations": [
+            {
+              "name": "max",
+              "value": "255"
+            }
+          ]
+        },
+        {
+          "key": "taxonomy_reference",
+          "name": "Base fit type",
+          "description": "Base values map to standards for better search and organization",
+          "required": true,
+          "type": {
+            "name": "product_taxonomy_value_reference",
+            "category": "REFERENCE"
+          },
+          "validations": [
+            {
+              "name": "product_taxonomy_attribute_handle",
+              "value": "fit-type"
+            }
+          ]
+        }
+      ],
+      "hasThumbnailField": false,
+      "metaobjectsCount": 0,
+      "standardTemplate": {
+        "type": "shopify--fit-type",
+        "name": "Fit type"
+      }
+    }
+  ],
+  "unavailableCandidates": [],
+  "captures": [
+    {
+      "name": "catalog-enable-shopify--qa-pair",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--qa-pair"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867538738",
+              "type": "shopify--qa-pair",
+              "name": "Question and Answer Pairs",
+              "description": "Question and answer pairs that describe a merchant's shop.",
+              "displayNameKey": "question",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "question",
+                  "name": "Question",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "answer",
+                  "name": "Answer",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "multi_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "sources",
+                  "name": "Sources",
+                  "description": null,
+                  "required": false,
+                  "type": {
+                    "name": "list.link",
+                    "category": "LINK"
+                  },
+                  "validations": []
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--qa-pair",
+                "name": "Question and Answer Pairs"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--accessory-size",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--accessory-size"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867571506",
+              "type": "shopify--accessory-size",
+              "name": "Accessory size",
+              "description": "Defines the size of an accessory product, such as one size or compact",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base accessory size",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "accessory-size"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--accessory-size",
+                "name": "Accessory size"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--age-group",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--age-group"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867604274",
+              "type": "shopify--age-group",
+              "name": "Age group",
+              "description": "Defines the target age range for a product, such as adults or kids",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base age group",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "age-group"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--age-group",
+                "name": "Age group"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--battery-type",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--battery-type"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867637042",
+              "type": "shopify--battery-type",
+              "name": "Battery type",
+              "description": "Distinguishes between types of batteries, such as disposable or rechargeable ",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base battery type",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "battery-type"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--battery-type",
+                "name": "Battery type"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--color-pattern",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--color-pattern"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867669810",
+              "type": "shopify--color-pattern",
+              "name": "Color",
+              "description": "Defines the primary color or pattern, such as blue or striped",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "color",
+                  "name": "Color",
+                  "description": null,
+                  "required": false,
+                  "type": {
+                    "name": "color",
+                    "category": "COLOR"
+                  },
+                  "validations": []
+                },
+                {
+                  "key": "image",
+                  "name": "Image",
+                  "description": null,
+                  "required": false,
+                  "type": {
+                    "name": "file_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "file_type_options",
+                      "value": "[\"Image\"]"
+                    }
+                  ]
+                },
+                {
+                  "key": "color_taxonomy_reference",
+                  "name": "Base color",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "list.product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "color"
+                    },
+                    {
+                      "name": "list.min",
+                      "value": "1"
+                    },
+                    {
+                      "name": "list.max",
+                      "value": "4"
+                    }
+                  ]
+                },
+                {
+                  "key": "pattern_taxonomy_reference",
+                  "name": "Base pattern",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "pattern"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": true,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--color-pattern",
+                "name": "Color"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--fabric",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--fabric"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867702578",
+              "type": "shopify--fabric",
+              "name": "Fabric",
+              "description": "Identifies the type of fabric used in a product, for example, cotton or denim",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base fabric",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "fabric"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--fabric",
+                "name": "Fabric"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--finish",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--finish"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867735346",
+              "type": "shopify--finish",
+              "name": "Finish",
+              "description": "Describes the surface quality of a product, like satin or matte",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base finish",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "finish"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--finish",
+                "name": "Finish"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--flavor",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--flavor"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867768114",
+              "type": "shopify--flavor",
+              "name": "Flavor",
+              "description": "Specifies the taste or flavor of a product, e.g. vanilla, mint",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base flavor",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "flavor"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--flavor",
+                "name": "Flavor"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--jewelry-material",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--jewelry-material"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867800882",
+              "type": "shopify--jewelry-material",
+              "name": "Jewelry material",
+              "description": "Identifies the main material used in jewelry items, such as gold or enamel",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base jewelry material",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "jewelry-material"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--jewelry-material",
+                "name": "Jewelry material"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--material",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--material"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867833650",
+              "type": "shopify--material",
+              "name": "Material",
+              "description": "Defines a product's primary material, such as cotton or wool",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base material",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "material"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--material",
+                "name": "Material"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--neckline",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--neckline"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867866418",
+              "type": "shopify--neckline",
+              "name": "Neckline",
+              "description": "Used to describe the neck shape of a garment, such as V-neck or boat",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base neckline",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "neckline"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--neckline",
+                "name": "Neckline"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--occasion",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--occasion"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867899186",
+              "type": "shopify--occasion",
+              "name": "Occasion",
+              "description": "Specifies the suitable event or setting for a product, e.g. casual, formal",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base occasion",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "occasion"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--occasion",
+                "name": "Occasion"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--one-piece-style",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--one-piece-style"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867931954",
+              "type": "shopify--one-piece-style",
+              "name": "One-piece style",
+              "description": "Identifies the specific style of a one-piece garment, like a jumpsuit or romper",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base one-piece style",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "one-piece-style"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--one-piece-style",
+                "name": "One-piece style"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--ring-size",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--ring-size"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867964722",
+              "type": "shopify--ring-size",
+              "name": "Ring size",
+              "description": "Specifies the size of a ring, such as L or 6.5",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base ring size",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "ring-size"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--ring-size",
+                "name": "Ring size"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--shoe-size",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--shoe-size"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17867997490",
+              "type": "shopify--shoe-size",
+              "name": "Shoe size",
+              "description": "Used to define the size of footwear, e.g. Extra large (XL), 9.5",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base shoe size",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "shoe-size"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--shoe-size",
+                "name": "Shoe size"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--size",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--size"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868030258",
+              "type": "shopify--size",
+              "name": "Size",
+              "description": "Used to specify the size of a product, such as 0-3 months or Extra large (XL)",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base size",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "size"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--size",
+                "name": "Size"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--sleeve-length-type",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--sleeve-length-type"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868063026",
+              "type": "shopify--sleeve-length-type",
+              "name": "Sleeve length type",
+              "description": "Specifies the style of sleeves on clothing items, such as short or sleeveless",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base sleeve length type",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "sleeve-length-type"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--sleeve-length-type",
+                "name": "Sleeve length type"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--style",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--style"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868095794",
+              "type": "shopify--style",
+              "name": "Style",
+              "description": "Describes the style of a product, typically for window treatments; e.g. vertical blind, pleated shades",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base style",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "style"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--style",
+                "name": "Style"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--target-gender",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--target-gender"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868128562",
+              "type": "shopify--target-gender",
+              "name": "Target gender",
+              "description": "Identifies the intended gender for a product, such as female, male or unisex",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base target gender",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "target-gender"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--target-gender",
+                "name": "Target gender"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--theme",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--theme"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868161330",
+              "type": "shopify--theme",
+              "name": "Theme",
+              "description": "Describes the product's primary theme or motif, such as sport, space, or holidays",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base theme",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "theme"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--theme",
+                "name": "Theme"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--toe-style",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--toe-style"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868194098",
+              "type": "shopify--toe-style",
+              "name": "Toe style",
+              "description": "Defines the shape or design of a shoe's toe, such as open or pointed",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base toe style",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "toe-style"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--toe-style",
+                "name": "Toe style"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--top-length-type",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--top-length-type"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868226866",
+              "type": "shopify--top-length-type",
+              "name": "Top length type",
+              "description": "Defines the length of tops or shirts, like crop top or long",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base top length type",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "top-length-type"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--top-length-type",
+                "name": "Top length type"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--waist-rise",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--waist-rise"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868259634",
+              "type": "shopify--waist-rise",
+              "name": "Waist rise",
+              "description": "Indicates where on the waist a garment sits, like low, medium or high",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base waist rise",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "waist-rise"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--waist-rise",
+                "name": "Waist rise"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--watch-band-material",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--watch-band-material"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868292402",
+              "type": "shopify--watch-band-material",
+              "name": "Watch/Band material",
+              "description": "Specifies the type of material for watch bands, such as nylon or silicone",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base watch/band material",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "watch-band-material"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--watch-band-material",
+                "name": "Watch/Band material"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--pants-length-type",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--pants-length-type"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868325170",
+              "type": "shopify--pants-length-type",
+              "name": "Pants length type",
+              "description": "Used to defines the length of pants, such as cropped or long",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base pants length type",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "pants-length-type"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--pants-length-type",
+                "name": "Pants length type"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--closure-type",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--closure-type"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868357938",
+              "type": "shopify--closure-type",
+              "name": "Closure type",
+              "description": "Defines the method used to fasten or secure a product, such as zipper or buckles",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base closure type",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "closure-type"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--closure-type",
+                "name": "Closure type"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-enable-shopify--fit-type",
+      "request": {
+        "query": "#graphql\n  #graphql\n  fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    capabilities {\n      publishable {\n        enabled\n      }\n      translatable {\n        enabled\n      }\n      renderable {\n        enabled\n      }\n      onlineStore {\n        enabled\n      }\n    }\n    fieldDefinitions {\n      key\n      name\n      description\n      required\n      type {\n        name\n        category\n      }\n      validations {\n        name\n        value\n      }\n    }\n    hasThumbnailField\n    metaobjectsCount\n    standardTemplate {\n      type\n      name\n    }\n  }\n\n  mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {\n    standardMetaobjectDefinitionEnable(type: $type) {\n      metaobjectDefinition {\n        ...StandardMetaobjectDefinitionEnableFields\n      }\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "type": "shopify--fit-type"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "standardMetaobjectDefinitionEnable": {
+            "metaobjectDefinition": {
+              "id": "gid://shopify/MetaobjectDefinition/17868390706",
+              "type": "shopify--fit-type",
+              "name": "Fit type",
+              "description": "Describes the fit type for vehicle parts and accessories, like custom or universal",
+              "displayNameKey": "label",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "PUBLIC_READ"
+              },
+              "capabilities": {
+                "publishable": {
+                  "enabled": false
+                },
+                "translatable": {
+                  "enabled": true
+                },
+                "renderable": {
+                  "enabled": false
+                },
+                "onlineStore": {
+                  "enabled": false
+                }
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "label",
+                  "name": "Label",
+                  "description": null,
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  },
+                  "validations": [
+                    {
+                      "name": "max",
+                      "value": "255"
+                    }
+                  ]
+                },
+                {
+                  "key": "taxonomy_reference",
+                  "name": "Base fit type",
+                  "description": "Base values map to standards for better search and organization",
+                  "required": true,
+                  "type": {
+                    "name": "product_taxonomy_value_reference",
+                    "category": "REFERENCE"
+                  },
+                  "validations": [
+                    {
+                      "name": "product_taxonomy_attribute_handle",
+                      "value": "fit-type"
+                    }
+                  ]
+                }
+              ],
+              "hasThumbnailField": false,
+              "metaobjectsCount": 0,
+              "standardTemplate": {
+                "type": "shopify--fit-type",
+                "name": "Fit type"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 20,
+            "actualQueryCost": 20,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "catalog-cleanup-shopify--qa-pair",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867538738"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867538738",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--accessory-size",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867571506"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867571506",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--age-group",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867604274"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867604274",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--battery-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867637042"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867637042",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--color-pattern",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867669810"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867669810",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--fabric",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867702578"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867702578",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--finish",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867735346"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867735346",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--flavor",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867768114"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867768114",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--jewelry-material",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867800882"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867800882",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--material",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867833650"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867833650",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--neckline",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867866418"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867866418",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--occasion",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867899186"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867899186",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--one-piece-style",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867931954"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867931954",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--ring-size",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867964722"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867964722",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--shoe-size",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17867997490"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17867997490",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--size",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868030258"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868030258",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--sleeve-length-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868063026"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868063026",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--style",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868095794"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868095794",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--target-gender",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868128562"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868128562",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--theme",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868161330"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868161330",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--toe-style",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868194098"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868194098",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--top-length-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868226866"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868226866",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--waist-rise",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868259634"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868259634",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--watch-band-material",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868292402"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868292402",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--pants-length-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868325170"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868325170",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--closure-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868357938"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868357938",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "catalog-cleanup-shopify--fit-type",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868390706"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868390706",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "qaPairCleanup",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868423474"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868423474",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "colorPatternCleanup",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868456242"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868456242",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "materialCleanup",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868489010"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868489010",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "duplicateCleanup",
+      "request": {
+        "query": "#graphql\n  mutation StandardMetaobjectDefinitionCleanup($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17868521778"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17868521778",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1983,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ]
+}

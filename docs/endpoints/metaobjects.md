@@ -94,7 +94,7 @@ When an effective definition changes, downstream row reads project existing row 
 
 Delete support stages deletion for definitions whose effective `metaobjectsCount` is zero and hides deleted base/staged definitions from downstream reads through a staged tombstone. Definitions with associated entries return an explicit local `UNSUPPORTED` userError because entry records and cascade semantics are not modeled yet; this keeps the known branch local and visible instead of pretending Shopify's destructive cascade has been faithfully emulated.
 
-`standardMetaobjectDefinitionEnable` is limited to the bounded local template catalog currently represented by runtime tests. Known templates stage a standard definition locally with `standardTemplate` metadata; unknown template types return `TEMPLATE_NOT_FOUND` locally.
+`standardMetaobjectDefinitionEnable` stages definitions from the checked-in standard template catalog captured from the 2026-04 conformance shop. Known templates stage a standard definition locally with captured `standardTemplate`, access, capabilities, and field-definition metadata; unknown template types return Shopify's `RECORD_NOT_FOUND` userError at `field: ["type"]` with message `Record not found`. Re-enabling an already staged standard definition mirrors the captured Shopify branch by returning the existing definition with no userErrors.
 
 ### Supported entry mutation roots
 
@@ -165,7 +165,7 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 - Capture associated-entry `metaobjectDefinitionDelete` cascade behavior before replacing the current local `UNSUPPORTED` guardrail for definitions with entries.
 - Capture additional `metaobjectBulkDelete` selector branches before widening beyond the current `where.ids` / captured `where.type` local branches.
 - Capture more `metaobjectUpdate` / `metaobjectUpsert` conflict and validation branches, especially field type families beyond the current scalar/JSON/reference slice.
-- Expand `standardMetaobjectDefinitionEnable` success captures for additional standard templates before broadening the bounded local template catalog.
+- Re-capture `standardMetaobjectDefinitionEnable` templates when Shopify's standard metaobject template registry changes or a target shop exposes additional beta-flagged templates.
 - Capture generic metafield-backed references, `mixed_reference`, and non-metaobject owner relationship edges before claiming broader reference support.
 - Promote any new parity specs only after comparison targets can verify Shopify payload shape, userErrors, nullability, empty connections, cursor treatment, and downstream read-after-write or read-after-delete behavior.
 
