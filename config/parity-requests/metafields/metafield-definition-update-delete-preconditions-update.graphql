@@ -1,0 +1,22 @@
+mutation MetafieldDefinitionUpdateDeletePreconditionsUpdate($definition: MetafieldDefinitionUpdateInput!) {
+  metafieldDefinitionUpdate(definition: $definition) {
+    updatedDefinition {
+      id
+      name
+      namespace
+      key
+      ownerType
+      type {
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    validationJob {
+      id
+    }
+  }
+}
