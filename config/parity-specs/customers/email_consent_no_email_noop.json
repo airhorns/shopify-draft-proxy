@@ -1,0 +1,132 @@
+{
+  "scenarioId": "customer-email-consent-no-email-noop",
+  "operationNames": ["customerCreate", "customerEmailMarketingConsentUpdate", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/customers/customer-email-marketing-consent-update-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+    "apiVersion": "2026-04",
+    "variables": {
+      "input": {
+        "firstName": "Hermes",
+        "lastName": "ConsentPhoneOnly",
+        "phone": "+14157776021"
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-771 parity slice over the preexisting 2026-04 customerEmailMarketingConsentUpdate capture. No new live interaction was recorded for this spec: the referenced fixture already contains a phone-only customer precondition, the missing-email validation matrix response, and the present-email mutation control. The no-email mutation is a no-op with empty userErrors and does not synthesize defaultEmailAddress; the present-email control confirms the normal consent update path still stages defaultEmailAddress marketing fields.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "phone-only-setup-has-no-default-email",
+        "capturePath": "$.validation.matrixPreconditions.phoneOnlyCustomer.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.defaultEmailAddress",
+          "$.customerCreate.userErrors"
+        ]
+      },
+      {
+        "name": "email-consent-without-email-noops",
+        "capturePath": "$.validation.matrix[6].response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerEmailMarketingConsentUpdate-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "customerId": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "emailMarketingConsent": {
+                "fromCapturePath": "$.validation.matrix[6].variables.input.emailMarketingConsent"
+              }
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customerEmailMarketingConsentUpdate.customer.email",
+          "$.customerEmailMarketingConsentUpdate.customer.defaultEmailAddress",
+          "$.customerEmailMarketingConsentUpdate.userErrors"
+        ]
+      },
+      {
+        "name": "email-consent-noop-downstream-read",
+        "capturePath": "$.validation.matrixPreconditions.phoneOnlyCustomer.data.customerCreate.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-consent-downstream-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            },
+            "query": "__customer_parity_no_match__",
+            "first": 5
+          }
+        },
+        "selectedPaths": ["$.email", "$.defaultEmailAddress"]
+      },
+      {
+        "name": "email-contact-control-setup",
+        "capturePath": "$.validation.matrixPreconditions.transitionCustomer.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "firstName": "Hermes",
+              "lastName": "ConsentTransition",
+              "email": "hermes-consent-transition-1777943566021@example.com",
+              "phone": "+14156666021"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.defaultEmailAddress.emailAddress",
+          "$.customerCreate.userErrors"
+        ]
+      },
+      {
+        "name": "email-contact-control-stages-consent",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerEmailMarketingConsentUpdate-parity.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "input": {
+              "customerId": {
+                "fromProxyResponse": "email-contact-control-setup",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "emailMarketingConsent": {
+                "fromCapturePath": "$.mutation.variables.input.emailMarketingConsent"
+              }
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customerEmailMarketingConsentUpdate.customer.defaultEmailAddress.marketingState",
+          "$.customerEmailMarketingConsentUpdate.customer.defaultEmailAddress.marketingOptInLevel",
+          "$.customerEmailMarketingConsentUpdate.customer.defaultEmailAddress.marketingUpdatedAt",
+          "$.customerEmailMarketingConsentUpdate.userErrors"
+        ]
+      }
+    ]
+  }
+}

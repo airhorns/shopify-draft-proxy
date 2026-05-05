@@ -1,0 +1,51 @@
+mutation DiscountContextCustomerSelectionConflict(
+  $basicCode: DiscountCodeBasicInput!
+  $bxgyCode: DiscountCodeBxgyInput!
+  $freeShippingCode: DiscountCodeFreeShippingInput!
+  $appCode: DiscountCodeAppInput!
+) {
+  basicCode: discountCodeBasicCreate(basicCodeDiscount: $basicCode) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bxgyCode: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgyCode) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  freeShippingCode: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingCode) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  appCode: discountCodeAppCreate(codeAppDiscount: $appCode) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

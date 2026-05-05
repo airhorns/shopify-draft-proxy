@@ -1,0 +1,17 @@
+mutation DelegateAccessTokenCreateShopPayload {
+  delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+    delegateAccessToken {
+      accessToken
+    }
+    shop {
+      id
+      myshopifyDomain
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

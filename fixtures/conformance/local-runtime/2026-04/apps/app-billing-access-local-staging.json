@@ -260,8 +260,8 @@
               "status": false,
               "userErrors": [
                 {
-                  "field": ["accessToken"],
-                  "message": "Access token not found.",
+                  "field": null,
+                  "message": "Access token does not exist.",
                   "code": "ACCESS_TOKEN_NOT_FOUND"
                 }
               ]

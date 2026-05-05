@@ -146,6 +146,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-contact-removal-role-assignment-cascade',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-removal-role-assignment-cascade-conformance.mts',
+    purpose:
+      'B2B contact delete, bulk contact delete, and remove-from-company cascades that scrub location-side role assignments for the removed contact.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}contact-delete-cleans-role-assignments.json`,
+      `${CAPTURE_ROOT}contacts-delete-cleans-role-assignments.json`,
+      `${CAPTURE_ROOT}contact-remove-from-company-cleans-role-assignments.json`,
+      'config/parity-specs/b2b/contact_delete_cleans_role_assignments.json',
+      'config/parity-specs/b2b/contacts_delete_cleans_role_assignments.json',
+      'config/parity-specs/b2b/contact_remove_from_company_cleans_role_assignments.json',
+      'config/parity-requests/b2b/contact-role-cascade-*.graphql',
+      'config/parity-requests/b2b/contact-delete-cleans-role-assignments.graphql',
+      'config/parity-requests/b2b/contacts-delete-cleans-role-assignments.graphql',
+      'config/parity-requests/b2b/contact-remove-from-company-cleans-role-assignments.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable B2B companies with an automatic main-location role assignment and an explicit second-location assignment; removes the contact through each supported path and deletes each company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-string-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-string-validation-conformance.mts',
@@ -1866,7 +1890,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'fulfillment-event-create-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-event-create-validation-conformance.ts',
-    purpose: 'fulfillmentEventCreate unknown-id validation and valid event read-after-write behavior.',
+    purpose:
+      'fulfillmentEventCreate unknown-id validation, public GraphQL code/enum validation branches, cancelled-fulfillment probe, and valid event read-after-write behavior.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}fulfillment-event-create-validation.json`,
@@ -1875,7 +1900,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/shipping-fulfillments/fulfillment-event-create-detail-read.graphql',
     ],
     cleanupBehavior:
-      'Creates a disposable test order and fulfillment, probes validation/event behavior, cancels the fulfillment, records the public cancelled-event probe, and cancels the order in cleanup.',
+      'Creates a disposable test order and fulfillment, probes public GraphQL validation/event behavior, cancels the fulfillment, records the public cancelled-event probe, and cancels the order in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2025,6 +2050,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-redeem-code-bulk-add-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-redeem-code-bulk-validation-conformance.ts',
+    purpose:
+      'discountRedeemCodeBulkAdd unknown discount, empty/oversized code list, and per-code async validation behavior.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-redeem-code-bulk-add-validation.json`,
+      'config/parity-specs/discounts/discount-redeem-code-bulk-add-validation.json',
+      'config/parity-requests/discounts/discount-redeem-code-bulk-validation-*.graphql',
+    ],
+    cleanupBehavior: 'Creates a disposable code discount and deletes it after validation probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-update-edge-cases',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-update-edge-cases-conformance.ts',
@@ -2109,6 +2150,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-context-customer-selection-conflict',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-context-customer-selection-conflict-conformance.ts',
+    purpose:
+      'Discount context and deprecated customerSelection mutual-exclusion userErrors across create roots that accept both fields.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-context-customer-selection-conflict.json`,
+      'config/parity-specs/discounts/discount-context-customer-selection-conflict.json',
+      'config/parity-requests/discounts/discount-context-customer-selection-conflict.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable customers for realistic conflict IDs and deletes them after validation capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-bulk-selector-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-bulk-selector-validation-conformance.ts',
@@ -2118,6 +2176,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}discount-bulk-selector-validation.json`,
       'config/parity-specs/discounts/discount-bulk-selector-validation.json',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-customer-gets-value-multiple-types',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-customer-gets-value-multiple-types-conformance.ts',
+    purpose: 'Discount customerGets.value multiple-branch BadRequest parity for basic create/update inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-customer-gets-value-multiple-types.json`,
+      'config/parity-specs/discounts/discount-customer-gets-value-multiple-types.json',
+      'config/parity-requests/discounts/discount-customer-gets-value-multiple-types-*.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -2176,6 +2249,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['app billing access for the installed app'],
     fixtureOutputs: [`${CAPTURE_ROOT}app-billing-access-read.json`],
     cleanupBehavior: 'Read-only capture; no billing mutation cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'apps',
+    captureId: 'delegate-access-token-shop-payload',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-delegate-access-token-shop-payload-conformance.ts',
+    purpose: 'Delegate access token create/destroy payload shop nullability on success and userError branches.',
+    requiredAuthScopes: ['delegate access token create/destroy for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}delegate-access-token-shop-payload.json`,
+      'config/parity-specs/apps/delegate-access-token-shop-payload.json',
+      'config/parity-requests/apps/delegateAccessTokenCreate-shop-payload.graphql',
+      'config/parity-requests/apps/delegateAccessTokenDestroy-shop-payload.graphql',
+      'config/parity-requests/apps/delegateAccessTokenDestroy-shop-payload-unknown.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one short-lived delegate access token and destroys it during the scenario; unknown-token validation has no cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2968,9 +3059,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'customers',
     captureId: 'customer-addresses',
     scriptPath: 'scripts/capture-customer-address-conformance.mts',
-    purpose: 'Customer address lifecycle, normalization, defaulting, and validation.',
+    purpose: 'Customer address lifecycle, normalization, defaulting, id matching, and validation.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
-    fixtureOutputs: [`${CAPTURE_ROOT}customer-address-*.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-address-*.json`,
+      'config/parity-specs/customers/customer_address_update_id_mismatch.json',
+      'config/parity-requests/customers/customer-address-update-id-mismatch-read.graphql',
+    ],
     cleanupBehavior: 'Creates disposable customers/addresses and deletes the customers.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },

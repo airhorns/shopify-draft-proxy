@@ -4491,74 +4491,103 @@ fn handle_customer_set(
       )
     }
     [] ->
-      case
-        find_customer_by_identifier(store, identifier),
-        read_obj_string(input, "id")
-      {
-        Some(existing), _ -> {
-          let #(timestamp, after_ts) =
-            synthetic_identity.make_synthetic_timestamp(identity)
-          let updated = update_customer_from_input(existing, input, timestamp)
-          let #(stored, next_store) =
-            store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerSetPayload",
-              Some(stored),
-              None,
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [stored.id],
-              "customerSet",
-            ),
-            next_store,
-            after_ts,
-          )
-        }
-        None, Some(customer_id) ->
+      case read_obj_string(identifier, "id") {
+        Some(customer_id) ->
           case store.get_effective_customer_by_id(store, customer_id) {
-            Some(existing) -> {
-              let #(timestamp, after_ts) =
-                synthetic_identity.make_synthetic_timestamp(identity)
-              let updated =
-                update_customer_from_input(existing, input, timestamp)
-              let #(stored, next_store) =
-                store.stage_update_customer(store, updated)
-              let payload =
-                customer_payload_json(
-                  next_store,
-                  "CustomerSetPayload",
-                  Some(stored),
-                  None,
-                  None,
-                  [],
-                  field,
-                  fragments,
-                )
-              #(
-                MutationFieldResult(
-                  get_field_response_key(field),
-                  payload,
-                  [stored.id],
-                  "customerSet",
-                ),
-                next_store,
-                after_ts,
+            Some(existing) ->
+              update_from_set(
+                store,
+                identity,
+                field,
+                fragments,
+                input,
+                existing,
               )
-            }
+            None ->
+              customer_set_unknown_id_result(store, identity, field, fragments)
+          }
+        None ->
+          case find_customer_by_customer_set_identifier(store, identifier) {
+            Some(existing) ->
+              update_from_set(
+                store,
+                identity,
+                field,
+                fragments,
+                input,
+                existing,
+              )
             None -> create_from_set(store, identity, field, fragments, input)
           }
-        None, None -> create_from_set(store, identity, field, fragments, input)
       }
   }
+}
+
+fn find_customer_by_customer_set_identifier(
+  store: Store,
+  identifier: Dict(String, root_field.ResolvedValue),
+) -> Option(CustomerRecord) {
+  let email = read_obj_string(identifier, "email")
+  let phone = read_obj_string(identifier, "phone")
+  find_customer_by_email_or_phone(
+    store.list_effective_customers(store),
+    email,
+    phone,
+  )
+}
+
+fn update_from_set(store, identity, field, fragments, input, existing) {
+  let #(timestamp, after_ts) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let updated = update_customer_from_input(existing, input, timestamp)
+  let #(stored, next_store) = store.stage_update_customer(store, updated)
+  let payload =
+    customer_payload_json(
+      next_store,
+      "CustomerSetPayload",
+      Some(stored),
+      None,
+      None,
+      [],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(
+      get_field_response_key(field),
+      payload,
+      [stored.id],
+      "customerSet",
+    ),
+    next_store,
+    after_ts,
+  )
+}
+
+fn customer_set_unknown_id_result(store, identity, field, fragments) {
+  let payload =
+    customer_payload_json(
+      store,
+      "CustomerSetPayload",
+      None,
+      None,
+      None,
+      [
+        UserError(["input", "id"], "Customer does not exist", Some("INVALID")),
+      ],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(
+      get_field_response_key(field),
+      payload,
+      [],
+      "customerSet",
+    ),
+    store,
+    identity,
+  )
 }
 
 fn create_from_set(store, identity, field, fragments, input) {
@@ -5109,84 +5138,105 @@ fn handle_customer_address_update(
     graphql_helpers.read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
   case customer_id, address_id {
     Some(cid), Some(aid) ->
-      case store.get_effective_customer_by_id(store, cid) {
-        Some(customer) ->
-          case store.get_effective_customer_address_by_id(store, aid) {
-            Some(existing) ->
-              case existing.customer_id == customer.id {
-                True -> {
-                  case
-                    validate_address_input(address_input, Some(existing), [
-                      "address",
-                    ])
-                  {
-                    [_, ..] as errors -> {
-                      let payload =
-                        address_payload_json(
-                          store,
-                          "CustomerAddressUpdatePayload",
-                          None,
-                          None,
-                          errors,
-                          field,
-                          fragments,
-                        )
-                      #(
-                        MutationFieldResult(
-                          get_field_response_key(field),
-                          payload,
-                          [],
-                          "customerAddressUpdate",
-                        ),
+      case address_input_id_mismatches(address_input, aid) {
+        True ->
+          address_id_mismatch_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "CustomerAddressUpdatePayload",
+            "customerAddressUpdate",
+          )
+        False ->
+          case store.get_effective_customer_by_id(store, cid) {
+            Some(customer) ->
+              case store.get_effective_customer_address_by_id(store, aid) {
+                Some(existing) ->
+                  case existing.customer_id == customer.id {
+                    True -> {
+                      case
+                        validate_address_input(address_input, Some(existing), [
+                          "address",
+                        ])
+                      {
+                        [_, ..] as errors -> {
+                          let payload =
+                            address_payload_json(
+                              store,
+                              "CustomerAddressUpdatePayload",
+                              None,
+                              None,
+                              errors,
+                              field,
+                              fragments,
+                            )
+                          #(
+                            MutationFieldResult(
+                              get_field_response_key(field),
+                              payload,
+                              [],
+                              "customerAddressUpdate",
+                            ),
+                            store,
+                            identity,
+                          )
+                        }
+                        [] -> {
+                          let updated = merge_address(existing, address_input)
+                          let #(_, store_after_address) =
+                            store.stage_upsert_customer_address(store, updated)
+                          let next_store = case set_default {
+                            True -> {
+                              let #(_, s) =
+                                store.stage_update_customer(
+                                  store_after_address,
+                                  CustomerRecord(
+                                    ..customer,
+                                    default_address: Some(address_to_default(
+                                      updated,
+                                    )),
+                                  ),
+                                )
+                              s
+                            }
+                            False -> store_after_address
+                          }
+                          let payload =
+                            address_payload_json(
+                              next_store,
+                              "CustomerAddressUpdatePayload",
+                              Some(updated),
+                              None,
+                              [],
+                              field,
+                              fragments,
+                            )
+                          #(
+                            MutationFieldResult(
+                              get_field_response_key(field),
+                              payload,
+                              [updated.id],
+                              "customerAddressUpdate",
+                            ),
+                            next_store,
+                            identity,
+                          )
+                        }
+                      }
+                    }
+                    False ->
+                      address_ownership_result(
                         store,
                         identity,
+                        field,
+                        fragments,
+                        "CustomerAddressUpdatePayload",
+                        "customerAddressUpdate",
                       )
-                    }
-                    [] -> {
-                      let updated = merge_address(existing, address_input)
-                      let #(_, store_after_address) =
-                        store.stage_upsert_customer_address(store, updated)
-                      let next_store = case set_default {
-                        True -> {
-                          let #(_, s) =
-                            store.stage_update_customer(
-                              store_after_address,
-                              CustomerRecord(
-                                ..customer,
-                                default_address: Some(address_to_default(
-                                  updated,
-                                )),
-                              ),
-                            )
-                          s
-                        }
-                        False -> store_after_address
-                      }
-                      let payload =
-                        address_payload_json(
-                          next_store,
-                          "CustomerAddressUpdatePayload",
-                          Some(updated),
-                          None,
-                          [],
-                          field,
-                          fragments,
-                        )
-                      #(
-                        MutationFieldResult(
-                          get_field_response_key(field),
-                          payload,
-                          [updated.id],
-                          "customerAddressUpdate",
-                        ),
-                        next_store,
-                        identity,
-                      )
-                    }
                   }
-                }
-                False ->
-                  address_ownership_result(
+                None ->
+                  address_unknown_result(
                     store,
                     identity,
                     field,
@@ -5196,7 +5246,7 @@ fn handle_customer_address_update(
                   )
               }
             None ->
-              address_unknown_result(
+              address_customer_missing_result(
                 store,
                 identity,
                 field,
@@ -5205,15 +5255,6 @@ fn handle_customer_address_update(
                 "customerAddressUpdate",
               )
           }
-        None ->
-          address_customer_missing_result(
-            store,
-            identity,
-            field,
-            fragments,
-            "CustomerAddressUpdatePayload",
-            "customerAddressUpdate",
-          )
       }
     _, _ ->
       address_unknown_result(
@@ -5224,6 +5265,18 @@ fn handle_customer_address_update(
         "CustomerAddressUpdatePayload",
         "customerAddressUpdate",
       )
+  }
+}
+
+fn address_input_id_mismatches(
+  address_input: Dict(String, root_field.ResolvedValue),
+  address_id: String,
+) -> Bool {
+  case dict.get(address_input, "id") {
+    Error(_) -> False
+    Ok(root_field.StringVal(nested_id)) -> nested_id != address_id
+    Ok(root_field.IntVal(nested_id)) -> int.to_string(nested_id) != address_id
+    Ok(_) -> True
   }
 }
 
@@ -5554,45 +5607,72 @@ fn handle_email_consent(store, identity, field, fragments, variables) {
       case store.get_effective_customer_by_id(store, id) {
         Some(customer) -> {
           let consent = read_nested_object(input, "emailMarketingConsent")
-          let updated =
-            CustomerRecord(
-              ..customer,
-              default_email_address: Some(CustomerDefaultEmailAddressRecord(
-                email_address: customer.email,
-                marketing_state: read_obj_string(consent, "marketingState"),
-                marketing_opt_in_level: read_obj_string(
-                  consent,
-                  "marketingOptInLevel",
+          case customer.default_email_address {
+            Some(default_email_address) -> {
+              let updated =
+                CustomerRecord(
+                  ..customer,
+                  default_email_address: Some(CustomerDefaultEmailAddressRecord(
+                    email_address: default_email_address.email_address,
+                    marketing_state: read_obj_string(consent, "marketingState"),
+                    marketing_opt_in_level: read_obj_string(
+                      consent,
+                      "marketingOptInLevel",
+                    ),
+                    marketing_updated_at: read_obj_string(
+                      consent,
+                      "consentUpdatedAt",
+                    ),
+                  )),
+                  email_marketing_consent: make_email_consent_from(consent),
+                )
+              let #(_, next_store) = store.stage_update_customer(store, updated)
+              let payload =
+                customer_payload_json(
+                  next_store,
+                  "CustomerEmailMarketingConsentUpdatePayload",
+                  Some(updated),
+                  None,
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [id],
+                  "customerEmailMarketingConsentUpdate",
                 ),
-                marketing_updated_at: read_obj_string(
-                  consent,
-                  "consentUpdatedAt",
+                next_store,
+                identity,
+              )
+            }
+            None -> {
+              let payload =
+                customer_payload_json(
+                  store,
+                  "CustomerEmailMarketingConsentUpdatePayload",
+                  Some(customer),
+                  None,
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [],
+                  "customerEmailMarketingConsentUpdate",
                 ),
-              )),
-              email_marketing_consent: make_email_consent_from(consent),
-            )
-          let #(_, next_store) = store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerEmailMarketingConsentUpdatePayload",
-              Some(updated),
-              None,
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [id],
-              "customerEmailMarketingConsentUpdate",
-            ),
-            next_store,
-            identity,
-          )
+                store,
+                identity,
+              )
+            }
+          }
         }
         None ->
           customer_missing_result(
@@ -5635,47 +5715,79 @@ fn handle_sms_consent(store, identity, field, fragments, variables) {
       case store.get_effective_customer_by_id(store, id) {
         Some(customer) -> {
           let consent = read_nested_object(input, "smsMarketingConsent")
-          let updated =
-            CustomerRecord(
-              ..customer,
-              default_phone_number: Some(CustomerDefaultPhoneNumberRecord(
-                phone_number: customer.default_phone_number
-                  |> option.then(fn(v) { v.phone_number }),
-                marketing_state: read_obj_string(consent, "marketingState"),
-                marketing_opt_in_level: read_obj_string(
-                  consent,
-                  "marketingOptInLevel",
+          case customer.default_phone_number {
+            Some(default_phone_number) -> {
+              let updated =
+                CustomerRecord(
+                  ..customer,
+                  default_phone_number: Some(CustomerDefaultPhoneNumberRecord(
+                    phone_number: default_phone_number.phone_number,
+                    marketing_state: read_obj_string(consent, "marketingState"),
+                    marketing_opt_in_level: read_obj_string(
+                      consent,
+                      "marketingOptInLevel",
+                    ),
+                    marketing_updated_at: read_obj_string(
+                      consent,
+                      "consentUpdatedAt",
+                    ),
+                    marketing_collected_from: Some("OTHER"),
+                  )),
+                  sms_marketing_consent: make_sms_consent_from(consent),
+                )
+              let #(_, next_store) = store.stage_update_customer(store, updated)
+              let payload =
+                customer_payload_json(
+                  next_store,
+                  "CustomerSmsMarketingConsentUpdatePayload",
+                  Some(updated),
+                  None,
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [id],
+                  "customerSmsMarketingConsentUpdate",
                 ),
-                marketing_updated_at: read_obj_string(
-                  consent,
-                  "consentUpdatedAt",
+                next_store,
+                identity,
+              )
+            }
+            None -> {
+              let payload =
+                customer_payload_json(
+                  store,
+                  "CustomerSmsMarketingConsentUpdatePayload",
+                  None,
+                  None,
+                  None,
+                  [
+                    UserError(
+                      ["input", "smsMarketingConsent"],
+                      "A phone number is required to set the SMS consent state.",
+                      Some("INVALID"),
+                    ),
+                  ],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [],
+                  "customerSmsMarketingConsentUpdate",
                 ),
-                marketing_collected_from: Some("OTHER"),
-              )),
-              sms_marketing_consent: make_sms_consent_from(consent),
-            )
-          let #(_, next_store) = store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerSmsMarketingConsentUpdatePayload",
-              Some(updated),
-              None,
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [id],
-              "customerSmsMarketingConsentUpdate",
-            ),
-            next_store,
-            identity,
-          )
+                store,
+                identity,
+              )
+            }
+          }
         }
         None ->
           customer_missing_result(
@@ -7149,6 +7261,37 @@ fn address_ownership_result(store, identity, field, fragments, typename, root) {
       None,
       None,
       [UserError(["addressId"], "Address does not exist", None)],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(get_field_response_key(field), payload, [], root),
+    store,
+    identity,
+  )
+}
+
+fn address_id_mismatch_result(
+  store,
+  identity,
+  field,
+  fragments,
+  typename,
+  root,
+) {
+  let payload =
+    address_payload_json(
+      store,
+      typename,
+      None,
+      None,
+      [
+        UserError(
+          ["addressId"],
+          "The id of the address does not match the id in the input",
+          None,
+        ),
+      ],
       field,
       fragments,
     )

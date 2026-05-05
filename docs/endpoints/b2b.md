@@ -143,6 +143,19 @@ duplicate role, foreign/missing role, foreign/missing location, successful main
 contact delete, and completed B2B order-history delete rejection branches as
 strict replayable parity evidence.
 
+HAR-758 extends the contact-removal lifecycle cascade. Successful
+`companyContactDelete`, `companyContactsDelete`, and
+`companyContactRemoveFromCompany` remove every normalized role assignment whose
+`companyContactId` points at the removed contact before deleting the contact
+record. Downstream `CompanyLocation.roleAssignments` reads for both the default
+company location and other locations therefore omit assignments for contacts
+that are no longer part of the company. The 2026-04 live captures
+`contact-delete-cleans-role-assignments`,
+`contacts-delete-cleans-role-assignments`, and
+`contact-remove-from-company-cleans-role-assignments` record Shopify returning
+empty location role-assignment connections after each removal path, and the
+checked-in parity specs replay the same two-location cascade locally.
+
 HAR-754 aligns bulk B2B resolver `userErrors.field` paths with Shopify's
 string-indexed list paths. Bulk company/contact/location deletes, role
 assignment/revoke roots, and location staff assignment/removal roots report
@@ -155,6 +168,12 @@ missing contact/role entries at the indexed list item path (for example
 still does not synthesize a broader staff catalog, but missing staff-member and
 staff-assignment IDs use Shopify's indexed user error paths and null payload
 shape for the failed list-valued fields.
+
+HAR-755 adds the B2B package's request-level bulk action guard before per-entry
+processing. The local bulk delete, role assignment/revoke, and location staff
+assignment/removal roots reject lists with more than 50 entries with a single
+`LIMIT_REACHED` userError at the bare top-level argument path and leave the
+staged B2B graph unchanged.
 
 HAR-756 extends the bulk role-assignment surfaces to match Shopify's
 partial-success behavior while preserving those indexed field paths.
@@ -270,6 +289,14 @@ conformance-backed local modeling.
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-contact-business-rule-preconditions.json`
 - Contact business-rule preconditions parity scenario:
   `config/parity-specs/b2b/b2b-contact-business-rule-preconditions.json`
+- Contact-removal role-assignment cascade captures:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/contact-delete-cleans-role-assignments.json`,
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/contacts-delete-cleans-role-assignments.json`,
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/contact-remove-from-company-cleans-role-assignments.json`
+- Contact-removal role-assignment cascade parity scenarios:
+  `config/parity-specs/b2b/contact_delete_cleans_role_assignments.json`,
+  `config/parity-specs/b2b/contacts_delete_cleans_role_assignments.json`,
+  `config/parity-specs/b2b/contact_remove_from_company_cleans_role_assignments.json`
 - Location/address management capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
 - Location/address management parity scenario:

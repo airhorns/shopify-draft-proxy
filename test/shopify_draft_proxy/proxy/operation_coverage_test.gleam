@@ -279,7 +279,6 @@ pub fn query_coverage_classifies_declared_gaps_and_unregistered_test() {
       "collectionsCount",
       "currentStaffMember",
       "discountCodesCount",
-      "discountRedeemCodeBulkCreation",
       "locationsCount",
       "metafieldDefinitionTypes",
       "onlineStore",

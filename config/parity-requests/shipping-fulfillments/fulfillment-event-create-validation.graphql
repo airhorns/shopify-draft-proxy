@@ -1,3 +1,4 @@
+#graphql
 mutation FulfillmentEventCreateValidation($fulfillmentEvent: FulfillmentEventInput!) {
   fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
     fulfillmentEvent {

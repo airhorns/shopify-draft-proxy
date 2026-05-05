@@ -235,6 +235,32 @@ const fulfillmentEventCreateMutation = `#graphql
   }
 `;
 
+const fulfillmentEventCreateWithCodeSelectionMutation = `#graphql
+  mutation FulfillmentEventCreateCodeSelection($fulfillmentEvent: FulfillmentEventInput!) {
+    fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+      fulfillmentEvent {
+        id
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const fulfillmentEventStatusEnumQuery = `#graphql
+  query FulfillmentEventStatusEnumIntrospection {
+    __type(name: "FulfillmentEventStatus") {
+      kind
+      enumValues {
+        name
+      }
+    }
+  }
+`;
+
 const detailReadQuery = `#graphql
   ${fulfillmentDetailSelection}
   query FulfillmentEventCreateValidationDetailRead($fulfillmentId: ID!) {
@@ -356,6 +382,20 @@ const fulfillmentHydrate = await graphqlStep('fulfillmentHydrate', fulfillmentHy
   id: fulfillmentId,
 });
 
+const fulfillmentEventStatusEnum = await graphqlStep('fulfillmentEventStatusEnum', fulfillmentEventStatusEnumQuery);
+
+const userErrorCodeSelection = await graphqlStep(
+  'userErrorCodeSelection',
+  fulfillmentEventCreateWithCodeSelectionMutation,
+  {
+    fulfillmentEvent: {
+      fulfillmentId: unknownFulfillmentId,
+      status: 'IN_TRANSIT',
+    },
+  },
+  { allowTopLevelErrors: true },
+);
+
 const unknownFulfillmentEventCreate = await graphqlStep(
   'unknownFulfillmentEventCreate',
   fulfillmentEventCreateMutation,
@@ -385,6 +425,18 @@ const fulfillmentEventCreate = await graphqlStep('fulfillmentEventCreate', fulfi
 });
 
 const detailRead = await graphqlStep('detailRead', detailReadQuery, { fulfillmentId });
+
+const invalidStatusVariable = await graphqlStep(
+  'invalidStatusVariable',
+  fulfillmentEventCreateMutation,
+  {
+    fulfillmentEvent: {
+      fulfillmentId,
+      status: 'NOT_A_FULFILLMENT_EVENT_STATUS',
+    },
+  },
+  { allowTopLevelErrors: true },
+);
 
 const fulfillmentCancel = await graphqlStep('fulfillmentCancel', fulfillmentCancelMutation, { id: fulfillmentId });
 
@@ -434,6 +486,9 @@ const fixture = {
   apiVersion,
   notes: [
     'Public Admin GraphQL 2026-04 UserError for fulfillmentEventCreate exposes field/message but not code.',
+    'Selecting userErrors.code returns a top-level undefinedField error before resolver execution.',
+    'Invalid FulfillmentEventStatus variables fail GraphQL coercion with INVALID_VARIABLE before resolver execution.',
+    'FulfillmentEventStatus introspection includes DELAYED and CARRIER_PICKED_UP in Admin GraphQL 2026-04.',
     'The cancelledFulfillmentEventCreateProbe records public API behavior after fulfillmentCancel; HAR-582 local runtime keeps the source-backed cancellation guard.',
   ],
   setup: {
@@ -442,9 +497,12 @@ const fixture = {
     unknownFulfillmentHydrate,
     fulfillmentHydrate,
   },
+  fulfillmentEventStatusEnum,
+  userErrorCodeSelection,
   unknownFulfillmentEventCreate,
   fulfillmentEventCreate,
   detailRead,
+  invalidStatusVariable,
   fulfillmentCancel,
   cancelledFulfillmentEventCreateProbe,
   cleanup,
