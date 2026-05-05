@@ -75,6 +75,14 @@ as that contact reference. `companyRevokeMainContact` clears all local
 `isMainContact` flags and downstream `Company.mainContact` reads return `null`,
 matching the captured Shopify 2026-04 behavior.
 
+The local B2B mutation handlers enforce Shopify's documented maximum caps from
+a shared Gleam constants module before staging records they can add: 10,000
+contacts per company, 10,000 locations per company, 50 contact role assignments
+per contact, and 10 staff member assignments per location. The same constants
+module also mirrors Shopify's 2-contact-role cap for the system role catalog.
+Cap failures return `LIMIT_REACHED` userErrors on the relevant input argument
+and leave the normalized B2B graph unchanged.
+
 Contact create/update inputs are prepared before staging to mirror Shopify's
 B2B contact input handling. Supported local paths normalize valid phone numbers
 to E.164 using the effective shop country code when the input omits a leading
