@@ -107,6 +107,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-string-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-string-validation-conformance.mts',
+    purpose: 'B2B company/contact/location free-text length and HTML validation branches.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-string-validation.json`,
+      'config/parity-specs/b2b/b2b-string-validation.json',
+      'config/parity-requests/b2b/b2b-string-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one setup company for child mutation validation plus cleanup for any live branch that unexpectedly creates a company.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The capture intentionally records live HTML mismatch probes so reviewers can distinguish executable parity-backed validation branches from current Admin behavior that does not reproduce the internal B2B change rules.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-input-normalization',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-input-normalization-conformance.mts',
