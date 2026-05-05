@@ -1,0 +1,58 @@
+mutation GiftCardMutationUserErrorCodes {
+  setupSmallBalance: giftCardCreate(input: { initialValue: "5", code: "har686smallcard" }) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  zeroInitialValue: giftCardCreate(input: { initialValue: "0" }) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  missingUpdate: giftCardUpdate(id: "gid://shopify/GiftCard/9999999", input: { note: "x" }) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  negativeCredit: giftCardCredit(
+    id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"
+    creditInput: { creditAmount: { amount: "-1", currencyCode: "CAD" } }
+  ) {
+    giftCardCreditTransaction {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  insufficientDebit: giftCardDebit(
+    id: "gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic"
+    debitInput: { debitAmount: { amount: "9999", currencyCode: "CAD" } }
+  ) {
+    giftCardDebitTransaction {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

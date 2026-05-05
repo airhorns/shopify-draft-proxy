@@ -1173,10 +1173,10 @@ fn compare_gift_cards(
 // Mutation path
 // ===========================================================================
 
-/// User-error payload. Notification roots expose Shopify's typed user-error
-/// codes when the selection asks for them; older local guardrails keep `None`.
+/// User-error payload. Gift-card mutation payloads expose Shopify's typed
+/// enum code strings whenever `userErrors { code }` is selected.
 pub type UserError {
-  UserError(field: List(String), code: Option(String), message: String)
+  UserError(field: List(String), code: String, message: String)
 }
 
 type GiftCardPayload {
@@ -1834,7 +1834,7 @@ fn handle_gift_card_create(
         empty_payload([
           UserError(
             field: ["input", "initialValue"],
-            code: Some("GREATER_THAN"),
+            code: "GREATER_THAN",
             message: "must be greater than 0",
           ),
         ])
@@ -2261,7 +2261,7 @@ fn validate_gift_card_transaction(
     True ->
       Some(UserError(
         field: [preferred_input_key, preferred_amount_key, "amount"],
-        code: Some("NEGATIVE_OR_ZERO_AMOUNT"),
+        code: "NEGATIVE_OR_ZERO_AMOUNT",
         message: "Amount must be greater than zero",
       ))
     False ->
@@ -2367,7 +2367,7 @@ fn validate_gift_card_transaction_money(
     True ->
       Some(UserError(
         field: [preferred_input_key, preferred_amount_key, "currencyCode"],
-        code: Some("MISMATCHING_CURRENCY"),
+        code: "MISMATCHING_CURRENCY",
         message: "The currency provided does not match the currency of the gift card.",
       ))
     False -> {
@@ -2377,7 +2377,7 @@ fn validate_gift_card_transaction_money(
         True ->
           Some(UserError(
             field: [preferred_input_key, preferred_amount_key, "amount"],
-            code: Some("INSUFFICIENT_FUNDS"),
+            code: "INSUFFICIENT_FUNDS",
             message: "Insufficient balance",
           ))
         False -> None
@@ -2544,13 +2544,13 @@ fn handle_gift_card_notification(
 fn not_found_user_error() -> UserError {
   UserError(
     field: ["id"],
-    code: Some("GIFT_CARD_NOT_FOUND"),
+    code: "GIFT_CARD_NOT_FOUND",
     message: "The gift card could not be found.",
   )
 }
 
 fn invalid_user_error(field: List(String), message: String) -> UserError {
-  UserError(field: field, code: Some("INVALID"), message: message)
+  UserError(field: field, code: "INVALID", message: message)
 }
 
 fn gift_card_create_error_result(
@@ -2583,13 +2583,13 @@ fn gift_card_create_error_result(
 }
 
 fn gift_card_code_user_error(code: String, message: String) -> UserError {
-  UserError(field: ["input", "code"], code: Some(code), message: message)
+  UserError(field: ["input", "code"], code: code, message: message)
 }
 
 fn gift_card_duplicate_code_user_error() -> UserError {
   UserError(
     field: ["input", "code"],
-    code: None,
+    code: "TAKEN",
     message: "Code has already been taken",
   )
 }
@@ -2597,7 +2597,7 @@ fn gift_card_duplicate_code_user_error() -> UserError {
 fn gift_card_create_customer_not_found_user_error() -> UserError {
   UserError(
     field: ["input", "customerId"],
-    code: Some("CUSTOMER_NOT_FOUND"),
+    code: "CUSTOMER_NOT_FOUND",
     message: "The customer could not be found.",
   )
 }
@@ -2703,13 +2703,13 @@ fn notification_owner_not_found_user_error(
     "recipient" ->
       UserError(
         field: ["base"],
-        code: Some("RECIPIENT_NOT_FOUND"),
+        code: "RECIPIENT_NOT_FOUND",
         message: "The recipient could not be found.",
       )
     _ ->
       UserError(
         field: ["base"],
-        code: Some("CUSTOMER_NOT_FOUND"),
+        code: "CUSTOMER_NOT_FOUND",
         message: "The customer could not be found.",
       )
   }
@@ -3209,7 +3209,7 @@ fn user_error_to_source(error: UserError) -> SourceValue {
   src_object([
     #("__typename", SrcString("UserError")),
     #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
-    #("code", graphql_helpers.option_string_source(error.code)),
+    #("code", SrcString(error.code)),
     #("message", SrcString(error.message)),
   ])
 }

@@ -367,7 +367,7 @@ pub fn gift_card_create_rejects_duplicate_code_test() {
       "mutation { giftCardCreate(input: { initialValue: \"10\", code: \"valid code-123\" }) { giftCard { id } giftCardCode userErrors { field code message } } }",
     )
   assert body
-    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"code\"],\"code\":null,\"message\":\"Code has already been taken\"}]}}}"
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"code\"],\"code\":\"TAKEN\",\"message\":\"Code has already been taken\"}]}}}"
 }
 
 pub fn gift_card_create_rejects_missing_customer_test() {
@@ -421,6 +421,16 @@ pub fn gift_card_update_changes_note_test() {
     )
   assert body
     == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/100?shopify-draft-proxy=synthetic\",\"note\":\"new note\"},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_update_missing_card_uses_typed_not_found_error_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { giftCardUpdate(id: \"gid://shopify/GiftCard/9999999\", input: { note: \"new note\" }) { giftCard { id } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"id\"],\"code\":\"GIFT_CARD_NOT_FOUND\",\"message\":\"The gift card could not be found.\"}]}}}"
 }
 
 // ----------- giftCardCredit -----------
@@ -502,6 +512,17 @@ pub fn gift_card_credit_rejects_currency_mismatch_without_mutating_test() {
   assert after.transactions == []
 }
 
+pub fn gift_card_credit_rejects_non_positive_amount_with_nested_field_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { giftCardCredit(id: \"gid://shopify/GiftCard/1\", creditInput: { creditAmount: { amount: \"-1\", currencyCode: \"USD\" } }) { giftCard { id } giftCardCreditTransaction { __typename } userErrors { field code message } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardCredit\":{\"giftCard\":null,\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"creditInput\",\"creditAmount\",\"amount\"],\"code\":\"NEGATIVE_OR_ZERO_AMOUNT\",\"message\":\"Amount must be greater than zero\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
 pub fn gift_card_credit_rejects_processed_at_bounds_test() {
   let id = "gid://shopify/GiftCard/credit-processed-at"
   let s =
@@ -578,6 +599,24 @@ pub fn gift_card_debit_rejects_deactivated_card_without_mutating_test() {
   let assert Some(after) =
     store.get_effective_gift_card_by_id(outcome.store, id)
   assert after.balance == money("10.0", "USD")
+  assert after.transactions == []
+}
+
+pub fn gift_card_debit_rejects_overdraft_with_nested_field_test() {
+  let id = "gid://shopify/GiftCard/debit-small-balance"
+  let s =
+    store.new()
+    |> seed_card(transaction_card(id, True, Some("2099-01-01"), "5.0", "USD"))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardDebit(id: \"gid://shopify/GiftCard/debit-small-balance\", debitInput: { debitAmount: { amount: \"9999\", currencyCode: \"USD\" } }) { giftCard { balance { amount currencyCode } } giftCardDebitTransaction { __typename } userErrors { field code message } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardDebit\":{\"giftCard\":null,\"giftCardDebitTransaction\":null,\"userErrors\":[{\"field\":[\"debitInput\",\"debitAmount\",\"amount\"],\"code\":\"INSUFFICIENT_FUNDS\",\"message\":\"Insufficient balance\"}]}}}"
+  let assert Some(after) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert after.balance == money("5.0", "USD")
   assert after.transactions == []
 }
 
