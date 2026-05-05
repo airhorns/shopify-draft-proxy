@@ -1,0 +1,84 @@
+{
+  "scenarioId": "location-activate-deactivate-with-idempotency-directive",
+  "operationNames": ["locationDeactivate", "locationActivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "idempotency-parity",
+    "field-directive-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-deactivate-with-idempotency-directive.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-lifecycle-deactivate-with-idempotency-directive.graphql",
+    "variablesCapturePath": "$.workflow.deactivateWithDirective.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "deactivate-with-idempotency-directive",
+        "capturePath": "$.workflow.deactivateWithDirective.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate"
+      },
+      {
+        "name": "read-after-deactivate",
+        "capturePath": "$.workflow.readAfterDeactivate.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-lifecycle-read.graphql",
+          "variablesCapturePath": "$.workflow.readAfterDeactivate.variables"
+        }
+      },
+      {
+        "name": "activate-with-idempotency-directive",
+        "capturePath": "$.workflow.activateWithDirective.response.payload.data.locationActivate",
+        "proxyPath": "$.data.locationActivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-lifecycle-activate-with-idempotency-directive.graphql",
+          "variablesCapturePath": "$.workflow.activateWithDirective.variables"
+        }
+      },
+      {
+        "name": "missing-idempotency-directive-2026-04-errors",
+        "capturePath": "$.workflow.missingDirective202604.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-missing-idempotency-validation.graphql",
+          "variablesCapturePath": "$.workflow.missingDirective202604.variables"
+        }
+      },
+      {
+        "name": "missing-idempotency-directive-2026-04-data",
+        "capturePath": "$.workflow.missingDirective202604.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-missing-idempotency-validation.graphql",
+          "variablesCapturePath": "$.workflow.missingDirective202604.variables"
+        }
+      },
+      {
+        "name": "no-directive-2026-01-still-stages",
+        "capturePath": "$.workflow.deactivateWithoutDirective202601.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-01",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-missing-idempotency-validation.graphql",
+          "variablesCapturePath": "$.workflow.deactivateWithoutDirective202601.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-649 captures a disposable 2026-04 location lifecycle: a non-online-fulfilling location is created, deactivated with field-level @idempotent(key: $idempotencyKey), read back as inactive, reactivated with field-level @idempotent(key: $idempotencyKey), rejected without @idempotent on 2026-04, and then accepted without @idempotent on 2026-01. The parity runner hydrates the captured baseline location through the cassette, then stages the supported lifecycle roots locally without runtime Shopify writes. This is the primary location idempotency-directive parity spec; the sibling product inventory idempotency specs cover the shared parser/directive shape across other documented idempotent mutation fields."
+}
