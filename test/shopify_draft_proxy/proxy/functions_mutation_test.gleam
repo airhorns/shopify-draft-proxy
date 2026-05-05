@@ -7,6 +7,7 @@
 //// reuse-vs-mint behavior.
 
 import gleam/dict
+import gleam/int
 import gleam/json
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/functions
@@ -86,6 +87,38 @@ fn seed_validation(
 ) -> store.Store {
   let #(_, s) = store.upsert_staged_validation(store_in, record)
   s
+}
+
+fn seed_active_validations(
+  store_in: store.Store,
+  fn_record: ShopifyFunctionRecord,
+  index: Int,
+  count: Int,
+) -> store.Store {
+  case index > count {
+    True -> store_in
+    False ->
+      seed_active_validations(
+        seed_validation(
+          store_in,
+          ValidationRecord(
+            id: "gid://shopify/Validation/active-" <> int.to_string(index),
+            title: Some("Active " <> int.to_string(index)),
+            enable: Some(True),
+            block_on_failure: Some(False),
+            function_id: Some(fn_record.id),
+            function_handle: Some("cap"),
+            shopify_function_id: Some(fn_record.id),
+            metafields: [],
+            created_at: None,
+            updated_at: None,
+          ),
+        ),
+        fn_record,
+        index + 1,
+        count,
+      )
+  }
 }
 
 // ----------- is_function_mutation_root -----------
@@ -220,6 +253,7 @@ pub fn validation_update_changes_title_and_enable_test() {
       function_id: None,
       function_handle: Some("checkout-validator"),
       shopify_function_id: Some(fn_record.id),
+      metafields: [],
       created_at: Some("2024-01-01T00:00:00.000Z"),
       updated_at: Some("2024-01-01T00:00:00.000Z"),
     )
@@ -234,6 +268,116 @@ pub fn validation_update_changes_title_and_enable_test() {
     )
   assert body
     == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/77\",\"title\":\"Renamed\",\"enable\":false},\"userErrors\":[]}}}"
+}
+
+pub fn validation_update_function_inputs_do_not_rebind_test() {
+  let fn_a =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/function-a",
+      "function-a",
+      "VALIDATION",
+    )
+  let fn_b =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/function-b",
+      "function-b",
+      "VALIDATION",
+    )
+  let v =
+    ValidationRecord(
+      id: "gid://shopify/Validation/rebind",
+      title: Some("Original"),
+      enable: Some(True),
+      block_on_failure: Some(False),
+      function_id: Some(fn_a.id),
+      function_handle: Some("function-a"),
+      shopify_function_id: Some(fn_a.id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let outcome =
+    run_mutation_outcome(
+      store.new()
+        |> seed_function(fn_a)
+        |> seed_function(fn_b)
+        |> seed_validation(v),
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/rebind\", validation: { functionId: \"gid://shopify/ShopifyFunction/function-b\", title: \"Still A\" }) { validation { id title functionId functionHandle shopifyFunction { id handle } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/rebind\",\"title\":\"Still A\",\"functionId\":\"gid://shopify/ShopifyFunction/function-a\",\"functionHandle\":\"function-a\",\"shopifyFunction\":{\"id\":\"gid://shopify/ShopifyFunction/function-a\",\"handle\":\"function-a\"}},\"userErrors\":[]}}}"
+  let assert Some(updated) =
+    store.get_effective_validation_by_id(
+      outcome.store,
+      "gid://shopify/Validation/rebind",
+    )
+  assert updated.function_id == Some(fn_a.id)
+  assert updated.function_handle == Some("function-a")
+  assert updated.shopify_function_id == Some(fn_a.id)
+}
+
+pub fn validation_update_reenable_enforces_active_cap_test() {
+  let fn_record =
+    shopify_fn("gid://shopify/ShopifyFunction/cap", "cap", "VALIDATION")
+  let seeded =
+    seed_active_validations(
+      seed_function(store.new(), fn_record),
+      fn_record,
+      1,
+      10,
+    )
+  let inactive =
+    ValidationRecord(
+      id: "gid://shopify/Validation/inactive-11",
+      title: Some("Inactive"),
+      enable: Some(False),
+      block_on_failure: Some(False),
+      function_id: Some(fn_record.id),
+      function_handle: Some("cap"),
+      shopify_function_id: Some(fn_record.id),
+      metafields: [],
+      created_at: None,
+      updated_at: None,
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_validation(seeded, inactive),
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/inactive-11\", validation: { enable: true }) { validation { id enable } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"enable\"],\"message\":\"The maximum number of active validations has been reached.\",\"code\":\"MAX_VALIDATIONS_ACTIVATED\"}]}}}"
+  let assert Some(unchanged) =
+    store.get_effective_validation_by_id(
+      outcome.store,
+      "gid://shopify/Validation/inactive-11",
+    )
+  assert unchanged.enable == Some(False)
+}
+
+pub fn validation_update_persists_metafields_for_downstream_reads_test() {
+  let create_outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { validationCreate(validation: { functionHandle: \"metafield-validation\", title: \"Metafield validation\" }) { validation { id } userErrors { field } } }",
+    )
+  let update_outcome =
+    run_mutation_outcome(
+      create_outcome.store,
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/1\", validation: { metafields: [{ namespace: \"custom\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }] }) { validation { id metafields(first: 5) { nodes { namespace key value } } } userErrors { field message code } } }",
+    )
+  assert json.to_string(update_outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}},\"userErrors\":[]}}}"
+
+  let assert Ok(read_data) =
+    functions.handle_function_query(
+      update_outcome.store,
+      "{ validations(first: 5) { nodes { id metafields(first: 5) { nodes { namespace key value } } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}}]}}"
 }
 
 pub fn validation_update_unknown_id_emits_user_error_test() {
@@ -264,6 +408,7 @@ pub fn validation_delete_removes_record_test() {
       function_id: None,
       function_handle: Some("checkout-validator"),
       shopify_function_id: Some(fn_record.id),
+      metafields: [],
       created_at: None,
       updated_at: None,
     )
