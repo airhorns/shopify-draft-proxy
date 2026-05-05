@@ -1,0 +1,77 @@
+{
+  "scenarioId": "fulfillment-order-split-multi",
+  "operationNames": ["fulfillmentOrderSplit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-split-multi.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-split-multi.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.captures.emptyLineItems.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-559 captures fulfillmentOrderSplit with multiple split inputs, multi-line-item quantity aggregation, and indexed validation errors. The capture creates disposable orders, records empty-line-items, zero-quantity, unknown-fulfillment-order, and successful multi-split branches, then merges split fulfillment orders and cancels the disposable orders during cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "empty-line-items-user-error",
+        "capturePath": "$.captures.emptyLineItems.response.payload.data.fulfillmentOrderSplit",
+        "proxyPath": "$.data.fulfillmentOrderSplit"
+      },
+      {
+        "name": "zero-quantity-user-error",
+        "capturePath": "$.captures.zeroQuantity.response.payload.data.fulfillmentOrderSplit",
+        "proxyPath": "$.data.fulfillmentOrderSplit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-split-multi.graphql",
+          "variablesCapturePath": "$.captures.zeroQuantity.variables"
+        }
+      },
+      {
+        "name": "unknown-fulfillment-order-user-error",
+        "capturePath": "$.captures.unknownFulfillmentOrder.response.payload.data.fulfillmentOrderSplit",
+        "proxyPath": "$.data.fulfillmentOrderSplit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-split-multi.graphql",
+          "variablesCapturePath": "$.captures.unknownFulfillmentOrder.variables"
+        }
+      },
+      {
+        "name": "multi-split-success",
+        "capturePath": "$.captures.multiSplit.response.payload.data.fulfillmentOrderSplit",
+        "proxyPath": "$.data.fulfillmentOrderSplit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-split-multi.graphql",
+          "variablesCapturePath": "$.captures.multiSplit.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentOrderSplits[*].fulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrderSplits[*].remainingFulfillmentOrder.id",
+            "matcher": "shopify-gid:FulfillmentOrder",
+            "reason": "The proxy generates stable session-local FulfillmentOrder IDs for split-off fulfillment orders; Shopify returns store-assigned IDs in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrderSplits[*].remainingFulfillmentOrder.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses stable session-local synthetic timestamps for staged fulfillment-order updates; Shopify returns live update timestamps in the capture."
+          },
+          {
+            "path": "$.fulfillmentOrderSplits[*].remainingFulfillmentOrder.lineItems.nodes[*].id",
+            "matcher": "shopify-gid:FulfillmentOrderLineItem",
+            "reason": "The proxy uses local line-item identity for split-off fulfillment orders; Shopify returns store-assigned fulfillment-order line-item IDs in the capture."
+          }
+        ]
+      }
+    ]
+  }
+}

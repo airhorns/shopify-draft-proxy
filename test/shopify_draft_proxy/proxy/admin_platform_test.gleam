@@ -4,6 +4,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
+import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/mutation_helpers
@@ -730,16 +731,149 @@ pub fn flow_validation_branches_do_not_stage_test() {
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation { badSig: flowGenerateSignature(id: \"gid://shopify/FlowTrigger/0\", payload: \"{}\") { signature userErrors { field message } } badReceive: flowTriggerReceive(handle: \"remote-handle\", payload: \"{}\") { userErrors { field message } } }",
+      "mutation { badSig: flowGenerateSignature(id: \"gid://shopify/FlowTrigger/0\", payload: \"{}\") { signature userErrors { field message } } badReceive: flowTriggerReceive(handle: \"har-374-missing\", payload: \"{}\") { userErrors { field message } } }",
       empty_vars(),
     )
 
   let body = json.to_string(outcome.data)
   assert string.contains(body, "\"badSig\":null")
   assert string.contains(body, "\"Invalid id: gid://shopify/FlowTrigger/0\"")
-  assert string.contains(body, "Invalid handle 'remote-handle'.")
+  assert string.contains(body, "Invalid handle 'har-374-missing'.")
   assert outcome.staged_resource_ids == []
   assert store.get_log(outcome.store) == []
+}
+
+pub fn flow_trigger_receive_validation_matches_shopify_test() {
+  let no_args =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive { userErrors { field message } } }",
+      empty_vars(),
+    )
+  let no_args_body = json.to_string(no_args.data)
+  assert string.contains(no_args_body, "\"field\":[\"handle\"]")
+  assert string.contains(
+    no_args_body,
+    "`handle` and `payload` arguments are required",
+  )
+  assert no_args.staged_resource_ids == []
+
+  let payload_only =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(payload: { test: \"value\" }) { userErrors { field message } } }",
+      empty_vars(),
+    )
+  let payload_only_body = json.to_string(payload_only.data)
+  assert string.contains(payload_only_body, "\"field\":[\"handle\"]")
+  assert string.contains(
+    payload_only_body,
+    "`handle` and `payload` arguments are required",
+  )
+  assert payload_only.staged_resource_ids == []
+
+  let empty_handle =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(handle: \"\") { userErrors { field message } } }",
+      empty_vars(),
+    )
+  let empty_handle_body = json.to_string(empty_handle.data)
+  assert string.contains(empty_handle_body, "\"field\":[\"handle\"]")
+  assert string.contains(
+    empty_handle_body,
+    "`handle` and `payload` arguments are required",
+  )
+  assert empty_handle.staged_resource_ids == []
+
+  let null_handle =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(handle: null) { userErrors { field message } } }",
+      empty_vars(),
+    )
+  let null_handle_body = json.to_string(null_handle.data)
+  assert string.contains(null_handle_body, "\"field\":[\"handle\"]")
+  assert string.contains(
+    null_handle_body,
+    "`handle` and `payload` arguments are required",
+  )
+  assert null_handle.staged_resource_ids == []
+
+  let conflict =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{}}\", handle: \"test\") { userErrors { field message } } }",
+      empty_vars(),
+    )
+  let conflict_body = json.to_string(conflict.data)
+  assert string.contains(conflict_body, "\"field\":[\"body\"]")
+  assert string.contains(
+    conflict_body,
+    "Cannot use `handle` and `payload` arguments with `body` argument",
+  )
+  assert !string.contains(conflict_body, "Invalid handle 'test'.")
+  assert conflict.staged_resource_ids == []
+}
+
+pub fn flow_trigger_receive_accepts_non_local_handle_test() {
+  let outcome =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(handle: \"my-real-trigger-handle\", payload: { key: \"v\" }) { userErrors { field message } } }",
+      empty_vars(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(body, "\"userErrors\":[]")
+  assert list.length(outcome.staged_resource_ids) == 1
+  let staged = outcome.store.staged_state
+  assert list.length(staged.admin_platform_flow_trigger_order) == 1
+}
+
+pub fn flow_trigger_receive_payload_size_uses_json_utf8_bytes_test() {
+  let document =
+    "mutation FlowTriggerReceive($payload: JSON) { flowTriggerReceive(handle: \"my-real-trigger-handle\", payload: $payload) { userErrors { field message } } }"
+  let too_large_payload = string.repeat("x", times: 49_995) <> "\u{1F600}"
+  let too_large =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      dict.from_list([#("payload", root_field.StringVal(too_large_payload))]),
+    )
+  let too_large_body = json.to_string(too_large.data)
+  assert string.contains(
+    too_large_body,
+    "Properties size exceeds the limit of 50000 bytes.",
+  )
+  assert too_large.staged_resource_ids == []
+
+  let allowed_payload = string.repeat("x", times: 49_990)
+  let allowed =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      dict.from_list([#("payload", root_field.StringVal(allowed_payload))]),
+    )
+  let allowed_body = json.to_string(allowed.data)
+  assert string.contains(allowed_body, "\"userErrors\":[]")
+  assert list.length(allowed.staged_resource_ids) == 1
 }
 
 pub fn draft_proxy_routes_admin_platform_reads_and_mutations_test() {

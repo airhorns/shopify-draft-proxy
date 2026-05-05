@@ -1,0 +1,94 @@
+{
+  "scenarioId": "localization-translations-market-scoped",
+  "operationNames": ["translationsRegister", "translationsRemove", "translatableResource"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-market-scoped.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-read.graphql",
+    "variablesCapturePath": "$.marketScopedTranslationLifecycle.readRequest.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "translation-market-initial-read-data",
+        "capturePath": "$.marketScopedTranslationLifecycle.readBeforeRegister.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.resourceId", "$.translations"]
+      },
+      {
+        "name": "translation-market-register-data",
+        "capturePath": "$.marketScopedTranslationLifecycle.register.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.translations[0].outdated",
+          "$.translations[0].market.id",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "variablesCapturePath": "$.marketScopedTranslationLifecycle.registerRequest.variables"
+        }
+      },
+      {
+        "name": "translation-market-downstream-registered-data",
+        "capturePath": "$.marketScopedTranslationLifecycle.readAfterRegister.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.resourceId",
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.translations[0].outdated",
+          "$.translations[0].market.id"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-read.graphql",
+          "variablesCapturePath": "$.marketScopedTranslationLifecycle.readRequest.variables"
+        }
+      },
+      {
+        "name": "translation-market-remove-data",
+        "capturePath": "$.marketScopedTranslationLifecycle.remove.data.translationsRemove",
+        "proxyPath": "$.data.translationsRemove",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.translations[0].outdated",
+          "$.translations[0].market.id",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-remove.graphql",
+          "variablesCapturePath": "$.marketScopedTranslationLifecycle.removeRequest.variables"
+        }
+      },
+      {
+        "name": "translation-market-downstream-removed-data",
+        "capturePath": "$.marketScopedTranslationLifecycle.readAfterRemove.data.translatableResource",
+        "proxyPath": "$.data.translatableResource",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.resourceId", "$.translations"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-market-scoped-read.graphql",
+          "variablesCapturePath": "$.marketScopedTranslationLifecycle.readRequest.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture creates a disposable product, enables the Spanish shop locale when needed, uses an existing market with a web presence, registers a market-scoped product-title translation, reads it back through translatableResource(...).translations(locale:, marketId:), removes it with translationsRemove(marketIds:), and verifies the market-scoped downstream read is empty after cleanup."
+}

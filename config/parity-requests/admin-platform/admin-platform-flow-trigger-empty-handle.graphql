@@ -1,0 +1,8 @@
+mutation FlowTriggerReceiveEmptyHandleString {
+  flowTriggerReceive(handle: "") {
+    userErrors {
+      field
+      message
+    }
+  }
+}

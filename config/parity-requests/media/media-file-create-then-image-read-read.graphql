@@ -1,0 +1,22 @@
+query MediaFileCreateThenImageReadFiles {
+  files(first: 5, reverse: true) {
+    nodes {
+      id
+      alt
+      createdAt
+      fileStatus
+      ... on MediaImage {
+        image {
+          url
+          width
+          height
+        }
+        preview {
+          image {
+            url
+          }
+        }
+      }
+    }
+  }
+}

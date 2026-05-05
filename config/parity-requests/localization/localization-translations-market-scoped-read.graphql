@@ -1,0 +1,32 @@
+query LocalizationTranslationsMarketScopedRead($resourceId: ID!, $marketId: ID!) {
+  translatableResource(resourceId: $resourceId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+    translations(locale: "es", marketId: $marketId) {
+      key
+      value
+      locale
+      outdated
+      updatedAt
+      market {
+        id
+      }
+    }
+  }
+  allShopLocales: shopLocales {
+    locale
+    name
+    primary
+    published
+    marketWebPresences {
+      id
+      subfolderSuffix
+    }
+  }
+}

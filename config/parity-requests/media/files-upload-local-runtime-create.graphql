@@ -12,6 +12,11 @@ mutation FilesUploadLocalRuntimeCreate($files: [FileCreateInput!]!) {
           width
           height
         }
+        preview {
+          image {
+            url
+          }
+        }
       }
     }
     userErrors {

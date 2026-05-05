@@ -1073,6 +1073,11 @@ fn update_theme(
         store.get_effective_online_store_integration_by_id(outcome.store, id)
       {
         Some(existing) -> {
+          let current_role =
+            source_string_field(captured_to_source(existing.data), "role", "")
+          let publish_blocked =
+            root == "themePublish"
+            && is_publish_blocked_theme_role(current_role)
           let input =
             graphql_helpers.read_arg_object(args, "input")
             |> option.unwrap(dict.new())
@@ -1081,26 +1086,56 @@ fn update_theme(
             _ -> input_string(input, "role")
           }
           let name = input_string(input, "name")
-          let data =
-            existing.data
-            |> maybe_insert_string("name", name)
-            |> maybe_insert_string("role", role)
-          let record = OnlineStoreIntegrationRecord(..existing, data: data)
-          let #(_, store) =
-            store.upsert_staged_online_store_integration(outcome.store, record)
-          integration_payload_result(
-            outcome,
-            field,
-            fragments,
-            variables,
-            root,
-            "theme",
-            Some(record),
-            [],
-            store,
-            outcome.identity,
-            [id],
-          )
+          case publish_blocked {
+            True ->
+              integration_payload_result(
+                outcome,
+                field,
+                fragments,
+                variables,
+                root,
+                "theme",
+                None,
+                [
+                  user_error(
+                    ["id"],
+                    "Theme cannot be published from role " <> current_role,
+                  ),
+                ],
+                outcome.store,
+                outcome.identity,
+                [],
+              )
+            False -> {
+              let data =
+                existing.data
+                |> maybe_insert_string("name", name)
+                |> maybe_insert_string("role", role)
+              let record = OnlineStoreIntegrationRecord(..existing, data: data)
+              let target_store = case root {
+                "themePublish" -> demote_previous_main_themes(outcome.store, id)
+                _ -> outcome.store
+              }
+              let #(_, store) =
+                store.upsert_staged_online_store_integration(
+                  target_store,
+                  record,
+                )
+              integration_payload_result(
+                outcome,
+                field,
+                fragments,
+                variables,
+                root,
+                "theme",
+                Some(record),
+                [],
+                store,
+                outcome.identity,
+                [id],
+              )
+            }
+          }
         }
         None ->
           integration_payload_result(
@@ -1132,6 +1167,33 @@ fn update_theme(
         [],
       )
   }
+}
+
+fn is_publish_blocked_theme_role(role: String) -> Bool {
+  case role {
+    "DEMO" | "LOCKED" | "ARCHIVED" -> True
+    _ -> False
+  }
+}
+
+fn demote_previous_main_themes(store_in: Store, published_id: String) -> Store {
+  store.list_effective_online_store_integrations(store_in, "theme")
+  |> list.fold(store_in, fn(acc, record) {
+    let role = source_string_field(captured_to_source(record.data), "role", "")
+    case record.id != published_id && role == "MAIN" {
+      True -> {
+        let demoted =
+          OnlineStoreIntegrationRecord(
+            ..record,
+            data: maybe_insert_string(record.data, "role", Some("UNPUBLISHED")),
+          )
+        let #(_, next) =
+          store.upsert_staged_online_store_integration(acc, demoted)
+        next
+      }
+      False -> acc
+    }
+  })
 }
 
 fn theme_files_upsert(
@@ -2179,7 +2241,9 @@ fn integration_connection(
   variables: Dict(String, root_field.ResolvedValue),
   kind: String,
 ) -> Json {
-  let records = store.list_effective_online_store_integrations(store, kind)
+  let records =
+    store.list_effective_online_store_integrations(store, kind)
+    |> filter_integration_connection_records(field, variables, kind)
   let window =
     paginate_connection_items(
       records,
@@ -2204,6 +2268,37 @@ fn integration_connection(
       page_info_options: ConnectionPageInfoOptions(True, True, True, None, None),
     ),
   )
+}
+
+fn filter_integration_connection_records(
+  records: List(OnlineStoreIntegrationRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  kind: String,
+) -> List(OnlineStoreIntegrationRecord) {
+  let args = graphql_helpers.field_args(field, variables)
+  case kind {
+    "theme" -> {
+      let roles = input_string_list(args, "roles")
+      let names = input_string_list(args, "names")
+      records
+      |> list.filter(fn(record) {
+        list.is_empty(roles)
+        || list.contains(
+          roles,
+          source_string_field(captured_to_source(record.data), "role", ""),
+        )
+      })
+      |> list.filter(fn(record) {
+        list.is_empty(names)
+        || list.contains(
+          names,
+          source_string_field(captured_to_source(record.data), "name", ""),
+        )
+      })
+    }
+    _ -> records
+  }
 }
 
 fn project_content_record(
@@ -2850,6 +2945,19 @@ fn input_list(
     Ok(root_field.ListVal(items)) -> items
     _ -> []
   }
+}
+
+fn input_string_list(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> List(String) {
+  input_list(args, name)
+  |> list.filter_map(fn(value) {
+    case value {
+      root_field.StringVal(value) -> Ok(value)
+      _ -> Error(Nil)
+    }
+  })
 }
 
 fn input_string(

@@ -1,0 +1,120 @@
+{
+  "capturedAt": "2026-05-05T01:53:11.575Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "H716-morz4yso",
+  "notes": [
+    "HAR-716 capture for savedSearchDelete.shop payload parity.",
+    "A disposable PRODUCT saved search was created, then deleted with shop { id } selected.",
+    "Shopify populated shop.id on the success payload and on a missing-id userError payload.",
+    "The proxy parity runner uses local staging for the create/delete operations; no upstream cassette calls are required."
+  ],
+  "savedSearchCreate": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-local-staging-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "H716 Shop Payload H716-morz4yso",
+        "query": "title:H716-morz4yso"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4007358267698",
+            "legacyResourceId": "4007358267698",
+            "name": "H716 Shop Payload H716-morz4yso",
+            "query": "title:H716-morz4yso",
+            "resourceType": "PRODUCT",
+            "searchTerms": "",
+            "filters": [
+              {
+                "key": "title",
+                "value": "H716-morz4yso"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-delete-shop-payload-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4007358267698"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4007358267698",
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "missingSavedSearchDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-delete-shop-payload-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/0"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": null,
+          "shop": {
+            "id": "gid://shopify/Shop/92891250994"
+          },
+          "userErrors": [
+            {
+              "field": ["input", "id"],
+              "message": "Saved Search does not exist"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

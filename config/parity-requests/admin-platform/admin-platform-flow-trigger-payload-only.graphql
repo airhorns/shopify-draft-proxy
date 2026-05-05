@@ -1,0 +1,8 @@
+mutation FlowTriggerReceivePayloadOnlyNoHandle {
+  flowTriggerReceive(payload: { test: "value" }) {
+    userErrors {
+      field
+      message
+    }
+  }
+}
