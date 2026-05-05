@@ -1,0 +1,14 @@
+mutation WebPixelCreateDuplicateReturnsTaken($webPixel: WebPixelInput!) {
+  webPixelCreate(webPixel: $webPixel) {
+    webPixel {
+      id
+      status
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+}
