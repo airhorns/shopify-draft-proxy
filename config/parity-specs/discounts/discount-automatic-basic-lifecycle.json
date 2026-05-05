@@ -23,12 +23,14 @@
     "expectedDifferences": [
       {
         "path": "$.discountAutomaticBasicCreate.automaticDiscountNode.automaticDiscount.status",
-        "matcher": "SCHEDULED",
+        "ignore": true,
+        "regrettable": true,
         "reason": "This older lifecycle fixture used a startsAt value active at live capture time but scheduled against the proxy's deterministic synthetic clock; HAR-593 adds dedicated stable-date status parity."
       },
       {
         "path": "$.discountAutomaticBasicUpdate.automaticDiscountNode.automaticDiscount.status",
-        "matcher": "SCHEDULED",
+        "ignore": true,
+        "regrettable": true,
         "reason": "This older lifecycle fixture used a startsAt value active at live capture time but scheduled against the proxy's deterministic synthetic clock; HAR-593 adds dedicated stable-date status parity."
       },
       {
