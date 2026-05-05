@@ -2,7 +2,13 @@
   "scenarioId": "location-activate-deactivate-with-idempotency-directive",
   "operationNames": ["locationDeactivate", "locationActivate"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["runtime-staging", "downstream-read-parity", "idempotency-parity", "no-upstream-passthrough"],
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "idempotency-parity",
+    "field-directive-parity",
+    "no-upstream-passthrough"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-deactivate-with-idempotency-directive.json"
   ],
@@ -74,5 +80,5 @@
       }
     ]
   },
-  "notes": "HAR-649 captures a disposable 2026-04 location lifecycle: a non-online-fulfilling location is created, deactivated with field-level @idempotent, read back as inactive, reactivated with field-level @idempotent, rejected without @idempotent on 2026-04, and then accepted without @idempotent on 2026-01. The parity runner hydrates the captured baseline location through the cassette, then stages the supported lifecycle roots locally without runtime Shopify writes."
+  "notes": "HAR-649 captures a disposable 2026-04 location lifecycle: a non-online-fulfilling location is created, deactivated with field-level @idempotent(key: $idempotencyKey), read back as inactive, reactivated with field-level @idempotent(key: $idempotencyKey), rejected without @idempotent on 2026-04, and then accepted without @idempotent on 2026-01. The parity runner hydrates the captured baseline location through the cassette, then stages the supported lifecycle roots locally without runtime Shopify writes. This is the primary location idempotency-directive parity spec; the sibling product inventory idempotency specs cover the shared parser/directive shape across other documented idempotent mutation fields."
 }

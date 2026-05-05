@@ -158,6 +158,9 @@ HAR-408 captured 2026-04 request-contract drift on `harry-test-heelo.myshopify.c
   `changeFromQuantity`.
 - `inventorySetQuantities` also requires `@idempotent(key:)`, rejects `ignoreCompareQuantity` as an
   undefined input field, and each `InventorySetQuantityInput` includes `changeFromQuantity`.
+- `inventory-quantity-idempotency-directive-2026-04` replays both successful quantity roots through
+  documents with field-level `@idempotent(key:)`; `inventory-idempotency-directive-lifecycle-2026-04`
+  covers the same directive shape for `inventoryActivate` and `inventoryDeactivate`.
 - Missing `changeFromQuantity` fails as a top-level `INVALID_FIELD_ARGUMENTS` error before resolver
   side effects.
 - Missing `@idempotent` fails as a top-level `BAD_REQUEST` error with `data.<root>: null` once the
@@ -2241,6 +2244,7 @@ Live evidence refreshed on this host:
 
 - Admin GraphQL 2026-04 returns a top-level `BAD_REQUEST` error when `locationActivate` or `locationDeactivate` omits the required field-level `@idempotent` directive, with `data.<root>: null`; local staging keeps the directive optional for numeric routes before `2026-04`
 - Admin GraphQL 2026-04 rejects operation-level `@idempotent` with `directiveCannotBeApplied`; lifecycle success capture uses field-level `@idempotent`, and the local required-directive check treats operation-level directives as absent
+- `location-activate-deactivate-with-idempotency-directive` is the executable location lifecycle parity spec for field-level `@idempotent(key:)`; sibling inventory idempotency specs prove the same parser/directive shape across other documented idempotent mutation fields
 - Admin GraphQL 2026-01 accepts `locationDeactivate` without `@idempotent` for the same disposable location shape
 - deactivating and reactivating a disposable non-online-fulfilling, unstocked location keeps `activatable: true`, `deactivatable: true`, and `shipsInventory: false` while flipping `isActive` and `deletable`
 - deleting an active stocked location returns both `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` userErrors without mutating the location

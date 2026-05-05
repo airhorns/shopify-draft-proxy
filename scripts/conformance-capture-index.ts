@@ -326,6 +326,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-linkage-parity.json`,
       `${CAPTURE_ROOT}inventory-inactive-level-lifecycle-2026-04.json`,
+      'config/parity-specs/products/inventory-idempotency-directive-lifecycle-2026-04.json',
       'blocker notes when store topology is insufficient',
     ],
     cleanupBehavior: 'Creates disposable products; some success paths require a second safe location before capture.',
@@ -616,6 +617,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}inventory-quantity-contracts-2026-04.json`,
       'config/parity-specs/products/inventory-quantity-contracts-2026-04.json',
+      'config/parity-specs/products/inventory-quantity-idempotency-directive-2026-04.json',
     ],
     cleanupBehavior: 'Creates one disposable product, records set/adjust quantity contract branches, then deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -810,7 +812,10 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-location-lifecycle-conformance.mts',
     purpose: 'locationActivate/locationDeactivate idempotency and read-after-write lifecycle behavior.',
     requiredAuthScopes: ['read_locations', 'write_locations'],
-    fixtureOutputs: [`${CAPTURE_ROOT}location-activate-deactivate-with-idempotency-directive.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-activate-deactivate-with-idempotency-directive.json`,
+      'config/parity-specs/store-properties/location-activate-deactivate-with-idempotency-directive.json',
+    ],
     cleanupBehavior:
       'Creates one disposable non-online-fulfilling location, deactivates/reactivates it, then deactivates and deletes it.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
