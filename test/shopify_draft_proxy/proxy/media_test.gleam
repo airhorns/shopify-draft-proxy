@@ -165,17 +165,21 @@ pub fn file_acknowledge_update_failed_rejects_non_ready_file_test() {
     == "{\"data\":{\"fileAcknowledgeUpdateFailed\":{\"files\":null,\"userErrors\":[{\"field\":[\"fileIds\"],\"message\":\"File with id gid://shopify/MediaImage/2 is not in the READY state.\",\"code\":\"NON_READY_STATE\"}]}}}"
 }
 
-pub fn file_acknowledge_update_failed_ready_file_is_state_noop_test() {
+pub fn file_acknowledge_update_failed_after_rejected_update_keeps_state_test() {
   let #(_, proxy) =
     graphql(
       registry_proxy(),
       "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/ack-source.png\", contentType: IMAGE }]) { files { id fileStatus } userErrors { code } } }",
     )
-  let #(_, proxy) =
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
     graphql(
       proxy,
       "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/2\", originalSource: \"https://cdn.example.com/ack-ready.png\" }]) { files { id fileStatus } userErrors { code } } }",
     )
+
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"code\":\"NON_READY_STATE\"}]}}}"
 
   let #(Response(status: status, body: body, ..), proxy) =
     graphql(
@@ -185,7 +189,7 @@ pub fn file_acknowledge_update_failed_ready_file_is_state_noop_test() {
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"fileAcknowledgeUpdateFailed\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/2\",\"fileStatus\":\"READY\",\"__typename\":\"MediaImage\",\"mediaErrors\":[],\"mediaWarnings\":[]}],\"userErrors\":[]}}}"
+    == "{\"data\":{\"fileAcknowledgeUpdateFailed\":{\"files\":null,\"userErrors\":[{\"field\":[\"fileIds\"],\"message\":\"File with id gid://shopify/MediaImage/2 is not in the READY state.\",\"code\":\"NON_READY_STATE\"}]}}}"
 
   let state_json =
     draft_proxy.dump_state(proxy, "2026-05-05T10:15:00.000Z")
