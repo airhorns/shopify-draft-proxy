@@ -54,10 +54,11 @@ Local staged mutations:
   bulk-mutation variable JSONL handoff; it does not model Shopify storage or
   media processing side effects.
 - File mutations stage local `FileRecord` state and do not proxy supported roots upstream at runtime.
-- `fileCreate` validates original source URLs and alt text length, derives a filename from the source when no filename is supplied, creates stable synthetic Shopify GIDs by content type, and returns uploaded file status.
+- `fileCreate` validates original source URLs and alt text length, derives a filename from the source when no filename is supplied, creates stable synthetic Shopify GIDs by content type, and returns uploaded file status. IMAGE files sourced from a usable URL keep that URL available through `MediaImage.image` and `preview.image` immediately; the proxy does not suppress the image payload solely because the staged file is still `UPLOADED`.
 - `fileUpdate` validates file ids, URL fields, alt text length, product references, and Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule before updating staged records. `referencesToAdd` can attach a locally staged file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Captured parity covers successful updates after ready-state polling; richer non-ready/locked failure-state behavior remains future work.
 - In LiveHybrid mode, `fileUpdate.referencesToAdd` may issue a narrow product read before validation when the referenced product is not already local. The read hydrates only the product identity/metadata needed for local product-media attachment; the supported mutation still stages locally and does not write upstream at runtime.
-- `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads.
+- `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
+- Shopify's backend can reject `fileDelete` with `FILE_LOCKED` while another media-processing mutation owns a per-file lock. The proxy has no concurrent Shopify media-processing jobs or cross-request lock manager, so it does not fabricate `FILE_LOCKED`; this remains an explicit fidelity divergence unless a future local processing model introduces lockable file state.
 - `fileAcknowledgeUpdateFailed(fileIds:)` stages a local acknowledgement for
   existing `READY` Files API records and does not proxy supported requests
   upstream at runtime. The mutation returns selected `files` and `userErrors`
@@ -79,6 +80,12 @@ Local staged mutations:
 
 - Existing checked-in parity evidence covers `fileCreate`, `fileUpdate`, and
   `fileDelete` payloads plus product-media reference cleanup.
+- Existing live captures confirm Shopify serializes `FileStatus` enum values as
+  `UPLOADED`, `PROCESSING`, `READY`, and `FAILED` in the covered Files API
+  flows. Fresh public-URL `MediaImage` creates in the checked-in 2025-01 and
+  2026-04 media captures returned `UPLOADED`, and the HAR-708 immediate
+  reverse-ordered `files` read observed Shopify advancing that new file to
+  `PROCESSING`; failed source processing returned `FAILED`.
 - HAR-313 adds local executable coverage for `files`, `fileSavedSearches`,
   `stagedUploadsCreate`, and the former explicit
   `fileAcknowledgeUpdateFailed` unsupported boundary. Live staged-upload target

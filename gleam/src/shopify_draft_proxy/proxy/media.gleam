@@ -70,6 +70,15 @@ const google_signed_upload_parameter_names: List(String) = [
   "signature",
 ]
 
+const file_like_gid_types: List(String) = [
+  "File",
+  "MediaImage",
+  "Video",
+  "ExternalVideo",
+  "Model3d",
+  "GenericFile",
+]
+
 const inline_selected_field_options = SelectedFieldOptions(
   include_inline_fragments: True,
 )
@@ -430,9 +439,20 @@ fn handle_file_delete(
   // is only known upstream. Hydrate the owning product/media rows first, then
   // stage the delete locally so downstream Product media reads see the removal.
   let store = maybe_hydrate_file_product_media(store, file_ids, upstream)
-  let missing =
+  let resolved =
     file_ids
-    |> list.find(fn(file_id) { !store.has_effective_file_by_id(store, file_id) })
+    |> list.map(fn(file_id) {
+      #(file_id, resolve_file_delete_record(store, file_id))
+    })
+  let missing =
+    resolved
+    |> list.find_map(fn(entry) {
+      let #(file_id, file) = entry
+      case file {
+        Some(_) -> Error(Nil)
+        None -> Ok(file_id)
+      }
+    })
     |> option.from_result
   case missing {
     Some(file_id) -> {
@@ -453,17 +473,33 @@ fn handle_file_delete(
       )
     }
     None -> {
-      let next_store = store.delete_staged_files(store, file_ids)
+      let deleted_files =
+        resolved
+        |> list.filter_map(fn(entry) {
+          let #(_, file) = entry
+          case file {
+            Some(file) -> Ok(file)
+            None -> Error(Nil)
+          }
+        })
+      let deleted_file_ids =
+        deleted_files
+        |> list.map(fn(file) { resolved_file_gid(file) })
+      let actual_file_ids =
+        deleted_files
+        |> list.map(fn(file) { file.id })
+        |> unique_strings
+      let next_store = store.delete_staged_files(store, actual_file_ids)
       #(
         MutationFieldResult(
           key: key,
           payload: file_delete_payload(
-            SrcList(list.map(file_ids, SrcString)),
+            SrcList(list.map(deleted_file_ids, SrcString)),
             [],
             field,
             fragments,
           ),
-          staged_resource_ids: file_ids,
+          staged_resource_ids: actual_file_ids,
         ),
         next_store,
         identity,
@@ -734,23 +770,24 @@ fn file_source(file: FileRecord) -> SourceValue {
     #("fileStatus", SrcString(file.file_status)),
     #("filename", graphql_helpers.option_string_source(file.filename)),
     #("image", file_image_source(file)),
+    #("preview", file_preview_source(file)),
   ])
 }
 
 fn file_image_source(file: FileRecord) -> SourceValue {
-  case file.file_status {
-    "UPLOADED" -> SrcNull
-    _ ->
-      case file.image_url {
-        Some(url) ->
-          src_object([
-            #("url", SrcString(url)),
-            #("width", graphql_helpers.option_int_source(file.image_width)),
-            #("height", graphql_helpers.option_int_source(file.image_height)),
-          ])
-        None -> SrcNull
-      }
+  case file.image_url {
+    Some(url) ->
+      src_object([
+        #("url", SrcString(url)),
+        #("width", graphql_helpers.option_int_source(file.image_width)),
+        #("height", graphql_helpers.option_int_source(file.image_height)),
+      ])
+    None -> SrcNull
   }
+}
+
+fn file_preview_source(file: FileRecord) -> SourceValue {
+  src_object([#("image", file_image_source(file))])
 }
 
 fn staged_target_source(target: StagedTarget) -> SourceValue {
@@ -1221,6 +1258,47 @@ fn get_effective_product_media_file_record(
   |> option.from_result
 }
 
+fn resolve_file_delete_record(
+  store: Store,
+  file_id: String,
+) -> Option(FileRecord) {
+  case get_effective_file_like_record(store, file_id) {
+    Some(file) -> Some(file)
+    None -> get_effective_file_like_record_by_gid_tail(store, file_id)
+  }
+}
+
+fn get_effective_file_like_record_by_gid_tail(
+  store: Store,
+  file_id: String,
+) -> Option(FileRecord) {
+  case shopify_file_gid_tail(file_id) {
+    Some(requested_tail) ->
+      list.append(
+        store.list_effective_files(store),
+        list_effective_product_media_file_records(store),
+      )
+      |> list.find_map(fn(file) {
+        case shopify_file_gid_tail(file.id) {
+          Some(tail) if tail == requested_tail -> Ok(file)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    None -> None
+  }
+}
+
+fn list_effective_product_media_file_records(store: Store) -> List(FileRecord) {
+  store.list_effective_product_media(store)
+  |> list.filter_map(fn(media) {
+    case media.id {
+      Some(_) -> Ok(file_record_from_product_media(media))
+      None -> Error(Nil)
+    }
+  })
+}
+
 fn file_record_from_product_media(media: ProductMediaRecord) -> FileRecord {
   let original_source =
     media.source_url
@@ -1269,6 +1347,51 @@ fn file_typename(file: FileRecord) -> String {
     Some("FILE") -> "GenericFile"
     _ -> "File"
   }
+}
+
+fn resolved_file_gid(file: FileRecord) -> String {
+  case shopify_gid_tail(file.id) {
+    Some(tail) -> "gid://shopify/" <> file_typename(file) <> "/" <> tail
+    None -> file.id
+  }
+}
+
+fn shopify_file_gid_tail(id: String) -> Option(String) {
+  case shopify_gid_type(id), shopify_gid_tail(id) {
+    Some(type_), Some(tail) ->
+      case list.contains(file_like_gid_types, type_) {
+        True -> Some(tail)
+        False -> None
+      }
+    _, _ -> None
+  }
+}
+
+fn shopify_gid_type(id: String) -> Option(String) {
+  case string.split(id, "/") {
+    ["gid:", "", "shopify", type_, ..] -> Some(type_)
+    _ -> None
+  }
+}
+
+fn shopify_gid_tail(id: String) -> Option(String) {
+  let without_query = case string.split(id, "?") {
+    [head, ..] -> head
+    [] -> id
+  }
+  case list.last(string.split(without_query, "/")) {
+    Ok(tail) if tail != "" -> Some(tail)
+    _ -> None
+  }
+}
+
+fn unique_strings(values: List(String)) -> List(String) {
+  list.fold(values, [], fn(unique, value) {
+    case list.contains(unique, value) {
+      True -> unique
+      False -> list.append(unique, [value])
+    }
+  })
 }
 
 fn media_content_type_to_file_content_type(
