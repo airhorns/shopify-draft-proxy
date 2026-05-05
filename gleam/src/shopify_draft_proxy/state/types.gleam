@@ -532,7 +532,11 @@ pub type ProductOptionRecord {
 }
 
 pub type ProductOperationUserErrorRecord {
-  ProductOperationUserErrorRecord(field: Option(List(String)), message: String)
+  ProductOperationUserErrorRecord(
+    field: Option(List(String)),
+    message: String,
+    code: Option(String),
+  )
 }
 
 pub type ProductOperationRecord {
