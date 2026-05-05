@@ -8,24 +8,15 @@
     "companyLocationUpdate"
   ],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "payload-shape",
-    "user-errors-parity",
-    "validation-atomicity",
-    "downstream-read-parity"
-  ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json"
-  ],
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-atomicity", "downstream-read-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/b2b/b2b-no-input-validation-company-create.graphql",
     "variablesCapturePath": "$.setupCompany.request.variables",
     "apiVersion": "2026-04"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "runtimeTestFiles": [
-    "test/shopify_draft_proxy/proxy/b2b_test.gleam"
-  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
   "notes": "Executable parity coverage for HAR-759 empty-object B2B validation. Shopify Admin 2026-04 returns root-specific NO_INPUT payloads for empty companyContactCreate/companyContactUpdate/companyLocationUpdate, and returns INVALID with field [\"input\"] for empty companyUpdate. The live capture also records null-only probes as evidence that the public schema does not treat null-only keys as a uniform NO_INPUT branch; the local null-only guardrail remains covered by the focused runtime test.",
   "comparison": {
     "mode": "strict-json",

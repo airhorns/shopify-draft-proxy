@@ -268,9 +268,7 @@
           "companyContact": null,
           "userErrors": [
             {
-              "field": [
-                "input"
-              ],
+              "field": ["input"],
               "message": "Either the attribute email or customer_id must be provided",
               "code": "INVALID"
             }
@@ -305,9 +303,7 @@
           "company": null,
           "userErrors": [
             {
-              "field": [
-                "input"
-              ],
+              "field": ["input"],
               "message": "At least one attribute to change must be present",
               "code": "INVALID"
             }
@@ -347,10 +343,7 @@
           "company": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "customerSince"
-              ],
+              "field": ["input", "customerSince"],
               "message": "This field may only be set on creation.",
               "code": "INVALID_INPUT"
             }
@@ -427,41 +420,27 @@
           "companyContact": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "firstName"
-              ],
+              "field": ["input", "firstName"],
               "message": "First name is of unexpected type NilClass",
               "code": "UNEXPECTED_TYPE"
             },
             {
-              "field": [
-                "input",
-                "lastName"
-              ],
+              "field": ["input", "lastName"],
               "message": "Last name is of unexpected type NilClass",
               "code": "UNEXPECTED_TYPE"
             },
             {
-              "field": [
-                "input",
-                "phone"
-              ],
+              "field": ["input", "phone"],
               "message": "Phone is of unexpected type NilClass",
               "code": "UNEXPECTED_TYPE"
             },
             {
-              "field": [
-                "input",
-                "phone"
-              ],
+              "field": ["input", "phone"],
               "message": "Phone is invalid",
               "code": "INVALID"
             },
             {
-              "field": [
-                "input"
-              ],
+              "field": ["input"],
               "message": "Unexpected keys given: email",
               "code": "INVALID"
             }
@@ -537,10 +516,7 @@
           "companyLocation": null,
           "userErrors": [
             {
-              "field": [
-                "input",
-                "name"
-              ],
+              "field": ["input", "name"],
               "message": "Name is of unexpected type NilClass",
               "code": "UNEXPECTED_TYPE"
             }
