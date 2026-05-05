@@ -866,6 +866,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'online-store',
+    captureId: 'online-store-content-required-fields',
+    scriptPath: 'scripts/capture-online-store-content-required-fields-conformance.ts',
+    purpose:
+      'pageCreate, articleCreate, and blogCreate title-required validation branches for missing and blank title inputs.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-content-required-fields.json`,
+      'config/parity-specs/online-store/online-store-content-required-fields.json',
+      'config/parity-requests/online-store/online-store-content-required-fields-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog for articleCreate blogId-backed validation, then deletes it during cleanup. Blank-title page/blog/article attempts do not create records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'collections',
     captureId: 'collections',
     scriptPath: 'scripts/capture-collection-conformance.mts',

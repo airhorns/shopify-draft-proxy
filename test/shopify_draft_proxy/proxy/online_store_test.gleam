@@ -21,6 +21,93 @@ fn escape(value: String) -> String {
   |> string.replace("\"", "\\\"")
 }
 
+pub fn content_create_missing_or_blank_title_returns_blank_user_error_test() {
+  let page_missing_query =
+    "mutation { pageCreate(page: {}) { page { id title handle } userErrors { field message code } } }"
+  let #(Response(status: page_status, body: page_body, ..), page_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(page_missing_query),
+    )
+  assert page_status == 200
+  assert json.to_string(page_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":null,\"userErrors\":[{\"field\":[\"page\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+  assert store.list_effective_online_store_content(page_proxy.store, "page")
+    |> list.length
+    == 0
+  let assert [page_log] = store.get_log(page_proxy.store)
+  assert page_log.status == store.Failed
+  assert page_log.staged_resource_ids == []
+
+  let blog_blank_query =
+    "mutation { blogCreate(blog: { title: \"   \" }) { blog { id title handle } userErrors { field message code } } }"
+  let #(Response(status: blog_status, body: blog_body, ..), blog_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(blog_blank_query),
+    )
+  assert blog_status == 200
+  assert json.to_string(blog_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":null,\"userErrors\":[{\"field\":[\"blog\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+  assert store.list_effective_online_store_content(blog_proxy.store, "blog")
+    |> list.length
+    == 0
+  let assert [blog_log] = store.get_log(blog_proxy.store)
+  assert blog_log.status == store.Failed
+  assert blog_log.staged_resource_ids == []
+}
+
+pub fn article_create_missing_title_returns_blank_user_error_before_staging_test() {
+  let proxy = draft_proxy.new()
+  let blog_query =
+    "mutation { blogCreate(blog: { title: \"HAR 558 Blog\" }) { blog { id title } userErrors { field message code } } }"
+  let #(Response(status: blog_status, body: blog_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(blog_query))
+  assert blog_status == 200
+  assert json.to_string(blog_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"HAR 558 Blog\"},\"userErrors\":[]}}}"
+
+  let article_query =
+    "mutation { articleCreate(article: { blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"HAR 558 Author\" } }) { article { id title handle } userErrors { field message code } } }"
+  let #(Response(status: article_status, body: article_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(article_query))
+  assert article_status == 200
+  assert json.to_string(article_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "blog")
+    |> list.length
+    == 1
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 0
+  let assert [blog_log, article_log] = store.get_log(proxy.store)
+  assert blog_log.status == store.Staged
+  assert article_log.status == store.Failed
+  assert article_log.staged_resource_ids == []
+}
+
+pub fn page_update_omitted_title_preserves_existing_title_test() {
+  let proxy = draft_proxy.new()
+  let create_query =
+    "mutation { pageCreate(page: { title: \"HAR 558 Page\", body: \"<p>Old body</p>\" }) { page { id title handle body } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"title\":\"HAR 558 Page\",\"handle\":\"har-558-page\",\"body\":\"<p>Old body</p>\"},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { pageUpdate(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\", page: { body: \"<p>New body</p>\" }) { page { id title handle body } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"pageUpdate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"title\":\"HAR 558 Page\",\"handle\":\"har-558-page\",\"body\":\"<p>New body</p>\"},\"userErrors\":[]}}}"
+  let assert [record] =
+    store.list_effective_online_store_content(proxy.store, "page")
+  assert record.id == "gid://shopify/Page/1?shopify-draft-proxy=synthetic"
+}
+
 pub fn article_create_validates_blog_and_author_before_staging_test() {
   let missing_blog_query =
     "mutation { articleCreate(article: { title: \"Missing Blog\", body: \"<p>Body</p>\", author: { name: \"HAR 557 Author\" } }) { article { id } userErrors { field message code } } }"
