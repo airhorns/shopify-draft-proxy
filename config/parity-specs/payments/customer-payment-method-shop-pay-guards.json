@@ -1,0 +1,37 @@
+{
+  "scenarioId": "customer-payment-method-shop-pay-guards",
+  "operationNames": [
+    "customerPaymentMethodCreateFromDuplicationData",
+    "customerPaymentMethodGetDuplicationData",
+    "customerPaymentMethodGetUpdateUrl"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "user-errors-parity",
+    "no-upstream-passthrough",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-shop-pay-guards.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/customer-payment-method-shop-pay-guards.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer-payment-method-shop-pay-guards",
+        "capturePath": "$.expected.primary",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for HAR-651 customer payment-method Shop Pay guardrails. The current live credential cannot capture sensitive vaulted payment-method success paths, so this scenario uses cassette-hydrated method shells and strictly compares the guarded local userError payloads without runtime Shopify writes."
+}
