@@ -10,8 +10,8 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type DraftOrderRecord, type OrderRecord, type PaymentScheduleRecord,
   type PaymentTermsRecord, CapturedBool, CapturedNull, CapturedObject,
-  CapturedString, DraftOrderRecord, Money, OrderRecord, PaymentScheduleRecord,
-  PaymentTermsRecord,
+  CapturedString, CustomerRecord, DraftOrderRecord, Money, OrderRecord,
+  PaymentScheduleRecord, PaymentTermsRecord,
 }
 
 fn graphql(proxy: DraftProxy, query: String) {
@@ -40,6 +40,126 @@ fn escape(value: String) -> String {
   value
   |> string.replace("\\", "\\\\")
   |> string.replace("\"", "\\\"")
+}
+
+fn proxy_with_customer() {
+  let proxy = draft_proxy.new()
+  DraftProxy(
+    ..proxy,
+    store: store.upsert_base_customers(proxy.store, [
+      CustomerRecord(
+        id: "gid://shopify/Customer/1",
+        first_name: None,
+        last_name: None,
+        display_name: Some("Payments Repro"),
+        email: Some("payments-repro@example.test"),
+        legacy_resource_id: Some("1"),
+        locale: Some("en"),
+        note: None,
+        can_delete: Some(True),
+        verified_email: Some(True),
+        data_sale_opt_out: False,
+        tax_exempt: Some(False),
+        tax_exemptions: [],
+        state: Some("DISABLED"),
+        tags: [],
+        number_of_orders: Some("0"),
+        amount_spent: None,
+        default_email_address: None,
+        default_phone_number: None,
+        email_marketing_consent: None,
+        sms_marketing_consent: None,
+        default_address: None,
+        created_at: None,
+        updated_at: None,
+      ),
+    ]),
+  )
+}
+
+pub fn remote_payment_method_rejects_blank_stripe_customer_id_test() {
+  let query =
+    "mutation { customerPaymentMethodRemoteCreate(customerId: \"gid://shopify/Customer/1\", remoteReference: { stripePaymentMethod: { customerId: null, paymentMethodId: \"pm_x\" } }) { customerPaymentMethod { id } userErrors { field code message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy_with_customer(), query)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"customerPaymentMethod\":null")
+  assert string.contains(
+    body_json,
+    "\"field\":[\"remote_reference\",\"stripe_payment_method\",\"customer_id\"]",
+  )
+  assert string.contains(body_json, "\"code\":\"STRIPE_CUSTOMER_ID_BLANK\"")
+  assert !string.contains(body_json, "CustomerPaymentMethod/3")
+}
+
+pub fn remote_payment_method_rejects_blank_gateway_fields_test() {
+  let paypal_query =
+    "mutation { customerPaymentMethodRemoteCreate(customerId: \"gid://shopify/Customer/1\", remoteReference: { paypalPaymentMethod: { } }) { customerPaymentMethod { id } userErrors { field code message } } }"
+  let #(Response(status: paypal_status, body: paypal_body, ..), _) =
+    graphql(proxy_with_customer(), paypal_query)
+  assert paypal_status == 200
+  let paypal_json = json.to_string(paypal_body)
+  assert string.contains(paypal_json, "\"customerPaymentMethod\":null")
+  assert string.contains(
+    paypal_json,
+    "\"field\":[\"remote_reference\",\"paypal_payment_method\",\"billing_agreement_id\"]",
+  )
+  assert string.contains(paypal_json, "\"code\":\"BILLING_AGREEMENT_ID_BLANK\"")
+
+  let braintree_query =
+    "mutation { customerPaymentMethodRemoteCreate(customerId: \"gid://shopify/Customer/1\", remoteReference: { braintreePaymentMethod: { customerId: \"\", paymentMethodToken: null } }) { customerPaymentMethod { id } userErrors { field code message } } }"
+  let #(Response(status: braintree_status, body: braintree_body, ..), _) =
+    graphql(proxy_with_customer(), braintree_query)
+  assert braintree_status == 200
+  let braintree_json = json.to_string(braintree_body)
+  assert string.contains(
+    braintree_json,
+    "\"code\":\"BRAINTREE_CUSTOMER_ID_BLANK\"",
+  )
+  assert string.contains(
+    braintree_json,
+    "\"code\":\"PAYMENT_METHOD_TOKEN_BLANK\"",
+  )
+
+  let authorize_net_query =
+    "mutation { customerPaymentMethodRemoteCreate(customerId: \"gid://shopify/Customer/1\", remoteReference: { authorizeNetCustomerPaymentProfile: { customerProfileId: \"\" } }) { customerPaymentMethod { id } userErrors { field code message } } }"
+  let #(Response(status: authorize_net_status, body: authorize_net_body, ..), _) =
+    graphql(proxy_with_customer(), authorize_net_query)
+  assert authorize_net_status == 200
+  let authorize_net_json = json.to_string(authorize_net_body)
+  assert string.contains(
+    authorize_net_json,
+    "\"code\":\"AUTHORIZE_NET_CUSTOMER_PROFILE_ID_BLANK\"",
+  )
+
+  let adyen_query =
+    "mutation { customerPaymentMethodRemoteCreate(customerId: \"gid://shopify/Customer/1\", remoteReference: { adyenPaymentMethod: { shopperReference: \"\", storedPaymentMethodId: null } }) { customerPaymentMethod { id } userErrors { field code message } } }"
+  let #(Response(status: adyen_status, body: adyen_body, ..), _) =
+    graphql(proxy_with_customer(), adyen_query)
+  assert adyen_status == 200
+  let adyen_json = json.to_string(adyen_body)
+  assert string.contains(
+    adyen_json,
+    "\"code\":\"ADYEN_SHOPPER_REFERENCE_BLANK\"",
+  )
+  assert string.contains(
+    adyen_json,
+    "\"code\":\"ADYEN_STORED_PAYMENT_METHOD_ID_BLANK\"",
+  )
+}
+
+pub fn remote_payment_method_rejects_multiple_gateways_with_invalid_test() {
+  let query =
+    "mutation { customerPaymentMethodRemoteCreate(customerId: \"gid://shopify/Customer/1\", remoteReference: { paypalPaymentMethod: { }, stripePaymentMethod: { } }) { customerPaymentMethod { id } userErrors { field code message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy_with_customer(), query)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"customerPaymentMethod\":null")
+  assert string.contains(body_json, "\"field\":[\"remote_reference\"]")
+  assert string.contains(body_json, "\"code\":\"INVALID\"")
+  assert !string.contains(body_json, "EXACTLY_ONE_REMOTE_REFERENCE_REQUIRED")
 }
 
 fn reminder_mutation(schedule_id: String) -> String {

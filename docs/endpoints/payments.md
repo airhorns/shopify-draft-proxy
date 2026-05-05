@@ -166,7 +166,7 @@ Runtime support is local-only:
   schedules return `success: null` with `PAYMENT_REMINDER_SEND_UNSUCCESSFUL`
   and do not stage reminder intent. It does not send customer email at runtime.
 
-Supported calls append the original raw GraphQL request to the meta log for eventual explicit commit replay. Local validation covers unknown customers, unknown/revoked payment methods, invalid synthetic duplication data, invalid remote-reference cardinality, and invalid payment schedule IDs. Validation behavior is intentionally narrow where live Shopify success/error captures are blocked by missing payment-method scopes or unsafe customer-visible side effects.
+Supported calls append the original raw GraphQL request to the meta log for eventual explicit commit replay. Local validation covers unknown customers, unknown/revoked payment methods, invalid synthetic duplication data, remote-reference cardinality and required gateway fields, and invalid payment schedule IDs. `customerPaymentMethodRemoteCreate` rejects blank Stripe customer IDs, PayPal billing-agreement IDs, Braintree customer IDs/payment-method tokens, Authorize.Net customer profile IDs, and Adyen shopper/stored-payment-method IDs with `CustomerPaymentMethodRemoteUserError`-compatible `field`/`code`/`message` payloads before staging any local payment method. Throttling, remote-payment-method-id feature gating, billing-address validation, and live gateway eligibility checks such as Authorize.Net/Adyen subscriptions enablement remain expected differences for this local-only scrubbed slice.
 
 The current conformance credential probe on 2026-04-28 against `harry-test-heelo.myshopify.com` succeeded for general Admin access and confirmed these roots exist on API `2025-01`, but `currentAppInstallation.accessScopes` lacks both `read_customer_payment_methods` and `write_customer_payment_methods`. The payment-method lifecycle evidence is therefore a local-runtime fixture, `customer-payment-method-local-staging`, which compares stable mutation payloads plus downstream payment-method reads without live payment credentials, vaulted data, real update URLs, or delivered reminders. `payment-reminder-send-eligibility` is a separate live 2025-01 parity fixture captured against disposable order-owned Net 30 payment schedules; it strictly compares success, unknown-schedule failure, and paid-schedule failure payloads while the runtime replay uses only cassette hydrate reads.
 
@@ -199,6 +199,7 @@ For `paymentTermsCreate` against an existing captured draft order, the Gleam han
 
 - `config/parity-specs/payments/finance-risk-no-data-read.json`
 - `config/parity-specs/payments/customer-payment-method-local-staging.json`
+- `config/parity-specs/payments/customer-payment-method-remote-create-validation.json`
 - `corepack pnpm conformance:capture-finance-risk`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
