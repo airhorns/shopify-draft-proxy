@@ -1,0 +1,150 @@
+{
+  "scenarioId": "bulk-operation-run-query-operation-in-progress",
+  "capturedAt": "2026-05-05T20:33:59.490Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "firstRun": {
+    "operationName": "BulkOperationRunQueryOperationInProgress",
+    "query": "#graphql\n  mutation BulkOperationRunQueryOperationInProgress($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperationRunQuery": {
+          "bulkOperation": {
+            "id": "gid://shopify/BulkOperation/7749099028786",
+            "status": "CREATED",
+            "type": "QUERY",
+            "errorCode": null,
+            "createdAt": "2026-05-05T20:33:59Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondRun": {
+    "operationName": "BulkOperationRunQueryOperationInProgress",
+    "query": "#graphql\n  mutation BulkOperationRunQueryOperationInProgress($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperationRunQuery": {
+          "bulkOperation": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "A bulk query operation for this app and shop is already in progress: gid://shopify/BulkOperation/7749099028786.",
+              "code": "OPERATION_IN_PROGRESS"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cancelAttempt": {
+    "operationName": "BulkOperationCancelParity",
+    "query": "#graphql\n  mutation BulkOperationCancelParity($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+    "variables": {
+      "id": "gid://shopify/BulkOperation/7749099028786"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperationCancel": {
+          "bulkOperation": {
+            "id": "gid://shopify/BulkOperation/7749099028786",
+            "status": "CANCELING",
+            "type": "QUERY",
+            "errorCode": null,
+            "createdAt": "2026-05-05T20:33:59Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7749099028786"
+      },
+      "query": "hand-synthesized from captured first run operation",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7749099028786",
+              "status": "CREATED",
+              "type": "QUERY",
+              "errorCode": null,
+              "createdAt": "2026-05-05T20:33:59Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n      }\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Captured on an API version that still enforces one in-progress query bulk operation per app/shop. The parity spec records the two consecutive runQuery behavior, then uses cassette-backed cancel hydration to create the local non-terminal operation without pre-seeding."
+}

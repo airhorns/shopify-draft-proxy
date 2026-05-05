@@ -2471,6 +2471,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-in-progress-throttle',
+    environment: { SHOPIFY_CONFORMANCE_BULK_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-bulk-operation-in-progress-conformance.ts',
+    purpose:
+      'bulkOperationRunQuery and bulkOperationRunMutation OPERATION_IN_PROGRESS throttles for two consecutive same-type submissions.',
+    requiredAuthScopes: ['bulk operation access through active Admin token', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-query-operation-in-progress.json`,
+      `${CAPTURE_ROOT}bulk-operation-run-mutation-operation-in-progress.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-query-operation-in-progress.json',
+      'config/parity-specs/bulk-operations/bulk-operation-run-mutation-operation-in-progress.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-mutation-operation-in-progress.graphql',
+    ],
+    cleanupBehavior:
+      'Cancels captured in-progress bulk operations and best-effort deletes any disposable product created by the bulk mutation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'webhooks',
     captureId: 'webhook-subscriptions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
