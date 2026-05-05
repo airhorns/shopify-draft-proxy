@@ -101,11 +101,6 @@
         "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
       },
       {
-        "path": "$.deletedAddressId",
-        "matcher": "any-string",
-        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
-      },
-      {
         "path": "$.customers.nodes",
         "ignore": true,
         "regrettable": true,
@@ -202,6 +197,13 @@
         "name": "delete-first-address",
         "capturePath": "$.deleteFirstAddress.response.data.customerAddressDelete",
         "proxyPath": "$.data.customerAddressDelete",
+        "expectedDifferences": [
+          {
+            "path": "$.deletedAddressId",
+            "matcher": "any-string",
+            "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-delete-address.graphql",
           "variables": {
@@ -294,6 +296,13 @@
         "name": "delete-default-address",
         "capturePath": "$.deleteDefaultAddress.response.data.customerAddressDelete",
         "proxyPath": "$.data.customerAddressDelete",
+        "expectedDifferences": [
+          {
+            "path": "$.deletedAddressId",
+            "matcher": "any-string",
+            "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customer-address-lifecycle-delete-address.graphql",
           "variables": {
@@ -321,6 +330,184 @@
               "emailAddress": "hermes-address-1777157408181@example.com"
             },
             "query": "email:hermes-address-1777157408181@example.com"
+          }
+        }
+      },
+      {
+        "name": "setup-validation-customer",
+        "capturePath": "$.setup.validationCustomer",
+        "proxyPath": "$.setup.validationCustomer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-customer.graphql",
+          "variables": {
+            "input": {
+              "email": {
+                "fromCapturePath": "$.validations.crossCustomerDefault.response.data.customerUpdateDefaultAddress.customer.email"
+              },
+              "firstName": {
+                "fromCapturePath": "$.validations.crossCustomerDefault.response.data.customerUpdateDefaultAddress.customer.firstName"
+              },
+              "lastName": {
+                "fromCapturePath": "$.validations.crossCustomerDefault.response.data.customerUpdateDefaultAddress.customer.lastName"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-cross-owner-customer",
+        "capturePath": "$.setup.crossOwnerCustomer",
+        "proxyPath": "$.setup.crossOwnerCustomer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-customer.graphql",
+          "variables": {
+            "input": {
+              "email": "hermes-address-cross-owner-parity@example.com",
+              "firstName": "Hermes",
+              "lastName": "AddressCrossOwner"
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-cross-owner-address",
+        "capturePath": "$.setup.crossOwnerAddress",
+        "proxyPath": "$.setup.crossOwnerAddress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "setup-cross-owner-customer",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "address1": "4 Cross Owner St",
+              "city": "Ottawa",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "K1A 0B1"
+            },
+            "setAsDefault": true
+          }
+        }
+      },
+      {
+        "name": "setup-validation-blank-address",
+        "capturePath": "$.setup.validationBlankAddress",
+        "proxyPath": "$.setup.validationBlankAddress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "setup-validation-customer",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "fromCapturePath": "$.validations.blankAddressCreate.variables.address"
+            },
+            "setAsDefault": {
+              "fromCapturePath": "$.validations.blankAddressCreate.variables.setAsDefault"
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-validation-blank-string-address",
+        "capturePath": "$.setup.validationBlankStringAddress",
+        "proxyPath": "$.setup.validationBlankStringAddress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "setup-validation-customer",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "fromCapturePath": "$.validations.blankStringAddressCreate.variables.address"
+            },
+            "setAsDefault": {
+              "fromCapturePath": "$.validations.blankStringAddressCreate.variables.setAsDefault"
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-validation-postal-address",
+        "capturePath": "$.setup.validationPostalAddress",
+        "proxyPath": "$.setup.validationPostalAddress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "setup-validation-customer",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "fromCapturePath": "$.validations.invalidPostalCreate.variables.address"
+            },
+            "setAsDefault": {
+              "fromCapturePath": "$.validations.invalidPostalCreate.variables.setAsDefault"
+            }
+          }
+        }
+      },
+      {
+        "name": "cross-customer-update",
+        "capturePath": "$.validations.crossCustomerUpdate.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "setup-validation-customer",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "setup-cross-owner-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "fromCapturePath": "$.validations.crossCustomerUpdate.variables.address"
+            },
+            "setAsDefault": {
+              "fromCapturePath": "$.validations.crossCustomerUpdate.variables.setAsDefault"
+            }
+          }
+        }
+      },
+      {
+        "name": "cross-customer-default",
+        "capturePath": "$.validations.crossCustomerDefault.response.data.customerUpdateDefaultAddress",
+        "proxyPath": "$.data.customerUpdateDefaultAddress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-default-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "setup-validation-customer",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "setup-cross-owner-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "cross-customer-delete",
+        "capturePath": "$.validations.crossCustomerDelete.response.data.customerAddressDelete",
+        "proxyPath": "$.data.customerAddressDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-delete-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromProxyResponse": "setup-validation-customer",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "setup-cross-owner-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            }
           }
         }
       }

@@ -1,0 +1,115 @@
+{
+  "scenarioId": "location-activate-deactivate-lifecycle",
+  "operationNames": ["locationActivate", "locationDeactivate", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "downstream-read-parity",
+    "idempotency-parity",
+    "field-directive-parity",
+    "versioned-contract-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-activate-deactivate-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2025-10",
+    "documentPath": "config/parity-requests/store-properties/location-deactivate-missing-idempotency-validation.graphql",
+    "variablesCapturePath": "$.workflow.deactivateWithoutDirective202510.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "deactivate-without-directive-2025-10",
+        "capturePath": "$.workflow.deactivateWithoutDirective202510.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate"
+      },
+      {
+        "name": "activate-without-directive-2025-10",
+        "capturePath": "$.workflow.activateWithoutDirective202510.response.payload.data.locationActivate",
+        "proxyPath": "$.data.locationActivate",
+        "proxyRequest": {
+          "apiVersion": "2025-10",
+          "documentPath": "config/parity-requests/store-properties/location-activate-missing-idempotency-validation.graphql",
+          "variablesCapturePath": "$.workflow.activateWithoutDirective202510.variables"
+        }
+      },
+      {
+        "name": "deactivate-without-directive-2026-04-errors",
+        "capturePath": "$.workflow.deactivateWithoutDirective202604.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-missing-idempotency-validation.graphql",
+          "variablesCapturePath": "$.workflow.deactivateWithoutDirective202604.variables"
+        }
+      },
+      {
+        "name": "deactivate-without-directive-2026-04-data",
+        "capturePath": "$.workflow.deactivateWithoutDirective202604.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-deactivate-missing-idempotency-validation.graphql",
+          "variablesCapturePath": "$.workflow.deactivateWithoutDirective202604.variables"
+        }
+      },
+      {
+        "name": "activate-without-directive-2026-04-errors",
+        "capturePath": "$.workflow.activateWithoutDirective202604.response.payload.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-activate-missing-idempotency-validation.graphql",
+          "variablesCapturePath": "$.workflow.activateWithoutDirective202604.variables"
+        }
+      },
+      {
+        "name": "activate-without-directive-2026-04-data",
+        "capturePath": "$.workflow.activateWithoutDirective202604.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-activate-missing-idempotency-validation.graphql",
+          "variablesCapturePath": "$.workflow.activateWithoutDirective202604.variables"
+        }
+      },
+      {
+        "name": "deactivate-with-key-directive-2026-04",
+        "capturePath": "$.workflow.deactivateWithDirective202604.response.payload.data.locationDeactivate",
+        "proxyPath": "$.data.locationDeactivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-lifecycle-deactivate-with-idempotency-directive.graphql",
+          "variablesCapturePath": "$.workflow.deactivateWithDirective202604.variables"
+        }
+      },
+      {
+        "name": "activate-with-key-directive-2026-04",
+        "capturePath": "$.workflow.activateWithDirective202604.response.payload.data.locationActivate",
+        "proxyPath": "$.data.locationActivate",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-lifecycle-activate-with-idempotency-directive.graphql",
+          "variablesCapturePath": "$.workflow.activateWithDirective202604.variables"
+        }
+      },
+      {
+        "name": "read-after-keyed-activate",
+        "capturePath": "$.workflow.readAfterKeyedActivate.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-lifecycle-read.graphql",
+          "variablesCapturePath": "$.workflow.readAfterKeyedActivate.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-658 records a disposable non-online-fulfilling Location lifecycle across the 2025-10 optional-idempotency contract and the 2026-04 required-idempotency contract. The compared 2025-10 branches prove locationActivate/locationDeactivate accept omitted @idempotent; the compared 2026-04 branches prove omitted directives return Core's BAD_REQUEST shape while @idempotent(key:) stages locally. The live capture also records 2025-10 @idempotent(key:) and 2026-04 bare @idempotent attempts, which Shopify rejects during GraphQL directive validation; those branches document the ticket-text conflict but are not compared as lifecycle success cases. The parity runner hydrates the captured baseline location through the cassette, then replays the lifecycle locally and verifies read-after-write state through location(id:)."
+}
