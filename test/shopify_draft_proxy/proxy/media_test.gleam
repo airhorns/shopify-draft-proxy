@@ -147,6 +147,53 @@ pub fn file_create_image_is_readable_while_uploaded_test() {
   )
 }
 
+pub fn file_acknowledge_update_failed_rejects_non_ready_file_test() {
+  let #(_, proxy) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/non-ready.png\", contentType: IMAGE }]) { files { id fileStatus } userErrors { code } } }",
+    )
+
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { fileAcknowledgeUpdateFailed(fileIds: [\"gid://shopify/MediaImage/2\"]) { files { id fileStatus } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileAcknowledgeUpdateFailed\":{\"files\":null,\"userErrors\":[{\"field\":[\"fileIds\"],\"message\":\"File with id gid://shopify/MediaImage/2 is not in the READY state.\",\"code\":\"NON_READY_STATE\"}]}}}"
+}
+
+pub fn file_acknowledge_update_failed_ready_file_is_state_noop_test() {
+  let #(_, proxy) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/ack-source.png\", contentType: IMAGE }]) { files { id fileStatus } userErrors { code } } }",
+    )
+  let #(_, proxy) =
+    graphql(
+      proxy,
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/2\", originalSource: \"https://cdn.example.com/ack-ready.png\" }]) { files { id fileStatus } userErrors { code } } }",
+    )
+
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { fileAcknowledgeUpdateFailed(fileIds: [\"gid://shopify/MediaImage/2\"]) { files { id fileStatus __typename mediaErrors { code message } mediaWarnings { code message } } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileAcknowledgeUpdateFailed\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/2\",\"fileStatus\":\"READY\",\"__typename\":\"MediaImage\",\"mediaErrors\":[],\"mediaWarnings\":[]}],\"userErrors\":[]}}}"
+
+  let state_json =
+    draft_proxy.dump_state(proxy, "2026-05-05T10:15:00.000Z")
+    |> json.to_string
+  assert string.contains(state_json, "\"updateFailureAcknowledgedAt\":null")
+  assert !string.contains(state_json, "\"updateFailureAcknowledgedAt\":\"")
+}
+
 pub fn file_delete_re_resolves_wrong_typed_gid_to_actual_file_type_test() {
   let #(_, proxy) =
     graphql(

@@ -289,6 +289,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       `${CAPTURE_ROOT}file-acknowledge-update-failed-parity.json`,
       `${LOCAL_RUNTIME_ROOT}file-acknowledge-update-failed-local-runtime.json`,
       'config/parity-specs/media/fileAcknowledgeUpdateFailed-local-staging.json',
+      'config/parity-specs/media/media-file-acknowledge-update-failed-semantics.json',
     ],
     cleanupBehavior: 'Deletes disposable files created for READY acknowledgement and FAILED validation branches.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -1550,6 +1551,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-query-user-error-codes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-query-user-error-codes-conformance.ts',
+    purpose:
+      'bulkOperationRunQuery selected BulkOperationUserError.code behavior for no-connection and empty-query validation branches.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-query-user-error-codes.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-query-user-error-codes.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-query-with-code.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'webhooks',
     captureId: 'webhook-subscriptions',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -1559,6 +1576,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}webhook-subscription-*.json`],
     cleanupBehavior: 'Deletes created API webhook subscriptions during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-cloud-uri-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-cloud-uri-validation-conformance.ts',
+    purpose: 'Webhook subscription EventBridge, Pub/Sub, and Kafka URI validation branches for create/update.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-cloud-uri-validation.json`,
+      'config/parity-specs/webhooks/webhook-subscription-cloud-uri-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates one temporary HTTP webhook subscription for update validation, then deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Records current public Admin GraphQL userErrors, including generic URI errors emitted alongside the structural validator messages.',
   },
   {
     domain: 'gift-cards',

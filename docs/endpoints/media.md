@@ -59,19 +59,25 @@ Local staged mutations:
 - In LiveHybrid mode, `fileUpdate` may issue narrow reads before validation: product reads hydrate referenced products, and file reads hydrate existing READY Shopify file records needed for local validation/staging. Supported mutation handling still stages locally and does not write upstream at runtime.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
 - Shopify's backend can reject `fileDelete` with `FILE_LOCKED` while another media-processing mutation owns a per-file lock. The proxy has no concurrent Shopify media-processing jobs or cross-request lock manager, so it does not fabricate `FILE_LOCKED`; this remains an explicit fidelity divergence unless a future local processing model introduces lockable file state.
-- `fileAcknowledgeUpdateFailed(fileIds:)` stages a local acknowledgement for
-  existing `READY` Files API records and does not proxy supported requests
-  upstream at runtime. The mutation returns selected `files` and `userErrors`
-  from the local file model, records `updateFailureAcknowledgedAt` in meta state
-  for inspection/commit context, and preserves downstream `files` read payloads.
+- `fileAcknowledgeUpdateFailed(fileIds:)` is currently a local
+  payload-shape stub for existing `READY` Files API records and does not proxy
+  supported requests upstream at runtime. The mutation returns selected `files`
+  and `userErrors` from the local file model but does not mutate file state or
+  stamp acknowledgement metadata, because Shopify exposes no
+  `updateFailureAcknowledgedAt` field.
 - Acknowledgement validation follows captured Shopify behavior for the supported
   local subset: unknown or deleted IDs return `files: null` with
   `FILE_DOES_NOT_EXIST`, and non-ready file states such as failed file creation
   return `NON_READY_STATE`.
+- The proxy does not model Shopify's internal `MediaError` rows,
+  `mediaWarnings`, `mediaable.status`, or `preview_image.status`. Local Files
+  API and product-media reads therefore expose empty `mediaErrors` /
+  `mediaWarnings` lists for no-data shape, but `fileAcknowledgeUpdateFailed`
+  does not claim to clear real failed inner media state.
 - The proxy still does not independently perform Shopify's asynchronous
-  external media processing. It can acknowledge a local failure/update state
-  once represented in normalized file state, but generating real
-  storage-transfer failures remains outside the supported runtime boundary.
+  external media processing or generate real storage-transfer failures. Those
+  failed-inner-state branches remain outside the supported runtime boundary
+  until the media model stores the relevant Shopify failure rows/statuses.
 - Product-owned media mutations (`productCreateMedia`, `productUpdateMedia`, and `productDeleteMedia`) are part of the products group because their read-after-write behavior is tied to product state.
 
 ## Historical and developer notes
@@ -99,6 +105,12 @@ Local staged mutations:
   create. A safely staged bad-source update stayed READY in the capture and was
   accepted by acknowledgement, so richer external update-failure generation is
   documented as an upload boundary rather than fabricated locally.
+- HAR-706 narrows that support claim: until the normalized media model stores
+  Shopify `MediaError` / `mediaWarnings` rows and separate inner mediaable or
+  preview-image failure statuses, acknowledgement is intentionally a no-op for
+  READY files. It preserves the mutation payload shape, parent READY
+  validation, downstream empty error/warning list shape, and raw mutation log
+  behavior without stamping synthetic acknowledgement metadata.
 - HAR-429 adds executable local-runtime parity for the Files API product-reference
   lifecycle: a local `fileCreate` MediaImage is updated through
   `fileUpdate.referencesToAdd`, becomes visible in downstream `product.media`,
