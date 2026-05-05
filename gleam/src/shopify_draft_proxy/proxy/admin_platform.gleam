@@ -1302,20 +1302,21 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, AdminPlatformError) {
-  use fields <- result.try(
-    root_field.get_root_fields(document)
-    |> result.map_error(ParseFailed),
-  )
-  let fragments = get_document_fragments(document)
-  Ok(handle_mutation_fields(
-    store,
-    identity,
-    document,
-    fields,
-    fragments,
-    variables,
-  ))
+) -> MutationOutcome {
+  case root_field.get_root_fields(document) {
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      handle_mutation_fields(
+        store,
+        identity,
+        document,
+        fields,
+        fragments,
+        variables,
+      )
+    }
+  }
 }
 
 fn handle_mutation_fields(

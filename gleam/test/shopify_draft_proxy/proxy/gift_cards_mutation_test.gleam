@@ -25,7 +25,7 @@ fn run_mutation_outcome(
   document: String,
 ) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
-  let assert Ok(outcome) =
+  let outcome =
     gift_cards.process_mutation(
       store_in,
       identity,

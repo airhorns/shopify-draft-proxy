@@ -17,7 +17,7 @@ fn run_mutation(
   identity: synthetic_identity.SyntheticIdentityRegistry,
   query: String,
 ) -> mutation_helpers.MutationOutcome {
-  let assert Ok(outcome) =
+  let outcome =
     metaobject_definitions.process_mutation(
       s,
       identity,

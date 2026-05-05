@@ -662,7 +662,7 @@ pub fn is_webhook_subscription_mutation_root_test() {
 
 fn run_mutation(store_in: store.Store, document: String) -> String {
   let identity = synthetic_identity.new()
-  let assert Ok(outcome) =
+  let outcome =
     webhooks.process_mutation(
       store_in,
       identity,
@@ -678,7 +678,7 @@ fn run_mutation_outcome(
   document: String,
 ) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
-  let assert Ok(outcome) =
+  let outcome =
     webhooks.process_mutation(
       store_in,
       identity,

@@ -297,42 +297,41 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, OnlineStoreError) {
-  use fields <- result.try(
-    root_field.get_root_fields(document)
-    |> result.map_error(ParseFailed),
-  )
-  let fragments = get_document_fragments(document)
-  let initial =
-    MutationOutcome(
-      data: json.object([]),
-      store: store,
-      identity: identity,
-      staged_resource_ids: [],
-      log_drafts: [],
-    )
-  let #(entries, outcome) =
-    list.fold(fields, #([], initial), fn(acc, field) {
-      let #(pairs, current) = acc
-      let #(key, payload, next) =
-        handle_mutation_field(current, field, fragments, variables)
-      let merged =
+) -> MutationOutcome {
+  case root_field.get_root_fields(document) {
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let initial =
         MutationOutcome(
-          ..next,
-          staged_resource_ids: list.append(
-            current.staged_resource_ids,
-            next.staged_resource_ids,
-          ),
-          log_drafts: list.append(current.log_drafts, next.log_drafts),
+          data: json.object([]),
+          store: store,
+          identity: identity,
+          staged_resource_ids: [],
+          log_drafts: [],
         )
-      #(list.append(pairs, [#(key, payload)]), merged)
-    })
-  Ok(
-    MutationOutcome(
-      ..outcome,
-      data: graphql_helpers.wrap_data(json.object(entries)),
-    ),
-  )
+      let #(entries, outcome) =
+        list.fold(fields, #([], initial), fn(acc, field) {
+          let #(pairs, current) = acc
+          let #(key, payload, next) =
+            handle_mutation_field(current, field, fragments, variables)
+          let merged =
+            MutationOutcome(
+              ..next,
+              staged_resource_ids: list.append(
+                current.staged_resource_ids,
+                next.staged_resource_ids,
+              ),
+              log_drafts: list.append(current.log_drafts, next.log_drafts),
+            )
+          #(list.append(pairs, [#(key, payload)]), merged)
+        })
+      MutationOutcome(
+        ..outcome,
+        data: graphql_helpers.wrap_data(json.object(entries)),
+      )
+    }
+  }
 }
 
 fn handle_mutation_field(

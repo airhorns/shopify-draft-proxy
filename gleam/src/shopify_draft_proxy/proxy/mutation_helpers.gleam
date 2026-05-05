@@ -945,6 +945,37 @@ pub type MutationOutcome {
   )
 }
 
+/// Build a `MutationOutcome` carrying a top-level `{"errors":[...]}`
+/// envelope for a `root_field.RootFieldError`. Domain
+/// `process_mutation` implementations call this when the document
+/// fails to re-parse — in practice unreachable, since the dispatcher
+/// already parsed the document via `parse_operation.parse_operation`
+/// before routing — so this exists to keep the return type a plain
+/// `MutationOutcome` instead of forcing every caller through a
+/// phantom `Result` wrapper.
+pub fn parse_failed_outcome(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  _err: root_field.RootFieldError,
+) -> MutationOutcome {
+  MutationOutcome(
+    data: json.object([
+      #(
+        "errors",
+        json.preprocessed_array([
+          json.object([
+            #("message", json.string("Could not parse GraphQL operation")),
+          ]),
+        ]),
+      ),
+    ]),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    log_drafts: [],
+  )
+}
+
 /// Build a `LogDraft` for a single-root-field mutation. Mirrors the
 /// shape that webhooks/apps/saved_searches/functions all
 /// historically produced inline. `domain` and `execution` are the

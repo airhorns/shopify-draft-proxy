@@ -311,12 +311,9 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, B2BError) {
-  use fields <- result.try(
-    root_field.get_root_fields(document)
-    |> result.map_error(ParseFailed),
-  )
-  let fragments = get_document_fragments(document)
+) -> MutationOutcome {case root_field.get_root_fields(document) {
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
+    Ok(fields) -> {  let fragments = get_document_fragments(document)
   let initial = #([], store, identity, [], [])
   let #(entries, final_store, final_identity, staged_ids, drafts) =
     list.fold(fields, initial, fn(acc, field) {
@@ -362,13 +359,15 @@ pub fn process_mutation(
         _ -> acc
       }
     })
-  Ok(MutationOutcome(
+  MutationOutcome(
     data: json.object([#("data", json.object(entries))]),
     store: final_store,
     identity: final_identity,
     staged_resource_ids: staged_ids,
     log_drafts: drafts,
-  ))
+  )
+    }
+  }
 }
 
 fn empty_payload(errors: List(UserError)) -> Payload {

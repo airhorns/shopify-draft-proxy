@@ -275,7 +275,7 @@ pub fn orders_abandonment_delivery_status_unknown_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -322,7 +322,7 @@ pub fn orders_access_denied_guardrails_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -444,7 +444,7 @@ pub fn orders_order_edit_begin_existing_order_payload_test() {
     }
   "
   let variables = dict.from_list([#("id", root_field.StringVal(order_id))])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -560,7 +560,7 @@ pub fn orders_order_edit_add_variant_payload_test() {
       ),
       #("allowDuplicates", root_field.BoolVal(False)),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -618,7 +618,7 @@ pub fn orders_order_edit_add_variant_invalid_variant_payload_test() {
       ),
       #("allowDuplicates", root_field.BoolVal(False)),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -742,7 +742,7 @@ pub fn orders_order_edit_set_quantity_payload_test() {
       #("quantity", root_field.IntVal(0)),
       #("restock", root_field.BoolVal(True)),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -789,7 +789,7 @@ pub fn orders_draft_order_create_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(missing_outcome) =
+  let missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -814,7 +814,7 @@ pub fn orders_draft_order_create_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(null_outcome) =
+  let null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -881,7 +881,7 @@ pub fn orders_draft_order_create_payload_validation_matrix_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -913,7 +913,7 @@ pub fn orders_draft_order_complete_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(missing_outcome) =
+  let missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -942,7 +942,7 @@ pub fn orders_draft_order_complete_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(null_outcome) =
+  let null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -970,7 +970,7 @@ pub fn orders_fulfillment_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(cancel_missing_outcome) =
+  let cancel_missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -996,7 +996,7 @@ pub fn orders_fulfillment_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(cancel_null_outcome) =
+  let cancel_null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -1047,7 +1047,7 @@ pub fn orders_fulfillment_validation_guardrails_test() {
       ),
       #("notifyCustomer", root_field.BoolVal(False)),
     ])
-  let assert Ok(tracking_missing_outcome) =
+  let tracking_missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -1080,7 +1080,7 @@ pub fn orders_fulfillment_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(tracking_null_outcome) =
+  let tracking_null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -1172,7 +1172,7 @@ pub fn orders_fulfillment_cancel_tracking_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(tracking_outcome) =
+  let tracking_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -1208,7 +1208,7 @@ pub fn orders_fulfillment_cancel_tracking_read_after_write_test() {
   "
   let cancel_variables =
     dict.from_list([#("id", root_field.StringVal(fulfillment_id))])
-  let assert Ok(cancel_outcome) =
+  let cancel_outcome =
     orders.process_mutation(
       tracking_outcome.store,
       tracking_outcome.identity,
@@ -1306,7 +1306,7 @@ pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
       ),
       #("message", root_field.StringVal("hermes fulfillment probe")),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -1508,7 +1508,7 @@ pub fn orders_fulfillment_create_event_and_detail_read_test() {
       ),
       #("message", root_field.StringVal("HAR-159 create")),
     ])
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -1572,7 +1572,7 @@ pub fn orders_fulfillment_create_event_and_detail_read_test() {
         ),
       ),
     ])
-  let assert Ok(event_outcome) =
+  let event_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -1742,7 +1742,7 @@ pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(hold_outcome) =
+  let hold_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -1814,7 +1814,7 @@ pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
       }
     }
   "
-  let assert Ok(release_outcome) =
+  let release_outcome =
     orders.process_mutation(
       hold_outcome.store,
       hold_outcome.identity,
@@ -1911,7 +1911,7 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
         ]),
       ),
     ])
-  let assert Ok(move_outcome) =
+  let move_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -1941,7 +1941,7 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
       }
     }
   "
-  let assert Ok(progress_outcome) =
+  let progress_outcome =
     orders.process_mutation(
       move_outcome.store,
       move_outcome.identity,
@@ -1980,7 +1980,7 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
       }
     }
   "
-  let assert Ok(open_outcome) =
+  let open_outcome =
     orders.process_mutation(
       progress_outcome.store,
       progress_outcome.identity,
@@ -2020,7 +2020,7 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
       }
     }
   "
-  let assert Ok(cancel_outcome) =
+  let cancel_outcome =
     orders.process_mutation(
       open_outcome.store,
       open_outcome.identity,
@@ -2054,7 +2054,7 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
       }
     }
   "
-  let assert Ok(guardrail_outcome) =
+  let guardrail_outcome =
     orders.process_mutation(
       cancel_outcome.store,
       cancel_outcome.identity,
@@ -2248,7 +2248,7 @@ pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
         ]),
       ),
     ])
-  let assert Ok(split_outcome) =
+  let split_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -2276,7 +2276,7 @@ pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
       }
     }
   "
-  let assert Ok(deadline_outcome) =
+  let deadline_outcome =
     orders.process_mutation(
       split_outcome.store,
       split_outcome.identity,
@@ -2330,7 +2330,7 @@ pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
       }
     }
   "
-  let assert Ok(merge_outcome) =
+  let merge_outcome =
     orders.process_mutation(
       deadline_outcome.store,
       deadline_outcome.identity,
@@ -2436,7 +2436,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(submit_outcome) =
+  let submit_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -2469,7 +2469,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(accept_outcome) =
+  let accept_outcome =
     orders.process_mutation(
       submit_outcome.store,
       submit_outcome.identity,
@@ -2496,7 +2496,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(submit_cancel_outcome) =
+  let submit_cancel_outcome =
     orders.process_mutation(
       accept_outcome.store,
       accept_outcome.identity,
@@ -2516,7 +2516,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(reject_cancel_outcome) =
+  let reject_cancel_outcome =
     orders.process_mutation(
       submit_cancel_outcome.store,
       submit_cancel_outcome.identity,
@@ -2527,7 +2527,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
   assert json.to_string(reject_cancel_outcome.data)
     == "{\"data\":{\"fulfillmentOrderRejectCancellationRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"CANCELLATION_REJECTED\"},\"userErrors\":[]}}}"
 
-  let assert Ok(submit_reject_outcome) =
+  let submit_reject_outcome =
     orders.process_mutation(
       reject_cancel_outcome.store,
       reject_cancel_outcome.identity,
@@ -2547,7 +2547,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(reject_outcome) =
+  let reject_outcome =
     orders.process_mutation(
       submit_reject_outcome.store,
       submit_reject_outcome.identity,
@@ -2558,7 +2558,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
   assert json.to_string(reject_outcome.data)
     == "{\"data\":{\"fulfillmentOrderRejectFulfillmentRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/reject\",\"status\":\"OPEN\",\"requestStatus\":\"REJECTED\"},\"userErrors\":[]}}}"
 
-  let assert Ok(submit_cancel_request_outcome) =
+  let submit_cancel_request_outcome =
     orders.process_mutation(
       reject_outcome.store,
       reject_outcome.identity,
@@ -2569,7 +2569,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
         #("lineItems", root_field.NullVal),
       ]),
     )
-  let assert Ok(accept_cancel_request_outcome) =
+  let accept_cancel_request_outcome =
     orders.process_mutation(
       submit_cancel_request_outcome.store,
       submit_cancel_request_outcome.identity,
@@ -2577,7 +2577,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       accept_mutation,
       dict.from_list([#("id", root_field.StringVal(cancel_id))]),
     )
-  let assert Ok(submit_cancel_accept_outcome) =
+  let submit_cancel_accept_outcome =
     orders.process_mutation(
       accept_cancel_request_outcome.store,
       accept_cancel_request_outcome.identity,
@@ -2599,7 +2599,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(accept_cancel_outcome) =
+  let accept_cancel_outcome =
     orders.process_mutation(
       submit_cancel_accept_outcome.store,
       submit_cancel_accept_outcome.identity,
@@ -2965,7 +2965,7 @@ pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() 
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -3281,7 +3281,7 @@ pub fn orders_refund_create_partial_success_stages_refund_and_transaction_test()
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -3382,7 +3382,7 @@ pub fn orders_draft_order_delete_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -3424,7 +3424,7 @@ pub fn orders_order_delete_tombstone_read_after_write_test() {
     }
   "
   let variables = dict.from_list([#("orderId", root_field.StringVal(order_id))])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -3459,7 +3459,7 @@ pub fn orders_order_delete_tombstone_read_after_write_test() {
   assert json.to_string(read_result)
     == "{\"data\":{\"order\":null,\"orders\":{\"nodes\":[]},\"ordersCount\":{\"count\":0,\"precision\":\"EXACT\"}}}"
 
-  let assert Ok(repeated) =
+  let repeated =
     orders.process_mutation(
       outcome.store,
       outcome.identity,
@@ -3487,7 +3487,7 @@ pub fn orders_order_create_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(missing_outcome) =
+  let missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -3512,7 +3512,7 @@ pub fn orders_order_create_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(null_outcome) =
+  let null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -3552,7 +3552,7 @@ pub fn orders_order_create_validation_guardrails_test() {
         ),
       ),
     ])
-  let assert Ok(no_line_items_outcome) =
+  let no_line_items_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -3865,7 +3865,7 @@ pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -3928,7 +3928,7 @@ pub fn orders_order_update_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(missing_inline_outcome) =
+  let missing_inline_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -3959,7 +3959,7 @@ pub fn orders_order_update_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(null_inline_outcome) =
+  let null_inline_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -4006,7 +4006,7 @@ pub fn orders_order_update_validation_guardrails_test() {
         ),
       ),
     ])
-  let assert Ok(missing_variable_outcome) =
+  let missing_variable_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -4066,7 +4066,7 @@ pub fn orders_order_update_validation_guardrails_test() {
         ),
       ),
     ])
-  let assert Ok(unknown_outcome) =
+  let unknown_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -4255,7 +4255,7 @@ pub fn orders_order_update_existing_order_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -4398,7 +4398,7 @@ pub fn orders_order_open_close_read_after_write_test() {
       }
     }
   "
-  let assert Ok(close_outcome) =
+  let close_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -4439,7 +4439,7 @@ pub fn orders_order_open_close_read_after_write_test() {
       }
     }
   "
-  let assert Ok(open_outcome) =
+  let open_outcome =
     orders.process_mutation(
       close_outcome.store,
       close_outcome.identity,
@@ -4498,7 +4498,7 @@ pub fn orders_order_cancel_read_after_write_test() {
       #("restock", root_field.BoolVal(False)),
       #("reason", root_field.StringVal("OTHER")),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -4568,7 +4568,7 @@ pub fn orders_order_invoice_send_payload_test() {
     }
   "
   let variables = dict.from_list([#("id", root_field.StringVal(order_id))])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -4667,7 +4667,7 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -4816,7 +4816,7 @@ fn order_edit_missing_id_json(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> String {
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -4894,7 +4894,7 @@ pub fn orders_draft_order_create_custom_item_read_after_write_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -4962,7 +4962,7 @@ pub fn orders_draft_order_update_read_after_write_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -5098,7 +5098,7 @@ pub fn orders_draft_order_update_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(update_outcome) =
+  let update_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -5173,7 +5173,7 @@ pub fn orders_draft_order_duplicate_read_after_write_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -5252,7 +5252,7 @@ pub fn orders_draft_order_duplicate_read_after_write_test() {
       }
     }
   "
-  let assert Ok(duplicate_outcome) =
+  let duplicate_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -5327,7 +5327,7 @@ pub fn orders_draft_order_complete_read_after_write_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -5416,7 +5416,7 @@ pub fn orders_draft_order_complete_read_after_write_test() {
       }
     }
   "
-  let assert Ok(complete_outcome) =
+  let complete_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -5477,7 +5477,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -5499,7 +5499,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
       }
     }
   "
-  let assert Ok(complete_outcome) =
+  let complete_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -5549,7 +5549,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       complete_outcome.store,
       complete_outcome.identity,
@@ -5585,7 +5585,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/5\",\"email\":\"from-order-source@example.test\",\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}}}}"
 
-  let assert Ok(missing_outcome) =
+  let missing_outcome =
     orders.process_mutation(
       outcome.store,
       outcome.identity,
@@ -5617,7 +5617,7 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
       }
     }
   "
-  let assert Ok(unknown_outcome) =
+  let unknown_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -5642,7 +5642,7 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -5650,7 +5650,7 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
       create_mutation,
       dict.new(),
     )
-  let assert Ok(open_outcome) =
+  let open_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -5685,7 +5685,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
   assert json.to_string(delivery_result)
     == "{\"data\":{\"draftOrderAvailableDeliveryOptions\":{\"availableShippingRates\":[],\"availableLocalDeliveryRates\":[],\"availableLocalPickupOptions\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}}}}"
 
-  let assert Ok(calculate_outcome) =
+  let calculate_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -5730,7 +5730,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -5748,7 +5748,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(preview_outcome) =
+  let preview_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -5778,7 +5778,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(add_outcome) =
+  let add_outcome =
     orders.process_mutation(
       preview_outcome.store,
       preview_outcome.identity,
@@ -5815,7 +5815,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(remove_outcome) =
+  let remove_outcome =
     orders.process_mutation(
       add_outcome.store,
       add_outcome.identity,
@@ -5852,7 +5852,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(delete_outcome) =
+  let delete_outcome =
     orders.process_mutation(
       remove_outcome.store,
       remove_outcome.identity,

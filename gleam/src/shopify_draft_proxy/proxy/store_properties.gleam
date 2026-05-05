@@ -394,7 +394,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, StorePropertiesError) {
+) -> MutationOutcome {
   process_mutation_with_upstream(
     store,
     identity,
@@ -412,12 +412,9 @@ pub fn process_mutation_with_upstream(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, StorePropertiesError) {
-  use fields <- result.try(
-    root_field.get_root_fields(document)
-    |> result.map_error(ParseFailed),
-  )
-  let fragments = get_document_fragments(document)
+) -> MutationOutcome {case root_field.get_root_fields(document) {
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
+    Ok(fields) -> {  let fragments = get_document_fragments(document)
   let initial = #([], store, identity, [], [])
   let #(entries, final_store, final_identity, staged_ids, top_errors) =
     list.fold(fields, initial, fn(acc, field) {
@@ -565,13 +562,15 @@ pub fn process_mutation_with_upstream(
         #("data", data),
       ])
   }
-  Ok(MutationOutcome(
+  MutationOutcome(
     data: envelope,
     store: final_store,
     identity: final_identity,
     staged_resource_ids: staged_ids,
     log_drafts: [],
-  ))
+  )
+    }
+  }
 }
 
 fn selected_children(field: Selection) -> List(Selection) {

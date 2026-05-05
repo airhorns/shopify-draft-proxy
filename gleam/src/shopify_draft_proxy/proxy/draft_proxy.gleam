@@ -751,8 +751,8 @@ fn route_mutation_to_domain(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
   case mutation_domain_for(proxy, parsed, query, primary_root_field) {
-    Ok(SavedSearchesDomain) ->
-      case
+    Ok(SavedSearchesDomain) -> {
+      let outcome =
         saved_searches.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
@@ -760,25 +760,19 @@ fn route_mutation_to_domain(
           query,
           variables,
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle saved searches mutation"),
-          proxy,
-        )
-      }
-    Ok(WebhooksDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(WebhooksDomain) -> {
+      let outcome =
         webhooks.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
@@ -786,22 +780,19 @@ fn route_mutation_to_domain(
           query,
           variables,
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle webhooks mutation"), proxy)
-      }
-    Ok(AppsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(AppsDomain) -> {
+      let outcome =
         apps.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
@@ -810,22 +801,19 @@ fn route_mutation_to_domain(
           query,
           variables,
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle apps mutation"), proxy)
-      }
-    Ok(FunctionsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(FunctionsDomain) -> {
+      let outcome =
         functions.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -838,22 +826,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle functions mutation"), proxy)
-      }
-    Ok(GiftCardsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(GiftCardsDomain) -> {
+      let outcome =
         gift_cards.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -866,25 +851,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle gift cards mutation"),
-          proxy,
-        )
-      }
-    Ok(DiscountsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(DiscountsDomain) -> {
+      let outcome =
         discounts.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -897,22 +876,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle discounts mutation"), proxy)
-      }
-    Ok(B2BDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(B2BDomain) -> {
+      let outcome =
         b2b.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
@@ -920,22 +896,19 @@ fn route_mutation_to_domain(
           query,
           variables,
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle B2B mutation"), proxy)
-      }
-    Ok(SegmentsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(SegmentsDomain) -> {
+      let outcome =
         segments.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
@@ -943,22 +916,19 @@ fn route_mutation_to_domain(
           query,
           variables,
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle segments mutation"), proxy)
-      }
-    Ok(MetafieldDefinitionsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(MetafieldDefinitionsDomain) -> {
+      let outcome =
         metafield_definitions.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -971,25 +941,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle metafield definitions mutation"),
-          proxy,
-        )
-      }
-    Ok(LocalizationDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(LocalizationDomain) -> {
+      let outcome =
         localization.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
@@ -997,25 +961,19 @@ fn route_mutation_to_domain(
           query,
           variables,
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle localization mutation"),
-          proxy,
-        )
-      }
-    Ok(MetaobjectDefinitionsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(MetaobjectDefinitionsDomain) -> {
+      let outcome =
         metaobject_definitions.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1028,25 +986,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle metaobject definitions mutation"),
-          proxy,
-        )
-      }
-    Ok(MarketingDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(MarketingDomain) -> {
+      let outcome =
         marketing.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
@@ -1054,22 +1006,19 @@ fn route_mutation_to_domain(
           query,
           variables,
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle marketing mutation"), proxy)
-      }
-    Ok(BulkOperationsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(BulkOperationsDomain) -> {
+      let outcome =
         bulk_operations.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1082,25 +1031,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle bulk operations mutation"),
-          proxy,
-        )
-      }
-    Ok(MarketsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(MarketsDomain) -> {
+      let outcome =
         markets.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1112,22 +1055,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle markets mutation"), proxy)
-      }
-    Ok(MediaDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(MediaDomain) -> {
+      let outcome =
         media.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1139,22 +1079,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle media mutation"), proxy)
-      }
-    Ok(AdminPlatformDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(AdminPlatformDomain) -> {
+      let outcome =
         admin_platform.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
@@ -1162,25 +1099,19 @@ fn route_mutation_to_domain(
           query,
           variables,
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle admin platform mutation"),
-          proxy,
-        )
-      }
-    Ok(OnlineStoreDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(OnlineStoreDomain) -> {
+      let outcome =
         online_store.process_mutation(
           proxy.store,
           proxy.synthetic_identity,
@@ -1188,25 +1119,19 @@ fn route_mutation_to_domain(
           query,
           variables,
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle online-store mutation"),
-          proxy,
-        )
-      }
-    Ok(StorePropertiesDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(StorePropertiesDomain) -> {
+      let outcome =
         store_properties.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1219,22 +1144,17 @@ fn route_mutation_to_domain(
             request_headers,
           ),
         )
-      {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
-        Error(_) -> #(
-          bad_request("Failed to handle store properties mutation"),
-          proxy,
-        )
-      }
-    Ok(ProductsDomain) ->
-      case
+      #(
+        Response(status: 200, body: outcome.data, headers: []),
+        DraftProxy(
+          ..proxy,
+          store: outcome.store,
+          synthetic_identity: outcome.identity,
+        ),
+      )
+    }
+    Ok(ProductsDomain) -> {
+      let outcome =
         products.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1247,22 +1167,19 @@ fn route_mutation_to_domain(
             request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle products mutation"), proxy)
-      }
-    Ok(PrivacyDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(PrivacyDomain) -> {
+      let outcome =
         privacy.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1275,22 +1192,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle privacy mutation"), proxy)
-      }
-    Ok(CustomersDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(CustomersDomain) -> {
+      let outcome =
         customers.process_mutation_with_upstream(
           proxy,
           request_path,
@@ -1302,19 +1216,17 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
-        Error(_) -> #(bad_request("Failed to handle customers mutation"), proxy)
-      }
-    Ok(PaymentsDomain) ->
-      case
+      #(
+        Response(status: 200, body: outcome.data, headers: []),
+        DraftProxy(
+          ..proxy,
+          store: outcome.store,
+          synthetic_identity: outcome.identity,
+        ),
+      )
+    }
+    Ok(PaymentsDomain) -> {
+      let outcome =
         payments.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1327,22 +1239,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle payments mutation"), proxy)
-      }
-    Ok(ShippingFulfillmentsDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(ShippingFulfillmentsDomain) -> {
+      let outcome =
         shipping_fulfillments.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1355,25 +1264,19 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle shipping fulfillments mutation"),
-          proxy,
-        )
-      }
-    Ok(OrdersDomain) ->
-      case
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    Ok(OrdersDomain) -> {
+      let outcome =
         orders.process_mutation_with_upstream(
           proxy.store,
           proxy.synthetic_identity,
@@ -1386,20 +1289,17 @@ fn route_mutation_to_domain(
             headers: request_headers,
           ),
         )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle orders mutation"), proxy)
-      }
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
     Ok(_) | Error(_) -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "

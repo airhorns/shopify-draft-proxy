@@ -372,7 +372,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, BulkOperationsError) {
+) -> MutationOutcome {
   process_mutation_with_upstream(
     store,
     identity,
@@ -390,12 +390,12 @@ pub fn process_mutation_with_upstream(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, BulkOperationsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         request_path,
@@ -403,7 +403,7 @@ pub fn process_mutation_with_upstream(
         fragments,
         variables,
         upstream,
-      ))
+      )
     }
   }
 }
@@ -1175,8 +1175,8 @@ fn process_import_lines(
                 object_count,
                 True,
               )
-            Ok(line_variables) ->
-              case
+            Ok(line_variables) -> {
+              let outcome =
                 products.process_mutation(
                   store,
                   identity,
@@ -1184,65 +1184,42 @@ fn process_import_lines(
                   mutation,
                   line_variables,
                 )
-              {
-                Error(_) ->
-                  process_import_lines(
-                    rest,
-                    line_number + 1,
-                    store,
-                    identity,
-                    request_path,
+              let staged_this_line = outcome.staged_resource_ids
+              let next_log_drafts = case staged_this_line {
+                [] -> log_drafts
+                _ -> [
+                  bulk_import_log_draft(
                     mutation,
-                    [
-                      import_error_row(
-                        line_number,
-                        "bulkOperationRunMutation could not locally execute the registered inner mutation handler for this line.",
-                      ),
-                      ..rows
-                    ],
-                    staged_ids,
-                    log_drafts,
-                    object_count,
-                    True,
-                  )
-                Ok(outcome) -> {
-                  let staged_this_line = outcome.staged_resource_ids
-                  let next_log_drafts = case staged_this_line {
-                    [] -> log_drafts
-                    _ -> [
-                      bulk_import_log_draft(
-                        mutation,
-                        line_variables,
-                        staged_this_line,
-                      ),
-                      ..log_drafts
-                    ]
-                  }
-                  let next_object_count = case staged_this_line {
-                    [] -> object_count
-                    _ -> object_count + 1
-                  }
-                  process_import_lines(
-                    rest,
-                    line_number + 1,
-                    outcome.store,
-                    outcome.identity,
-                    request_path,
-                    mutation,
-                    [
-                      json.object([
-                        #("line", json.int(line_number)),
-                        #("response", outcome.data),
-                      ]),
-                      ..rows
-                    ],
-                    list.append(outcome.staged_resource_ids, staged_ids),
-                    next_log_drafts,
-                    next_object_count,
-                    failed,
-                  )
-                }
+                    line_variables,
+                    staged_this_line,
+                  ),
+                  ..log_drafts
+                ]
               }
+              let next_object_count = case staged_this_line {
+                [] -> object_count
+                _ -> object_count + 1
+              }
+              process_import_lines(
+                rest,
+                line_number + 1,
+                outcome.store,
+                outcome.identity,
+                request_path,
+                mutation,
+                [
+                  json.object([
+                    #("line", json.int(line_number)),
+                    #("response", outcome.data),
+                  ]),
+                  ..rows
+                ],
+                list.append(outcome.staged_resource_ids, staged_ids),
+                next_log_drafts,
+                next_object_count,
+                failed,
+              )
+            }
           }
       }
     }

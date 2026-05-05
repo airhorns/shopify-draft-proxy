@@ -364,7 +364,7 @@ pub fn shipping_package_update_stages_local_record_test() {
         ]),
       ),
     )
-  let assert Ok(outcome) =
+  let outcome =
     shipping_fulfillments.process_mutation(
       seeded_store(),
       synthetic_identity.new(),
@@ -385,7 +385,7 @@ pub fn shipping_package_update_stages_local_record_test() {
 }
 
 pub fn shipping_package_make_default_clears_previous_default_test() {
-  let assert Ok(outcome) =
+  let outcome =
     shipping_fulfillments.process_mutation(
       seeded_store(),
       synthetic_identity.new(),
@@ -411,7 +411,7 @@ pub fn shipping_package_make_default_clears_previous_default_test() {
 }
 
 pub fn shipping_package_delete_marks_staged_deletion_test() {
-  let assert Ok(outcome) =
+  let outcome =
     shipping_fulfillments.process_mutation(
       seeded_store(),
       synthetic_identity.new(),
@@ -439,7 +439,7 @@ pub fn shipping_package_update_unknown_id_returns_resource_not_found_test() {
         dict.from_list([#("name", root_field.StringVal("Ghost box"))]),
       ),
     )
-  let assert Ok(outcome) =
+  let outcome =
     shipping_fulfillments.process_mutation(
       seeded_store(),
       synthetic_identity.new(),
@@ -470,7 +470,7 @@ pub fn carrier_service_create_update_read_and_delete_lifecycle_test() {
         #("supportsServiceDiscovery", root_field.BoolVal(True)),
       ]),
     )
-  let assert Ok(create_outcome) =
+  let create_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -505,7 +505,7 @@ pub fn carrier_service_create_update_read_and_delete_lifecycle_test() {
         #("supportsServiceDiscovery", root_field.BoolVal(False)),
       ]),
     )
-  let assert Ok(update_outcome) =
+  let update_outcome =
     shipping_fulfillments.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -540,7 +540,7 @@ pub fn carrier_service_create_update_read_and_delete_lifecycle_test() {
     <> created_id
     <> "\"}}}}"
 
-  let assert Ok(delete_outcome) =
+  let delete_outcome =
     shipping_fulfillments.process_mutation(
       update_outcome.store,
       update_outcome.identity,
@@ -562,7 +562,7 @@ pub fn carrier_service_create_update_read_and_delete_lifecycle_test() {
 pub fn carrier_service_validation_branches_return_user_errors_test() {
   let blank_input =
     root_field.ObjectVal(dict.from_list([#("name", root_field.StringVal(""))]))
-  let assert Ok(create_outcome) =
+  let create_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -583,7 +583,7 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
         #("name", root_field.StringVal("Nope")),
       ]),
     )
-  let assert Ok(update_outcome) =
+  let update_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -594,7 +594,7 @@ pub fn carrier_service_validation_branches_return_user_errors_test() {
   assert json.to_string(update_outcome.data)
     == "{\"data\":{\"carrierServiceUpdate\":{\"carrierService\":null,\"userErrors\":[{\"field\":null,\"message\":\"The carrier or app could not be found.\"}]}}}"
 
-  let assert Ok(delete_outcome) =
+  let delete_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -786,7 +786,7 @@ pub fn delivery_profile_lifecycle_stages_create_update_remove_test() {
         ),
       ]),
     )
-  let assert Ok(create_outcome) =
+  let create_outcome =
     shipping_fulfillments.process_mutation(
       delivery_profile_lifecycle_store(),
       synthetic_identity.new(),
@@ -904,7 +904,7 @@ pub fn delivery_profile_lifecycle_stages_create_update_remove_test() {
         ),
       ]),
     )
-  let assert Ok(update_outcome) =
+  let update_outcome =
     shipping_fulfillments.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -918,7 +918,7 @@ pub fn delivery_profile_lifecycle_stages_create_update_remove_test() {
   assert json.to_string(update_outcome.data)
     == "{\"data\":{\"deliveryProfileUpdate\":{\"profile\":{\"id\":\"gid://shopify/DeliveryProfile/1\",\"name\":\"Local custom shipping updated\",\"version\":2,\"originLocationCount\":2,\"zoneCountryCount\":1,\"activeMethodDefinitionsCount\":1,\"productVariantsCount\":{\"count\":0,\"precision\":\"EXACT\"},\"profileItems\":{\"nodes\":[]}},\"userErrors\":[]}}}"
 
-  let assert Ok(remove_outcome) =
+  let remove_outcome =
     shipping_fulfillments.process_mutation(
       update_outcome.store,
       update_outcome.identity,
@@ -944,7 +944,7 @@ pub fn delivery_profile_lifecycle_stages_create_update_remove_test() {
 }
 
 pub fn delivery_profile_lifecycle_validation_branches_test() {
-  let assert Ok(create_outcome) =
+  let create_outcome =
     shipping_fulfillments.process_mutation(
       delivery_profile_lifecycle_store(),
       synthetic_identity.new(),
@@ -964,7 +964,7 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
   assert json.to_string(create_outcome.data)
     == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"name\"],\"message\":\"Add a profile name\"}]}}}"
 
-  let assert Ok(update_outcome) =
+  let update_outcome =
     shipping_fulfillments.process_mutation(
       delivery_profile_lifecycle_store(),
       synthetic_identity.new(),
@@ -985,7 +985,7 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
   assert json.to_string(update_outcome.data)
     == "{\"data\":{\"deliveryProfileUpdate\":{\"profile\":null,\"userErrors\":[{\"field\":null,\"message\":\"Profile could not be updated.\"}]}}}"
 
-  let assert Ok(missing_remove_outcome) =
+  let missing_remove_outcome =
     shipping_fulfillments.process_mutation(
       delivery_profile_lifecycle_store(),
       synthetic_identity.new(),
@@ -998,7 +998,7 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
   assert json.to_string(missing_remove_outcome.data)
     == "{\"data\":{\"deliveryProfileRemove\":{\"job\":null,\"userErrors\":[{\"field\":null,\"message\":\"The Delivery Profile cannot be found for the shop.\"}]}}}"
 
-  let assert Ok(default_remove_outcome) =
+  let default_remove_outcome =
     shipping_fulfillments.process_mutation(
       delivery_profile_lifecycle_store(),
       synthetic_identity.new(),
@@ -1024,7 +1024,7 @@ pub fn local_pickup_enable_disable_updates_downstream_location_read_test() {
         #("instructions", root_field.StringVal("HAR-493 pickup instructions")),
       ]),
     )
-  let assert Ok(enable_outcome) =
+  let enable_outcome =
     shipping_fulfillments.process_mutation(
       settings_store(),
       synthetic_identity.new(),
@@ -1047,7 +1047,7 @@ pub fn local_pickup_enable_disable_updates_downstream_location_read_test() {
   assert json.to_string(after_enable_read)
     == "{\"data\":{\"location\":{\"id\":\"gid://shopify/Location/10\",\"name\":\"Shop location\",\"localPickupSettingsV2\":{\"pickupTime\":\"TWO_HOURS\",\"instructions\":\"HAR-493 pickup instructions\"}}}}"
 
-  let assert Ok(disable_outcome) =
+  let disable_outcome =
     shipping_fulfillments.process_mutation(
       enable_outcome.store,
       enable_outcome.identity,
@@ -1083,7 +1083,7 @@ pub fn local_pickup_unknown_location_returns_active_location_error_test() {
         #("pickupTime", root_field.StringVal("ONE_HOUR")),
       ]),
     )
-  let assert Ok(outcome) =
+  let outcome =
     shipping_fulfillments.process_mutation(
       settings_store(),
       synthetic_identity.new(),
@@ -1104,7 +1104,7 @@ pub fn local_pickup_inactive_location_returns_active_location_error_test() {
         #("pickupTime", root_field.StringVal("ONE_HOUR")),
       ]),
     )
-  let assert Ok(outcome) =
+  let outcome =
     shipping_fulfillments.process_mutation(
       settings_store(),
       synthetic_identity.new(),
@@ -1126,7 +1126,7 @@ pub fn local_pickup_custom_pickup_time_returns_code_error_test() {
         #("instructions", root_field.StringVal("HAR-567 custom pickup time")),
       ]),
     )
-  let assert Ok(outcome) =
+  let outcome =
     shipping_fulfillments.process_mutation(
       settings_store(),
       synthetic_identity.new(),
@@ -1159,7 +1159,7 @@ pub fn local_pickup_accepts_captured_multi_day_standard_values_test() {
         #("instructions", root_field.StringVal("HAR-567 two to four days")),
       ]),
     )
-  let assert Ok(two_to_four_days_outcome) =
+  let two_to_four_days_outcome =
     shipping_fulfillments.process_mutation(
       settings_store(),
       synthetic_identity.new(),
@@ -1181,7 +1181,7 @@ pub fn local_pickup_accepts_captured_multi_day_standard_values_test() {
         #("instructions", root_field.StringVal("HAR-567 five or more days")),
       ]),
     )
-  let assert Ok(five_or_more_days_outcome) =
+  let five_or_more_days_outcome =
     shipping_fulfillments.process_mutation(
       settings_store(),
       synthetic_identity.new(),
@@ -1197,7 +1197,7 @@ pub fn local_pickup_accepts_captured_multi_day_standard_values_test() {
 }
 
 pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
-  let assert Ok(create_outcome) =
+  let create_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -1233,7 +1233,7 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
     <> location_id
     <> "\",\"name\":\"Hermes FS\",\"isFulfillmentService\":true,\"fulfillsOnlineOrders\":true,\"shipsInventory\":false}}}"
 
-  let assert Ok(update_outcome) =
+  let update_outcome =
     shipping_fulfillments.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -1251,7 +1251,7 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
     <> location_id
     <> "\",\"name\":\"Hermes FS Updated\",\"isFulfillmentService\":true,\"fulfillsOnlineOrders\":true,\"shipsInventory\":false}},\"userErrors\":[]}}}"
 
-  let assert Ok(delete_outcome) =
+  let delete_outcome =
     shipping_fulfillments.process_mutation(
       update_outcome.store,
       update_outcome.identity,
@@ -1278,7 +1278,7 @@ pub fn fulfillment_service_create_update_read_and_delete_lifecycle_test() {
 }
 
 pub fn fulfillment_service_validation_branches_return_user_errors_test() {
-  let assert Ok(create_outcome) =
+  let create_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -1295,7 +1295,7 @@ pub fn fulfillment_service_validation_branches_return_user_errors_test() {
   assert json.to_string(create_outcome.data)
     == "{\"data\":{\"fulfillmentServiceCreate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name can't be blank\"},{\"field\":[\"callbackUrl\"],\"message\":\"Callback url is not allowed\"}]}}}"
 
-  let assert Ok(update_outcome) =
+  let update_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -1308,7 +1308,7 @@ pub fn fulfillment_service_validation_branches_return_user_errors_test() {
   assert json.to_string(update_outcome.data)
     == "{\"data\":{\"fulfillmentServiceUpdate\":{\"fulfillmentService\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment service could not be found.\"}]}}}"
 
-  let assert Ok(delete_outcome) =
+  let delete_outcome =
     shipping_fulfillments.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -1357,7 +1357,7 @@ pub fn fulfillment_event_create_stages_event_and_downstream_read_test() {
       ),
     ])
 
-  let assert Ok(outcome) =
+  let outcome =
     shipping_fulfillments.process_mutation(
       base_store,
       synthetic_identity.new(),
@@ -1420,7 +1420,7 @@ pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {
   let reverse_fulfillment_order_id = "gid://shopify/ReverseFulfillmentOrder/1"
   let reverse_fulfillment_order_line_item_id =
     "gid://shopify/ReverseFulfillmentOrderLineItem/1"
-  let assert Ok(create_outcome) =
+  let create_outcome =
     shipping_fulfillments.process_mutation(
       reverse_logistics_store(),
       synthetic_identity.new(),
@@ -1459,7 +1459,7 @@ pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {
   let assert [reverse_delivery_id, ..] =
     create_outcome.staged_resource_ids |> list.reverse
 
-  let assert Ok(update_outcome) =
+  let update_outcome =
     shipping_fulfillments.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -1471,7 +1471,7 @@ pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {
     )
   assert string.contains(json.to_string(update_outcome.data), "\"TRACK-2\"")
 
-  let assert Ok(dispose_outcome) =
+  let dispose_outcome =
     shipping_fulfillments.process_mutation(
       update_outcome.store,
       update_outcome.identity,
@@ -1523,7 +1523,7 @@ pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {
 
 pub fn order_edit_shipping_line_roots_stage_calculated_order_test() {
   let calculated_order_id = "gid://shopify/CalculatedOrder/1"
-  let assert Ok(add_outcome) =
+  let add_outcome =
     shipping_fulfillments.process_mutation(
       calculated_order_store(),
       synthetic_identity.new(),
@@ -1548,7 +1548,7 @@ pub fn order_edit_shipping_line_roots_stage_calculated_order_test() {
   assert string.contains(add_json, "\"stagedStatus\":\"ADDED\"")
   let assert [_, shipping_line_id] = add_outcome.staged_resource_ids
 
-  let assert Ok(update_outcome) =
+  let update_outcome =
     shipping_fulfillments.process_mutation(
       add_outcome.store,
       add_outcome.identity,
@@ -1573,7 +1573,7 @@ pub fn order_edit_shipping_line_roots_stage_calculated_order_test() {
   assert string.contains(update_json, "\"title\":\"Express\"")
   assert string.contains(update_json, "\"userErrors\":[]")
 
-  let assert Ok(remove_outcome) =
+  let remove_outcome =
     shipping_fulfillments.process_mutation(
       update_outcome.store,
       update_outcome.identity,

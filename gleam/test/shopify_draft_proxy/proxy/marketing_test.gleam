@@ -255,7 +255,7 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let create_doc =
     "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id title remoteId marketingEvent { id remoteId channelHandle } } userErrors { field message code } } }"
-  let assert Ok(created) =
+  let created =
     marketing.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -285,7 +285,7 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
   assert read_after_create
     == "{\"marketingActivity\":{\"id\":\"gid://shopify/MarketingActivity/1\",\"title\":\"Launch\",\"remoteId\":\"remote-1\"},\"marketingEvent\":{\"id\":\"gid://shopify/MarketingEvent/2\",\"remoteId\":\"remote-1\"}}"
 
-  let assert Ok(updated) =
+  let updated =
     marketing.process_mutation(
       created.store,
       created.identity,
@@ -297,7 +297,7 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
   assert string.contains(update_response, "\"title\":\"Launch updated\"")
   assert string.contains(update_response, "\"status\":\"INACTIVE\"")
 
-  let assert Ok(deleted) =
+  let deleted =
     marketing.process_mutation(
       updated.store,
       updated.identity,
@@ -320,7 +320,7 @@ pub fn native_activity_validation_update_and_log_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let missing_doc =
     "mutation { marketingActivityCreate(input: { marketingActivityTitle: \"Native\" }) { userErrors { field message code } } }"
-  let assert Ok(missing_extension) =
+  let missing_extension =
     marketing.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -338,7 +338,7 @@ pub fn native_activity_validation_update_and_log_test() {
 
   let create_doc =
     "mutation { marketingActivityCreate(input: { marketingActivityTitle: \"Native\", marketingActivityExtensionId: \"gid://shopify/MarketingActivityExtension/abc\" }) { userErrors { message } } }"
-  let assert Ok(created) =
+  let created =
     marketing.process_mutation(
       missing_extension.store,
       missing_extension.identity,
@@ -350,7 +350,7 @@ pub fn native_activity_validation_update_and_log_test() {
   assert created.staged_resource_ids == ["gid://shopify/MarketingActivity/1"]
   let update_doc =
     "mutation { marketingActivityUpdate(input: { id: \"gid://shopify/MarketingActivity/1\", marketingActivityTitle: \"Native updated\", status: PAUSED }) { marketingActivity { id title status statusLabel } redirectPath userErrors { message } } }"
-  let assert Ok(updated) =
+  let updated =
     marketing.process_mutation(
       created.store,
       created.identity,
@@ -367,7 +367,7 @@ pub fn native_activity_validation_update_and_log_test() {
 }
 
 pub fn engagement_create_and_delete_stages_metric_records_test() {
-  let assert Ok(created) =
+  let created =
     marketing.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -375,7 +375,7 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
       "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
       empty_vars(),
     )
-  let assert Ok(engagement) =
+  let engagement =
     marketing.process_mutation(
       created.store,
       created.identity,
@@ -391,7 +391,7 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
     ))
     == 1
 
-  let assert Ok(channel_engagement) =
+  let channel_engagement =
     marketing.process_mutation(
       engagement.store,
       engagement.identity,
@@ -404,7 +404,7 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
     ))
     == 2
 
-  let assert Ok(deleted) =
+  let deleted =
     marketing.process_mutation(
       channel_engagement.store,
       channel_engagement.identity,

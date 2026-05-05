@@ -446,9 +446,9 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, SavedSearchesError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       handle_mutation_fields(
@@ -472,7 +472,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, SavedSearchesError) {
+) -> MutationOutcome {
   let initial =
     MutationOutcome(
       data: json.object([]),
@@ -547,11 +547,9 @@ fn handle_mutation_fields(
         _ -> #(pairs, current)
       }
     })
-  Ok(
-    MutationOutcome(
-      ..outcome,
-      data: graphql_helpers.wrap_data(json.object(entries)),
-    ),
+  MutationOutcome(
+    ..outcome,
+    data: graphql_helpers.wrap_data(json.object(entries)),
   )
 }
 

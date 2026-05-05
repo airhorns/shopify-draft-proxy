@@ -611,12 +611,12 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, FunctionsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         request_path,
@@ -624,7 +624,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
-      ))
+      )
     }
   }
 }
@@ -640,16 +640,16 @@ pub fn process_mutation_with_upstream(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, FunctionsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let identity_for_handlers =
         reserve_multiroot_log_identity(identity, fields)
       let hydrated_store =
         hydrate_referenced_shopify_functions(store, fields, variables, upstream)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         hydrated_store,
         identity_for_handlers,
         request_path,
@@ -657,7 +657,7 @@ pub fn process_mutation_with_upstream(
         fields,
         fragments,
         variables,
-      ))
+      )
     }
   }
 }

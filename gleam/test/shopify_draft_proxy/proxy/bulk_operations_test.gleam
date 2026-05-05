@@ -166,7 +166,7 @@ pub fn run_query_stages_completed_operation_and_log_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let document =
     "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\") { bulkOperation { id status type objectCount rootObjectCount fileSize url partialDataUrl query } userErrors { field message code } } }"
-  let assert Ok(outcome) =
+  let outcome =
     bulk_operations.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -197,7 +197,7 @@ pub fn run_query_exports_product_jsonl_and_metadata_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let document =
     "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id title } } } }\") { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"
-  let assert Ok(outcome) =
+  let outcome =
     bulk_operations.process_mutation(
       source,
       synthetic_identity.new(),
@@ -220,7 +220,7 @@ pub fn run_query_without_connection_returns_shopify_error_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let document =
     "mutation { bulkOperationRunQuery(query: \"{ shop { id } }\") { bulkOperation { id } userErrors { field message code } } }"
-  let assert Ok(outcome) =
+  let outcome =
     bulk_operations.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -244,7 +244,7 @@ pub fn run_mutation_missing_upload_stages_failed_job_test() {
       #("mutation", root_field.StringVal(inner)),
       #("path", root_field.StringVal("/missing.jsonl")),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     bulk_operations.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -282,7 +282,7 @@ pub fn run_mutation_unsupported_inner_root_fails_locally_test() {
       #("mutation", root_field.StringVal(inner)),
       #("path", root_field.StringVal(upload_path)),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     bulk_operations.process_mutation(
       source,
       synthetic_identity.new(),
@@ -323,7 +323,7 @@ pub fn run_mutation_product_create_import_stages_product_and_result_test() {
       #("mutation", root_field.StringVal(inner)),
       #("path", root_field.StringVal(upload_path)),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     bulk_operations.process_mutation(
       source,
       synthetic_identity.new(),
@@ -387,7 +387,7 @@ pub fn cancel_staged_terminal_and_missing_operations_test() {
     )
   let #(_, source) = store.stage_bulk_operation(store.new(), running)
   let #(_, source) = store.stage_bulk_operation(source, terminal)
-  let assert Ok(outcome) =
+  let outcome =
     bulk_operations.process_mutation(
       source,
       synthetic_identity.new(),

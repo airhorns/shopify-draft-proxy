@@ -743,7 +743,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, PaymentsError) {
+) -> MutationOutcome {
   process_mutation_with_upstream(
     store,
     identity,
@@ -761,21 +761,21 @@ pub fn process_mutation_with_upstream(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, PaymentsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let store =
         hydrate_before_payments_mutation(store, fields, variables, upstream)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         fields,
         fragments,
         document,
         variables,
-      ))
+      )
     }
   }
 }

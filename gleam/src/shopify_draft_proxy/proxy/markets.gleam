@@ -852,7 +852,7 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, MarketsError) {
+) -> MutationOutcome {
   process_mutation_with_upstream(
     store,
     identity,
@@ -868,21 +868,22 @@ pub fn process_mutation_with_upstream(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, MarketsError) {
-  use fields <- result.try(
-    root_field.get_root_fields(document)
-    |> result.map_error(ParseFailed),
-  )
-  let fragments = get_document_fragments(document)
-  let hydrated_store =
-    hydrate_mutation_preconditions(store, fields, variables, upstream)
-  Ok(handle_mutation_fields(
-    hydrated_store,
-    identity,
-    fields,
-    fragments,
-    variables,
-  ))
+) -> MutationOutcome {
+  case root_field.get_root_fields(document) {
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let hydrated_store =
+        hydrate_mutation_preconditions(store, fields, variables, upstream)
+      handle_mutation_fields(
+        hydrated_store,
+        identity,
+        fields,
+        fragments,
+        variables,
+      )
+    }
+  }
 }
 
 fn serialize_root_fields(

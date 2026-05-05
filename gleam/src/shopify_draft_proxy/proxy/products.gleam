@@ -5160,7 +5160,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, ResolvedValue),
-) -> Result(MutationOutcome, ProductsError) {
+) -> MutationOutcome {
   process_mutation_with_upstream(
     store,
     identity,
@@ -5178,15 +5178,15 @@ pub fn process_mutation_with_upstream(
   document: String,
   variables: Dict(String, ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, ProductsError) {
+) -> MutationOutcome {
   case get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       let operation_path = get_operation_path_label(document)
       let hydrated_store =
         hydrate_products_for_live_hybrid_mutation(store, variables, upstream)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         hydrated_store,
         identity,
         document,
@@ -5195,7 +5195,7 @@ pub fn process_mutation_with_upstream(
         fields,
         fragments,
         variables,
-      ))
+      )
     }
   }
 }

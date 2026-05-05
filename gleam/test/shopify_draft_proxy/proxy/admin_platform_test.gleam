@@ -542,7 +542,7 @@ pub fn backup_region_update_stages_and_reads_back_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let document =
     "mutation { backupRegionUpdate(region: { countryCode: CA }) { backupRegion { id name code } userErrors { field message code } } }"
-  let assert Ok(outcome) =
+  let outcome =
     admin_platform.process_mutation(
       source,
       identity,
@@ -571,7 +571,7 @@ pub fn backup_region_update_stages_and_reads_back_test() {
 }
 
 pub fn backup_region_update_validation_does_not_log_test() {
-  let assert Ok(outcome) =
+  let outcome =
     admin_platform.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -591,7 +591,7 @@ pub fn flow_utility_mutations_stage_without_sensitive_state_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let document =
     "mutation { sig: flowGenerateSignature(id: \"gid://shopify/FlowTrigger/374\", payload: \"{\\\"id\\\":1}\") { payload signature userErrors { field message } } receive: flowTriggerReceive(handle: \"local-order-created\", payload: \"{\\\"id\\\":1}\") { userErrors { field message } } }"
-  let assert Ok(outcome) =
+  let outcome =
     admin_platform.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -619,7 +619,7 @@ pub fn flow_utility_mutations_stage_without_sensitive_state_test() {
 }
 
 pub fn flow_validation_branches_do_not_stage_test() {
-  let assert Ok(outcome) =
+  let outcome =
     admin_platform.process_mutation(
       store.new(),
       synthetic_identity.new(),

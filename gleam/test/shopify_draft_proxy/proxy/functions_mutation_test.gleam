@@ -26,7 +26,7 @@ fn run_mutation_outcome(
 ) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
   let request_path = "/admin/api/2025-01/graphql.json"
-  let assert Ok(outcome) =
+  let outcome =
     functions.process_mutation(
       store_in,
       identity,

@@ -245,7 +245,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, MetafieldDefinitionsError) {
+) -> MutationOutcome {
   process_mutation_with_upstream(
     store_in,
     identity,
@@ -263,9 +263,9 @@ pub fn process_mutation_with_upstream(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, MetafieldDefinitionsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store_in, identity, err)
     Ok(fields) -> {
       let hydrated_store =
         products.hydrate_products_for_live_hybrid_mutation(
@@ -273,13 +273,13 @@ pub fn process_mutation_with_upstream(
           variables,
           upstream,
         )
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         hydrated_store,
         identity,
         fields,
         variables,
         upstream,
-      ))
+      )
     }
   }
 }
