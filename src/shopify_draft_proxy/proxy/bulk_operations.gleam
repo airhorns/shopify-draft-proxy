@@ -536,7 +536,7 @@ fn handle_bulk_operation_run_query(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let query = graphql_helpers.read_arg_string_nonempty(args, "query")
+  let query = graphql_helpers.read_arg_string(args, "query")
   let group_objects =
     option.unwrap(graphql_helpers.read_arg_bool(args, "groupObjects"), False)
   case query, group_objects {
@@ -725,7 +725,10 @@ fn build_run_query_jsonl(
           }
       }
     }
-    Error(_) -> Error([no_connection_bulk_query_error()])
+    Error(_) ->
+      Error([
+        invalid_bulk_query_error("syntax error, unexpected end of file"),
+      ])
   }
 }
 
@@ -785,6 +788,14 @@ fn no_connection_bulk_query_error() -> UserError {
   UserError(
     field: Some(["query"]),
     message: "Bulk queries must contain at least one connection.",
+    code: Some("INVALID"),
+  )
+}
+
+fn invalid_bulk_query_error(reason: String) -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: "Invalid bulk query: " <> reason,
     code: Some("INVALID"),
   )
 }
