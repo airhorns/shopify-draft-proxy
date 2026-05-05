@@ -546,10 +546,8 @@ fn handle_bulk_operation_run_query(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let query = graphql_helpers.read_arg_string(args, "query")
-  let group_objects =
-    option.unwrap(graphql_helpers.read_arg_bool(args, "groupObjects"), False)
-  case query, group_objects {
-    None, _ -> #(
+  case query {
+    None -> #(
       MutationFieldResult(
         key: key,
         payload: serialize_run_query_payload(
@@ -570,28 +568,7 @@ fn handle_bulk_operation_run_query(
       store,
       identity,
     )
-    _, True -> #(
-      MutationFieldResult(
-        key: key,
-        payload: serialize_run_query_payload(
-          field,
-          None,
-          [
-            UserError(
-              field: Some(["groupObjects"]),
-              message: "groupObjects is not supported by the local bulk query executor.",
-              code: Some("INVALID"),
-            ),
-          ],
-          fragments,
-        ),
-        staged_resource_ids: [],
-        log_drafts: [],
-      ),
-      store,
-      identity,
-    )
-    Some(query_string), False ->
+    Some(query_string) ->
       case build_run_query_jsonl(store, query_string, upstream) {
         Error(errors) -> #(
           MutationFieldResult(
