@@ -1,0 +1,26 @@
+{
+  "scenarioId": "draftOrderCalculate-validation-and-shipping-rates",
+  "operationNames": ["draftOrderCalculate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "nullability-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/draftOrderCalculate-validation-and-shipping-rates.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured draftOrderCalculate validation branches for empty lineItems and invalid email, plus current 2026-04 no-shipping-address availableShippingRates behavior and a valid paymentTermsTemplateId branch on the conformance shop. The live capture returns field null for empty lineItems, field [\"email\"] for invalid email, an empty availableShippingRates array for the selected shipping-required variant without a shippingAddress, and accepts template gid://shopify/PaymentTermsTemplate/4 with issuedAt on this merchant. This intentionally records the conformance result even where older ticket notes expected input-prefixed fields, null rates, or a payment-terms access error. The proxy still does not compute delivery-profile-backed non-empty rates locally.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "calculate-validation-and-shipping-rates-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}
