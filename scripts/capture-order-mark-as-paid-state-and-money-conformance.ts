@@ -4,21 +4,25 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { createAdminGraphqlClient, type ConformanceGraphqlResult } from './conformance-graphql-client.js';
+import {
+  createAdminGraphqlClient,
+  type ConformanceGraphqlPayload,
+  type ConformanceGraphqlResult,
+} from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
-type JsonRecord = Record<string, any>;
+type JsonRecord = Record<string, unknown>;
 
 type GraphqlCapture = {
   variables: JsonRecord;
-  response: ConformanceGraphqlResult<any>;
+  response: ConformanceGraphqlResult<JsonRecord>;
 };
 
 type CreatedOrder = {
   id: string;
   name: string | null;
-  response: JsonRecord;
+  response: ConformanceGraphqlPayload<JsonRecord>;
   variables: JsonRecord;
 };
 
@@ -162,18 +166,36 @@ async function writeJson(filePath: string, payload: unknown): Promise<void> {
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`);
 }
 
-async function run(query: string, variables: JsonRecord): Promise<ConformanceGraphqlResult<any>> {
-  return runGraphqlRequest(trimGraphql(query), variables);
+function asRecord(value: unknown): JsonRecord | null {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as JsonRecord) : null;
 }
 
-function userErrors(result: ConformanceGraphqlResult, pathName: string): unknown[] {
-  return result.payload?.data?.[pathName]?.userErrors ?? [];
+function readRecord(value: unknown, key: string): JsonRecord | null {
+  return asRecord(asRecord(value)?.[key]);
 }
 
-function requireOrder(result: ConformanceGraphqlResult, label: string): JsonRecord {
-  const order = result.payload?.data?.orderCreate?.order;
+function readArray(value: unknown, key: string): unknown[] {
+  const fieldValue = asRecord(value)?.[key];
+  return Array.isArray(fieldValue) ? fieldValue : [];
+}
+
+function readString(value: unknown, key: string): string | null {
+  const fieldValue = asRecord(value)?.[key];
+  return typeof fieldValue === 'string' && fieldValue.length > 0 ? fieldValue : null;
+}
+
+async function run(query: string, variables: JsonRecord): Promise<ConformanceGraphqlResult<JsonRecord>> {
+  return runGraphqlRequest<JsonRecord>(trimGraphql(query), variables);
+}
+
+function userErrors(result: ConformanceGraphqlResult<JsonRecord>, pathName: string): unknown[] {
+  return readArray(readRecord(result.payload.data, pathName), 'userErrors');
+}
+
+function requireOrder(result: ConformanceGraphqlResult<JsonRecord>, label: string): JsonRecord {
+  const order = readRecord(readRecord(result.payload.data, 'orderCreate'), 'order');
   const errors = userErrors(result, 'orderCreate');
-  if (!order?.id || errors.length > 0) {
+  if (!order || !readString(order, 'id') || errors.length > 0) {
     throw new Error(`Unable to create ${label} order: ${JSON.stringify(result.payload)}`);
   }
   return order;
@@ -229,7 +251,7 @@ function makeOrderVariables(
     ],
   };
   if (options.paid) {
-    order.transactions = [
+    order['transactions'] = [
       {
         kind: 'SALE',
         status: 'SUCCESS',
@@ -254,9 +276,13 @@ async function createOrder(
   const variables = makeOrderVariables(stamp, scenario, options);
   const response = await run(orderCreateMutation, variables);
   const order = requireOrder(response, scenario);
+  const id = readString(order, 'id');
+  if (!id) {
+    throw new Error(`Created ${scenario} order is missing id: ${JSON.stringify(response.payload)}`);
+  }
   return {
-    id: order.id,
-    name: order.name ?? null,
+    id,
+    name: readString(order, 'name'),
     variables,
     response: response.payload,
   };
@@ -288,7 +314,7 @@ function hydrateCall(order: CreatedOrder): JsonRecord {
       status: 200,
       body: {
         data: {
-          order: order.response.data.orderCreate.order,
+          order: readRecord(readRecord(order.response.data, 'orderCreate'), 'order'),
         },
       },
     },
@@ -296,10 +322,26 @@ function hydrateCall(order: CreatedOrder): JsonRecord {
 }
 
 function assertMultiCurrencyOrder(order: CreatedOrder): void {
-  const created = order.response.data.orderCreate.order;
-  if (created.presentmentCurrencyCode === created.currentTotalPriceSet?.shopMoney?.currencyCode) {
+  const created = readRecord(readRecord(order.response.data, 'orderCreate'), 'order');
+  const presentmentCurrencyCode = readString(created, 'presentmentCurrencyCode');
+  const shopCurrencyCode = readString(
+    readRecord(readRecord(created, 'currentTotalPriceSet'), 'shopMoney'),
+    'currencyCode',
+  );
+  if (presentmentCurrencyCode === shopCurrencyCode) {
     throw new Error(`Expected distinct presentment currency for multi-currency setup: ${JSON.stringify(created)}`);
   }
+}
+
+function orderMarkAsPaidPayload(result: GraphqlCapture): JsonRecord | null {
+  return readRecord(result.response.payload.data, 'orderMarkAsPaid');
+}
+
+function lastTransactionPresentmentMoney(result: GraphqlCapture): JsonRecord | null {
+  const order = readRecord(orderMarkAsPaidPayload(result), 'order');
+  const transactions = readArray(order, 'transactions');
+  const lastTransaction = asRecord(transactions.at(-1));
+  return readRecord(readRecord(lastTransaction, 'amountSet'), 'presentmentMoney');
 }
 
 const stamp = Date.now();
@@ -346,10 +388,8 @@ try {
         ok: true,
         outputPath,
         orders: createdOrders.map((order) => ({ id: order.id, name: order.name })),
-        alreadyPaidUserErrors: alreadyPaidResult.response.payload?.data?.orderMarkAsPaid?.userErrors ?? null,
-        multiCurrencyPresentment:
-          multiCurrencyResult.response.payload?.data?.orderMarkAsPaid?.order?.transactions?.at(-1)?.amountSet
-            ?.presentmentMoney ?? null,
+        alreadyPaidUserErrors: readArray(orderMarkAsPaidPayload(alreadyPaidResult), 'userErrors'),
+        multiCurrencyPresentment: lastTransactionPresentmentMoney(multiCurrencyResult),
       },
       null,
       2,
@@ -364,7 +404,7 @@ try {
         variables: { orderId: order.id },
         response: {
           status: 0,
-          payload: { error: error instanceof Error ? error.message : String(error) },
+          payload: { errors: [{ message: error instanceof Error ? error.message : String(error) }] },
         },
       });
     }
