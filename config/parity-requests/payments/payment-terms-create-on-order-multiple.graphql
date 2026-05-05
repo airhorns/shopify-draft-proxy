@@ -1,0 +1,12 @@
+mutation PaymentTermsCreateOnOrderMultiple($referenceId: ID!, $attrs: PaymentTermsCreateInput!) {
+  paymentTermsCreate(referenceId: $referenceId, paymentTermsAttributes: $attrs) {
+    paymentTerms {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
