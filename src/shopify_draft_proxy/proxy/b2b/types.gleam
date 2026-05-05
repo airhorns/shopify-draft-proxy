@@ -86,6 +86,7 @@ pub type Payload {
     deleted_address_id: Option(String),
     revoked_company_contact_role_assignment_id: Option(String),
     revoked_role_assignment_ids: List(String),
+    revoked_role_assignment_ids_null: Bool,
     deleted_company_location_staff_member_assignment_ids: List(String),
     removed_company_contact_id: Option(String),
     user_errors: List(UserError),

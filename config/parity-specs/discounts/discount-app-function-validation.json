@@ -1,0 +1,27 @@
+{
+  "scenarioId": "discount-app-function-validation",
+  "operationNames": ["discountCodeAppCreate", "discountAutomaticAppCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "function-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-app-function-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-app-function-validation.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.validation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "app-discount-function-validation-user-errors",
+        "capturePath": "$.validation.response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "HAR-783 live Shopify 2026-04 evidence for app-discount Function identifier validation. The active conformance app exposes payment, validation, and cart-transform Functions but no discount Function, so the scenario captures validation-only branches that do not create discounts: missing identifier, multiple identifiers, unknown functionId, wrong Function API via the released cart-transform Function handle, missing automatic identifier, and unknown automatic functionHandle. The proxy earns Function metadata through cassette-backed shopifyFunctions(handle:) lookups during replay."
+}

@@ -63,6 +63,7 @@ pub fn empty_payload(errors: List(b2b_types.UserError)) -> b2b_types.Payload {
     deleted_address_id: None,
     revoked_company_contact_role_assignment_id: None,
     revoked_role_assignment_ids: [],
+    revoked_role_assignment_ids_null: False,
     deleted_company_location_staff_member_assignment_ids: [],
     removed_company_contact_id: None,
     user_errors: errors,
@@ -1704,6 +1705,15 @@ pub fn resource_not_found(field: List(String)) {
 }
 
 @internal
+pub fn role_assignment_not_found_at(field: List(String)) {
+  user_error(
+    Some(field),
+    "The role assignment doesn't exist.",
+    user_error_code.resource_not_found,
+  )
+}
+
+@internal
 pub fn company_role_not_found_at(field: List(String)) {
   user_error(
     Some(field),
@@ -2002,7 +2012,11 @@ pub fn serialize_mutation_payload(
             )
             "revokedRoleAssignmentIds" -> #(
               key,
-              json.array(payload.revoked_role_assignment_ids, json.string),
+              case payload.revoked_role_assignment_ids_null {
+                True -> json.null()
+                False ->
+                  json.array(payload.revoked_role_assignment_ids, json.string)
+              },
             )
             "deletedCompanyLocationStaffMemberAssignmentIds" -> #(
               key,

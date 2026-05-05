@@ -34,9 +34,9 @@ import shopify_draft_proxy/proxy/b2b/serializers.{
   optional_json_string, optional_src_string, paginate_records, project_source,
   put_source, read_bool, read_id_arg, read_object, read_object_list,
   read_object_sources, read_string, read_string_list, record_source,
-  remove_string, resource_not_found, role_source, sanitize_name_field,
-  selected_children, serialize_company, serialize_company_address_node_by_id,
-  serialize_company_connection,
+  remove_string, resource_not_found, role_assignment_not_found_at, role_source,
+  sanitize_name_field, selected_children, serialize_company,
+  serialize_company_address_node_by_id, serialize_company_connection,
   serialize_company_contact_role_assignment_node_by_id,
   serialize_company_metafield, serialize_company_metafields_connection,
   serialize_contact, serialize_contact_connection, serialize_count,
@@ -814,6 +814,25 @@ pub fn filter_removed_role_assignments(
 }
 
 @internal
+pub fn find_role_assignment(
+  assignments: List(SourceValue),
+  id: String,
+) -> Option(SourceValue) {
+  assignments
+  |> list.find(fn(assignment) { source_id(assignment) == id })
+  |> option_from_result
+}
+
+@internal
+pub fn contact_role_assignment(
+  contact: B2BCompanyContactRecord,
+  id: String,
+) -> Option(SourceValue) {
+  read_object_sources(data_get(contact.data, "roleAssignments"))
+  |> find_role_assignment(id)
+}
+
+@internal
 pub fn filter_removed_assignments(
   assignments: List(SourceValue),
   ids: List(String),
@@ -836,32 +855,73 @@ pub fn handle_contact_revoke_role(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> b2b_types.RootResult {
-  let ids = case read_string(args, "companyContactRoleAssignmentId") {
-    Some(id) -> [id]
-    None -> []
+  case read_string(args, "companyContactId") {
+    Some(contact_id) ->
+      case store.get_effective_b2b_company_contact_by_id(store, contact_id) {
+        Some(contact) ->
+          case read_string(args, "companyContactRoleAssignmentId") {
+            Some(id) ->
+              case contact_role_assignment(contact, id) {
+                Some(_) -> {
+                  let #(store, revoked) =
+                    revoke_role_assignments(
+                      store,
+                      [id],
+                      Some(contact_id),
+                      None,
+                      False,
+                    )
+                  b2b_types.RootResult(
+                    b2b_types.Payload(
+                      ..empty_payload([]),
+                      revoked_company_contact_role_assignment_id: list.first(
+                          revoked,
+                        )
+                        |> option_from_result,
+                    ),
+                    store,
+                    identity,
+                    revoked,
+                  )
+                }
+                None ->
+                  b2b_types.RootResult(
+                    empty_payload([
+                      role_assignment_not_found_at([
+                        "companyContactRoleAssignmentId",
+                      ]),
+                    ]),
+                    store,
+                    identity,
+                    [],
+                  )
+              }
+            None ->
+              b2b_types.RootResult(
+                empty_payload([
+                  resource_not_found(["companyContactRoleAssignmentId"]),
+                ]),
+                store,
+                identity,
+                [],
+              )
+          }
+        None ->
+          b2b_types.RootResult(
+            empty_payload([resource_not_found(["companyContactId"])]),
+            store,
+            identity,
+            [],
+          )
+      }
+    None ->
+      b2b_types.RootResult(
+        empty_payload([resource_not_found(["companyContactId"])]),
+        store,
+        identity,
+        [],
+      )
   }
-  let #(store, revoked) =
-    revoke_role_assignments(
-      store,
-      ids,
-      read_string(args, "companyContactId"),
-      None,
-      False,
-    )
-  let errors = case revoked {
-    [] -> [resource_not_found(["companyContactRoleAssignmentId"])]
-    _ -> []
-  }
-  b2b_types.RootResult(
-    b2b_types.Payload(
-      ..empty_payload(errors),
-      revoked_company_contact_role_assignment_id: list.first(revoked)
-        |> option_from_result,
-    ),
-    store,
-    identity,
-    revoked,
-  )
 }
 
 @internal
@@ -875,22 +935,37 @@ pub fn handle_contact_revoke_roles(
     _ -> False
   }
   let role_assignment_ids = read_string_list(args, "roleAssignmentIds")
-  case bulk_action_limit_reached(role_assignment_ids) {
-    True ->
+  case role_assignment_ids, revoke_all {
+    [], False ->
       b2b_types.RootResult(
-        empty_payload([bulk_action_limit_reached_error("roleAssignmentIds")]),
+        b2b_types.Payload(
+          ..empty_payload([
+            user_error(None, "Invalid input.", user_error_code.invalid_input),
+          ]),
+          revoked_role_assignment_ids_null: True,
+        ),
         store,
         identity,
         [],
       )
-    False ->
-      handle_contact_revoke_roles_under_limit(
-        store,
-        identity,
-        args,
-        revoke_all,
-        role_assignment_ids,
-      )
+    _, _ ->
+      case bulk_action_limit_reached(role_assignment_ids) {
+        True ->
+          b2b_types.RootResult(
+            empty_payload([bulk_action_limit_reached_error("roleAssignmentIds")]),
+            store,
+            identity,
+            [],
+          )
+        False ->
+          handle_contact_revoke_roles_under_limit(
+            store,
+            identity,
+            args,
+            revoke_all,
+            role_assignment_ids,
+          )
+      }
   }
 }
 
