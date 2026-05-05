@@ -100,6 +100,8 @@ type StandardMetafieldDefinitionTemplate {
   )
 }
 
+const pinned_definition_limit = 20
+
 pub fn is_metafield_definitions_query_root(name: String) -> Bool {
   case name {
     "metafieldDefinition"
@@ -1951,24 +1953,40 @@ fn serialize_definition_pin_root(
       identity,
       [],
     )
-    Some(definition) -> {
-      let pinned = pin_definition(store_in, definition)
-      let next_store =
-        store.upsert_staged_metafield_definitions(store_in, [pinned])
-      #(
-        serialize_pinning_payload(
+    Some(definition) ->
+      case validate_definition_pin(store_in, definition) {
+        [_, ..] as user_errors -> #(
+          serialize_pinning_payload(
+            store_in,
+            "pinnedDefinition",
+            None,
+            user_errors,
+            field,
+            variables,
+          ),
           store_in,
-          "pinnedDefinition",
-          Some(pinned),
+          identity,
           [],
-          field,
-          variables,
-        ),
-        next_store,
-        identity,
-        [pinned.id],
-      )
-    }
+        )
+        [] -> {
+          let pinned = pin_definition(store_in, definition)
+          let next_store =
+            store.upsert_staged_metafield_definitions(store_in, [pinned])
+          #(
+            serialize_pinning_payload(
+              store_in,
+              "pinnedDefinition",
+              Some(pinned),
+              [],
+              field,
+              variables,
+            ),
+            next_store,
+            identity,
+            [pinned.id],
+          )
+        }
+      }
   }
 }
 
@@ -2043,17 +2061,24 @@ fn validate_product_owner_definition_input(
         None -> Ok(blank_definition_error(field_name))
       }
     })
-  let owner_type_error = case read_optional_string(input, "ownerType") {
-    Some("PRODUCT") | None -> []
-    Some(_) -> [
+  let owner_type_error = case create, read_optional_string(input, "ownerType") {
+    True, Some("PRODUCT") | _, None -> []
+    True, Some(_) -> [
       UserError(
         field: Some(["definition", "ownerType"]),
         message: "Only PRODUCT metafield definitions are supported locally.",
         code: "UNSUPPORTED_OWNER_TYPE",
       ),
     ]
+    False, _ -> []
   }
-  list.append(errors, owner_type_error)
+  errors
+  |> list.append(owner_type_error)
+  |> list.append(validate_definition_namespace(input))
+  |> list.append(validate_definition_key(input))
+  |> list.append(validate_definition_name(input))
+  |> list.append(validate_definition_description(input))
+  |> list.append(validate_definition_type(input, create))
 }
 
 fn blank_definition_error(field_name: String) -> UserError {
@@ -2062,6 +2087,246 @@ fn blank_definition_error(field_name: String) -> UserError {
     message: field_name <> " is required.",
     code: "BLANK",
   )
+}
+
+fn validate_definition_namespace(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "namespace") {
+    Some(namespace) ->
+      case string.trim(namespace) {
+        "" -> []
+        _ -> {
+          let length = string.length(namespace)
+          case definition_reserved_namespace(namespace) {
+            True -> [
+              definition_user_error(
+                "namespace",
+                "Namespace " <> namespace <> " is reserved.",
+                "RESERVED",
+              ),
+            ]
+            False ->
+              case length < 3 {
+                True -> [
+                  definition_user_error(
+                    "namespace",
+                    "Namespace is too short (minimum is 3 characters)",
+                    "TOO_SHORT",
+                  ),
+                ]
+                False ->
+                  case length > 255 {
+                    True -> [
+                      definition_user_error(
+                        "namespace",
+                        "Namespace is too long (maximum is 255 characters)",
+                        "TOO_LONG",
+                      ),
+                    ]
+                    False ->
+                      case valid_definition_identifier_characters(namespace) {
+                        True -> []
+                        False -> [
+                          definition_user_error(
+                            "namespace",
+                            "Namespace contains one or more invalid characters.",
+                            "INVALID_CHARACTER",
+                          ),
+                        ]
+                      }
+                  }
+              }
+          }
+        }
+      }
+    None -> []
+  }
+}
+
+fn validate_definition_key(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "key") {
+    Some(key) ->
+      case string.trim(key) {
+        "" -> []
+        _ -> {
+          let length = string.length(key)
+          case length < 2 {
+            True -> [
+              definition_user_error(
+                "key",
+                "Key is too short (minimum is 2 characters)",
+                "TOO_SHORT",
+              ),
+            ]
+            False ->
+              case length > 64 {
+                True -> [
+                  definition_user_error(
+                    "key",
+                    "Key is too long (maximum is 64 characters)",
+                    "TOO_LONG",
+                  ),
+                ]
+                False ->
+                  case valid_definition_identifier_characters(key) {
+                    True -> []
+                    False -> [
+                      definition_user_error(
+                        "key",
+                        "Key contains one or more invalid characters.",
+                        "INVALID_CHARACTER",
+                      ),
+                    ]
+                  }
+              }
+          }
+        }
+      }
+    None -> []
+  }
+}
+
+fn validate_definition_name(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "name") {
+    Some(name) ->
+      case string.length(name) > 255 {
+        True -> [
+          definition_user_error(
+            "name",
+            "Name is too long (maximum is 255 characters)",
+            "TOO_LONG",
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_definition_description(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "description") {
+    Some(description) ->
+      case string.length(description) > 255 {
+        True -> [
+          definition_user_error(
+            "description",
+            "Description is too long (maximum is 255 characters)",
+            "TOO_LONG",
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_definition_type(
+  input: Dict(String, root_field.ResolvedValue),
+  create: Bool,
+) -> List(UserError) {
+  case read_optional_string(input, "type") {
+    Some(type_name) ->
+      case string.trim(type_name) {
+        "" -> []
+        _ ->
+          case valid_definition_type_name(type_name) {
+            True -> []
+            False -> [
+              definition_user_error(
+                "type",
+                invalid_definition_type_message(type_name),
+                "INCLUSION",
+              ),
+            ]
+          }
+      }
+    None ->
+      case create {
+        True -> []
+        False -> []
+      }
+  }
+}
+
+fn definition_user_error(
+  field_name: String,
+  message: String,
+  code: String,
+) -> UserError {
+  UserError(
+    field: Some(["definition", field_name]),
+    message: message,
+    code: code,
+  )
+}
+
+fn definition_reserved_namespace(namespace: String) -> Bool {
+  is_protected_write_namespace(namespace)
+  || string.starts_with(namespace, "shopify")
+}
+
+fn valid_definition_identifier_characters(value: String) -> Bool {
+  value
+  |> string.to_utf_codepoints
+  |> list.all(fn(codepoint) {
+    let code = string.utf_codepoint_to_int(codepoint)
+    is_alpha_numeric_code(code) || code == 45 || code == 95
+  })
+}
+
+fn valid_definition_type_name(type_name: String) -> Bool {
+  list.contains(valid_definition_type_names(), type_name)
+}
+
+fn invalid_definition_type_message(type_name: String) -> String {
+  "Type name "
+  <> type_name
+  <> " is not a valid type. Valid types are: "
+  <> string.join(valid_definition_type_names(), ", ")
+  <> "."
+}
+
+fn valid_definition_type_names() -> List(String) {
+  [
+    "antenna_gain", "area", "battery_charge_capacity", "battery_energy_capacity",
+    "boolean", "capacitance", "color", "concentration", "data_storage_capacity",
+    "data_transfer_rate", "date_time", "date", "dimension", "display_density",
+    "distance", "duration", "electric_current", "electrical_resistance",
+    "energy", "frequency", "id", "illuminance", "inductance", "json", "language",
+    "link", "list.antenna_gain", "list.area", "list.battery_charge_capacity",
+    "list.battery_energy_capacity", "list.capacitance", "list.color",
+    "list.concentration", "list.data_storage_capacity",
+    "list.data_transfer_rate", "list.date_time", "list.date", "list.dimension",
+    "list.display_density", "list.distance", "list.duration",
+    "list.electric_current", "list.electrical_resistance", "list.energy",
+    "list.frequency", "list.illuminance", "list.inductance", "list.link",
+    "list.luminous_flux", "list.mass_flow_rate", "list.number_decimal",
+    "list.number_integer", "list.power", "list.pressure", "list.rating",
+    "list.resolution", "list.rotational_speed", "list.single_line_text_field",
+    "list.sound_level", "list.speed", "list.temperature", "list.thermal_power",
+    "list.url", "list.voltage", "list.volume", "list.volumetric_flow_rate",
+    "list.weight", "luminous_flux", "mass_flow_rate", "money",
+    "multi_line_text_field", "number_decimal", "number_integer", "power",
+    "pressure", "rating", "resolution", "rich_text_field", "rotational_speed",
+    "single_line_text_field", "sound_level", "speed", "temperature",
+    "thermal_power", "url", "voltage", "volume", "volumetric_flow_rate",
+    "weight", "company_reference", "list.company_reference",
+    "customer_reference", "list.customer_reference", "product_reference",
+    "list.product_reference", "collection_reference",
+    "list.collection_reference", "variant_reference", "list.variant_reference",
+    "file_reference", "list.file_reference", "product_taxonomy_value_reference",
+    "list.product_taxonomy_value_reference", "metaobject_reference",
+    "list.metaobject_reference", "mixed_reference", "list.mixed_reference",
+    "page_reference", "list.page_reference", "article_reference",
+    "list.article_reference", "order_reference", "list.order_reference",
+  ]
 }
 
 fn build_definition_from_input(
@@ -2094,9 +2359,7 @@ fn build_definition_from_input(
         input,
         "capabilities",
       )),
-      constraints: Some(
-        MetafieldDefinitionConstraintsRecord(key: None, values: []),
-      ),
+      constraints: read_definition_constraints(input),
       pinned_position: case read_optional_bool(input, "pin") {
         Some(True) -> Some(next_pinned_position(store_in, owner_type, None))
         _ -> None
@@ -2105,6 +2368,40 @@ fn build_definition_from_input(
     ),
     next_identity,
   )
+}
+
+fn read_definition_constraints(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(MetafieldDefinitionConstraintsRecord) {
+  case has_field(input, "constraints") {
+    False -> Some(MetafieldDefinitionConstraintsRecord(key: None, values: []))
+    True -> {
+      let constraints = read_object(input, "constraints")
+      Some(MetafieldDefinitionConstraintsRecord(
+        key: read_optional_string(constraints, "key"),
+        values: read_string_list(constraints, "values")
+          |> list.map(fn(value) {
+            MetafieldDefinitionConstraintValueRecord(value: value)
+          }),
+      ))
+    }
+  }
+}
+
+fn read_string_list(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(String) {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          root_field.StringVal(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
 }
 
 fn infer_definition_type_category(type_name: String) -> Option(String) {
@@ -2317,6 +2614,47 @@ fn serialize_definition_user_error(error: UserError, field: Selection) -> Json {
   )
 }
 
+fn validate_definition_pin(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> List(UserError) {
+  case definition_is_constrained(definition) {
+    True -> [
+      UserError(
+        field: None,
+        message: "Constrained metafield definitions do not support pinning.",
+        code: "UNSUPPORTED_PINNING",
+      ),
+    ]
+    False ->
+      case definition.pinned_position {
+        Some(_) -> []
+        None ->
+          case
+            list.length(list_pinned_definitions(store_in, definition.owner_type))
+            >= pinned_definition_limit
+          {
+            True -> [
+              UserError(
+                field: None,
+                message: "Limit of 20 pinned definitions.",
+                code: "PINNED_LIMIT_REACHED",
+              ),
+            ]
+            False -> []
+          }
+      }
+  }
+}
+
+fn definition_is_constrained(definition: MetafieldDefinitionRecord) -> Bool {
+  case definition.constraints {
+    Some(MetafieldDefinitionConstraintsRecord(key: Some(_), ..)) -> True
+    Some(MetafieldDefinitionConstraintsRecord(values: [_, ..], ..)) -> True
+    _ -> False
+  }
+}
+
 fn list_pinned_definitions(
   store_in: Store,
   owner_type: String,
@@ -2459,6 +2797,11 @@ fn minimal_product_shell(product_id: String) -> ProductRecord {
     vendor: None,
     product_type: None,
     tags: [],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: None,
+    has_only_default_variant: None,
+    has_out_of_stock_variants: None,
     total_inventory: None,
     tracks_inventory: None,
     created_at: None,

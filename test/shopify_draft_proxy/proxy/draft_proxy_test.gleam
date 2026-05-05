@@ -465,6 +465,32 @@ pub fn graphql_saved_search_create_missing_input_test() {
     == "{\"errors\":[{\"message\":\"Field 'savedSearchCreate' is missing required arguments: input\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"savedSearchCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"savedSearchCreate\",\"arguments\":\"input\"}}]}"
 }
 
+pub fn graphql_validation_update_rejects_unknown_function_input_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation ValidationUpdateRebind { validationUpdate(id: \\\"gid://shopify/Validation/1\\\", validation: { functionId: \\\"gid://shopify/ShopifyFunction/other\\\" }) { validation { id functionId } userErrors { field message code } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Field 'functionId' is not defined on ValidationUpdateInput\",\"locations\":[{\"line\":1,\"column\":100}],\"path\":[\"mutation ValidationUpdateRebind\",\"validationUpdate\",\"validation\",\"functionId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"functionId\"}}]}"
+}
+
+pub fn graphql_validation_update_rejects_unknown_function_handle_input_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation ValidationUpdateRebind { validationUpdate(id: \\\"gid://shopify/Validation/1\\\", validation: { functionHandle: \\\"other\\\" }) { validation { id functionHandle } userErrors { field message code } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Field 'functionHandle' is not defined on ValidationUpdateInput\",\"locations\":[{\"line\":1,\"column\":100}],\"path\":[\"mutation ValidationUpdateRebind\",\"validationUpdate\",\"validation\",\"functionHandle\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"functionHandle\"}}]}"
+}
+
 pub fn graphql_saved_search_create_missing_required_input_fields_test() {
   let proxy = draft_proxy.new()
   let request =

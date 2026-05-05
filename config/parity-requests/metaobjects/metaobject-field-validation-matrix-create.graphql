@@ -1,0 +1,24 @@
+mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {
+  metaobjectCreate(metaobject: $metaobject) {
+    metaobject {
+      id
+      handle
+      type
+      displayName
+      updatedAt
+      fields {
+        key
+        type
+        value
+        jsonValue
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

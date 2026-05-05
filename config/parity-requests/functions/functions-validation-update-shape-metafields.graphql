@@ -1,0 +1,25 @@
+mutation ValidationUpdateMetafields($id: ID!) {
+  validationUpdate(
+    id: $id
+    validation: { metafields: [{ namespace: "custom", key: "mode", type: "single_line_text_field", value: "strict" }] }
+  ) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+      metafields(first: 5) {
+        nodes {
+          namespace
+          key
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

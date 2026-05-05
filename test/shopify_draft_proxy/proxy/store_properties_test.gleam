@@ -208,6 +208,33 @@ fn location_address(
   )
 }
 
+fn location_inventory_levels(quantity_name: String, quantity: Int) {
+  StorePropertyObject(
+    dict.from_list([
+      #(
+        "nodes",
+        StorePropertyList([
+          StorePropertyObject(
+            dict.from_list([
+              #(
+                "quantities",
+                StorePropertyList([
+                  StorePropertyObject(
+                    dict.from_list([
+                      #("name", StorePropertyString(quantity_name)),
+                      #("quantity", StorePropertyInt(quantity)),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ]),
+  )
+}
+
 pub fn empty_shop_read_returns_null_test() {
   let body = "{\"query\":\"query { shop { id name } }\"}"
   let #(proxy_state.Response(status: status, body: response_body, ..), _) =
@@ -515,6 +542,116 @@ pub fn location_reads_and_local_mutations_use_store_state_test() {
   assert string.contains(serialized_state, "\"stagedState\":{")
   assert string.contains(serialized_state, "\"locations\":{")
   assert string.contains(serialized_state, "\"name\":\"Annex\"")
+}
+
+pub fn location_add_requires_address_top_level_error_test() {
+  let body =
+    "{\"query\":\"mutation LocationAddMissingAddress { locationAdd(input: { name: \\\"Warehouse\\\" }) { location { id name } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Argument 'address' on InputObject 'LocationAddInput' is required. Expected type LocationAddAddressInput!\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert !string.contains(serialized, "\"locationAdd\":{\"location\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_stages_address_defaults_and_capabilities_test() {
+  let add_body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Main\\\", address: { address1: \\\"1 Spadina\\\", address2: \\\"Suite 2\\\", city: \\\"Toronto\\\", country: \\\"Canada\\\", countryCode: CA, province: \\\"Ontario\\\", provinceCode: \\\"ON\\\", zip: \\\"M5T 2C2\\\", phone: \\\"+14165550100\\\" }, capabilitiesToAdd: [PICKUP], capabilitiesToRemove: [SHIPPING] }) { location { id name fulfillsOnlineOrders address { address1 address2 city country countryCode province provinceCode zip phone } capabilities } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: add_status, body: add_json, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(add_body))
+  let add_serialized = json.to_string(add_json)
+
+  assert add_status == 200
+  assert string.contains(add_serialized, "\"userErrors\":[]")
+  assert string.contains(add_serialized, "\"name\":\"Main\"")
+  assert string.contains(add_serialized, "\"fulfillsOnlineOrders\":true")
+  assert string.contains(add_serialized, "\"address1\":\"1 Spadina\"")
+  assert string.contains(add_serialized, "\"address2\":\"Suite 2\"")
+  assert string.contains(add_serialized, "\"city\":\"Toronto\"")
+  assert string.contains(add_serialized, "\"country\":\"Canada\"")
+  assert string.contains(add_serialized, "\"countryCode\":\"CA\"")
+  assert string.contains(add_serialized, "\"province\":\"Ontario\"")
+  assert string.contains(add_serialized, "\"provinceCode\":\"ON\"")
+  assert string.contains(add_serialized, "\"zip\":\"M5T 2C2\"")
+  assert string.contains(add_serialized, "\"phone\":\"+14165550100\"")
+  assert string.contains(add_serialized, "\"capabilities\":[\"PICKUP\"]")
+
+  let read_body =
+    "{\"query\":\"query { location { name fulfillsOnlineOrders address { countryCode city } capabilities } locations(first: 5) { nodes { name fulfillsOnlineOrders address { countryCode city } capabilities } } }\"}"
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read_serialized = json.to_string(read_json)
+
+  assert read_status == 200
+  assert string.contains(read_serialized, "\"fulfillsOnlineOrders\":true")
+  assert string.contains(
+    read_serialized,
+    "\"address\":{\"countryCode\":\"CA\",\"city\":\"Toronto\"}",
+  )
+  assert string.contains(read_serialized, "\"capabilities\":[\"PICKUP\"]")
+}
+
+pub fn location_add_honors_explicit_fulfills_online_orders_false_test() {
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Sub\\\", address: { city: \\\"Toronto\\\", countryCode: CA }, fulfillsOnlineOrders: false }) { location { id fulfillsOnlineOrders address { city countryCode } } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"fulfillsOnlineOrders\":false")
+  assert string.contains(
+    serialized,
+    "\"address\":{\"city\":\"Toronto\",\"countryCode\":\"CA\"}",
+  )
+}
+
+pub fn location_add_blank_name_user_error_includes_code_test() {
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"\\\", address: { countryCode: CA } }) { location { id } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"location\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"name\"],\"message\":\"Add a location name\",\"code\":\"BLANK\"",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_invalid_country_code_returns_user_error_test() {
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Bad\\\", address: { countryCode: ZZ } }) { location { id } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"location\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"address\",\"countryCode\"]",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
 }
 
 pub fn location_edit_updates_address_fulfillment_and_metafields_test() {
@@ -984,6 +1121,286 @@ pub fn location_deactivate_only_online_fulfilling_location_returns_user_error_te
   assert string.contains(
     serialized,
     "\"code\":\"CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT\"",
+  )
+}
+
+pub fn location_delete_uses_location_state_guards_and_read_back_test() {
+  let success_id = "gid://shopify/Location/delete-success"
+  let active_id = "gid://shopify/Location/delete-active"
+  let inventory_id = "gid://shopify/Location/delete-inventory"
+  let active_inventory_id = "gid://shopify/Location/delete-active-inventory"
+  let primary_id = "gid://shopify/Location/delete-primary"
+  let fulfillment_service_id = "gid://shopify/Location/delete-fs"
+  let pending_orders_id = "gid://shopify/Location/delete-pending"
+  let retail_subscription_id = "gid://shopify/Location/delete-retail"
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_store_property_location(make_location(
+      success_id,
+      "Delete success",
+      False,
+      True,
+      True,
+      False,
+    ))
+    |> store.upsert_base_store_property_location(make_location(
+      active_id,
+      "Delete active",
+      True,
+      True,
+      True,
+      False,
+    ))
+    |> store.upsert_base_store_property_location(
+      StorePropertyRecord(
+        ..make_location(
+          inventory_id,
+          "Delete inventory",
+          False,
+          True,
+          True,
+          False,
+        ),
+        data: dict.insert(
+          make_location(
+            inventory_id,
+            "Delete inventory",
+            False,
+            True,
+            True,
+            False,
+          ).data,
+          "inventoryLevels",
+          location_inventory_levels("available", 4),
+        ),
+      ),
+    )
+    |> store.upsert_base_store_property_location(
+      StorePropertyRecord(
+        ..make_location(
+          active_inventory_id,
+          "Delete active inventory",
+          True,
+          True,
+          True,
+          False,
+        ),
+        data: dict.insert(
+          make_location(
+            active_inventory_id,
+            "Delete active inventory",
+            True,
+            True,
+            True,
+            False,
+          ).data,
+          "hasActiveInventory",
+          StorePropertyBool(True),
+        ),
+      ),
+    )
+    |> store.upsert_base_store_property_location(
+      StorePropertyRecord(
+        ..make_location(primary_id, "Delete primary", False, True, True, False),
+        data: dict.insert(
+          make_location(primary_id, "Delete primary", False, True, True, False).data,
+          "isPrimary",
+          StorePropertyBool(True),
+        ),
+      ),
+    )
+    |> store.upsert_base_store_property_location(
+      StorePropertyRecord(
+        ..make_location(
+          fulfillment_service_id,
+          "Delete fulfillment service",
+          False,
+          True,
+          True,
+          False,
+        ),
+        data: dict.insert(
+          make_location(
+            fulfillment_service_id,
+            "Delete fulfillment service",
+            False,
+            True,
+            True,
+            False,
+          ).data,
+          "isFulfillmentService",
+          StorePropertyBool(True),
+        ),
+      ),
+    )
+    |> store.upsert_base_store_property_location(
+      StorePropertyRecord(
+        ..make_location(
+          pending_orders_id,
+          "Delete pending orders",
+          False,
+          True,
+          True,
+          False,
+        ),
+        data: dict.insert(
+          make_location(
+            pending_orders_id,
+            "Delete pending orders",
+            False,
+            True,
+            True,
+            False,
+          ).data,
+          "hasUnfulfilledOrders",
+          StorePropertyBool(True),
+        ),
+      ),
+    )
+    |> store.upsert_base_store_property_location(
+      StorePropertyRecord(
+        ..make_location(
+          retail_subscription_id,
+          "Delete retail subscription",
+          False,
+          True,
+          True,
+          False,
+        ),
+        data: dict.insert(
+          make_location(
+            retail_subscription_id,
+            "Delete retail subscription",
+            False,
+            True,
+            True,
+            False,
+          ).data,
+          "hasActiveRetailSubscription",
+          StorePropertyBool(True),
+        ),
+      ),
+    )
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+
+  let delete_body =
+    "{\"query\":\"mutation($locationId: ID!) { locationDelete(locationId: $locationId) { deletedLocationId locationDeleteUserErrors { field code message } } }\",\"variables\":{\"locationId\":\""
+  let read_body =
+    "{\"query\":\"query { locations(first: 20) { nodes { id } } }\"}"
+
+  let #(
+    proxy_state.Response(status: success_status, body: success_json, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(delete_body <> success_id <> "\"}}"),
+    )
+  assert success_status == 200
+  assert string.contains(
+    json.to_string(success_json),
+    "\"deletedLocationId\":\"" <> success_id <> "\"",
+  )
+  assert string.contains(
+    json.to_string(success_json),
+    "\"locationDeleteUserErrors\":[]",
+  )
+
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  assert read_status == 200
+  assert !string.contains(json.to_string(read_json), success_id)
+
+  let #(proxy_state.Response(body: active_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(delete_body <> active_id <> "\"}}"),
+    )
+  let active_serialized = json.to_string(active_json)
+  assert string.contains(active_serialized, "\"code\":\"LOCATION_IS_ACTIVE\"")
+  assert !string.contains(
+    active_serialized,
+    "\"code\":\"LOCATION_HAS_INVENTORY\"",
+  )
+
+  let #(proxy_state.Response(body: inventory_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(delete_body <> inventory_id <> "\"}}"),
+    )
+  let inventory_serialized = json.to_string(inventory_json)
+  assert !string.contains(
+    inventory_serialized,
+    "\"code\":\"LOCATION_IS_ACTIVE\"",
+  )
+  assert string.contains(
+    inventory_serialized,
+    "\"code\":\"LOCATION_HAS_INVENTORY\"",
+  )
+
+  let #(proxy_state.Response(body: active_inventory_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(delete_body <> active_inventory_id <> "\"}}"),
+    )
+  let active_inventory_serialized = json.to_string(active_inventory_json)
+  assert string.contains(
+    active_inventory_serialized,
+    "\"code\":\"LOCATION_IS_ACTIVE\"",
+  )
+  assert string.contains(
+    active_inventory_serialized,
+    "\"code\":\"LOCATION_HAS_INVENTORY\"",
+  )
+
+  let #(proxy_state.Response(body: primary_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(delete_body <> primary_id <> "\"}}"),
+    )
+  assert string.contains(
+    json.to_string(primary_json),
+    "\"code\":\"LOCATION_IS_PRIMARY\"",
+  )
+
+  let #(proxy_state.Response(body: fulfillment_service_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(delete_body <> fulfillment_service_id <> "\"}}"),
+    )
+  let fulfillment_service_serialized = json.to_string(fulfillment_service_json)
+  assert string.contains(
+    fulfillment_service_serialized,
+    "\"code\":\"LOCATION_NOT_FOUND\"",
+  )
+  assert !string.contains(
+    fulfillment_service_serialized,
+    "\"code\":\"LOCATION_IS_ACTIVE\"",
+  )
+  assert !string.contains(
+    fulfillment_service_serialized,
+    "\"code\":\"LOCATION_HAS_INVENTORY\"",
+  )
+
+  let #(proxy_state.Response(body: pending_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(delete_body <> pending_orders_id <> "\"}}"),
+    )
+  assert string.contains(
+    json.to_string(pending_json),
+    "\"code\":\"LOCATION_HAS_PENDING_ORDERS\"",
+  )
+
+  let #(proxy_state.Response(body: retail_json, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(delete_body <> retail_subscription_id <> "\"}}"),
+    )
+  assert string.contains(
+    json.to_string(retail_json),
+    "\"code\":\"LOCATION_HAS_ACTIVE_RETAIL_SUBSCRIPTION\"",
   )
 }
 

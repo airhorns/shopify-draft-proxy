@@ -1,0 +1,665 @@
+{
+  "scenarioId": "b2b-external-id-validation",
+  "capturedAt": "2026-05-05T15:59:17.278Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-608",
+    "plan": "Record B2B company/company-location externalId charset, length, and uniqueness validation on create and update mutations."
+  },
+  "constants": {
+    "longExternalId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "invalidExternalId": "bad id",
+    "primaryCompanyExternalId": "har-608-company-1777996754545",
+    "primaryLocationExternalId": "har-608-location-1777996754545",
+    "secondCompanyExternalId": "har-608-company-second-1777996754545",
+    "secondLocationExternalId": "har-608-location-second-1777996754545"
+  },
+  "setupCompany": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        externalId\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            externalId\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-608 externalId primary 1777996754545",
+            "externalId": "har-608-company-1777996754545"
+          },
+          "companyLocation": {
+            "name": "HAR-608 externalId primary location 1777996754545",
+            "externalId": "har-608-location-1777996754545"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5436670258",
+            "name": "HAR-608 externalId primary 1777996754545",
+            "externalId": "har-608-company-1777996754545",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8244789554",
+                  "name": "HAR-608 externalId primary location 1777996754545",
+                  "externalId": "har-608-location-1777996754545"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreateTooLong": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        externalId\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            externalId\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-608 company too long 1777996754545",
+            "externalId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "company", "externalId"],
+              "message": "External Id must be 64 characters or less.",
+              "code": "TOO_LONG"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreateInvalid": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        externalId\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            externalId\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-608 company invalid 1777996754545",
+            "externalId": "bad id"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "company", "externalId"],
+              "message": "External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\\/?<>_-~,.;:'`\"",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreateDuplicate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        externalId\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            externalId\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-608 company duplicate 1777996754545",
+            "externalId": "har-608-company-1777996754545"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "company", "externalId"],
+              "message": "External id has already been taken.",
+              "code": "TAKEN"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyUpdateTooLong": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5436670258",
+        "input": {
+          "externalId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "externalId"],
+              "message": "External Id must be 64 characters or less.",
+              "code": "TOO_LONG"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyUpdateInvalid": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5436670258",
+        "input": {
+          "externalId": "bad id"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "externalId"],
+              "message": "External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\\/?<>_-~,.;:'`\"",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondCompanySetup": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        externalId\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            externalId\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-608 externalId second 1777996754545",
+            "externalId": "har-608-company-second-1777996754545"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5436735794",
+            "name": "HAR-608 externalId second 1777996754545",
+            "externalId": "har-608-company-second-1777996754545",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8244822322",
+                  "name": "HAR-608 externalId second 1777996754545",
+                  "externalId": null
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyUpdateDuplicate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5436735794",
+        "input": {
+          "externalId": "har-608-company-1777996754545"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["input", "externalId"],
+              "message": "External id has already been taken.",
+              "code": "TAKEN"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateTooLong": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5436670258",
+        "input": {
+          "name": "HAR-608 location too long 1777996754545",
+          "externalId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "externalId"],
+              "message": "External Id must be 64 characters or less.",
+              "code": "TOO_LONG"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateInvalid": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5436670258",
+        "input": {
+          "name": "HAR-608 location invalid 1777996754545",
+          "externalId": "bad id"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "externalId"],
+              "message": "External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\\/?<>_-~,.;:'`\"",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationCreateDuplicate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5436670258",
+        "input": {
+          "name": "HAR-608 location duplicate 1777996754545",
+          "externalId": "har-608-location-1777996754545"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "externalId"],
+              "message": "External id has already been taken.",
+              "code": "TAKEN"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationUpdateTooLong": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8244789554",
+        "input": {
+          "externalId": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "externalId"],
+              "message": "External Id must be 64 characters or less.",
+              "code": "TOO_LONG"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationUpdateInvalid": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8244789554",
+        "input": {
+          "externalId": "bad id"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "externalId"],
+              "message": "External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\\/?<>_-~,.;:'`\"",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondLocationSetup": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5436670258",
+        "input": {
+          "name": "HAR-608 externalId second location 1777996754545",
+          "externalId": "har-608-location-second-1777996754545"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8244887858",
+            "name": "HAR-608 externalId second location 1777996754545",
+            "externalId": "har-608-location-second-1777996754545",
+            "company": {
+              "id": "gid://shopify/Company/5436670258"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationUpdateDuplicate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BExternalIdValidationLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8244887858",
+        "input": {
+          "externalId": "har-608-location-1777996754545"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": ["input", "externalId"],
+              "message": "External id has already been taken.",
+              "code": "TAKEN"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete:gid://shopify/Company/5436670258": {
+      "request": {
+        "query": "#graphql\n  mutation B2BExternalIdValidationCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5436670258"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5436670258",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "companyDelete:gid://shopify/Company/5436735794": {
+      "request": {
+        "query": "#graphql\n  mutation B2BExternalIdValidationCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5436735794"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5436735794",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

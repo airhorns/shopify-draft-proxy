@@ -1,0 +1,75 @@
+{
+  "scenarioId": "payment-terms-create-on-order",
+  "operationNames": ["orderCreate", "paymentTermsCreate", "paymentTermsUpdate", "paymentTermsDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/payments/payment-terms-create-on-order.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-create.graphql",
+    "variablesCapturePath": "$.paymentTermsCreateOnOrder.orderCreate.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-create-setup",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.orderCreate",
+        "proxyPath": "$"
+      },
+      {
+        "name": "create-payment-terms-on-order",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.create",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.paymentTermsCreateOnOrder.paymentTermsCreate.variables.attrs"
+            }
+          }
+        }
+      },
+      {
+        "name": "multiple-schedules-create-error",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.multiple",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-multiple.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.paymentTermsCreateOnOrder.multipleSchedules.variables.attrs"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-update-error-code",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.update",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-update.graphql",
+          "variablesCapturePath": "$.paymentTermsCreateOnOrder.missingUpdate.variables"
+        }
+      },
+      {
+        "name": "missing-delete-error-code",
+        "capturePath": "$.paymentTermsCreateOnOrder.expected.delete",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-delete.graphql",
+          "variablesCapturePath": "$.paymentTermsCreateOnOrder.missingDelete.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for HAR-637: an in-memory order is created with CAD presentment money, paymentTermsCreate stages terms on the Order owner without upstream passthrough, and sibling requests assert Shopify-like multiple-schedule plus missing update/delete error codes."
+}

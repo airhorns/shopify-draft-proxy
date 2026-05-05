@@ -33,6 +33,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -354,8 +355,12 @@ fn root_query_payload(
         }
         "discountNodes" ->
           serialize_discount_connection(
-            filter_discounts(
-              store.list_effective_discounts(store),
+            sort_discounts(
+              filter_discounts(
+                store.list_effective_discounts(store),
+                field,
+                variables,
+              ),
               field,
               variables,
             ),
@@ -365,8 +370,12 @@ fn root_query_payload(
           )
         "codeDiscountNodes" ->
           serialize_discount_connection(
-            filter_discounts(
-              store.list_effective_discounts(store),
+            sort_discounts(
+              filter_discounts(
+                store.list_effective_discounts(store),
+                field,
+                variables,
+              ),
               field,
               variables,
             )
@@ -377,8 +386,12 @@ fn root_query_payload(
           )
         "automaticDiscountNodes" ->
           serialize_discount_connection(
-            filter_discounts(
-              store.list_effective_discounts(store),
+            sort_discounts(
+              filter_discounts(
+                store.list_effective_discounts(store),
+                field,
+                variables,
+              ),
               field,
               variables,
             )
@@ -518,44 +531,123 @@ fn filter_discounts(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> List(DiscountRecord) {
-  let query = read_string_arg(field, variables, "query")
-  case query {
-    None -> records
-    Some(query) -> {
-      let q = string.lowercase(query)
-      case string.contains(q, "code:") {
-        True -> []
-        False ->
-          list.filter(records, fn(record) {
-            let status_ok = case string.contains(q, "status:active") {
-              True -> record.status == "ACTIVE"
-              False ->
-                case string.contains(q, "status:expired") {
-                  True -> record.status == "EXPIRED"
-                  False -> True
-                }
-            }
-            let type_ok = case string.contains(q, "type:app") {
-              True -> record.discount_type == "app"
-              False ->
-                case string.contains(q, "type:free_shipping") {
-                  True -> record.discount_type == "free_shipping"
-                  False ->
-                    case string.contains(q, "type:code") {
-                      True -> record.owner_kind == "code"
-                      False -> True
-                    }
-                }
-            }
-            status_ok && type_ok
-          })
-      }
+  search_query_parser.apply_search_query(
+    records,
+    read_string_arg(field, variables, "query"),
+    search_query_parser.default_parse_options(),
+    discount_matches_positive_search_term,
+  )
+}
+
+fn discount_matches_positive_search_term(
+  record: DiscountRecord,
+  term: search_query_parser.SearchQueryTerm,
+) -> Bool {
+  let value = search_query_parser.normalize_search_query_value(term.value)
+  case term.field {
+    Some("code") -> False
+    Some("status") -> string.lowercase(record.status) == value
+    Some("type") | Some("discount_type") ->
+      discount_matches_type_filter(record, value)
+    Some("discount_class") | Some("discountClass") ->
+      string.lowercase(discount_class_for_record(record)) == value
+    _ -> True
+  }
+}
+
+fn discount_matches_type_filter(record: DiscountRecord, value: String) -> Bool {
+  case value {
+    "app" -> record.discount_type == "app"
+    "free_shipping" | "free-shipping" -> record.discount_type == "free_shipping"
+    "code" -> record.owner_kind == "code"
+    "automatic" -> record.owner_kind == "automatic"
+    "basic" -> record.discount_type == "basic"
+    "bxgy" -> record.discount_type == "bxgy"
+    _ -> True
+  }
+}
+
+fn sort_discounts(
+  records: List(DiscountRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(DiscountRecord) {
+  let reverse =
+    read_bool_arg(field, variables, "reverse") |> option.unwrap(False)
+  case read_string_arg(field, variables, "sortKey") {
+    Some("CREATED_AT") ->
+      sort_discounts_by_timestamp(records, "createdAt", reverse)
+    Some("UPDATED_AT") ->
+      sort_discounts_by_timestamp(records, "updatedAt", reverse)
+    _ -> records
+  }
+}
+
+fn sort_discounts_by_timestamp(
+  records: List(DiscountRecord),
+  timestamp_field: String,
+  reverse: Bool,
+) -> List(DiscountRecord) {
+  records
+  |> list.sort(fn(left, right) {
+    let compared = compare_discount_timestamp(left, right, timestamp_field)
+    case reverse {
+      True -> reverse_order(compared)
+      False -> compared
     }
+  })
+}
+
+fn compare_discount_timestamp(
+  left: DiscountRecord,
+  right: DiscountRecord,
+  timestamp_field: String,
+) -> order.Order {
+  case
+    string.compare(
+      discount_record_timestamp(left, timestamp_field) |> option.unwrap(""),
+      discount_record_timestamp(right, timestamp_field) |> option.unwrap(""),
+    )
+  {
+    order.Eq -> string.compare(left.id, right.id)
+    other -> other
+  }
+}
+
+fn reverse_order(value: order.Order) -> order.Order {
+  case value {
+    order.Lt -> order.Gt
+    order.Gt -> order.Lt
+    order.Eq -> order.Eq
   }
 }
 
 fn discount_owner_source(record: DiscountRecord) -> SourceValue {
   captured_to_source(record.payload)
+}
+
+fn discount_record_timestamp(
+  record: DiscountRecord,
+  field: String,
+) -> Option(String) {
+  case discount_owner_source(record) {
+    SrcObject(fields) -> {
+      let discount = case record.owner_kind {
+        "automatic" ->
+          dict.get(fields, "automaticDiscount") |> result.unwrap(SrcNull)
+        _ -> dict.get(fields, "codeDiscount") |> result.unwrap(SrcNull)
+      }
+      case discount {
+        SrcObject(discount_fields) ->
+          case dict.get(discount_fields, field) {
+            Ok(SrcString(value)) -> Some(value)
+            _ -> None
+          }
+        _ -> None
+      }
+    }
+    _ -> None
+  }
 }
 
 fn discount_node_source(record: DiscountRecord) -> SourceValue {
@@ -1116,7 +1208,13 @@ fn create_discount_after_top_level_validation(
 ) -> MutationResult {
   // Local input validation first (structural / pure-function checks).
   let user_errors =
-    validate_discount_input(store, input_name, input, discount_type)
+    validate_discount_input(
+      store,
+      input_name,
+      input,
+      discount_type,
+      owner_kind == "code",
+    )
   // Cross-discount uniqueness check: when local validation otherwise
   // passes and the input carries a `code`, ask upstream whether a
   // discount with that code already exists. If so, surface a TAKEN
@@ -1276,7 +1374,7 @@ fn update_discount_after_top_level_validation(
     Some(existing_record) -> {
       let discount_type = existing_record.discount_type
       let user_errors =
-        validate_discount_input(store, input_name, input, discount_type)
+        validate_discount_input(store, input_name, input, discount_type, False)
       case user_errors {
         [_, ..] ->
           MutationResult(
@@ -1342,32 +1440,27 @@ fn set_status(
                 [],
               )
             [] -> {
-              let #(transition_timestamp, next_identity) = case status {
+              let #(updated_at, next_identity) =
+                synthetic_identity.make_synthetic_timestamp(identity)
+              let transition_timestamp = case status {
                 "ACTIVE" ->
                   case record.status {
-                    "ACTIVE" -> #(None, identity)
-                    _ -> {
-                      let #(timestamp, next_identity) =
-                        synthetic_identity.make_synthetic_timestamp(identity)
-                      #(Some(timestamp), next_identity)
-                    }
+                    "ACTIVE" -> None
+                    _ -> Some(updated_at)
                   }
-                "EXPIRED" -> {
-                  let #(timestamp, next_identity) =
-                    synthetic_identity.make_synthetic_timestamp(identity)
-                  #(Some(timestamp), next_identity)
-                }
-                _ -> #(None, identity)
+                "EXPIRED" -> Some(updated_at)
+                _ -> None
               }
               let record =
                 DiscountRecord(
                   ..record,
                   status: status,
                   payload: update_payload_status(
-                    record.payload,
-                    status,
-                    transition_timestamp,
-                  ),
+                      record.payload,
+                      status,
+                      transition_timestamp,
+                    )
+                    |> update_payload_updated_at(updated_at),
                 )
               let #(record, next_store) = store.stage_discount(store, record)
               MutationResult(
@@ -1464,7 +1557,16 @@ fn delete_discount(
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let id = read_string_arg(field, variables, "id") |> option.unwrap("")
-  let next_store = store.delete_staged_discount(store, id)
+  let #(next_store, next_identity) = case
+    store.get_effective_discount_by_id(store, id)
+  {
+    Some(_) -> {
+      let #(_, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      #(store.delete_staged_discount(store, id), next_identity)
+    }
+    None -> #(store.delete_staged_discount(store, id), identity)
+  }
   let payload =
     json.object(
       list.map(child_fields(field), fn(child) {
@@ -1483,7 +1585,7 @@ fn delete_discount(
         }
       }),
     )
-  MutationResult(key, payload, next_store, identity, [id], [])
+  MutationResult(key, payload, next_store, next_identity, [id], [])
 }
 
 fn bulk_job_payload(
@@ -1498,7 +1600,7 @@ fn bulk_job_payload(
   let args =
     root_field.get_field_arguments(field, variables)
     |> result.unwrap(dict.new())
-  let user_errors = validate_bulk_selector(root, args)
+  let user_errors = validate_bulk_selector(store, root, args)
   case user_errors {
     [_, ..] -> {
       let payload =
@@ -1538,7 +1640,8 @@ fn bulk_job_payload(
             #("query", SrcNull),
           ]),
         )
-      let next_store = apply_bulk_effects(store, root, args)
+      let #(next_store, identity_after_effects) =
+        apply_bulk_effects(store, root, args, next_identity)
       let payload =
         project_graphql_value(
           SrcObject(
@@ -1550,7 +1653,14 @@ fn bulk_job_payload(
           child_fields(field),
           dict.new(),
         )
-      MutationResult(key, payload, next_store, next_identity, [job_id], [])
+      MutationResult(
+        key,
+        payload,
+        next_store,
+        identity_after_effects,
+        [job_id],
+        [],
+      )
     }
   }
 }
@@ -1588,6 +1698,9 @@ fn redeem_code_bulk_add(
         Some(record) -> {
           let #(updated, identity_after_codes) =
             append_codes(store, record, codes, identity_after_bulk)
+          let #(updated_at, identity_after_codes) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_codes)
+          let updated = bump_discount_updated_at(updated, updated_at)
           let #(_, s) = store.stage_discount(store, updated)
           #(s, identity_after_codes)
         }
@@ -1645,19 +1758,22 @@ fn redeem_code_bulk_delete(
     Some(id) -> maybe_hydrate_discount(store, identity, id, upstream)
     None -> #(store, identity)
   }
-  let next_store = case discount_id {
+  let #(next_store, identity_after_update) = case discount_id {
     Some(id) ->
       case store.get_effective_discount_by_id(store, id) {
         Some(record) -> {
-          let updated = remove_codes_by_ids(record, ids)
+          let #(updated_at, identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let updated = remove_codes_by_ids(record, ids, updated_at)
           let #(_, s) = store.stage_discount(store, updated)
-          s
+          #(s, identity)
         }
-        None -> store
+        None -> #(store, identity)
       }
-    None -> store
+    None -> #(store, identity)
   }
-  let #(job_id, next_identity) = make_discount_async_gid(store, identity, "Job")
+  let #(job_id, next_identity) =
+    make_discount_async_gid(store, identity_after_update, "Job")
   let payload =
     project_graphql_value(
       SrcObject(
@@ -1753,11 +1869,27 @@ fn build_discount_record(
     read_string(input, "code")
     |> option.or(read_string(input, "codePrefix"))
     |> option.or(existing |> option.then(fn(r) { r.code }))
+  let owner_field = case owner_kind {
+    "automatic" -> "automaticDiscount"
+    _ -> "codeDiscount"
+  }
+  let starts_at =
+    input_or_existing_discount_source(input, existing, owner_field, "startsAt")
+  let ends_at =
+    input_or_existing_discount_source(input, existing, owner_field, "endsAt")
   let status =
-    existing |> option.map(fn(r) { r.status }) |> option.unwrap("ACTIVE")
+    derive_discount_status(starts_at, ends_at, synthetic_now(identity))
   let typename = typename_for(owner_kind, discount_type)
   let #(code_source, next_identity) =
     code_connection_for_record(identity, code, existing)
+  let #(mutation_timestamp, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(next_identity)
+  let created_at =
+    existing
+    |> option.then(fn(record) { discount_record_timestamp(record, "createdAt") })
+    |> option.unwrap(mutation_timestamp)
+  let discount_classes = discount_classes_for_input(input, discount_type)
+  let discount_class = primary_discount_class(discount_classes)
   let discount =
     SrcObject(
       dict.from_list([
@@ -1766,15 +1898,13 @@ fn build_discount_record(
         #("title", SrcString(title)),
         #("status", SrcString(status)),
         #("summary", SrcString(summary_for(input, discount_type))),
-        #("startsAt", resolved_to_source(read_value(input, "startsAt"))),
-        #("endsAt", resolved_to_source(read_value(input, "endsAt"))),
-        #("createdAt", SrcString("2024-01-01T00:00:00.000Z")),
-        #("updatedAt", SrcString("2024-01-01T00:00:00.000Z")),
+        #("startsAt", starts_at),
+        #("endsAt", ends_at),
+        #("createdAt", SrcString(created_at)),
+        #("updatedAt", SrcString(mutation_timestamp)),
         #("asyncUsageCount", SrcInt(0)),
-        #(
-          "discountClasses",
-          string_list_source(discount_classes_for_input(input, discount_type)),
-        ),
+        #("discountClasses", string_list_source(discount_classes)),
+        #("discountClass", SrcString(discount_class)),
         #(
           "combinesWith",
           object_value_or_default(input, "combinesWith", combines_default()),
@@ -1832,10 +1962,6 @@ fn build_discount_record(
         #("appDiscountType", app_discount_type_source(store, input)),
       ]),
     )
-  let owner_field = case owner_kind {
-    "automatic" -> "automaticDiscount"
-    _ -> "codeDiscount"
-  }
   #(
     DiscountRecord(
       id: id,
@@ -1856,6 +1982,90 @@ fn build_discount_record(
     ),
     next_identity,
   )
+}
+
+fn input_or_existing_discount_source(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: Option(DiscountRecord),
+  owner_field: String,
+  name: String,
+) -> SourceValue {
+  case dict.get(input, name) {
+    Ok(value) -> resolved_to_source(value)
+    Error(_) ->
+      existing_discount_source(existing, owner_field, name)
+      |> option.unwrap(SrcNull)
+  }
+}
+
+fn existing_discount_source(
+  existing: Option(DiscountRecord),
+  owner_field: String,
+  name: String,
+) -> Option(SourceValue) {
+  existing
+  |> option.then(fn(record) {
+    case captured_to_source(record.payload) {
+      SrcObject(node) ->
+        case dict.get(node, owner_field) {
+          Ok(SrcObject(discount)) ->
+            dict.get(discount, name) |> option.from_result
+          _ -> None
+        }
+      _ -> None
+    }
+  })
+}
+
+fn synthetic_now(identity: SyntheticIdentityRegistry) -> String {
+  iso_timestamp.format_iso(identity.next_synthetic_time)
+}
+
+fn derive_discount_status(
+  starts_at: SourceValue,
+  ends_at: SourceValue,
+  now: String,
+) -> String {
+  case iso_timestamp.parse_iso(now) {
+    Ok(now_ms) ->
+      derive_discount_status_ms(
+        source_timestamp_ms(starts_at),
+        source_timestamp_ms(ends_at),
+        now_ms,
+      )
+    Error(_) -> "ACTIVE"
+  }
+}
+
+fn derive_discount_status_ms(
+  starts_at: Option(Int),
+  ends_at: Option(Int),
+  now_ms: Int,
+) -> String {
+  case starts_at, ends_at {
+    Some(starts_ms), Some(ends_ms)
+      if starts_ms > now_ms && ends_ms >= starts_ms
+    -> "SCHEDULED"
+    Some(starts_ms), None if starts_ms > now_ms -> "SCHEDULED"
+    Some(starts_ms), Some(ends_ms)
+      if ends_ms <= now_ms && starts_ms <= ends_ms
+    -> "EXPIRED"
+    None, Some(ends_ms) if ends_ms <= now_ms -> "EXPIRED"
+    Some(starts_ms), Some(ends_ms) if starts_ms <= now_ms && ends_ms > now_ms ->
+      "ACTIVE"
+    Some(starts_ms), None if starts_ms <= now_ms -> "ACTIVE"
+    None, Some(ends_ms) if ends_ms > now_ms -> "ACTIVE"
+    None, None -> "ACTIVE"
+    _, _ -> "ACTIVE"
+  }
+}
+
+fn source_timestamp_ms(value: SourceValue) -> Option(Int) {
+  case value {
+    SrcString(timestamp) ->
+      iso_timestamp.parse_iso(timestamp) |> option.from_result
+    _ -> None
+  }
 }
 
 fn typename_for(owner_kind: String, discount_type: String) -> String {
@@ -1883,12 +2093,20 @@ fn discount_classes_for_input(
   input: Dict(String, root_field.ResolvedValue),
   discount_type: String,
 ) -> List(String) {
-  case read_string_array(input, "discountClasses", []) {
-    [_, ..] as classes -> classes
-    [] ->
-      case discount_type {
-        "basic" -> infer_basic_discount_classes(input)
-        _ -> default_discount_classes(discount_type)
+  case discount_type {
+    "free_shipping" -> default_discount_classes(discount_type)
+    _ ->
+      case read_string(input, "discountClass") {
+        Some(discount_class) -> [discount_class]
+        None ->
+          case read_string_array(input, "discountClasses", []) {
+            [_, ..] as classes -> classes
+            [] ->
+              case discount_type {
+                "basic" -> infer_basic_discount_classes(input)
+                _ -> default_discount_classes(discount_type)
+              }
+          }
       }
   }
 }
@@ -1898,13 +2116,56 @@ fn infer_basic_discount_classes(
 ) -> List(String) {
   case customer_gets_items_fields(input) {
     Some(items) ->
-      case
-        dict.has_key(items, "products") || dict.has_key(items, "collections")
-      {
+      case items_targets_entitled_resources(items) {
         True -> ["PRODUCT"]
         False -> ["ORDER"]
       }
     None -> ["ORDER"]
+  }
+}
+
+fn items_targets_entitled_resources(
+  items: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.has_key(items, "products")
+  || dict.has_key(items, "productVariants")
+  || dict.has_key(items, "collections")
+}
+
+fn primary_discount_class(classes: List(String)) -> String {
+  case classes {
+    [first, ..] -> first
+    [] -> "ORDER"
+  }
+}
+
+fn discount_class_for_record(record: DiscountRecord) -> String {
+  case captured_to_source(record.payload) {
+    SrcObject(fields) -> {
+      let discount = case record.owner_kind {
+        "automatic" ->
+          dict.get(fields, "automaticDiscount") |> result.unwrap(SrcNull)
+        _ -> dict.get(fields, "codeDiscount") |> result.unwrap(SrcNull)
+      }
+      case discount {
+        SrcObject(discount_fields) ->
+          case dict.get(discount_fields, "discountClass") {
+            Ok(SrcString(class)) -> class
+            _ ->
+              case dict.get(discount_fields, "discountClasses") {
+                Ok(SrcList([SrcString(class), ..])) -> class
+                _ ->
+                  default_discount_classes(record.discount_type)
+                  |> primary_discount_class
+              }
+          }
+        _ ->
+          default_discount_classes(record.discount_type)
+          |> primary_discount_class
+      }
+    }
+    _ ->
+      default_discount_classes(record.discount_type) |> primary_discount_class
   }
 }
 
@@ -1928,24 +2189,29 @@ fn validate_discount_input(
   input_name: String,
   input: Dict(String, root_field.ResolvedValue),
   discount_type: String,
+  require_code: Bool,
 ) -> List(SourceValue) {
-  let errors = []
+  let errors = validate_discount_code_input(input_name, input, require_code)
   let errors = case read_string(input, "code") {
     Some(code) ->
-      case find_effective_discount_by_code(store, code) {
-        Some(existing) ->
-          case synthetic_identity.is_proxy_synthetic_gid(existing.id) {
-            True -> errors
-            False ->
-              list.append(errors, [
-                user_error(
-                  [input_name, "code"],
-                  "Code must be unique. Please try a different code.",
-                  "TAKEN",
-                ),
-              ])
+      case errors {
+        [_, ..] -> errors
+        [] ->
+          case find_effective_discount_by_code(store, code) {
+            Some(existing) ->
+              case synthetic_identity.is_proxy_synthetic_gid(existing.id) {
+                True -> errors
+                False ->
+                  list.append(errors, [
+                    user_error(
+                      [input_name, "code"],
+                      "Code must be unique. Please try a different code.",
+                      "TAKEN",
+                    ),
+                  ])
+              }
+            None -> errors
           }
-        None -> errors
       }
     None -> errors
   }
@@ -1979,26 +2245,75 @@ fn validate_discount_input(
     }
     _ -> errors
   }
-  let errors = case input_name {
-    "automaticBasicDiscount" ->
-      case invalid_date_range(input) {
-        True ->
-          list.append(errors, [
-            user_error(
-              [input_name, "endsAt"],
-              "Ends at needs to be after starts_at",
-              "INVALID",
-            ),
-          ])
-        False -> errors
-      }
-    _ -> errors
+  let errors = case invalid_date_range(input) {
+    True ->
+      list.append(errors, [
+        user_error(
+          [input_name, "endsAt"],
+          "Ends at needs to be after starts_at",
+          "INVALID",
+        ),
+      ])
+    False -> errors
   }
   case input_name {
     "basicCodeDiscount" ->
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
   }
+}
+
+fn validate_discount_code_input(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  require_code: Bool,
+) -> List(SourceValue) {
+  case read_string(input, "code") {
+    None ->
+      case require_code {
+        True -> [discount_code_blank_error(input_name)]
+        False -> []
+      }
+    Some(code) ->
+      case string.trim(code) {
+        "" ->
+          case code {
+            "" -> [
+              user_error(
+                [input_name, "code"],
+                "Code is too short (minimum is 1 character)",
+                "TOO_SHORT",
+              ),
+            ]
+            _ -> [discount_code_blank_error(input_name)]
+          }
+        _ ->
+          case string.length(code) > 255 {
+            True -> [
+              user_error(
+                [input_name, "code"],
+                "Code is too long (maximum is 255 characters)",
+                "TOO_LONG",
+              ),
+            ]
+            False ->
+              case string.contains(code, "\n") || string.contains(code, "\r") {
+                True -> [
+                  user_error(
+                    [input_name, "code"],
+                    "Code cannot contain newline characters.",
+                    "INVALID",
+                  ),
+                ]
+                False -> []
+              }
+          }
+      }
+  }
+}
+
+fn discount_code_blank_error(input_name: String) -> SourceValue {
+  user_error([input_name, "code"], "Code can't be blank", "BLANK")
 }
 
 /// Pattern 2: ask upstream whether a discount with the proposed code
@@ -2873,9 +3188,12 @@ fn bool_value(
 fn invalid_date_range(input: Dict(String, root_field.ResolvedValue)) -> Bool {
   case read_string(input, "startsAt"), read_string(input, "endsAt") {
     Some(starts_at), Some(ends_at) ->
-      case string.compare(ends_at, starts_at) {
-        order.Lt | order.Eq -> True
-        order.Gt -> False
+      case
+        iso_timestamp.parse_iso(starts_at),
+        iso_timestamp.parse_iso(ends_at)
+      {
+        Ok(starts_at_ms), Ok(ends_at_ms) -> ends_at_ms <= starts_at_ms
+        _, _ -> False
       }
     _, _ -> False
   }
@@ -2958,6 +3276,7 @@ fn invalid_id_errors(
 }
 
 fn validate_bulk_selector(
+  store: Store,
   root: String,
   args: Dict(String, root_field.ResolvedValue),
 ) -> List(SourceValue) {
@@ -2966,19 +3285,95 @@ fn validate_bulk_selector(
     + selector_present(args, "search")
     + selector_present(args, "savedSearchId")
     + selector_present(args, "saved_search_id")
-  case count > 1 {
-    True -> [
+  case count {
+    0 -> [
       user_error_null_field(
-        case root {
-          "discountAutomaticBulkDelete" ->
-            "Only one of IDs, search argument or saved search ID is allowed."
-          _ -> "Only one of 'ids', 'search' or 'saved_search_id' is allowed."
-        },
+        bulk_missing_selector_message(root),
+        "MISSING_ARGUMENT",
+      ),
+    ]
+    n if n > 1 -> [
+      user_error_null_field(
+        bulk_too_many_selector_message(root),
         "TOO_MANY_ARGUMENTS",
       ),
     ]
-    False -> []
+    _ ->
+      list.append(
+        validate_bulk_search_selector(root, args),
+        validate_bulk_saved_search_selector(store, root, args),
+      )
   }
+}
+
+fn bulk_missing_selector_message(root: String) -> String {
+  case root {
+    "discountAutomaticBulkDelete" ->
+      "One of IDs, search argument or saved search ID is required."
+    _ -> "Missing expected argument key: 'ids', 'search' or 'saved_search_id'."
+  }
+}
+
+fn bulk_too_many_selector_message(root: String) -> String {
+  case root {
+    "discountAutomaticBulkDelete" ->
+      "Only one of IDs, search argument or saved search ID is allowed."
+    _ -> "Only one of 'ids', 'search' or 'saved_search_id' is allowed."
+  }
+}
+
+fn validate_bulk_search_selector(
+  root: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_string(args, "search") {
+    Some(search) -> {
+      case string.trim(search) {
+        "" ->
+          case root {
+            "discountAutomaticBulkDelete" -> []
+            _ -> [user_error(["search"], "'Search' can't be blank.", "BLANK")]
+          }
+        _ -> []
+      }
+    }
+    _ -> []
+  }
+}
+
+fn validate_bulk_saved_search_selector(
+  store: Store,
+  root: String,
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_bulk_saved_search_id(args) {
+    Some(id) ->
+      case store.get_effective_saved_search_by_id(store, id) {
+        Some(record) if record.resource_type == "PRICE_RULE" -> []
+        _ -> [
+          user_error(
+            ["savedSearchId"],
+            bulk_invalid_saved_search_message(root),
+            "INVALID",
+          ),
+        ]
+      }
+    None -> []
+  }
+}
+
+fn bulk_invalid_saved_search_message(root: String) -> String {
+  case root {
+    "discountAutomaticBulkDelete" -> "Invalid savedSearchId."
+    _ -> "Invalid 'saved_search_id'."
+  }
+}
+
+fn read_bulk_saved_search_id(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  read_string(args, "savedSearchId")
+  |> option.or(read_string(args, "saved_search_id"))
 }
 
 fn selector_present(
@@ -2996,35 +3391,54 @@ fn apply_bulk_effects(
   store: Store,
   root: String,
   args: Dict(String, root_field.ResolvedValue),
-) -> Store {
+  identity: SyntheticIdentityRegistry,
+) -> #(Store, SyntheticIdentityRegistry) {
   let ids = read_string_array(args, "ids", [])
-  list.fold(ids, store, fn(current, id) {
+  list.fold(ids, #(store, identity), fn(acc, id) {
+    let #(current, current_identity) = acc
     case root {
       "discountCodeBulkDelete" | "discountAutomaticBulkDelete" ->
-        store.delete_staged_discount(current, id)
-      "discountCodeBulkActivate" -> set_record_status(current, id, "ACTIVE")
-      "discountCodeBulkDeactivate" -> set_record_status(current, id, "EXPIRED")
-      _ -> current
+        case store.get_effective_discount_by_id(current, id) {
+          Some(_) -> {
+            let #(_, next_identity) =
+              synthetic_identity.make_synthetic_timestamp(current_identity)
+            #(store.delete_staged_discount(current, id), next_identity)
+          }
+          None -> #(store.delete_staged_discount(current, id), current_identity)
+        }
+      "discountCodeBulkActivate" ->
+        set_record_status(current, current_identity, id, "ACTIVE")
+      "discountCodeBulkDeactivate" ->
+        set_record_status(current, current_identity, id, "EXPIRED")
+      _ -> #(current, current_identity)
     }
   })
 }
 
-fn set_record_status(store: Store, id: String, status: String) -> Store {
+fn set_record_status(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  id: String,
+  status: String,
+) -> #(Store, SyntheticIdentityRegistry) {
   case store.get_effective_discount_by_id(store, id) {
     Some(record) -> {
+      let #(updated_at, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity)
       let #(record, next_store) =
         store.stage_discount(
           store,
           DiscountRecord(
             ..record,
             status: status,
-            payload: update_payload_status(record.payload, status, None),
+            payload: update_payload_status(record.payload, status, None)
+              |> update_payload_updated_at(updated_at),
           ),
         )
       let _ = record
-      next_store
+      #(next_store, next_identity)
     }
-    None -> store
+    None -> #(store, identity)
   }
 }
 
@@ -3197,6 +3611,21 @@ fn read_int_arg(
     Ok(args) ->
       case dict.get(args, name) {
         Ok(root_field.IntVal(value)) -> Some(value)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
+fn read_bool_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case root_field.get_field_arguments(field, variables) {
+    Ok(args) ->
+      case dict.get(args, name) {
+        Ok(root_field.BoolVal(value)) -> Some(value)
         _ -> None
       }
     Error(_) -> None
@@ -3941,6 +4370,45 @@ fn update_payload_status(
   }
 }
 
+fn bump_discount_updated_at(
+  record: DiscountRecord,
+  timestamp: String,
+) -> DiscountRecord {
+  DiscountRecord(
+    ..record,
+    payload: update_payload_updated_at(record.payload, timestamp),
+  )
+}
+
+fn update_payload_updated_at(
+  payload: CapturedJsonValue,
+  timestamp: String,
+) -> CapturedJsonValue {
+  case captured_to_source(payload) {
+    SrcObject(fields) -> {
+      let updated =
+        ["codeDiscount", "automaticDiscount"]
+        |> list.fold(fields, fn(acc, key) {
+          case dict.get(acc, key) {
+            Ok(SrcObject(discount)) ->
+              dict.insert(
+                acc,
+                key,
+                SrcObject(dict.insert(
+                  discount,
+                  "updatedAt",
+                  SrcString(timestamp),
+                )),
+              )
+            _ -> acc
+          }
+        })
+      source_to_captured(SrcObject(updated))
+    }
+    _ -> payload
+  }
+}
+
 fn activate_discount_dates(
   discount: Dict(String, SourceValue),
   timestamp: String,
@@ -4042,6 +4510,7 @@ fn append_codes(
 fn remove_codes_by_ids(
   record: DiscountRecord,
   ids: List(String),
+  updated_at: String,
 ) -> DiscountRecord {
   let remaining_codes =
     existing_code_nodes(record)
@@ -4056,7 +4525,8 @@ fn remove_codes_by_ids(
       [first, ..] -> Some(first)
       [] -> None
     },
-    payload: update_payload_codes(record.payload, remaining_codes),
+    payload: update_payload_codes(record.payload, remaining_codes)
+      |> update_payload_updated_at(updated_at),
   )
 }
 

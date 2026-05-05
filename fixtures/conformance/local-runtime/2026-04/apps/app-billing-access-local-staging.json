@@ -31,7 +31,7 @@
               "appSubscription": {
                 "id": "gid://shopify/AppSubscription/expected",
                 "name": "Local plan",
-                "status": "PENDING",
+                "status": "ACTIVE",
                 "test": true,
                 "trialDays": 7,
                 "lineItems": [
@@ -66,7 +66,7 @@
               "appPurchaseOneTime": {
                 "id": "gid://shopify/AppPurchaseOneTime/expected",
                 "name": "Import package",
-                "status": "PENDING",
+                "status": "ACTIVE",
                 "test": true,
                 "price": {
                   "amount": "10",
@@ -133,7 +133,7 @@
               "userErrors": [
                 {
                   "field": ["id"],
-                  "message": "The trial can't be extended on inactive app subscriptions."
+                  "message": "The trial can't be extended after expiration."
                 }
               ]
             }
@@ -198,7 +198,7 @@
                 "nodes": [
                   {
                     "name": "Import package",
-                    "status": "PENDING",
+                    "status": "ACTIVE",
                     "price": {
                       "amount": "10",
                       "currencyCode": "USD"
@@ -218,13 +218,7 @@
                   "description": null
                 }
               ],
-              "userErrors": [
-                {
-                  "field": ["scopes"],
-                  "message": "Access scope 'write_orders' is not granted.",
-                  "code": "UNKNOWN_SCOPES"
-                }
-              ]
+              "userErrors": []
             }
           }
         },
@@ -312,27 +306,27 @@
     },
     "billingLifecycle": {
       "mutationPayloads": [
-        "appSubscriptionCreate returns a PENDING staged subscription, usage line item, empty userErrors, and a synthetic confirmationUrl.",
-        "appPurchaseOneTimeCreate returns a PENDING staged one-time purchase, empty userErrors, and a synthetic confirmationUrl.",
+        "appSubscriptionCreate returns an ACTIVE staged test subscription, usage line item, empty userErrors, and a synthetic confirmationUrl.",
+        "appPurchaseOneTimeCreate returns an ACTIVE staged test one-time purchase, empty userErrors, and a synthetic confirmationUrl.",
         "appSubscriptionLineItemUpdate returns the staged subscription and a synthetic confirmationUrl.",
         "appUsageRecordCreate returns a staged usage record linked to the staged usage line item.",
-        "appSubscriptionTrialExtend rejects the still-PENDING staged subscription with SUBSCRIPTION_NOT_ACTIVE.",
+        "appSubscriptionTrialExtend rejects the expired active staged subscription with TRIAL_NOT_ACTIVE semantics.",
         "appSubscriptionCancel returns the staged subscription with status CANCELLED.",
         "Repeating appSubscriptionCancel on that CANCELLED subscription returns an InvalidTransitionError-shaped userError."
       ],
       "downstreamReads": [
         "currentAppInstallation.allSubscriptions reads the staged subscription and usage record.",
         "currentAppInstallation.oneTimePurchases reads the staged one-time purchase.",
-        "currentAppInstallation.activeSubscriptions stays empty for pending/cancelled local billing."
+        "currentAppInstallation.activeSubscriptions includes active test subscriptions until they are cancelled."
       ]
     },
     "accessAndInstall": {
       "mutationPayloads": [
-        "appRevokeAccessScopes returns revoked access scope handles plus userErrors for unknown/not-granted scopes.",
+        "appRevokeAccessScopes returns revoked access scope handles for granted optional scopes.",
         "appUninstall returns the staged app object."
       ],
       "downstreamReads": [
-        "currentAppInstallation.accessScopes excludes locally revoked scopes.",
+        "currentAppInstallation.accessScopes remains unchanged after a failed required-scope revocation.",
         "currentAppInstallation returns null after staged appUninstall."
       ]
     },

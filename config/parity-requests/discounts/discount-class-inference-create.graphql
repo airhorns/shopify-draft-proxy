@@ -1,0 +1,93 @@
+mutation DiscountClassInferenceCreate(
+  $basicAll: DiscountCodeBasicInput!
+  $basicProduct: DiscountCodeBasicInput!
+  $basicCollection: DiscountCodeBasicInput!
+  $bxgy: DiscountCodeBxgyInput!
+  $freeShipping: DiscountCodeFreeShippingInput!
+) {
+  basicAll: discountCodeBasicCreate(basicCodeDiscount: $basicAll) {
+    codeDiscountNode {
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          discountClasses
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  basicProduct: discountCodeBasicCreate(basicCodeDiscount: $basicProduct) {
+    codeDiscountNode {
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          discountClasses
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  basicCollection: discountCodeBasicCreate(basicCodeDiscount: $basicCollection) {
+    codeDiscountNode {
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          discountClasses
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bxgy: discountCodeBxgyCreate(bxgyCodeDiscount: $bxgy) {
+    codeDiscountNode {
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBxgy {
+          title
+          discountClasses
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  freeShipping: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShipping) {
+    codeDiscountNode {
+      codeDiscount {
+        __typename
+        ... on DiscountCodeFreeShipping {
+          title
+          discountClasses
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

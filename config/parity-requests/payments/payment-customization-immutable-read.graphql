@@ -1,0 +1,7 @@
+query PaymentCustomizationImmutableRead($id: ID!) {
+  paymentCustomization(id: $id) {
+    id
+    title
+    functionId
+  }
+}

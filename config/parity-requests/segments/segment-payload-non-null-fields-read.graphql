@@ -1,0 +1,17 @@
+query SegmentPayloadNonNullFieldsRead($id: ID!) {
+  segment(id: $id) {
+    id
+    name
+    query
+    creationDate
+    lastEditDate
+    tagMigrated
+    valid
+    percentageSnapshot
+    percentageSnapshotUpdatedAt
+    translation
+    author {
+      name
+    }
+  }
+}
