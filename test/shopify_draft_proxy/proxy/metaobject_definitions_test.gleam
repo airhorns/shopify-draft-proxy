@@ -2,7 +2,9 @@ import gleam/dict
 import gleam/int
 import gleam/json
 import gleam/list
+import gleam/option.{Some}
 import gleam/string
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
@@ -11,8 +13,21 @@ import shopify_draft_proxy/state/synthetic_identity
 
 const path = "/admin/api/2026-04/graphql.json"
 
+const test_api_client_id = "999001"
+
 fn run_query(s: store.Store, query: String) -> String {
   let assert Ok(data) = metaobject_definitions.process(s, query, dict.new())
+  json.to_string(data)
+}
+
+fn run_query_with_api_client_id(s: store.Store, query: String) -> String {
+  let assert Ok(data) =
+    metaobject_definitions.process_with_requesting_api_client_id(
+      s,
+      query,
+      dict.new(),
+      Some(test_api_client_id),
+    )
   json.to_string(data)
 }
 
@@ -29,6 +44,26 @@ fn run_mutation(
       query,
       dict.new(),
       empty_upstream_context(),
+    )
+  outcome
+}
+
+fn run_mutation_with_api_client_id(
+  s: store.Store,
+  identity: synthetic_identity.SyntheticIdentityRegistry,
+  query: String,
+) -> mutation_helpers.MutationOutcome {
+  let outcome =
+    metaobject_definitions.process_mutation_with_headers(
+      s,
+      identity,
+      path,
+      query,
+      dict.new(),
+      empty_upstream_context(),
+      dict.from_list([
+        #(app_identity.api_client_id_header, test_api_client_id),
+      ]),
     )
   outcome
 }
@@ -158,21 +193,21 @@ pub fn definition_create_rejects_invalid_type_values_test() {
 
 pub fn definition_create_resolves_app_type_before_storage_test() {
   let outcome =
-    run_mutation(
+    run_mutation_with_api_client_id(
       store.new(),
       synthetic_identity.new(),
       create_definition_with_access_query("$app:My_Thing"),
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"app--347082227713--my_thing\",\"access\":{\"admin\":\"MERCHANT_READ_WRITE\",\"storefront\":\"NONE\"},\"fieldDefinitions\":[{\"key\":\"title\"}]},\"userErrors\":[]}}}"
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"app--999001--my_thing\",\"access\":{\"admin\":\"MERCHANT_READ_WRITE\",\"storefront\":\"NONE\"},\"fieldDefinitions\":[{\"key\":\"title\"}]},\"userErrors\":[]}}}"
 
   let read_back =
-    run_query(
+    run_query_with_api_client_id(
       outcome.store,
       "{ metaobjectDefinitionByType(type: \"$app:My_Thing\") { id type } }",
     )
   assert read_back
-    == "{\"data\":{\"metaobjectDefinitionByType\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"app--347082227713--my_thing\"}}}"
+    == "{\"data\":{\"metaobjectDefinitionByType\":{\"id\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"type\":\"app--999001--my_thing\"}}}"
 }
 
 pub fn definition_create_rejects_admin_access_for_non_app_type_test() {
@@ -180,7 +215,7 @@ pub fn definition_create_rejects_admin_access_for_non_app_type_test() {
     run_mutation(
       store.new(),
       synthetic_identity.new(),
-      create_definition_with_access_query("app--347082227713--manual"),
+      create_definition_with_access_query("app--999001--manual"),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"access\",\"admin\"],\"message\":\"Admin access can only be specified on metaobject definitions that have an app-reserved type.\",\"code\":\"ADMIN_ACCESS_INPUT_NOT_ALLOWED\",\"elementKey\":null,\"elementIndex\":null}]}}}"

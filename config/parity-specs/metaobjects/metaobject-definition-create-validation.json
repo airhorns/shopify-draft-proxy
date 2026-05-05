@@ -42,7 +42,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-create.graphql",
           "variablesCapturePath": "$.appPrefixed.request.variables",
-          "apiVersion": "2026-04"
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
         },
         "expectedDifferences": [
           {
@@ -70,7 +73,10 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/metaobjects/metaobject-definition-create-validation-read-by-type.graphql",
           "variablesCapturePath": "$.appReadByType.request.variables",
-          "apiVersion": "2026-04"
+          "apiVersion": "2026-04",
+          "headers": {
+            "x-shopify-draft-proxy-api-client-id": "347082227713"
+          }
         },
         "expectedDifferences": [
           {
