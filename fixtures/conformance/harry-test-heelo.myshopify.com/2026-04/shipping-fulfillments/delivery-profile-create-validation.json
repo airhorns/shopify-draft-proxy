@@ -1,0 +1,167 @@
+{
+  "capturedAt": "2026-05-05T02:31:00.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "evidence": {
+    "credentialProbe": {
+      "ok": true,
+      "apiVersion": "2026-04",
+      "shopId": "gid://shopify/Shop/92891250994"
+    },
+    "schema": {
+      "deliveryProfileCreatePayloadUserErrorsType": "UserError",
+      "userErrorFields": ["field", "message"],
+      "deliveryProfileCreateUserErrorCodeEnum": null,
+      "codeSelectionError": "Field 'code' doesn't exist on type 'UserError'"
+    },
+    "locationUsedForInvalidZoneProbes": {
+      "id": "gid://shopify/Location/106318430514",
+      "name": "Shop location"
+    }
+  },
+  "mutations": {
+    "blankName": {
+      "query": "#graphql\nmutation DeliveryProfileCreateValidation($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "profile": {
+          "name": ""
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": ["profile", "name"],
+                  "message": "Add a profile name"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "longName": {
+      "query": "#graphql\nmutation DeliveryProfileCreateValidation($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "profile": {
+          "name": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": ["profile", "name"],
+                  "message": "Profile name must be less than 128 characters long"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "unknownLocation": {
+      "query": "#graphql\nmutation DeliveryProfileCreateValidation($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "profile": {
+          "name": "HAR-566 unknown location",
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/999999999"],
+              "zonesToCreate": []
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The Location could not be found for this shop."
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "emptyCountries": {
+      "query": "#graphql\nmutation DeliveryProfileCreateValidation($profile: DeliveryProfileInput!) {\n  deliveryProfileCreate(profile: $profile) {\n    profile {\n      id\n      name\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+      "variables": {
+        "profile": {
+          "name": "HAR-566 empty countries",
+          "locationGroupsToCreate": [
+            {
+              "locations": ["gid://shopify/Location/106318430514"],
+              "zonesToCreate": [
+                {
+                  "name": "HAR-566 Empty",
+                  "countries": []
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "deliveryProfileCreate": {
+              "profile": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Profile is invalid: cannot create LocationGroupZone without countries."
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Captured with SHOPIFY_CONFORMANCE_API_VERSION=2026-04 and home-folder conformance auth.",
+    "The public Admin GraphQL 2026-04 schema exposes deliveryProfileCreate.userErrors as UserError with field/message only; local runtime tests cover the HAR-566 code convenience field requested by the ticket.",
+    "Unknown-location and empty-country live field paths were null in the public schema response. Local runtime tests cover the ticket-required dotted field paths.",
+    "Live probes for duplicate country, province-overlap, and rest-of-world overlap inputs created disposable profiles instead of returning userErrors; those disposable profiles were removed with deliveryProfileRemove jobs. Local runtime tests still cover the ticket-required overlapping-zone guardrail."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingDeliveryProfileLocationsHydrate",
+      "variables": {},
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ]
+}

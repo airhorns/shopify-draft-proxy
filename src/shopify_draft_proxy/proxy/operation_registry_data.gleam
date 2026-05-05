@@ -6059,7 +6059,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["deliveryProfileCreate", "DeliveryProfileCreate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Admin GraphQL 2026-04 deliveryProfileCreate stages locally for merchant-owned custom profiles, name validation, nested location groups/zones/static rate definitions, weight/price condition creation, variant association, downstream delivery profile reads, and meta log/state inspection. Carrier participants, selling-plan lifecycle semantics, and full delivery-setting eligibility validation remain outside the supported subset.",
+        "Admin GraphQL 2026-04 deliveryProfileCreate stages locally for merchant-owned custom profiles, coded name-length/location/zone validation, nested location groups/zones/static rate definitions, weight/price condition creation, variant association, downstream delivery profile reads, and meta log/state inspection. Carrier participants, selling-plan lifecycle semantics, and full delivery-setting eligibility validation remain outside the supported subset.",
       ),
     ),
     RegistryEntry(

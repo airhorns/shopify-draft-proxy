@@ -1,0 +1,12 @@
+mutation DeliveryProfileCreateValidation($profile: DeliveryProfileInput!) {
+  deliveryProfileCreate(profile: $profile) {
+    profile {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
