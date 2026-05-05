@@ -123,10 +123,8 @@ pub fn with_upstream_transport(
 }
 
 /// Attach a parsed operation registry to the proxy. Once attached,
-/// query/mutation dispatch routes by capability instead of the
-/// hardcoded predicates. Mirrors the dispatcher transition the TS
-/// proxy made when `operation-registry.json` started driving
-/// `routes.ts`.
+/// query/mutation dispatch routes by capability instead of the hardcoded
+/// predicates.
 pub fn with_registry(
   proxy: DraftProxy,
   registry: List(RegistryEntry),
@@ -134,8 +132,7 @@ pub fn with_registry(
   DraftProxy(..proxy, registry: registry)
 }
 
-/// Attach the vendored default registry built from
-/// `config/operation-registry.json`.
+/// Attach the vendored default registry.
 pub fn with_default_registry(proxy: DraftProxy) -> DraftProxy {
   with_registry(proxy, operation_registry_data.default_registry())
 }

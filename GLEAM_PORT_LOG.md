@@ -9,6 +9,51 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-05 - Pass 210: HAR-486 review feedback cleanup
+
+Addresses follow-up review on the final cutover PR now that the Gleam runtime is
+the repository authority.
+
+| Module / area                                                           | Change                                                                                               |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `.agents/skills/gleam-port/`                                            | Removes the obsolete incremental-port skill and references now that final cutover is underway.       |
+| `src/shopify_draft_proxy/proxy/operation_registry_data.gleam`           | Becomes the single operation-registry source of truth.                                               |
+| `config/operation-registry.json` / `scripts/sync-operation-registry.sh` | Deletes the duplicated JSON registry and the generator that previously mirrored JSON into Gleam.     |
+| `scripts/support/operation-registry.ts`                                 | Reads and validates the checked-in Gleam registry source for TypeScript conformance/status tooling.  |
+| `docs/endpoints/**`                                                     | Removes endpoint validation bullets that only pointed at the generic parity runner path.             |
+| `package.json` / registry tests                                         | Repoints `gleam:registry:check` at the Gleam source parser and operation-registry executable checks. |
+
+Validation:
+
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm typecheck`
+- `corepack pnpm test` (8 files passed; 1505 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm vitest run tests/unit/order-editing-live-support.test.ts`
+- `corepack pnpm conformance:check` (1487 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
+  (411/411 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage` (411 strict executable parity specs)
+- `corepack pnpm gleam:test:js` (902 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
+  (OTP 28, 893 passed)
+- `corepack pnpm build`
+- `corepack pnpm gleam:smoke:js` (5 passed)
+- `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
+- `git diff --check && git diff --cached --check`
+
+### Findings
+
+- No runtime or JS shim code imports `koa` or `@koa/router`; the removed package
+  dependencies are no longer needed after the Node HTTP adapter cutover.
+- The operation-registry JSON was only a tooling data source after runtime
+  cutover. TypeScript tooling now reads the Gleam data module directly, so there
+  is one checked-in registry to maintain.
+
+---
+
 ## 2026-05-05 - Pass 209: HAR-571 fulfillment service delete transfer contract
 
 Aligns `fulfillmentServiceDelete` local staging with the destination-location
@@ -21,7 +66,7 @@ reads coherent after a service is removed.
 | `test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam`                                                                                                                                                   | Adds focused coverage for missing/invalid TRANSFER destinations, TRANSFER reassignment, KEEP closure, and selected `userErrors.code`.                                                                               |
 | `scripts/capture-fulfillment-service-delete-transfer-conformance.ts` / `scripts/conformance-capture-index.ts`                                                                                                       | Adds aggregate-indexed live capture for invalid destination and valid transfer delete evidence on Admin GraphQL 2026-04.                                                                                            |
 | `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-delete-transfer.json` / `config/parity-specs/shipping-fulfillments/fulfillment-service-delete-transfer.json` | Records executable parity evidence for the captured invalid-destination userError and valid transfer delete branch.                                                                                                 |
-| `config/operation-registry.json` / `src/shopify_draft_proxy/proxy/operation_registry_data.gleam`                                                                                                                    | Updates the support notes and regenerated Gleam registry mirror for the stronger delete contract.                                                                                                                   |
+| `src/shopify_draft_proxy/proxy/operation_registry_data.gleam`                                                                                                                                                       | Updates the support notes for the stronger delete contract.                                                                                                                                                         |
 | `docs/endpoints/shipping-fulfillments.md`                                                                                                                                                                           | Documents the supported destination validation, local reassignment/closure effects, and remaining inventory-quantity fixture boundary.                                                                              |
 
 Validation:

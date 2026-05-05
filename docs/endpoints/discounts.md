@@ -149,12 +149,5 @@ Staged discount bulk mutations:
 
 ### Validation anchors
 
-- Discount reads: `test/parity_test.gleam`
-- Discount code-basic lifecycle: `test/parity_test.gleam`
-- Automatic basic lifecycle staging: `test/parity_test.gleam`
-- BXGY lifecycle staging: `test/parity_test.gleam`
-- Free-shipping lifecycle staging: `test/parity_test.gleam`
-- Discount mutation validation: `test/parity_test.gleam`
 - Conformance fixtures and requests: `config/parity-specs/discounts/discount*.json` and matching files under `config/parity-requests/discounts/`; singular detail fixtures are `discount-code-basic-detail-read.json` and `discount-automatic-basic-detail-read.json`, and lifecycle evidence includes `discount-bxgy-lifecycle.json` plus `discount-free-shipping-lifecycle.json`, under the 2026-04 conformance fixture domain directory.
-- Registry/coverage tests: `tests/unit/operation-registry.test.ts`, `test/parity_test.gleam`
 - Capture helper tests: `tests/unit/discount-conformance-lib.test.ts`

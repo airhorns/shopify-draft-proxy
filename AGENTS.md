@@ -88,7 +88,7 @@ request) -> #(Response, DraftProxy)`). Embedders own the value;
   executable behavior, schema validation, discovery semantics, or comparison
   contracts instead.
 - For coverage-map-only registry work, do not add tests whose only signal is
-  that specific roots exist in `config/operation-registry.json`, have a
+  that specific roots exist in the operation registry, have a
   particular `domain`, `implemented: false`, empty `runtimeTests`, or also
   appear in the checked-in root introspection fixture. Those assertions are
   just restating the edited JSON. Use existing schema/conformance discovery
@@ -242,14 +242,8 @@ The proxy runtime lives under `src/shopify_draft_proxy/` with tests under
 - **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables). Use
   `GLEAM_PORT_LOG.md` only as historical context when older porting decisions
   matter for the task.
-- **Skill:** `.agents/skills/gleam-port/SKILL.md` covers the
-  runtime-specific patterns (domain module surface, store slice shapes,
-  `MutationOutcome`, dispatcher wiring, synthetic-id mint helpers, FFI
-  shim layout, parity cassette playback). Use it whenever a task
-  touches the Gleam runtime.
 - **Generic Gleam idioms** (decoders, opaque types, OTP, etc.) live in
-  the separate `.agents/skills/gleam/SKILL.md`. The two skills are
-  complementary.
+  `.agents/skills/gleam/SKILL.md`.
 - **Both targets, every change:** `gleam test --target erlang` AND
   `gleam test --target javascript`. Drift between them is the most
   expensive bug class.

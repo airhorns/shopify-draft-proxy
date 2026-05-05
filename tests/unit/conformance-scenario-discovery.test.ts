@@ -7,15 +7,10 @@ import { validateComparisonContract, type ParitySpec } from '../../scripts/confo
 import {
   buildConformanceStatusDocument,
   listConformanceParitySpecPaths,
+  loadOperationRegistry,
   loadConformanceScenarioOverrides,
   loadConformanceScenarios,
 } from '../../scripts/conformance-scenario-registry.js';
-
-type OperationRegistryEntry = {
-  name: string;
-  implemented?: boolean;
-  runtimeTests?: string[];
-};
 
 const repoRoot = resolve(import.meta.dirname, '../..');
 const allowedScenarioStatuses = new Set(['captured', 'planned']);
@@ -91,7 +86,7 @@ describe('conformance scenario discovery', () => {
       scenario.operationNames.map((operationName) => [`${scenario.id} -> ${operationName}`, operationName] as const),
     ),
   )('keeps discovered scenario operation reachable from the operation registry: %s', (_label, operationName) => {
-    const registry = readJson<OperationRegistryEntry[]>('config/operation-registry.json');
+    const registry = loadOperationRegistry(repoRoot);
     expect(registry.some((entry) => entry.name === operationName)).toBe(true);
   });
 
@@ -99,9 +94,7 @@ describe('conformance scenario discovery', () => {
     const statusDocument = buildConformanceStatusDocument(repoRoot);
     const coveredOperationNames = new Set(statusDocument.coveredOperationNames);
 
-    for (const entry of readJson<OperationRegistryEntry[]>('config/operation-registry.json').filter(
-      (candidate) => candidate.implemented,
-    )) {
+    for (const entry of loadOperationRegistry(repoRoot).filter((candidate) => candidate.implemented)) {
       expect(entry.runtimeTests?.length ?? 0).toBeGreaterThan(0);
       expect(coveredOperationNames.has(entry.name), `${entry.name} should have scenario or runtime-test coverage`).toBe(
         true,

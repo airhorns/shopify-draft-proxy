@@ -66,7 +66,7 @@ The capture includes:
 - a product title `translationsRegister` / downstream read / `translationsRemove` / downstream empty read lifecycle with cleanup
 - a product title `translationsRegister` / `shopLocaleDisable` / downstream empty read lifecycle proving Shopify removes translations for the disabled locale
 
-The generic parity runner replays the captured read, unknown-resource validation, locale lifecycle, product-title translation lifecycle, and locale-disable translation cleanup lifecycle through the local proxy. `test/parity_test.gleam` also covers local-only guardrails that are difficult to isolate in the generic fixture replay: product SEO keys, product-metafield `value` translations, enabled-locale validation, invalid keys, stale digests, read-after-remove behavior, and the local no-upstream execution path for locale-disable translation cleanup.
+The generic parity runner replays the captured read, unknown-resource validation, locale lifecycle, product-title translation lifecycle, and locale-disable translation cleanup lifecycle through the local proxy. The Gleam parity runner also covers local-only guardrails that are difficult to isolate in the generic fixture replay: product SEO keys, product-metafield `value` translations, enabled-locale validation, invalid keys, stale digests, read-after-remove behavior, and the local no-upstream execution path for locale-disable translation cleanup.
 
 ### HAR-449 gap review
 

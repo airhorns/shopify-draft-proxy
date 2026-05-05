@@ -75,7 +75,6 @@ The fixture shows the current conformance credential can read gift cards, perfor
 
 ### Validation
 
-- `corepack pnpm vitest run test/parity_test.gleam`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
 - `corepack pnpm typecheck`

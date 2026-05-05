@@ -150,9 +150,7 @@ pub fn with_registry(
   proxy_state.with_registry(proxy, registry)
 }
 
-/// Attach the vendored default registry built from
-/// `config/operation-registry.json` (mirrored as Gleam source in
-/// `operation_registry_data.gleam`).
+/// Attach the vendored default registry.
 pub fn with_default_registry(proxy: DraftProxy) -> DraftProxy {
   proxy_state.with_default_registry(proxy)
 }

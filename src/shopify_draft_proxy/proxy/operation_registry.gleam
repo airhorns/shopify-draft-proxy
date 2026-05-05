@@ -1,14 +1,4 @@
-//// Mirrors `src/proxy/operation-registry.ts`.
-////
-//// The TS module imports `config/operation-registry.json` directly via
-//// `with { type: 'json' }` and validates it against
-//// `operationRegistrySchema`. We can't replicate the static-import dance
-//// portably across Gleam's two targets, so this module exposes a
-//// `parse(json_string)` that callers feed with the raw JSON. A thin
-//// FFI/loader shim (separate concern, future pass) reads the file at
-//// startup and hands the string in.
-////
-//// The registry itself is just `List(RegistryEntry)` — no map/dict
+//// The registry itself is just `List(RegistryEntry)` - no map/dict
 //// caching here. Lookup helpers (`find_entry`, `list_implemented`)
 //// stream the list, which is fine for ~100 entries; if dispatch on the
 //// hot path benefits from a map, callers can build their own.
@@ -107,7 +97,7 @@ pub fn execution_to_string(execution: CapabilityExecution) -> String {
   }
 }
 
-/// Mirrors `OperationRegistryEntry`. `support_notes` is optional —
+/// Mirrors `OperationRegistryEntry`. `support_notes` is optional -
 /// defaults to `None` when the JSON omits it.
 pub type RegistryEntry {
   RegistryEntry(
@@ -122,23 +112,17 @@ pub type RegistryEntry {
   )
 }
 
-/// Parse a JSON string into a list of registry entries. Mirrors the
-/// `operationRegistrySchema.parse(...)` pass at module load time in
-/// `operation-registry.ts`.
+/// Parse a JSON string into a list of registry entries. Retained for tests and
+/// importers that need to validate external registry-shaped JSON.
 pub fn parse(input: String) -> Result(List(RegistryEntry), json.DecodeError) {
   json.parse(input, decode.list(of: registry_entry_decoder()))
 }
 
-/// Vendored operation registry. Mirrors the TS module-load
-/// `operationRegistrySchema.parse(operationRegistryJson)` at
-/// `src/proxy/operation-registry.ts:32`. The actual list lives in
-/// `operation_registry_data.default_registry/0` as Gleam source — no
-/// JSON, no FFI, no runtime IO. The data module imports types from
-/// here (one-way edge), so callers reach the registry via
-/// `operation_registry_data.default_registry()` directly. Regenerated
-/// from `config/operation-registry.json` via
-/// `scripts/sync-operation-registry.sh` when the TS
-/// implementation's registry changes.
+/// Vendored operation registry lives in
+/// `operation_registry_data.default_registry/0` as Gleam source: no JSON, no
+/// FFI, no runtime IO. The data module imports types from here (one-way edge),
+/// so callers reach the registry via `operation_registry_data.default_registry()`
+/// directly.
 fn registry_entry_decoder() -> decode.Decoder(RegistryEntry) {
   use name <- decode.field("name", decode.string)
   use type_ <- decode.field("type", operation_type_decoder())

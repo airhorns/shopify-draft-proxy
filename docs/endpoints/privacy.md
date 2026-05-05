@@ -65,8 +65,6 @@ Do not check in planned-only parity specs or parity request placeholders for thi
 
 ### Validation anchors
 
-- Local data-sale opt-out staging and read-after-write behavior: `test/parity_test.gleam`
-- Privacy mutation observability and capability behavior: `test/parity_test.gleam`
 - Fixture-backed parity scenario: `config/parity-specs/privacy/dataSaleOptOut-parity.json`
 - General registry checks: `tests/unit/operation-registry.test.ts`
 - Root inventory fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

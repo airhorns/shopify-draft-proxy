@@ -6,8 +6,7 @@ is succeeding_. It is read-first context for any agent (human or otherwise)
 joining the port mid-flight.
 
 It deliberately does not enumerate steps; the phase plan lives in conversation
-history and the per-domain skill (`.agents/skills/gleam-port/SKILL.md`, written
-in Phase 6). This file outlives any specific phase.
+history and `GLEAM_PORT_LOG.md`. This file outlives any specific phase.
 
 The running narrative of what has actually been ported, what was learned, and
 what is now blocked or unblocked lives in `GLEAM_PORT_LOG.md`. New passes
@@ -132,17 +131,16 @@ A domain (e.g. `events`, `saved-searches`, `products`) is "ported" when:
       after full strict parity evidence moved to the Gleam runner.
 - [ ] The interop smoke tests still pass — i.e. nothing in the Gleam port
       has broken JS or BEAM consumers' ability to load and call the package.
-- [ ] A "porting note" entry is added to `.agents/skills/gleam-port/SKILL.md`
-      capturing anything non-obvious that future ports of similar domains
-      should know.
+- [x] Final-cutover notes live in `GLEAM_PORT_LOG.md`; the incremental
+      repo-local port skill has been retired.
 
 ### Whole-port acceptance criteria
 
 The port is "complete" when:
 
-- [x] All endpoint groups currently registered in
-      `config/operation-registry.json` with `implemented: true` are ported
-      and their TypeScript implementations deleted.
+- [x] All endpoint groups currently registered as implemented in the Gleam
+      operation registry are ported and their TypeScript implementations
+      deleted.
 - [x] Root `src/` contains no legacy TypeScript proxy domain code; runtime
       authority lives under `src/shopify_draft_proxy/`.
 - [x] The Koa server is replaced by the Gleam-backed HTTP adapter, with no

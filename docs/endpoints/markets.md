@@ -98,8 +98,4 @@ Stage-local mutations:
 
 ### Validation anchors
 
-- Runtime reads: `test/parity_test.gleam`
-- Runtime lifecycle staging: `test/parity_test.gleam`
-- Runtime market localization staging: `test/parity_test.gleam`
-- Conformance parity: `test/parity_test.gleam`
 - Conformance fixtures and requests: `config/parity-specs/markets/market*.json`, `config/parity-specs/markets/markets*.json`, `config/parity-specs/markets/catalog*.json`, `config/parity-specs/markets/price-list*.json`, and matching files under `config/parity-requests/markets/`

@@ -115,7 +115,7 @@ function checkWorkflowAndPackageScripts(errors: string[]): void {
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as PackageJson;
   const scripts = packageJson.scripts ?? {};
   const requiredScripts = new Map<string, string[]>([
-    ['gleam:registry:check', ['scripts/sync-operation-registry.sh']],
+    ['gleam:registry:check', ['tests/unit/operation-registry.test.ts']],
     ['gleam:port:coverage', ['./scripts/gleam-port-coverage-gate.ts']],
     ['conformance:capture:check', captureToolingChecks],
   ]);

@@ -117,8 +117,9 @@ variables)` returns a parsed `JsonValue` AST
 
 - vendored, pre-compiled mapping from operation name → capability
   (execution kind, dispatch metadata, type, etc.)
-- regenerated from `config/operation-registry.json` via
-  `scripts/sync-operation-registry.sh`
+- the checked-in Gleam data module is the operation-registry source of truth;
+  TypeScript conformance tooling reads it through
+  `scripts/support/operation-registry.ts`
 
 ### `proxy/commit.gleam`
 
@@ -188,9 +189,6 @@ still TypeScript under `scripts/`:
   capture scripts and runs them
 - `scripts/shopify-conformance-auth.mts` — OAuth bootstrap for
   conformance/recording credentials
-- `scripts/sync-operation-registry.sh` (delegating to TS) — keeps the
-  vendored Gleam operation registry in sync with
-  `config/operation-registry.json`
 
 The legacy TypeScript proxy runtime has been removed. Root `src/` is now the
 Gleam runtime tree; remaining TypeScript lives outside root `src/` and is
@@ -466,6 +464,7 @@ The cassette-playback model is detailed in `docs/parity-runner.md`.
 
 Spec / capture / registry JSON is decoded by typed Gleam decoders at
 the runner boundary (`test/parity/spec.gleam`) and by Zod
-schemas in the TypeScript build/recording scripts. Both decoders
-share `config/parity-specs/**` and `config/operation-registry.json`
-as the source of truth.
+schemas in the TypeScript build/recording scripts. Parity specs and captures
+remain under `config/parity-specs/**` and `fixtures/conformance/**`; the
+operation registry source of truth is
+`src/shopify_draft_proxy/proxy/operation_registry_data.gleam`.

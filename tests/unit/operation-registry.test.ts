@@ -41,12 +41,8 @@ describe('operation registry', () => {
     expect(executions.has('stage-locally')).toBe(true);
   });
 
-  it('keeps the generated Gleam operation registry mirror in sync', () => {
-    expect(() => {
-      execFileSync('bash', ['scripts/sync-operation-registry.sh', '--check'], {
-        cwd: repoRoot,
-        encoding: 'utf8',
-      });
-    }).not.toThrow();
+  it('loads the checked-in Gleam operation registry as the source of truth', () => {
+    expect(listOperationRegistryEntries().length).toBeGreaterThan(0);
+    expect(listOperationRegistryEntries().some((entry) => entry.name === 'productCreate')).toBe(true);
   });
 });

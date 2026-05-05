@@ -107,5 +107,4 @@ Local staged mutations:
 
 ### Validation anchors
 
-- Runtime flow: `test/parity_test.gleam`
 - Conformance fixtures and requests: `config/parity-specs/media/file*.json` and matching files under `config/parity-requests/media/`

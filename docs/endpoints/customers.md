@@ -114,11 +114,7 @@ Do not mark outbound email roots implemented by proxying them upstream. Support 
 
 ### Validation anchors
 
-- Customer reads: `test/parity_test.gleam`
-- Customer mutations, `customerSet`, and merge slices: `test/parity_test.gleam`
-- CustomerInput address-list create/update coverage: `corepack pnpm vitest run test/parity_test.gleam -t "CustomerInput address lists"`
 - CustomerInput address-list parity: `corepack pnpm conformance:parity` executes `customer-input-addresses-parity` from `fixtures/conformance/<store>/<version>/customers/customer-input-addresses-parity.json`; capture refresh remains `corepack pnpm conformance:capture-customer-input-addresses`
-- Store credit account read and local balance staging: `test/parity_test.gleam`
 - Store credit account success-path capture: `corepack pnpm conformance:capture-store-credit`, writing `store-credit-account-parity.json`
 - Customer address lifecycle parity: `corepack pnpm conformance:parity` executes `customer-address-lifecycle-parity` from `fixtures/conformance/<store>/<version>/customers/customer-address-lifecycle.json` through chained local proxy requests; capture refresh remains `corepack pnpm conformance:capture-customer-addresses`
 - CustomerSet capture: `corepack pnpm conformance:capture-customer-set`, writing `fixtures/conformance/<store>/<version>/customers/customer-set-parity.json`

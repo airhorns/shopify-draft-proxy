@@ -351,8 +351,7 @@ fn graphql_request(body: String) -> Request {
 }
 
 /// Synthetic registry that the dispatcher tests use to exercise the
-/// capability-driven path without depending on the production
-/// `config/operation-registry.json`.
+/// capability-driven path without depending on the production registry.
 fn capability_test_registry() -> List(operation_registry.RegistryEntry) {
   [
     operation_registry.RegistryEntry(

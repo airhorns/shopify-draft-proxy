@@ -192,10 +192,6 @@ For `paymentTermsCreate` against an existing captured draft order, the Gleam han
 
 ### Validation
 
-- `test/parity_test.gleam`
-- `test/parity_test.gleam`
-- `test/parity_test.gleam`
-- `test/parity_test.gleam`
 - `config/parity-specs/payments/finance-risk-no-data-read.json`
 - `config/parity-specs/payments/customer-payment-method-local-staging.json`
 - `corepack pnpm conformance:capture-finance-risk`
