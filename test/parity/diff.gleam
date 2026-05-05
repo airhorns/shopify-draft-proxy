@@ -11,6 +11,8 @@
 ////                             `?shopify-draft-proxy=synthetic` marker.
 ////   * "non-empty-string"    – any non-empty string.
 ////   * "any-string"          – any string.
+////   * "storefront-access-token" – `shpat_` followed by 16+ lowercase
+////                             alphanumeric characters.
 ////   * "any-number"          – any int or float.
 ////
 //// Anything else is treated as an exact-string match against the actual
@@ -547,6 +549,11 @@ fn value_matches(value: JsonValue, matcher: String) -> Bool {
         JInt(_) | JFloat(_) -> True
         _ -> False
       }
+    "storefront-access-token" ->
+      case value {
+        JString(s) -> is_storefront_access_token(s)
+        _ -> False
+      }
     "iso-timestamp" ->
       case value {
         JString(s) -> looks_like_iso_timestamp(s)
@@ -562,6 +569,48 @@ fn value_matches(value: JsonValue, matcher: String) -> Bool {
         JString(s) -> s == matcher
         _ -> False
       }
+  }
+}
+
+fn is_storefront_access_token(s: String) -> Bool {
+  string.starts_with(s, "shpat_")
+  && string.length(s) >= 22
+  && {
+    string.drop_start(s, 6)
+    |> string.to_graphemes
+    |> list.all(is_lower_alphanumeric)
+  }
+}
+
+fn is_lower_alphanumeric(g: String) -> Bool {
+  case g {
+    "a"
+    | "b"
+    | "c"
+    | "d"
+    | "e"
+    | "f"
+    | "g"
+    | "h"
+    | "i"
+    | "j"
+    | "k"
+    | "l"
+    | "m"
+    | "n"
+    | "o"
+    | "p"
+    | "q"
+    | "r"
+    | "s"
+    | "t"
+    | "u"
+    | "v"
+    | "w"
+    | "x"
+    | "y"
+    | "z" -> True
+    _ -> is_digit(g)
   }
 }
 
