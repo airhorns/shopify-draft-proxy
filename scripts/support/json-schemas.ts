@@ -102,6 +102,7 @@ export const matcherSchema = z.union([
   z.literal('non-empty-string'),
   z.literal('any-number'),
   z.literal('iso-timestamp'),
+  z.literal('storefront-access-token'),
   z.string().regex(/^shopify-gid:[A-Za-z][A-Za-z0-9]*$/),
   z.string().regex(/^shop-policy-url-base:https:\/\/[^/\s]+(?:\/[^\s]*)?$/),
   z.string().regex(/^exact-string:.+$/),
