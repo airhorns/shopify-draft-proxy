@@ -35,6 +35,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
+import shopify_draft_proxy/proxy/metafield_values
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome, read_optional_string,
   single_root_log_draft,
@@ -3208,7 +3209,15 @@ fn build_metaobject_from_create_input(
   definition: MetaobjectDefinitionRecord,
 ) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
   let #(fields, errors) =
-    build_metaobject_fields_from_input(input, definition, [], True, True)
+    build_metaobject_fields_from_input(
+      store,
+      input,
+      definition,
+      [],
+      True,
+      True,
+      True,
+    )
   case errors {
     [_, ..] -> #(None, identity, errors)
     [] -> {
@@ -3277,11 +3286,13 @@ fn apply_metaobject_update_input(
         _ -> {
           let #(fields_from_input, errors) =
             build_metaobject_fields_from_input(
+              store,
               input,
               definition,
               existing.fields,
               False,
               True,
+              False,
             )
           case errors {
             [_, ..] -> #(None, identity, errors)
@@ -3323,11 +3334,13 @@ fn apply_metaobject_update_input(
 }
 
 fn build_metaobject_fields_from_input(
+  store: Store,
   input: Dict(String, root_field.ResolvedValue),
   definition: MetaobjectDefinitionRecord,
   existing_fields: List(MetaobjectFieldRecord),
   include_missing: Bool,
   require_required: Bool,
+  allow_scalar_boolean_coercion: Bool,
 ) -> #(List(MetaobjectFieldRecord), List(UserError)) {
   let existing_by_key =
     list.fold(existing_fields, dict.new(), fn(acc, field) {
@@ -3378,9 +3391,11 @@ fn build_metaobject_fields_from_input(
                   Ok(field_definition) -> {
                     let value_errors =
                       validate_metaobject_field_input_value(
+                        store,
                         raw_field,
                         field_definition,
                         index,
+                        allow_scalar_boolean_coercion,
                       )
                     case value_errors {
                       [_, ..] -> #(
@@ -3446,9 +3461,11 @@ fn build_metaobject_fields_from_input(
 }
 
 fn validate_metaobject_field_input_value(
+  store: Store,
   raw_field: Dict(String, root_field.ResolvedValue),
   field_definition: MetaobjectFieldDefinitionRecord,
   index: Int,
+  allow_scalar_boolean_coercion: Bool,
 ) -> List(UserError) {
   let value = read_string(raw_field, "value")
   let json_error = case value, field_definition.type_.name {
@@ -3467,30 +3484,25 @@ fn validate_metaobject_field_input_value(
       }
     _, _ -> []
   }
-  let max_error = case
-    value,
-    find_validation(field_definition.validations, "max")
-  {
-    Some(v), Some(max_string) ->
-      case int.parse(max_string) {
-        Ok(max) ->
-          case string.length(v) > max {
-            True -> [
-              UserError(
-                Some(["metaobject", "fields", int.to_string(index)]),
-                "Value has a maximum length of " <> int.to_string(max) <> ".",
-                "INVALID_VALUE",
-                Some(field_definition.key),
-                None,
-              ),
-            ]
-            False -> []
-          }
-        Error(_) -> []
-      }
-    _, _ -> []
-  }
-  list.append(json_error, max_error)
+  let coercion_errors =
+    metafield_values.validate_metaobject_value(
+      store,
+      field_definition.type_.name,
+      value,
+      field_definition.validations,
+      allow_scalar_boolean_coercion,
+    )
+    |> list.map(fn(error) {
+      let metafield_values.ValidationError(message:, element_index:) = error
+      UserError(
+        Some(["metaobject", "fields", int.to_string(index)]),
+        message,
+        "INVALID_VALUE",
+        Some(field_definition.key),
+        element_index,
+      )
+    })
+  list.append(json_error, coercion_errors)
 }
 
 fn build_metaobject_field_from_input(
@@ -5292,6 +5304,8 @@ fn normalize_metaobject_value(
     None -> None
     Some(raw) ->
       case type_name {
+        "boolean" -> Some(normalize_boolean_value(raw))
+        "number_integer" -> Some(normalize_integer_value(raw))
         "date_time" -> Some(normalize_date_time_value(raw))
         "rating" -> Some(normalize_rating_value_string(raw))
         _ ->
@@ -5307,6 +5321,24 @@ fn normalize_metaobject_value(
                 False -> Some(raw)
               }
           }
+      }
+  }
+}
+
+fn normalize_boolean_value(raw: String) -> String {
+  case raw {
+    "false" -> "false"
+    _ -> "true"
+  }
+}
+
+fn normalize_integer_value(raw: String) -> String {
+  case int.parse(raw) {
+    Ok(value) -> int.to_string(value)
+    Error(_) ->
+      case float.parse(raw) {
+        Ok(value) -> int.to_string(float.truncate(value))
+        Error(_) -> "0"
       }
   }
 }
@@ -5920,15 +5952,6 @@ fn build_invalid_json_message(value: String) -> String {
     True -> "Value is invalid JSON."
     False -> "Value is invalid JSON."
   }
-}
-
-fn find_validation(
-  validations: List(MetaobjectFieldDefinitionValidationRecord),
-  name: String,
-) -> Option(String) {
-  list.find(validations, fn(validation) { validation.name == name })
-  |> result.map(fn(validation) { validation.value })
-  |> result.unwrap(None)
 }
 
 fn find_field_definition(

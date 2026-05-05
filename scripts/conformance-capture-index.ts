@@ -810,6 +810,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-field-validation-matrix',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-field-validation-matrix-conformance.ts',
+    purpose:
+      'MetaobjectCreate and metaobjectUpdate custom-data field value validation for scalar, measurement, reference, rating, URL/color/date/time, text max, and list field types.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-field-validation-matrix.json`,
+      'config/parity-specs/metaobjects/metaobject-field-validation-matrix.json',
+      'config/parity-requests/metaobjects/metaobject-field-validation-matrix-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and setup entry; rejected branches create no rows except captured scalar coercion branches, which are deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-references',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-reference-conformance.ts',
