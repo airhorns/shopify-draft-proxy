@@ -116,6 +116,7 @@ fn transaction_card(
     legacy_resource_id: "transaction",
     last_characters: "7777",
     masked_code: "•••• •••• •••• 7777",
+    code: None,
     enabled: enabled,
     notify: True,
     deactivated_at: case enabled {
