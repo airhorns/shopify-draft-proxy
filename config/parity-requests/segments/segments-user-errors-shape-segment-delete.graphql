@@ -1,0 +1,10 @@
+mutation SegmentDeleteUserErrorsShape($id: ID!) {
+  segmentDelete(id: $id) {
+    deletedSegmentId
+    userErrors {
+      __typename
+      field
+      message
+    }
+  }
+}

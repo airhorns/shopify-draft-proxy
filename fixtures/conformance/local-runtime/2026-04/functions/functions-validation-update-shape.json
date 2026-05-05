@@ -65,8 +65,8 @@
           "validation": null,
           "userErrors": [
             {
-              "field": ["validation", "enable"],
-              "message": "The maximum number of active validations has been reached.",
+              "field": ["enable"],
+              "message": "Cannot have more than 10 active validation functions.",
               "code": "MAX_VALIDATIONS_ACTIVATED"
             }
           ]

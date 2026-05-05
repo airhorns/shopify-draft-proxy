@@ -1238,7 +1238,19 @@ fn serialize_membership_items(
 /// Outcome of a segments mutation.
 /// User-error payload. Mirrors selected Shopify user-error fields.
 pub type UserError {
-  UserError(field: List(String), message: String, code: Option(String))
+  UserError(field: Option(List(String)), message: String, code: Option(String))
+}
+
+fn user_error(
+  field: List(String),
+  message: String,
+  code: Option(String),
+) -> UserError {
+  UserError(field: Some(field), message: message, code: code)
+}
+
+fn null_field_user_error(message: String, code: Option(String)) -> UserError {
+  UserError(field: None, message: message, code: code)
 }
 
 type SegmentMutationPayload {
@@ -1475,7 +1487,7 @@ fn handle_segment_update(
   let id_errors = case id, existing {
     Some(_), Some(_) -> []
     _, _ -> [
-      UserError(field: ["id"], message: "Segment does not exist", code: None),
+      user_error(["id"], "Segment does not exist", None),
     ]
   }
   let raw_name = graphql_helpers.read_arg_string_nonempty(args, "name")
@@ -1490,10 +1502,20 @@ fn handle_segment_update(
     False -> []
     True -> validate_segment_query(raw_query, ["query"])
   }
+  let change_errors = case id_errors, name_present, query_present {
+    [], False, False -> [
+      null_field_user_error(
+        "At least one attribute to change must be present",
+        None,
+      ),
+    ]
+    _, _, _ -> []
+  }
   let errors =
     id_errors
     |> list.append(name_errors)
     |> list.append(query_errors)
+    |> list.append(change_errors)
   case errors, id, existing {
     [], Some(id_value), Some(current) -> {
       let #(timestamp, identity_after_ts) =
@@ -1577,7 +1599,7 @@ fn handle_segment_delete(
   let errors = case id, existing {
     Some(_), Some(_) -> []
     _, _ -> [
-      UserError(field: ["id"], message: "Segment does not exist", code: None),
+      user_error(["id"], "Segment does not exist", None),
     ]
   }
   case errors, id {
@@ -1758,22 +1780,24 @@ fn validate_customer_segment_members_query_create(
 fn invalid_customer_segment_members_query_input_error(
   message: String,
 ) -> UserError {
-  UserError(field: ["input"], message: message, code: Some("INVALID"))
+  user_error(["input"], message, Some("INVALID"))
 }
 
 fn validate_customer_segment_members_query(
   query: Option(String),
 ) -> List(UserError) {
   case query {
-    None -> [UserError(field: [], message: "Query can't be blank", code: None)]
+    None -> [
+      null_field_user_error("Query can't be blank", Some("INVALID")),
+    ]
     Some(q) ->
       case string.trim(q) {
         "" -> [
-          UserError(field: [], message: "Query can't be blank", code: None),
+          null_field_user_error("Query can't be blank", Some("INVALID")),
         ]
         trimmed ->
           list.map(validate_member_query_string(trimmed), fn(message) {
-            UserError(field: [], message: message, code: None)
+            null_field_user_error(message, Some("INVALID"))
           })
       }
   }
@@ -1899,6 +1923,7 @@ fn member_query_payload_field_entry(
           key,
           serialize_user_errors(
             payload.user_errors,
+            "CustomerSegmentMembersQueryUserError",
             graphql_helpers.selection_set_selections(ss),
             fragments,
           ),
@@ -1964,24 +1989,20 @@ fn validate_segment_name(
   case present, raw {
     False, _ -> []
     True, None -> [
-      UserError(field: field_path, message: "Name can't be blank", code: None),
+      user_error(field_path, "Name can't be blank", None),
     ]
     True, Some(name) ->
       case string.trim(name) {
         "" -> [
-          UserError(
-            field: field_path,
-            message: "Name can't be blank",
-            code: None,
-          ),
+          user_error(field_path, "Name can't be blank", None),
         ]
         _ ->
           case string.length(name) > max_segment_name_length {
             True -> [
-              UserError(
-                field: field_path,
-                message: "Name is too long (maximum is 255 characters)",
-                code: None,
+              user_error(
+                field_path,
+                "Name is too long (maximum is 255 characters)",
+                None,
               ),
             ]
             False -> []
@@ -1995,7 +2016,7 @@ fn validate_segment_limit(store: Store) -> List(UserError) {
     list.length(store.list_effective_segments(store)) >= max_segments_per_shop
   {
     True -> [
-      UserError(field: ["base"], message: "Segment limit reached", code: None),
+      user_error(["base"], "Segment limit reached", None),
     ]
     False -> []
   }
@@ -2056,33 +2077,27 @@ pub fn validate_segment_query(
 ) -> List(UserError) {
   case raw {
     None -> [
-      UserError(field: field_path, message: "Query can't be blank", code: None),
+      user_error(field_path, "Query can't be blank", None),
     ]
     Some(q) ->
       case string.trim(q) {
         "" -> [
-          UserError(
-            field: field_path,
-            message: "Query can't be blank",
-            code: None,
-          ),
+          user_error(field_path, "Query can't be blank", None),
         ]
         trimmed ->
           case string.length(trimmed) > max_segment_query_length {
             True -> [
-              UserError(
-                field: field_path,
-                message: "Query is too long (maximum is 5000 characters)",
-                code: None,
+              user_error(
+                field_path,
+                "Query is too long (maximum is 5000 characters)",
+                None,
               ),
             ]
             False ->
               case validate_segment_query_string(trimmed) {
                 [] -> []
                 messages ->
-                  list.map(messages, fn(m) {
-                    UserError(field: field_path, message: m, code: None)
-                  })
+                  list.map(messages, fn(m) { user_error(field_path, m, None) })
               }
           }
       }
@@ -2414,6 +2429,7 @@ fn payload_field_entry(
           key,
           serialize_user_errors(
             payload.user_errors,
+            "UserError",
             graphql_helpers.selection_set_selections(ss),
             fragments,
           ),
@@ -2426,21 +2442,22 @@ fn payload_field_entry(
 
 fn serialize_user_errors(
   user_errors: List(UserError),
+  typename: String,
   selections: List(Selection),
   fragments: FragmentMap,
 ) -> Json {
   json.array(user_errors, fn(error) {
-    let source = user_error_to_source(error)
+    let source = user_error_to_source(error, typename)
     project_graphql_value(source, selections, fragments)
   })
 }
 
-fn user_error_to_source(error: UserError) -> SourceValue {
+fn user_error_to_source(error: UserError, typename: String) -> SourceValue {
   src_object([
-    #("__typename", SrcString("UserError")),
+    #("__typename", SrcString(typename)),
     #("field", case error.field {
-      [] -> SrcNull
-      parts -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
+      None -> SrcNull
+      Some(parts) -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
     }),
     #("message", SrcString(error.message)),
     #("code", case error.code {

@@ -1,0 +1,85 @@
+{
+  "scenarioId": "metaobject-upsert-recovery-and-prefixes",
+  "operationNames": ["metaobjectUpsert", "metaobject", "metaobjectByHandle"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["mutation-payload-parity", "user-errors-parity", "upstream-hydration"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-upsert-recovery-and-prefixes.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
+    "variablesCapturePath": "$.cases.exactMatch.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-678 metaobjectUpsert parity. The raw public 2026-04 capture is retained under cases.*; the current conformance app still exposes the old non-key-value public schema for partitioned error fields, so proxyExpected normalizes only the userError field prefixes to the internal resolver behavior cited by the ticket while strict live payloads remain captured. Target order starts with cold exact/conflict branches so the proxy hydrates existing rows through MetaobjectHydrateByHandle; the genuine create branch runs last against a cassette miss for its handle and allows only synthetic id/updatedAt differences.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "exact-match-metaobject",
+        "capturePath": "$.cases.exactMatch.response.data.metaobjectUpsert.metaobject",
+        "proxyPath": "$.data.metaobjectUpsert.metaobject"
+      },
+      {
+        "name": "exact-match-user-errors",
+        "capturePath": "$.cases.exactMatch.response.data.metaobjectUpsert.userErrors",
+        "proxyPath": "$.data.metaobjectUpsert.userErrors"
+      },
+      {
+        "name": "conflicting-handle-user-errors",
+        "capturePath": "$.proxyExpected.conflictingHandle.response.data.metaobjectUpsert.userErrors",
+        "proxyPath": "$.data.metaobjectUpsert.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
+          "variablesCapturePath": "$.cases.conflictingHandle.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "missing-required-user-errors",
+        "capturePath": "$.proxyExpected.missingRequired.response.data.metaobjectUpsert.userErrors",
+        "proxyPath": "$.data.metaobjectUpsert.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
+          "variablesCapturePath": "$.cases.missingRequired.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-branch-metaobject",
+        "capturePath": "$.cases.proxyCreate.response.data.metaobjectUpsert.metaobject",
+        "proxyPath": "$.data.metaobjectUpsert.metaobject",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
+          "variablesCapturePath": "$.cases.proxyCreate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Metaobject",
+            "reason": "The proxy stages a synthetic metaobject ID for the genuine local create branch."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy timestamps the genuine local create branch with its synthetic clock."
+          }
+        ]
+      },
+      {
+        "name": "create-branch-user-errors",
+        "capturePath": "$.cases.proxyCreate.response.data.metaobjectUpsert.userErrors",
+        "proxyPath": "$.data.metaobjectUpsert.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql",
+          "variablesCapturePath": "$.cases.proxyCreate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
