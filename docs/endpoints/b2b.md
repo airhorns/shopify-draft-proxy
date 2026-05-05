@@ -74,9 +74,13 @@ catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
 as that contact reference only after resolving the customer from the effective
 local customer registry. It rejects unknown customers, customers without an
 email address, duplicate customer/contact assignments on the same company, and
-companies that have reached the 10,000-contact cap. `companyRevokeMainContact`
-clears all local `isMainContact` flags and downstream `Company.mainContact`
-reads return `null`, matching the captured Shopify 2026-04 behavior.
+companies that have reached the 10,000-contact cap. Main-contact lifecycle
+stores a single `Company.mainContactId` pointer; returned
+`CompanyContact.isMainContact` values are derived from that pointer.
+`companyRevokeMainContact` clears only the company pointer and downstream
+`Company.mainContact` reads return `null`, matching the captured Shopify
+2026-04 behavior. `companyAssignMainContact` returns `INVALID_INPUT` when the
+provided contact belongs to a different company.
 
 Contact create/update inputs are prepared before staging to mirror Shopify's
 B2B contact input handling. Supported local paths normalize valid phone numbers
