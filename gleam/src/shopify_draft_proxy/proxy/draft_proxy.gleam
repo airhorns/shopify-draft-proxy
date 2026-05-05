@@ -815,13 +815,7 @@ fn route_mutation_to_domain(
         upstream,
       ))
     Ok(B2BDomain) ->
-      Some(b2b.process_mutation(
-        store,
-        identity,
-        request_path,
-        query,
-        variables,
-      ))
+      Some(b2b.process_mutation(store, identity, request_path, query, variables))
     Ok(SegmentsDomain) ->
       Some(segments.process_mutation(
         store,
@@ -990,24 +984,40 @@ fn route_query(
 ) -> #(Response, DraftProxy) {
   case query_domain_for(proxy, parsed, query, primary_root_field) {
     Ok(EventsDomain) ->
-      respond(proxy, events.process(query), "Failed to handle events query")
-    Ok(DeliverySettingsDomain) ->
-      respond(
+      events.handle_query_request(
         proxy,
-        delivery_settings.process(query),
-        "Failed to handle delivery settings query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
+      )
+    Ok(DeliverySettingsDomain) ->
+      delivery_settings.handle_query_request(
+        proxy,
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(SavedSearchesDomain) ->
-      respond(
+      saved_searches.handle_query_request(
         proxy,
-        saved_searches.process(proxy.store, query, variables),
-        "Failed to handle saved searches query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(WebhooksDomain) ->
-      respond(
+      webhooks.handle_query_request(
         proxy,
-        webhooks.process(proxy.store, query, variables),
-        "Failed to handle webhooks query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(AppsDomain) ->
       apps.handle_query_request(
@@ -1028,10 +1038,13 @@ fn route_query(
         variables,
       )
     Ok(GiftCardsDomain) ->
-      respond(
+      gift_cards.handle_query_request(
         proxy,
-        gift_cards.process(proxy.store, query, variables),
-        "Failed to handle gift cards query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(DiscountsDomain) ->
       discounts.handle_query_request(
@@ -1064,6 +1077,7 @@ fn route_query(
       metafield_definitions.handle_query_request(
         proxy,
         request,
+        parsed,
         primary_root_field,
         query,
         variables,
@@ -1087,16 +1101,22 @@ fn route_query(
         variables,
       )
     Ok(MarketingDomain) ->
-      respond(
+      marketing.handle_query_request(
         proxy,
-        marketing.process(proxy.store, query, variables),
-        "Failed to handle marketing query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(BulkOperationsDomain) ->
-      respond(
+      bulk_operations.handle_query_request(
         proxy,
-        bulk_operations.process(proxy.store, query, variables),
-        "Failed to handle bulk operations query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(MarketsDomain) ->
       markets.handle_query_request(
@@ -1108,10 +1128,13 @@ fn route_query(
         variables,
       )
     Ok(MediaDomain) ->
-      respond(
+      media.handle_query_request(
         proxy,
-        media.process(proxy.store, query, variables),
-        "Failed to handle media query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(ProductsDomain) ->
       products.handle_query_request(
@@ -1159,10 +1182,13 @@ fn route_query(
         variables,
       )
     Ok(PaymentsDomain) ->
-      respond(
+      payments.handle_query_request(
         proxy,
-        payments.process(proxy.store, query, variables),
-        "Failed to handle payments query",
+        request,
+        parsed,
+        primary_root_field,
+        query,
+        variables,
       )
     Ok(ShippingFulfillmentsDomain) ->
       shipping_fulfillments.handle_query_request(
@@ -1182,14 +1208,7 @@ fn route_query(
         query,
         variables,
       )
-    Ok(PrivacyDomain) -> #(
-      bad_request(
-        "No domain dispatcher implemented for root field: "
-        <> primary_root_field,
-      ),
-      proxy,
-    )
-    Error(_) -> #(
+    Ok(PrivacyDomain) | Error(_) -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
         <> primary_root_field,
@@ -1636,17 +1655,6 @@ fn shipping_fulfillment_priority_mutation_root(name: String) -> Bool {
     | "fulfillmentOrdersSetFulfillmentDeadline"
     | "fulfillmentOrderMerge" -> True
     _ -> False
-  }
-}
-
-fn respond(
-  proxy: DraftProxy,
-  result: Result(Json, a),
-  error_message: String,
-) -> #(Response, DraftProxy) {
-  case result {
-    Ok(envelope) -> #(Response(status: 200, body: envelope, headers: []), proxy)
-    Error(_) -> #(bad_request(error_message), proxy)
   }
 }
 

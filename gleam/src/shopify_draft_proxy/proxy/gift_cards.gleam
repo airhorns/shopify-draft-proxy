@@ -26,6 +26,7 @@ import gleam/order.{type Order, Eq}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -37,12 +38,12 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  single_root_log_draft,
+  type MutationOutcome, MutationOutcome, respond_to_query, single_root_log_draft,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext,
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser.{type SearchQueryTerm}
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
@@ -114,6 +115,22 @@ pub fn process(
 ) -> Result(Json, GiftCardsError) {
   use data <- result.try(handle_gift_card_query(store, document, variables))
   Ok(graphql_helpers.wrap_data(data))
+}
+
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  respond_to_query(
+    proxy,
+    process(proxy.store, document, variables),
+    "Failed to handle gift cards query",
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -1144,7 +1161,6 @@ fn empty_payload(user_errors: List(UserError)) -> GiftCardPayload {
 }
 
 /// Process a gift-cards mutation document.
-
 /// Pattern 2: update/credit/debit/deactivate and notification roots need the
 /// prior upstream gift-card record before they can stage or short-circuit local
 /// effects for an existing Shopify gift card. Snapshot mode/no transport falls

@@ -37,6 +37,9 @@ import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/mutation_schema.{type SchemaMutation}
 import shopify_draft_proxy/proxy/mutation_schema_lookup.{type MutationSchema}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Response, Response,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -1049,4 +1052,34 @@ pub fn record_log_drafts(
       )
     #(store.record_mutation_log_entry(current_store, entry), identity_after_ts)
   })
+}
+
+/// Wrap a domain `process` result into the dispatcher's
+/// `#(Response, DraftProxy)` shape. `Ok(envelope)` becomes a 200 with
+/// the JSON body; `Error(_)` becomes a 400 carrying `error_message` in
+/// the standard `{ errors: [...] }` envelope. Centralised so each
+/// simple-domain `handle_query_request` is a one-liner.
+pub fn respond_to_query(
+  proxy: DraftProxy,
+  result: Result(Json, a),
+  error_message: String,
+) -> #(Response, DraftProxy) {
+  case result {
+    Ok(envelope) -> #(Response(status: 200, body: envelope, headers: []), proxy)
+    Error(_) -> #(
+      Response(
+        status: 400,
+        body: json.object([
+          #(
+            "errors",
+            json.preprocessed_array([
+              json.object([#("message", json.string(error_message))]),
+            ]),
+          ),
+        ]),
+        headers: [],
+      ),
+      proxy,
+    )
+  }
 }

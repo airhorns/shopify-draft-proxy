@@ -8,6 +8,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field.{
   type ResolvedValue, ListVal, ObjectVal, StringVal,
 }
@@ -21,11 +22,12 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
+  type MutationOutcome, MutationOutcome, respond_to_query,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext,
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -137,6 +139,21 @@ pub fn process(
   }
 }
 
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  variables: Dict(String, ResolvedValue),
+) -> #(Response, DraftProxy) {
+  respond_to_query(
+    proxy,
+    process(proxy.store, document, variables),
+    "Failed to handle media query",
+  )
+}
 
 pub fn process_mutation(
   store: Store,

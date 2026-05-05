@@ -15,6 +15,7 @@ import gleam/order
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type ConnectionPageInfoOptions, type FragmentMap, type SourceValue,
@@ -24,7 +25,12 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome, MutationOutcome, LogDraft}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, LogDraft, MutationOutcome, respond_to_query,
+}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
+}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -111,6 +117,22 @@ pub fn process(
 ) -> Result(Json, MarketingError) {
   use data <- result.try(handle_marketing_query(store, document, variables))
   Ok(graphql_helpers.wrap_data(data))
+}
+
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  respond_to_query(
+    proxy,
+    process(proxy.store, document, variables),
+    "Failed to handle marketing query",
+  )
 }
 
 pub fn hydrate_marketing_from_upstream_payload(

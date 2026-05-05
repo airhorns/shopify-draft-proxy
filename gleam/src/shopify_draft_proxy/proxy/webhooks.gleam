@@ -41,10 +41,13 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  type LogDraft, RequiredArgument, read_optional_string,
-  read_optional_string_array, single_root_log_draft,
-  validate_required_field_arguments, validate_required_id_argument,
+  type LogDraft, type MutationOutcome, MutationOutcome, RequiredArgument,
+  read_optional_string, read_optional_string_array, respond_to_query,
+  single_root_log_draft, validate_required_field_arguments,
+  validate_required_id_argument,
+}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
 }
 import shopify_draft_proxy/search_query_parser.{
   type SearchQueryTerm, SearchQueryTermListOptions,
@@ -350,6 +353,22 @@ pub fn process(
     variables,
   ))
   Ok(graphql_helpers.wrap_data(data))
+}
+
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  respond_to_query(
+    proxy,
+    process(proxy.store, document, variables),
+    "Failed to handle webhooks query",
+  )
 }
 
 fn serialize_root_fields(

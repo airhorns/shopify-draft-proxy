@@ -27,8 +27,14 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_selected_child_fields, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome, MutationOutcome, type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, type MutationOutcome, LogDraft, MutationOutcome,
+  respond_to_query,
+}
 import shopify_draft_proxy/proxy/products
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
+}
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
 }
@@ -89,6 +95,22 @@ pub fn process(
     variables,
   ))
   Ok(graphql_helpers.wrap_data(data))
+}
+
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  respond_to_query(
+    proxy,
+    process(proxy.store, document, variables),
+    "Failed to handle bulk operations query",
+  )
 }
 
 fn serialize_root_fields(
@@ -365,7 +387,6 @@ type MutationFieldResult {
     log_drafts: List(LogDraft),
   )
 }
-
 
 pub fn process_mutation(
   store: Store,

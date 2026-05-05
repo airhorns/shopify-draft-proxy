@@ -14,6 +14,7 @@ import gleam/order
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
@@ -24,17 +25,15 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  read_optional_string, single_root_log_draft,
+  type MutationOutcome, MutationOutcome, read_optional_string,
+  single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -155,6 +154,7 @@ pub fn local_has_metafield_definition_state(
 pub fn handle_query_request(
   proxy: DraftProxy,
   request: Request,
+  _parsed: parse_operation.ParsedOperation,
   _primary_root_field: String,
   query: String,
   variables: Dict(String, root_field.ResolvedValue),
@@ -238,7 +238,6 @@ pub fn process(
   ))
   Ok(graphql_helpers.wrap_data(data))
 }
-
 
 pub fn process_mutation(
   store_in: Store,
