@@ -8284,3 +8284,50 @@ pub fn orders_draft_order_residual_helper_roots_test() {
     )
   assert json.to_string(after_delete_read) == "{\"data\":{\"draftOrder\":null}}"
 }
+
+pub fn orders_draft_order_calculate_validation_and_shipping_rates_test() {
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        emptyLineItems: draftOrderCalculate(input: { lineItems: [] }) {
+          calculatedDraftOrder { currencyCode }
+          userErrors { field message }
+        }
+        invalidEmail: draftOrderCalculate(input: {
+          email: \"bad email\"
+          lineItems: [{ title: \"Bad email\", quantity: 1, originalUnitPrice: \"1.00\" }]
+        }) {
+          calculatedDraftOrder { currencyCode }
+          userErrors { field message }
+        }
+        availableShippingRatesEmpty: draftOrderCalculate(input: {
+          lineItems: [{ title: \"Needs shipping\", quantity: 1, originalUnitPrice: \"1.00\" }]
+        }) {
+          calculatedDraftOrder {
+            availableShippingRates { handle title }
+          }
+          userErrors { field message }
+        }
+        paymentTermsTemplateId: draftOrderCalculate(input: {
+          lineItems: [{ title: \"Payment terms\", quantity: 1, originalUnitPrice: \"1.00\" }]
+          paymentTerms: {
+            paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/4\"
+            paymentSchedules: [{ issuedAt: \"2026-01-01T00:00:00Z\" }]
+          }
+        }) {
+          calculatedDraftOrder { currencyCode }
+          userErrors { field message }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"emptyLineItems\":{\"calculatedDraftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\"}]},\"invalidEmail\":{\"calculatedDraftOrder\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is invalid\"}]},\"availableShippingRatesEmpty\":{\"calculatedDraftOrder\":{\"availableShippingRates\":[]},\"userErrors\":[]},\"paymentTermsTemplateId\":{\"calculatedDraftOrder\":{\"currencyCode\":\"CAD\"},\"userErrors\":[]}}}"
+}

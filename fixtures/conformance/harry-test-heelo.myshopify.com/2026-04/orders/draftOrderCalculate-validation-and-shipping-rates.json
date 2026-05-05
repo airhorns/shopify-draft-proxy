@@ -1,0 +1,332 @@
+{
+  "capturedAt": "2026-05-05T19:47:25.775Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "document": "#graphql\n  mutation DraftOrderCalculateValidationAndShippingRates(\n    $emptyLineItems: DraftOrderInput!\n    $invalidEmail: DraftOrderInput!\n    $availableShippingRatesEmpty: DraftOrderInput!\n    $paymentTermsTemplateId: DraftOrderInput!\n  ) {\n    emptyLineItems: draftOrderCalculate(input: $emptyLineItems) {\n      calculatedDraftOrder { currencyCode }\n      userErrors { field message }\n    }\n    invalidEmail: draftOrderCalculate(input: $invalidEmail) {\n      calculatedDraftOrder { currencyCode }\n      userErrors { field message }\n    }\n    availableShippingRatesEmpty: draftOrderCalculate(input: $availableShippingRatesEmpty) {\n      calculatedDraftOrder {\n        availableShippingRates {\n          handle\n          title\n          price { amount currencyCode }\n        }\n      }\n      userErrors { field message }\n    }\n    paymentTermsTemplateId: draftOrderCalculate(input: $paymentTermsTemplateId) {\n      calculatedDraftOrder { currencyCode }\n      userErrors { field message }\n    }\n  }\n",
+  "variables": {
+    "emptyLineItems": {
+      "lineItems": []
+    },
+    "invalidEmail": {
+      "email": "bad email",
+      "lineItems": [
+        {
+          "title": "HAR-580 invalid email",
+          "quantity": 1,
+          "originalUnitPrice": "1.00"
+        }
+      ]
+    },
+    "availableShippingRatesEmpty": {
+      "lineItems": [
+        {
+          "variantId": "gid://shopify/ProductVariant/49875425296690",
+          "quantity": 1
+        }
+      ]
+    },
+    "paymentTermsTemplateId": {
+      "paymentTerms": {
+        "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+        "paymentSchedules": [
+          {
+            "issuedAt": "2026-01-01T00:00:00Z"
+          }
+        ]
+      },
+      "lineItems": [
+        {
+          "title": "HAR-580 payment terms",
+          "quantity": 1,
+          "originalUnitPrice": "1.00"
+        }
+      ]
+    }
+  },
+  "setup": {
+    "variantLookup": {
+      "document": "#graphql\n  query Har580ShippingVariant {\n    products(first: 10) {\n      nodes {\n        variants(first: 10) {\n          nodes {\n            id\n            inventoryItem {\n              requiresShipping\n            }\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "data": {
+          "products": {
+            "nodes": [
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425296690",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425329458",
+                      "inventoryItem": {
+                        "requiresShipping": false
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425362226",
+                      "inventoryItem": {
+                        "requiresShipping": false
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425394994",
+                      "inventoryItem": {
+                        "requiresShipping": false
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425427762",
+                      "inventoryItem": {
+                        "requiresShipping": false
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425460530",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425493298",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425526066",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425558834",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425886514",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425919282",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    },
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425952050",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425591602",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425624370",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/49875425657138",
+                      "inventoryItem": {
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 46,
+            "actualQueryCost": 22,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1978,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "selectedVariantId": "gid://shopify/ProductVariant/49875425296690"
+    },
+    "variantHydrate": {
+      "document": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/49875425296690"
+      },
+      "response": {
+        "data": {
+          "productVariant": {
+            "id": "gid://shopify/ProductVariant/49875425296690",
+            "title": "Default Title",
+            "sku": "sku-untracked-1",
+            "taxable": true,
+            "price": "949.95",
+            "inventoryItem": {
+              "requiresShipping": true
+            },
+            "product": {
+              "title": "The Inventory Not Tracked Snowboard"
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 3,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "emptyLineItems": {
+          "calculatedDraftOrder": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Add at least 1 product"
+            }
+          ]
+        },
+        "invalidEmail": {
+          "calculatedDraftOrder": null,
+          "userErrors": [
+            {
+              "field": ["email"],
+              "message": "Email is invalid"
+            }
+          ]
+        },
+        "availableShippingRatesEmpty": {
+          "calculatedDraftOrder": {
+            "availableShippingRates": []
+          },
+          "userErrors": []
+        },
+        "paymentTermsTemplateId": {
+          "calculatedDraftOrder": {
+            "currencyCode": "CAD"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 41,
+          "actualQueryCost": 41,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1957,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersDraftOrderVariantHydrate",
+      "variables": {
+        "id": "gid://shopify/ProductVariant/49875425296690"
+      },
+      "query": "query OrdersDraftOrderVariantHydrate($id: ID!) {\n  productVariant(id: $id) { id title sku taxable price inventoryItem { requiresShipping } product { title } }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "productVariant": {
+              "id": "gid://shopify/ProductVariant/49875425296690",
+              "title": "Default Title",
+              "sku": "sku-untracked-1",
+              "taxable": true,
+              "price": "949.95",
+              "inventoryItem": {
+                "requiresShipping": true
+              },
+              "product": {
+                "title": "The Inventory Not Tracked Snowboard"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

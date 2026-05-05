@@ -1743,6 +1743,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'draft-orders',
+    captureId: 'draft-order-calculate-validation-and-shipping-rates',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-draft-order-calculate-validation-and-shipping-rates-conformance.ts',
+    purpose:
+      'draftOrderCalculate validation branches and captured empty availableShippingRates behavior when no shipping address is present.',
+    requiredAuthScopes: ['read_draft_orders', 'write_draft_orders', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}draftOrderCalculate-validation-and-shipping-rates.json`,
+      'config/parity-specs/orders/draftOrderCalculate-validation-and-shipping-rates.json',
+      'config/parity-requests/orders/draftOrderCalculate-validation-and-shipping-rates.graphql',
+    ],
+    cleanupBehavior: 'Validation/calculate-only probes do not create merchant resources.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'draft-orders',
     captureId: 'draft-order-invoice-send-safety',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-draft-order-invoice-send-safety-conformance.ts',
