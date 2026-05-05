@@ -1669,6 +1669,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-create-validation',
+    scriptPath: 'scripts/capture-gift-card-create-validation-conformance.ts',
+    purpose:
+      'Gift-card create validation for initial value, code length/format/uniqueness, missing customer, and generated code behavior.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-create-validation.json`,
+      'config/parity-specs/gift-cards/gift-card-create-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates two disposable gift cards for success/generated-code validation and deactivates them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-notification-validation',
     scriptPath: 'scripts/capture-gift-card-notification-validation-conformance.ts',
     purpose: 'Gift-card notification validation branches that fail before customer-visible notification dispatch.',
