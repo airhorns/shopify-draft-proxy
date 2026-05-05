@@ -18708,6 +18708,11 @@ fn build_updated_draft_order(
       "shippingLine",
       build_draft_order_shipping_line(read_object(input, "shippingLine")),
     )
+    |> replace_if_present(
+      input,
+      "purchasingEntity",
+      build_draft_order_purchasing_entity(read_object(input, "purchasingEntity")),
+    )
     |> prepend_captured_replacement("updatedAt", CapturedString(updated_at))
     |> prepend_captured_replacement(
       "lineItems",
@@ -18960,6 +18965,10 @@ fn build_order_from_completed_draft_order(
       #("taxLines", CapturedArray([])),
       #("taxesIncluded", CapturedBool(False)),
       #("customer", captured_field_or_null(draft_order.data, "customer")),
+      #(
+        "purchasingEntity",
+        captured_field_or_null(draft_order.data, "purchasingEntity"),
+      ),
       #("shippingLines", completed_order_shipping_lines(draft_order.data)),
       #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
       #(
@@ -19310,6 +19319,13 @@ fn build_draft_order_from_input(
       #("ready", CapturedBool(True)),
       #("email", optional_captured_string(read_string(input, "email"))),
       #("note", optional_captured_string(read_string(input, "note"))),
+      #(
+        "purchasingEntity",
+        build_draft_order_purchasing_entity(read_object(
+          input,
+          "purchasingEntity",
+        )),
+      ),
       #("customer", build_draft_order_customer(store, input)),
       #("taxExempt", CapturedBool(read_bool(input, "taxExempt", False))),
       #("taxesIncluded", CapturedBool(read_bool(input, "taxesIncluded", False))),
@@ -19556,6 +19572,47 @@ fn build_draft_order_customer(
         ),
       ])
     }
+  }
+}
+
+fn build_draft_order_purchasing_entity(
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  case input {
+    Some(entity) ->
+      case read_object(entity, "purchasingCompany") {
+        Some(purchasing_company) ->
+          CapturedObject([
+            #("__typename", CapturedString("PurchasingCompany")),
+            #(
+              "company",
+              captured_id_object(read_string(purchasing_company, "companyId")),
+            ),
+            #(
+              "contact",
+              captured_id_object(read_string(
+                purchasing_company,
+                "companyContactId",
+              )),
+            ),
+            #(
+              "location",
+              captured_id_object(read_string(
+                purchasing_company,
+                "companyLocationId",
+              )),
+            ),
+          ])
+        None -> CapturedNull
+      }
+    None -> CapturedNull
+  }
+}
+
+fn captured_id_object(id: Option(String)) -> CapturedJsonValue {
+  case id {
+    Some(id) -> CapturedObject([#("id", CapturedString(id))])
+    None -> CapturedNull
   }
 }
 

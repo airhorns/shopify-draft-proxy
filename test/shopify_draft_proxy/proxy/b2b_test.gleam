@@ -10,8 +10,8 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type CustomerRecord, B2BCompanyContactRecord, B2BCompanyRecord, CustomerRecord,
-  ShopLocaleRecord, StorePropertyInt, StorePropertyString,
+  type CustomerRecord, B2BCompanyRecord, CustomerRecord, ShopLocaleRecord,
+  StorePropertyString,
 }
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
@@ -937,16 +937,28 @@ pub fn b2b_contact_delete_rejects_contacts_with_associated_orders_test() {
 
   let contact_id =
     "gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic"
-  let assert Some(contact) =
-    store.get_effective_b2b_company_contact_by_id(proxy.store, contact_id)
-  let marked_contact =
-    B2BCompanyContactRecord(
-      ..contact,
-      data: dict.insert(contact.data, "ordersCount", StorePropertyInt(1)),
+  let #(Response(status: draft_status, body: draft_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { draftOrderCreate(input: { purchasingEntity: { purchasingCompany: { companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", companyContactId: \""
+        <> contact_id
+        <> "\", companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\" } }, email: \"orders620@example.com\", lineItems: [{ title: \"HAR 620 custom item\", quantity: 1, originalUnitPrice: \"1.00\", requiresShipping: false, taxable: false }] }) { draftOrder { id status } userErrors { field message code } } }",
     )
-  let #(_, seeded_store) =
-    store.upsert_staged_b2b_company_contact(proxy.store, marked_contact)
-  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+  assert draft_status == 200
+  assert string.contains(json.to_string(draft_body), "\"userErrors\":[]")
+  let assert [draft_order] = store.list_effective_draft_orders(proxy.store)
+  let #(Response(status: complete_status, body: complete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { draftOrderComplete(id: \""
+        <> draft_order.id
+        <> "\", paymentPending: true) { draftOrder { id status order { id purchasingEntity { ... on PurchasingCompany { contact { id } } } } } userErrors { field message } } }",
+    )
+  assert complete_status == 200
+  let complete_json = json.to_string(complete_body)
+  assert string.contains(complete_json, "\"userErrors\":[]")
+  assert string.contains(complete_json, "\"status\":\"COMPLETED\"")
+  assert string.contains(complete_json, "\"contact\":{\"id\":\"" <> contact_id)
 
   let #(Response(status: delete_status, body: delete_body, ..), proxy) =
     graphql(

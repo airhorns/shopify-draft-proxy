@@ -1,0 +1,29 @@
+mutation B2BContactBusinessRulesDraftOrderComplete($id: ID!, $paymentPending: Boolean!) {
+  draftOrderComplete(id: $id, paymentPending: $paymentPending) {
+    draftOrder {
+      id
+      status
+      order {
+        id
+        name
+        purchasingEntity {
+          ... on PurchasingCompany {
+            company {
+              id
+            }
+            contact {
+              id
+            }
+            location {
+              id
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

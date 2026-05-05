@@ -41,11 +41,12 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
-  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CustomerRecord,
-  type ProductMetafieldRecord, type StorePropertyValue, B2BCompanyContactRecord,
-  B2BCompanyContactRoleRecord, B2BCompanyLocationRecord, B2BCompanyRecord,
-  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
-  StorePropertyNull, StorePropertyObject, StorePropertyString,
+  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
+  type CustomerRecord, type ProductMetafieldRecord, type StorePropertyValue,
+  B2BCompanyContactRecord, B2BCompanyContactRoleRecord, B2BCompanyLocationRecord,
+  B2BCompanyRecord, CapturedObject, CapturedString, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
+  StorePropertyObject, StorePropertyString,
 }
 
 const domain = "b2b"
@@ -3217,7 +3218,17 @@ fn delete_contact(store: Store, contact_id: String) -> #(Store, List(String)) {
   }
 }
 
-fn contact_has_associated_orders(contact: B2BCompanyContactRecord) -> Bool {
+fn contact_has_associated_orders(
+  store: Store,
+  contact: B2BCompanyContactRecord,
+) -> Bool {
+  contact_has_associated_order_marker(contact)
+  || contact_has_staged_order_history(store, contact.id)
+}
+
+fn contact_has_associated_order_marker(
+  contact: B2BCompanyContactRecord,
+) -> Bool {
   case data_get(contact.data, "ordersCount") {
     SrcInt(count) if count > 0 -> True
     _ ->
@@ -3236,6 +3247,70 @@ fn contact_has_associated_orders(contact: B2BCompanyContactRecord) -> Bool {
   }
 }
 
+fn contact_has_staged_order_history(store: Store, contact_id: String) -> Bool {
+  list.any(store.list_effective_orders(store), fn(order) {
+    purchasing_entity_contact_id(order.data) == Some(contact_id)
+  })
+  || list.any(store.list_effective_draft_orders(store), fn(draft_order) {
+    completed_draft_order_references_contact(draft_order.data, contact_id)
+  })
+}
+
+fn completed_draft_order_references_contact(
+  data: CapturedJsonValue,
+  contact_id: String,
+) -> Bool {
+  case captured_string_field(data, "status") {
+    Some("COMPLETED") -> purchasing_entity_contact_id(data) == Some(contact_id)
+    _ -> False
+  }
+  || case captured_object_field(data, "order") {
+    Some(order) -> purchasing_entity_contact_id(order) == Some(contact_id)
+    None -> False
+  }
+}
+
+fn purchasing_entity_contact_id(data: CapturedJsonValue) -> Option(String) {
+  data
+  |> captured_object_field("purchasingEntity")
+  |> option.then(fn(entity) {
+    entity
+    |> captured_object_field("contact")
+    |> option.then(fn(contact) { captured_string_field(contact, "id") })
+  })
+}
+
+fn captured_object_field(
+  data: CapturedJsonValue,
+  field: String,
+) -> Option(CapturedJsonValue) {
+  case data {
+    CapturedObject(fields) -> captured_field(fields, field)
+    _ -> None
+  }
+}
+
+fn captured_string_field(
+  data: CapturedJsonValue,
+  field: String,
+) -> Option(String) {
+  case captured_object_field(data, field) {
+    Some(CapturedString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn captured_field(
+  fields: List(#(String, CapturedJsonValue)),
+  field: String,
+) -> Option(CapturedJsonValue) {
+  case fields {
+    [] -> None
+    [#(key, value), ..] if key == field -> Some(value)
+    [_, ..rest] -> captured_field(rest, field)
+  }
+}
+
 fn handle_contact_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -3245,7 +3320,7 @@ fn handle_contact_delete(
     Some(id) ->
       case store.get_effective_b2b_company_contact_by_id(store, id) {
         Some(contact) ->
-          case contact_has_associated_orders(contact) {
+          case contact_has_associated_orders(store, contact) {
             True ->
               RootResult(
                 Payload(
@@ -3318,7 +3393,7 @@ fn handle_contacts_delete(
         let #(current_store, deleted, staged, errors) = acc
         case store.get_effective_b2b_company_contact_by_id(current_store, id) {
           Some(contact) ->
-            case contact_has_associated_orders(contact) {
+            case contact_has_associated_orders(current_store, contact) {
               True -> #(
                 current_store,
                 deleted,

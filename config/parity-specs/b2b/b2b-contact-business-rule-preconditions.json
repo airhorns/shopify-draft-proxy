@@ -1,6 +1,14 @@
 {
   "scenarioId": "b2b-contact-business-rule-preconditions",
-  "operationNames": ["companyCreate", "companyContactAssignRole", "companyContactDelete", "company", "companyContact"],
+  "operationNames": [
+    "companyCreate",
+    "companyContactAssignRole",
+    "companyContactDelete",
+    "draftOrderCreate",
+    "draftOrderComplete",
+    "company",
+    "companyContact"
+  ],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "business-rule-precondition", "read-after-write", "main-contact-lifecycle"],
   "liveCaptureFiles": [
@@ -13,7 +21,7 @@
   },
   "comparisonMode": "captured-vs-proxy-request",
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
-  "notes": "HAR-620 live Shopify 2026-04 evidence covers duplicate one-role-per-contact/location assignment, foreign and missing role/location resource resolution, successful `companyContactDelete` clearing mainContact, and `companyContactDelete` rejection after a B2B draft order is completed into an order for that contact. The replay marks locally staged B2B contacts with associated-order evidence before the order-precondition delete target because the B2B mutation precondition is local state in the proxy and order/draft-order replay is owned by the orders domain.",
+  "notes": "HAR-620 live Shopify 2026-04 evidence covers duplicate one-role-per-contact/location assignment, foreign and missing role/location resource resolution, successful `companyContactDelete` clearing mainContact, and `companyContactDelete` rejection after a B2B draft order is completed into an order for that contact. The replay drives the B2B draft-order create/complete request flow through the proxy before the order-precondition delete target; it does not pre-seed proxy state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -316,12 +324,100 @@
         ]
       },
       {
+        "name": "draft-order-create-for-contact-payload",
+        "capturePath": "$.draftOrderCreate.response.data.draftOrderCreate",
+        "proxyPath": "$.data.draftOrderCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-business-rules-draft-order-create.graphql",
+          "variables": {
+            "input": {
+              "purchasingEntity": {
+                "purchasingCompany": {
+                  "companyId": {
+                    "fromProxyResponse": "orders-company-create-payload",
+                    "path": "$.data.companyCreate.company.id"
+                  },
+                  "companyContactId": {
+                    "fromProxyResponse": "orders-company-create-payload",
+                    "path": "$.data.companyCreate.company.mainContact.id"
+                  },
+                  "companyLocationId": {
+                    "fromProxyResponse": "orders-company-create-payload",
+                    "path": "$.data.companyCreate.company.locations.nodes[0].id"
+                  }
+                }
+              },
+              "email": { "fromCapturePath": "$.draftOrderCreate.request.variables.input.email" },
+              "note": { "fromCapturePath": "$.draftOrderCreate.request.variables.input.note" },
+              "tags": { "fromCapturePath": "$.draftOrderCreate.request.variables.input.tags" },
+              "visibleToCustomer": {
+                "fromCapturePath": "$.draftOrderCreate.request.variables.input.visibleToCustomer"
+              },
+              "lineItems": { "fromCapturePath": "$.draftOrderCreate.request.variables.input.lineItems" }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "Live Shopify and local staging allocate different draft order IDs."
+          }
+        ]
+      },
+      {
+        "name": "draft-order-complete-for-contact-payload",
+        "capturePath": "$.draftOrderComplete.response.data.draftOrderComplete",
+        "proxyPath": "$.data.draftOrderComplete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-contact-business-rules-draft-order-complete.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "draft-order-create-for-contact-payload",
+              "path": "$.data.draftOrderCreate.draftOrder.id"
+            },
+            "paymentPending": { "fromCapturePath": "$.draftOrderComplete.request.variables.paymentPending" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.draftOrder.id",
+            "matcher": "shopify-gid:DraftOrder",
+            "reason": "Live Shopify and local staging allocate different draft order IDs."
+          },
+          {
+            "path": "$.draftOrder.order.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "Live Shopify and local staging allocate different order IDs."
+          },
+          {
+            "path": "$.draftOrder.order.name",
+            "matcher": "non-empty-string",
+            "reason": "Live Shopify and the proxy use different order sequence counters."
+          },
+          {
+            "path": "$.draftOrder.order.purchasingEntity.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy carries the locally staged company ID."
+          },
+          {
+            "path": "$.draftOrder.order.purchasingEntity.contact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The proxy carries the locally staged company contact ID."
+          },
+          {
+            "path": "$.draftOrder.order.purchasingEntity.location.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy carries the locally staged company location ID."
+          }
+        ]
+      },
+      {
         "name": "contact-delete-with-orders-user-error",
         "capturePath": "$.deleteWithOrders.response.data.companyContactDelete",
         "proxyPath": "$.data.companyContactDelete",
         "proxyRequest": {
           "documentPath": "config/parity-requests/b2b/b2b-contact-business-rules-contact-delete.graphql",
-          "localSetups": [{ "kind": "markB2BContactsWithOrders" }],
           "variables": {
             "companyContactId": {
               "fromProxyResponse": "orders-company-create-payload",
