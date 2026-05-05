@@ -147,31 +147,34 @@ async function runGraphqlPayload(query: string, variables?: Record<string, unkno
 
 function firstSeedProduct(payload: GraphqlPayload) {
   const product = (
-    ((payload.data as Record<string, unknown> | undefined)?.products as Record<string, unknown> | undefined)?.nodes as
-      | Array<Record<string, unknown>>
-      | undefined
+    ((payload['data'] as Record<string, unknown> | undefined)?.['products'] as Record<string, unknown> | undefined)?.[
+      'nodes'
+    ] as Array<Record<string, unknown>> | undefined
   )?.[0];
   if (
-    typeof product?.id !== 'string' ||
-    typeof product.title !== 'string' ||
-    typeof product.handle !== 'string' ||
-    typeof product.status !== 'string'
+    typeof product?.['id'] !== 'string' ||
+    typeof product['title'] !== 'string' ||
+    typeof product['handle'] !== 'string' ||
+    typeof product['status'] !== 'string'
   ) {
     throw new Error('Need at least one live product to capture HAR-594 collection parity.');
   }
   return {
-    id: product.id,
-    title: product.title,
-    handle: product.handle,
-    status: product.status,
+    id: product['id'],
+    title: product['title'],
+    handle: product['handle'],
+    status: product['status'],
   };
 }
 
 function collectionId(payload: GraphqlPayload): string | null {
   const id = (
-    ((payload.data as Record<string, unknown> | undefined)?.collectionCreate as Record<string, unknown> | undefined)
-      ?.collection as Record<string, unknown> | undefined
-  )?.id;
+    (
+      (payload['data'] as Record<string, unknown> | undefined)?.['collectionCreate'] as
+        | Record<string, unknown>
+        | undefined
+    )?.['collection'] as Record<string, unknown> | undefined
+  )?.['id'];
   return typeof id === 'string' ? id : null;
 }
 
