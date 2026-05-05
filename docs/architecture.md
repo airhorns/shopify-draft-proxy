@@ -119,6 +119,10 @@ variables)` returns a parsed `JsonValue` AST
   state mutators, and Node serializers for its resource area
 - domains decide on a per-operation basis whether to reach upstream
   via `upstream_query.fetch_sync` (see `docs/parity-runner.md`)
+- large domains may split their implementation under a matching subdirectory;
+  for example `proxy/orders.gleam` is the stable public entry point while
+  `proxy/orders/*.gleam` owns the orders query, mutation, serializer, and
+  helper concerns
 
 ### `proxy/operation_registry.gleam` + `operation_registry_data.gleam`
 
