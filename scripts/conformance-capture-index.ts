@@ -392,6 +392,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'metafield-definition-pin-limit-constraint-guard',
+    scriptPath: 'scripts/capture-metafield-definition-pin-limit-constraint-guard.mts',
+    purpose: 'metafieldDefinitionPin product-owner pin limit and constrained-definition validation.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-pin-limit-and-constraint-guard.json`,
+      'config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json',
+    ],
+    cleanupBehavior:
+      'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',

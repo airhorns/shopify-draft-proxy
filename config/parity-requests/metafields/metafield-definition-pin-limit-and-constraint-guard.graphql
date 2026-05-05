@@ -1,0 +1,690 @@
+mutation MetafieldDefinitionPinLimitAndConstraintGuard($namespace: String!, $categoryId: String!) {
+  create01: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_01"
+      name: "HAR 699 pin 01"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin01: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_01" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create02: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_02"
+      name: "HAR 699 pin 02"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin02: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_02" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create03: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_03"
+      name: "HAR 699 pin 03"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin03: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_03" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create04: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_04"
+      name: "HAR 699 pin 04"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin04: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_04" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create05: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_05"
+      name: "HAR 699 pin 05"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin05: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_05" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create06: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_06"
+      name: "HAR 699 pin 06"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin06: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_06" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create07: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_07"
+      name: "HAR 699 pin 07"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin07: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_07" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create08: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_08"
+      name: "HAR 699 pin 08"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin08: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_08" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create09: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_09"
+      name: "HAR 699 pin 09"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin09: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_09" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create10: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_10"
+      name: "HAR 699 pin 10"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin10: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_10" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create11: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_11"
+      name: "HAR 699 pin 11"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin11: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_11" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create12: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_12"
+      name: "HAR 699 pin 12"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin12: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_12" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create13: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_13"
+      name: "HAR 699 pin 13"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin13: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_13" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create14: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_14"
+      name: "HAR 699 pin 14"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin14: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_14" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create15: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_15"
+      name: "HAR 699 pin 15"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin15: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_15" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create16: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_16"
+      name: "HAR 699 pin 16"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin16: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_16" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create17: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_17"
+      name: "HAR 699 pin 17"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin17: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_17" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create18: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_18"
+      name: "HAR 699 pin 18"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin18: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_18" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create19: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_19"
+      name: "HAR 699 pin 19"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin19: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_19" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create20: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_20"
+      name: "HAR 699 pin 20"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin20: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_20" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create21: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "pin_21"
+      name: "HAR 699 pin 21"
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  pin21: metafieldDefinitionPin(identifier: { ownerType: PRODUCT, namespace: $namespace, key: "pin_21" }) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  constrainedCreate: metafieldDefinitionCreate(
+    definition: {
+      ownerType: PRODUCT
+      namespace: $namespace
+      key: "constrained"
+      name: "HAR 699 constrained"
+      type: "single_line_text_field"
+      constraints: { key: "category", values: [$categoryId] }
+    }
+  ) {
+    createdDefinition {
+      id
+      key
+      constraints {
+        key
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  constrainedPin: metafieldDefinitionPin(
+    identifier: { ownerType: PRODUCT, namespace: $namespace, key: "constrained" }
+  ) {
+    pinnedDefinition {
+      id
+      key
+      pinnedPosition
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
