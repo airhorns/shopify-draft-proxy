@@ -1,25 +1,10 @@
 {
   "scenarioId": "money-bag-presentment-parity",
-  "operationNames": [
-    "orderCreate",
-    "orderMarkAsPaid",
-    "refundCreate",
-    "orderEditBegin",
-    "orderEditCommit"
-  ],
+  "operationNames": ["orderCreate", "orderMarkAsPaid", "refundCreate", "orderEditBegin", "orderEditCommit"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "runtime-staging",
-    "selected-fields",
-    "downstream-read-parity",
-    "no-upstream-passthrough"
-  ],
-  "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"
-  ],
-  "runtimeTestFiles": [
-    "test/shopify_draft_proxy/proxy/orders_test.gleam"
-  ],
+  "assertionKinds": ["runtime-staging", "selected-fields", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/money-bag-presentment-single-create.graphql",
     "variablesCapturePath": "$.singleCurrencyCreate.variables"
