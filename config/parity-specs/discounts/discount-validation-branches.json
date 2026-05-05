@@ -27,7 +27,7 @@
     "expectedDifferences": [
       {
         "path": "$.unknownUpdate.userErrors[0].code",
-        "matcher": "INVALID",
+        "matcher": "exact-string:INVALID",
         "reason": "The older live validation capture stores null, but HAR-605 is scoped to the Shopify update-only code path whose DiscountUserError default is INVALID."
       }
     ],
