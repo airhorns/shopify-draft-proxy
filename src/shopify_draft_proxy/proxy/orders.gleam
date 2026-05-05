@@ -11331,7 +11331,7 @@ fn fulfillment_order_hold_line_item_input_objects(
 fn fulfillment_order_hold_validation_errors(
   fulfillment_order: CapturedJsonValue,
   variables: Dict(String, root_field.ResolvedValue),
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   let input = fulfillment_order_hold_input_from_variables(variables)
   let line_item_inputs = fulfillment_order_hold_line_item_input_objects(input)
   let input_errors =
@@ -11345,9 +11345,10 @@ fn fulfillment_order_hold_validation_errors(
       let handle = fulfillment_order_hold_handle(input)
       case string.length(handle) > fulfillment_hold_handle_max_length {
         True -> [
-          #(
+          nullable_user_error(
             Some(["fulfillmentHold", "handle"]),
             "Handle is too long (maximum is 64 characters)",
+            Some("TOO_LONG"),
           ),
         ]
         False -> {
@@ -11358,9 +11359,10 @@ fn fulfillment_order_hold_validation_errors(
             == Some("ON_HOLD")
           {
             True -> [
-              #(
+              nullable_user_error(
                 Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
                 "The fulfillment order is not in a splittable state.",
+                Some("FULFILLMENT_ORDER_NOT_SPLITTABLE"),
               ),
             ]
             False ->
@@ -11371,9 +11373,10 @@ fn fulfillment_order_hold_validation_errors(
                 )
               {
                 True -> [
-                  #(
+                  nullable_user_error(
                     Some(["fulfillmentHold", "handle"]),
                     "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
+                    Some("DUPLICATE_FULFILLMENT_HOLD_HANDLE"),
                   ),
                 ]
                 False ->
@@ -11384,9 +11387,10 @@ fn fulfillment_order_hold_validation_errors(
                     >= max_fulfillment_holds_per_api_client
                   {
                     True -> [
-                      #(
+                      nullable_user_error(
                         Some(["id"]),
                         "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
+                        Some("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"),
                       ),
                     ]
                     False -> []
@@ -11401,19 +11405,22 @@ fn fulfillment_order_hold_validation_errors(
 
 fn fulfillment_order_hold_line_item_quantity_errors(
   inputs: List(Dict(String, root_field.ResolvedValue)),
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   inputs
   |> list.index_fold([], fn(errors, input, index) {
-    let invalid_message = case dict.get(input, "quantity") {
+    let invalid = case dict.get(input, "quantity") {
       Ok(root_field.IntVal(quantity)) if quantity <= 0 ->
-        Some("You must select at least one item to place on partial hold.")
+        Some(#(
+          "You must select at least one item to place on partial hold.",
+          "GREATER_THAN_ZERO",
+        ))
       Ok(root_field.IntVal(_)) -> None
-      _ -> Some("The line item quantity is invalid.")
+      _ -> Some(#("The line item quantity is invalid.", "INVALID"))
     }
-    case invalid_message {
-      Some(message) ->
+    case invalid {
+      Some(#(message, code)) ->
         list.append(errors, [
-          #(
+          nullable_user_error(
             Some([
               "fulfillmentHold",
               "fulfillmentOrderLineItems",
@@ -11421,6 +11428,7 @@ fn fulfillment_order_hold_line_item_quantity_errors(
               "quantity",
             ]),
             message,
+            Some(code),
           ),
         ])
       None -> errors
@@ -11430,7 +11438,7 @@ fn fulfillment_order_hold_line_item_quantity_errors(
 
 fn fulfillment_order_hold_duplicate_line_item_errors(
   inputs: List(Dict(String, root_field.ResolvedValue)),
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   let ids =
     inputs
     |> list.filter_map(fn(input) {
@@ -11441,9 +11449,10 @@ fn fulfillment_order_hold_duplicate_line_item_errors(
     })
   case contains_duplicate_string(ids) {
     True -> [
-      #(
+      nullable_user_error(
         Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
         "must contain unique line item ids",
+        Some("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"),
       ),
     ]
     False -> []

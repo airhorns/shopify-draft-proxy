@@ -3052,3 +3052,20 @@ Practical rule:
 
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
+
+## 76. `locationAdd` required input errors are parser-level, but country validation is topology-sensitive
+
+HAR-654 captured `locationAdd` on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+
+Captured facts:
+
+- omitting inline `input.address` returns a top-level GraphQL error with `extensions.code: "missingRequiredInputObjectAttribute"` and no mutation payload
+- blank `input.name` returns a mutation-scoped userError with `field: ["input", "name"]` and `code: "BLANK"`
+- omitting `fulfillsOnlineOrders` creates a location whose mutation payload and immediate `location(id:)` read both show `fulfillsOnlineOrders: true`
+- explicitly passing `fulfillsOnlineOrders: false` is reflected in both the mutation payload and immediate read
+- a probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError; the location was deactivated and deleted immediately after capture
+
+Practical rule:
+
+- keep required-address and blank-name behavior aligned with the captured parser/userError shapes
+- keep the proxy's obvious non-ISO country-code rejection as a local guardrail requested by HAR-654, but treat exact Shopify country acceptance/rejection as store/topology-sensitive until a stricter live branch is captured

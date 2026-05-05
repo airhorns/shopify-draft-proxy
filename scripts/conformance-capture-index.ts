@@ -966,6 +966,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-add',
+    scriptPath: 'scripts/capture-location-add-conformance.mts',
+    purpose:
+      'locationAdd required-address validation, address/default staging, and immediate read-after-write behavior.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-add-required-address-and-defaults.json`,
+      'config/parity-specs/store-properties/location-add-required-address-and-defaults.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable locations for default and explicit non-online fulfillment branches, then deactivates and deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-activate-deactivate-lifecycle',
     scriptPath: 'scripts/capture-location-activate-deactivate-lifecycle-conformance.mts',
     purpose:
