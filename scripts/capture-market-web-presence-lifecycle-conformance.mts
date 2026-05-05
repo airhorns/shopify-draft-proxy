@@ -192,10 +192,13 @@ const { runGraphql } = createAdminGraphqlClient({
 const createSuffix = `har${randomLetters(10)}`;
 const updateSuffix = `har${randomLetters(10)}`;
 const multiLocaleSuffix = 'intl';
+const frenchCanadianSuffix = 'fr';
 let createdWebPresenceId: string | null = null;
 let multiLocaleWebPresenceId: string | null = null;
+let frenchCanadianWebPresenceId: string | null = null;
 let cleanupResponse: unknown = null;
 let multiLocaleCleanupResponse: unknown = null;
+let frenchCanadianCleanupResponse: unknown = null;
 const localeRestoreActions: LocaleRestoreAction[] = [];
 let localeCleanupResponses: Record<string, unknown> = {};
 
@@ -305,6 +308,26 @@ try {
     );
   }
   multiLocaleCleanupResponse = await runGraphql(deleteMutation, { id: multiLocaleWebPresenceId });
+
+  const frenchCanadianCreateVariables = {
+    input: {
+      defaultLocale: 'fr-CA',
+      alternateLocales: [],
+      subfolderSuffix: frenchCanadianSuffix,
+    },
+  };
+  const frenchCanadianCreateResponse = await runGraphql(createMutation, frenchCanadianCreateVariables);
+  frenchCanadianWebPresenceId = frenchCanadianCreateResponse.data?.webPresenceCreate?.webPresence?.id ?? null;
+  if (!frenchCanadianWebPresenceId) {
+    throw new Error(
+      `fr-CA webPresenceCreate did not return a disposable web presence id: ${JSON.stringify(
+        frenchCanadianCreateResponse,
+        null,
+        2,
+      )}`,
+    );
+  }
+  frenchCanadianCleanupResponse = await runGraphql(deleteMutation, { id: frenchCanadianWebPresenceId });
   localeCleanupResponses = await restoreEnabledLocales();
 
   const fixture = {
@@ -315,11 +338,63 @@ try {
       created: createSuffix,
       updated: updateSuffix,
       multiLocale: multiLocaleSuffix,
+      frenchCanadian: frenchCanadianSuffix,
     },
     scope:
-      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity',
+      'HAR-448 market web presence create/update/delete lifecycle parity plus HAR-613 multi-locale rootUrls parity and HAR-611 fr-CA default locale parity',
     data: {
       webPresences: baselineRead.data?.webPresences,
+    },
+    har613Expected: {
+      webPresenceCreateMultiLocaleRootUrls: {
+        data: {
+          webPresenceCreate: {
+            webPresence: {
+              id: multiLocaleWebPresenceId,
+              subfolderSuffix: multiLocaleSuffix,
+              domain: null,
+              rootUrls: [
+                {
+                  locale: 'en',
+                  url: `https://${storeDomain}/${multiLocaleSuffix}/`,
+                },
+                {
+                  locale: 'fr',
+                  url: `https://${storeDomain}/${multiLocaleSuffix}/fr/`,
+                },
+                {
+                  locale: 'de',
+                  url: `https://${storeDomain}/${multiLocaleSuffix}/de/`,
+                },
+              ],
+              defaultLocale: {
+                locale: 'en',
+                name: 'English',
+                primary: true,
+                published: true,
+              },
+              alternateLocales: [
+                {
+                  locale: 'fr',
+                  name: 'French',
+                  primary: false,
+                  published: true,
+                },
+                {
+                  locale: 'de',
+                  name: 'German',
+                  primary: false,
+                  published: true,
+                },
+              ],
+              markets: {
+                nodes: [],
+              },
+            },
+            userErrors: [],
+          },
+        },
+      },
     },
     cases: [
       {
@@ -376,6 +451,15 @@ try {
           payload: multiLocaleCreateResponse,
         },
       },
+      {
+        name: 'webPresenceCreateFrenchCanadianDefaultLocale',
+        query: createMutation,
+        variables: frenchCanadianCreateVariables,
+        response: {
+          status: 200,
+          payload: frenchCanadianCreateResponse,
+        },
+      },
     ],
     cleanup: {
       webPresenceDelete: {
@@ -392,6 +476,14 @@ try {
         response: {
           status: 200,
           payload: multiLocaleCleanupResponse,
+        },
+      },
+      frenchCanadianWebPresenceDelete: {
+        query: deleteMutation,
+        variables: { id: frenchCanadianWebPresenceId },
+        response: {
+          status: 200,
+          payload: frenchCanadianCleanupResponse,
         },
       },
       enabledLocaleCleanup: localeCleanupResponses,
@@ -423,6 +515,19 @@ try {
           },
         },
       },
+      {
+        operationName: 'MarketsMutationPreflightHydrate',
+        variables: frenchCanadianCreateVariables,
+        query: 'hand-synthesized from checked-in capture',
+        response: {
+          status: 200,
+          body: {
+            data: {
+              webPresences: baselineRead.data?.webPresences,
+            },
+          },
+        },
+      },
     ],
   };
 
@@ -439,6 +544,10 @@ try {
   if (multiLocaleWebPresenceId && !multiLocaleCleanupResponse) {
     multiLocaleCleanupResponse = await runGraphql(deleteMutation, { id: multiLocaleWebPresenceId });
     console.error(JSON.stringify({ multiLocaleCleanupAfterFailure: multiLocaleCleanupResponse }, null, 2));
+  }
+  if (frenchCanadianWebPresenceId && !frenchCanadianCleanupResponse) {
+    frenchCanadianCleanupResponse = await runGraphql(deleteMutation, { id: frenchCanadianWebPresenceId });
+    console.error(JSON.stringify({ frenchCanadianCleanupAfterFailure: frenchCanadianCleanupResponse }, null, 2));
   }
   if (localeRestoreActions.length > 0 && Object.keys(localeCleanupResponses).length === 0) {
     localeCleanupResponses = await restoreEnabledLocales();
