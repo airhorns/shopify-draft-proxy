@@ -20,8 +20,9 @@ import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SelectedFieldOptions, SrcBool, SrcFloat,
-  SrcInt, SrcList, SrcNull, SrcObject, SrcString, get_document_fragments,
-  get_field_response_key, get_selected_child_fields, project_graphql_value,
+  SrcInt, SrcList, SrcNull, SrcObject, SrcString, field_locations_json,
+  get_document_fragments, get_field_response_key, get_selected_child_fields,
+  project_graphql_value,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type RequiredArgument, RequiredArgument, single_root_log_draft,
@@ -708,6 +709,7 @@ fn handle_mutation_fields(
                   current_identity,
                   name.value,
                   field,
+                  document,
                   fragments,
                   variables,
                   upstream,
@@ -715,7 +717,7 @@ fn handle_mutation_fields(
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
                 [] -> list.append(entries, [#(result.key, result.payload)])
-                _ -> entries
+                _ -> list.append(entries, [#(result.key, result.payload)])
               }
               let next_staged = case result.top_level_errors {
                 [] -> list.append(staged, result.staged_resource_ids)
@@ -747,10 +749,7 @@ fn handle_mutation_fields(
         _ -> acc
       }
     })
-  let envelope = case all_errors {
-    [] -> json.object([#("data", json.object(entries))])
-    _ -> json.object([#("errors", json.preprocessed_array(all_errors))])
-  }
+  let envelope = mutation_envelope(entries, all_errors)
   MutationOutcome(
     data: envelope,
     store: final_store,
@@ -761,6 +760,21 @@ fn handle_mutation_fields(
     },
     log_drafts: drafts,
   )
+}
+
+fn mutation_envelope(
+  entries: List(#(String, Json)),
+  all_errors: List(Json),
+) -> Json {
+  case all_errors, entries {
+    [], _ -> json.object([#("data", json.object(entries))])
+    _, [] -> json.object([#("errors", json.preprocessed_array(all_errors))])
+    _, _ ->
+      json.object([
+        #("errors", json.preprocessed_array(all_errors)),
+        #("data", json.object(entries)),
+      ])
+  }
 }
 
 fn required_arguments_for_root(root: String) -> List(RequiredArgument) {
@@ -795,6 +809,7 @@ fn handle_discount_mutation_field(
   identity: SyntheticIdentityRegistry,
   root: String,
   field: Selection,
+  document: String,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
@@ -806,6 +821,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "code",
@@ -819,6 +835,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "code",
@@ -830,6 +847,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "code",
@@ -843,6 +861,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "code",
@@ -854,6 +873,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "code",
@@ -867,6 +887,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "code",
@@ -878,6 +899,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "code",
@@ -891,6 +913,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "code",
@@ -902,6 +925,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "automatic",
@@ -915,6 +939,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "automatic",
@@ -926,6 +951,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "automatic",
@@ -939,6 +965,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "automatic",
@@ -950,6 +977,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "automatic",
@@ -963,6 +991,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "automatic",
@@ -974,6 +1003,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "automatic",
@@ -987,6 +1017,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         "automatic",
@@ -1040,6 +1071,7 @@ fn create_discount(
   identity: SyntheticIdentityRegistry,
   root: String,
   field: Selection,
+  document: String,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   owner_kind: String,
@@ -1062,80 +1094,123 @@ fn create_discount(
         top_level_errors: [],
       )
     Some(input) -> {
-      // Local input validation first (structural / pure-function checks).
-      let user_errors =
-        validate_discount_input(store, input_name, input, discount_type)
-      // Cross-discount uniqueness check: when local validation otherwise
-      // passes and the input carries a `code`, ask upstream whether a
-      // discount with that code already exists. If so, surface a TAKEN
-      // error matching Shopify's response shape. We do this after local
-      // validation so that pure-input errors (badRefs, BXGY shape, free-
-      // shipping combinesWith) are not overshadowed by an upstream
-      // call that would never have been issued in production for those
-      // shapes either. In `Snapshot` mode (no transport, no upstream),
-      // the lookup is skipped — the local-store check inside
-      // `validate_discount_input` already rejects duplicates against
-      // staged records, which is the cold-start expectation.
-      let user_errors = case user_errors {
-        [_, ..] -> user_errors
-        [] ->
-          case fetch_taken_code_error(input, input_name, owner_kind, upstream) {
-            Some(err) -> [err]
-            None -> []
-          }
-      }
-      case user_errors {
+      let top_level_errors =
+        validate_cart_line_combination_tag_top_level_errors(
+          input,
+          field,
+          document,
+        )
+      case top_level_errors {
         [_, ..] ->
           MutationResult(
             key: key,
-            payload: payload_json(root, field, fragments, None, user_errors),
+            payload: json.null(),
             store: store,
             identity: identity,
             staged_resource_ids: [],
-            top_level_errors: [],
+            top_level_errors: top_level_errors,
           )
-        [] -> {
-          // Pattern 2: when this is an app discount, hydrate the
-          // referenced Shopify Function from upstream so the staged
-          // record can project the function's metadata onto
-          // `appDiscountType` (appKey, title, description). No-op when
-          // the function is already in the local store, when no
-          // transport is installed (Snapshot mode), or when the
-          // upstream call fails. The miss falls through to the
-          // legacy local-only behavior.
-          let store = case discount_type {
-            "app" -> maybe_hydrate_shopify_function(store, input, upstream)
-            _ -> store
-          }
-          let #(id, next_identity) =
-            synthetic_identity.make_proxy_synthetic_gid(
-              identity,
-              case owner_kind {
-                "automatic" -> "DiscountAutomaticNode"
-                _ -> "DiscountCodeNode"
-              },
-            )
-          let #(record, next_identity) =
-            build_discount_record(
-              store,
-              next_identity,
-              id,
-              owner_kind,
-              discount_type,
-              input,
-              None,
-            )
-          let #(record, next_store) = store.stage_discount(store, record)
-          MutationResult(
-            key: key,
-            payload: payload_json(root, field, fragments, Some(record), []),
-            store: next_store,
-            identity: next_identity,
-            staged_resource_ids: [record.id],
-            top_level_errors: [],
+        [] ->
+          create_discount_after_top_level_validation(
+            store,
+            identity,
+            root,
+            field,
+            fragments,
+            owner_kind,
+            discount_type,
+            input_name,
+            upstream,
+            input,
+            key,
           )
-        }
       }
+    }
+  }
+}
+
+fn create_discount_after_top_level_validation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root: String,
+  field: Selection,
+  fragments: FragmentMap,
+  owner_kind: String,
+  discount_type: String,
+  input_name: String,
+  upstream: UpstreamContext,
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> MutationResult {
+  // Local input validation first (structural / pure-function checks).
+  let user_errors =
+    validate_discount_input(store, input_name, input, discount_type)
+  // Cross-discount uniqueness check: when local validation otherwise
+  // passes and the input carries a `code`, ask upstream whether a
+  // discount with that code already exists. If so, surface a TAKEN
+  // error matching Shopify's response shape. We do this after local
+  // validation so that pure-input errors (badRefs, BXGY shape, free-
+  // shipping combinesWith) are not overshadowed by an upstream
+  // call that would never have been issued in production for those
+  // shapes either. In `Snapshot` mode (no transport, no upstream),
+  // the lookup is skipped — the local-store check inside
+  // `validate_discount_input` already rejects duplicates against
+  // staged records, which is the cold-start expectation.
+  let user_errors = case user_errors {
+    [_, ..] -> user_errors
+    [] ->
+      case fetch_taken_code_error(input, input_name, owner_kind, upstream) {
+        Some(err) -> [err]
+        None -> []
+      }
+  }
+  case user_errors {
+    [_, ..] ->
+      MutationResult(
+        key: key,
+        payload: payload_json(root, field, fragments, None, user_errors),
+        store: store,
+        identity: identity,
+        staged_resource_ids: [],
+        top_level_errors: [],
+      )
+    [] -> {
+      // Pattern 2: when this is an app discount, hydrate the
+      // referenced Shopify Function from upstream so the staged
+      // record can project the function's metadata onto
+      // `appDiscountType` (appKey, title, description). No-op when
+      // the function is already in the local store, when no
+      // transport is installed (Snapshot mode), or when the
+      // upstream call fails. The miss falls through to the
+      // legacy local-only behavior.
+      let store = case discount_type {
+        "app" -> maybe_hydrate_shopify_function(store, input, upstream)
+        _ -> store
+      }
+      let #(id, next_identity) =
+        synthetic_identity.make_proxy_synthetic_gid(identity, case owner_kind {
+          "automatic" -> "DiscountAutomaticNode"
+          _ -> "DiscountCodeNode"
+        })
+      let #(record, next_identity) =
+        build_discount_record(
+          store,
+          next_identity,
+          id,
+          owner_kind,
+          discount_type,
+          input,
+          None,
+        )
+      let #(record, next_store) = store.stage_discount(store, record)
+      MutationResult(
+        key: key,
+        payload: payload_json(root, field, fragments, Some(record), []),
+        store: next_store,
+        identity: next_identity,
+        staged_resource_ids: [record.id],
+        top_level_errors: [],
+      )
     }
   }
 }
@@ -1145,6 +1220,7 @@ fn update_discount(
   identity: SyntheticIdentityRegistry,
   root: String,
   field: Selection,
+  document: String,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   owner_kind: String,
@@ -1155,56 +1231,35 @@ fn update_discount(
   let input = read_object_arg(field, variables, input_name)
   case id, input {
     Some(id), Some(input) -> {
-      let existing = store.get_effective_discount_by_id(store, id)
-      case existing {
-        None ->
+      let top_level_errors =
+        validate_cart_line_combination_tag_top_level_errors(
+          input,
+          field,
+          document,
+        )
+      case top_level_errors {
+        [_, ..] ->
           MutationResult(
             key: key,
-            payload: payload_json(root, field, fragments, None, [
-              user_error_with_code(["id"], "Discount does not exist", None),
-            ]),
+            payload: json.null(),
             store: store,
             identity: identity,
             staged_resource_ids: [],
-            top_level_errors: [],
+            top_level_errors: top_level_errors,
           )
-        Some(existing_record) -> {
-          let discount_type = existing_record.discount_type
-          let user_errors =
-            validate_discount_input(store, input_name, input, discount_type)
-          case user_errors {
-            [_, ..] ->
-              MutationResult(
-                key: key,
-                payload: payload_json(root, field, fragments, None, user_errors),
-                store: store,
-                identity: identity,
-                staged_resource_ids: [],
-                top_level_errors: [],
-              )
-            [] -> {
-              let #(record, next_identity) =
-                build_discount_record(
-                  store,
-                  identity,
-                  id,
-                  owner_kind,
-                  discount_type,
-                  input,
-                  Some(existing_record),
-                )
-              let #(record, next_store) = store.stage_discount(store, record)
-              MutationResult(
-                key: key,
-                payload: payload_json(root, field, fragments, Some(record), []),
-                store: next_store,
-                identity: next_identity,
-                staged_resource_ids: [record.id],
-                top_level_errors: [],
-              )
-            }
-          }
-        }
+        [] ->
+          update_discount_after_top_level_validation(
+            store,
+            identity,
+            root,
+            field,
+            fragments,
+            owner_kind,
+            input_name,
+            id,
+            input,
+            key,
+          )
       }
     }
     _, _ ->
@@ -1218,6 +1273,71 @@ fn update_discount(
         staged_resource_ids: [],
         top_level_errors: [],
       )
+  }
+}
+
+fn update_discount_after_top_level_validation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root: String,
+  field: Selection,
+  fragments: FragmentMap,
+  owner_kind: String,
+  input_name: String,
+  id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> MutationResult {
+  let existing = store.get_effective_discount_by_id(store, id)
+  case existing {
+    None ->
+      MutationResult(
+        key: key,
+        payload: payload_json(root, field, fragments, None, [
+          user_error_with_code(["id"], "Discount does not exist", None),
+        ]),
+        store: store,
+        identity: identity,
+        staged_resource_ids: [],
+        top_level_errors: [],
+      )
+    Some(existing_record) -> {
+      let discount_type = existing_record.discount_type
+      let user_errors =
+        validate_discount_input(store, input_name, input, discount_type)
+      case user_errors {
+        [_, ..] ->
+          MutationResult(
+            key: key,
+            payload: payload_json(root, field, fragments, None, user_errors),
+            store: store,
+            identity: identity,
+            staged_resource_ids: [],
+            top_level_errors: [],
+          )
+        [] -> {
+          let #(record, next_identity) =
+            build_discount_record(
+              store,
+              identity,
+              id,
+              owner_kind,
+              discount_type,
+              input,
+              Some(existing_record),
+            )
+          let #(record, next_store) = store.stage_discount(store, record)
+          MutationResult(
+            key: key,
+            payload: payload_json(root, field, fragments, Some(record), []),
+            store: next_store,
+            identity: next_identity,
+            staged_resource_ids: [record.id],
+            top_level_errors: [],
+          )
+        }
+      }
+    }
   }
 }
 
@@ -1603,11 +1723,7 @@ fn build_discount_record(
         #("asyncUsageCount", SrcInt(0)),
         #(
           "discountClasses",
-          string_list_source(read_string_array(
-            input,
-            "discountClasses",
-            default_discount_classes(discount_type),
-          )),
+          string_list_source(discount_classes_for_input(input, discount_type)),
         ),
         #(
           "combinesWith",
@@ -1708,7 +1824,37 @@ fn typename_for(owner_kind: String, discount_type: String) -> String {
 fn default_discount_classes(discount_type: String) -> List(String) {
   case discount_type {
     "free_shipping" -> ["SHIPPING"]
+    "bxgy" -> ["PRODUCT"]
     _ -> ["ORDER"]
+  }
+}
+
+fn discount_classes_for_input(
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+) -> List(String) {
+  case read_string_array(input, "discountClasses", []) {
+    [_, ..] as classes -> classes
+    [] ->
+      case discount_type {
+        "basic" -> infer_basic_discount_classes(input)
+        _ -> default_discount_classes(discount_type)
+      }
+  }
+}
+
+fn infer_basic_discount_classes(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  case customer_gets_items_fields(input) {
+    Some(items) ->
+      case
+        dict.has_key(items, "products") || dict.has_key(items, "collections")
+      {
+        True -> ["PRODUCT"]
+        False -> ["ORDER"]
+      }
+    None -> ["ORDER"]
   }
 }
 
@@ -1757,6 +1903,15 @@ fn validate_discount_input(
     "bxgy" -> list.append(errors, validate_bxgy_input(input_name, input))
     _ -> errors
   }
+  let errors =
+    list.append(
+      errors,
+      validate_cart_line_combination_tag_settings(
+        input_name,
+        input,
+        discount_classes_for_input(input, discount_type),
+      ),
+    )
   let errors = case discount_type {
     "free_shipping" -> {
       case invalid_free_shipping_combines(input) {
@@ -2535,6 +2690,19 @@ fn customer_gets_fields(
   }
 }
 
+fn customer_gets_items_fields(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case customer_gets_fields(input) {
+    Some(gets) ->
+      case read_value(gets, "items") {
+        root_field.ObjectVal(items) -> Some(items)
+        _ -> None
+      }
+    None -> None
+  }
+}
+
 fn nested_has_all(value: root_field.ResolvedValue, child: String) -> Bool {
   case value {
     root_field.ObjectVal(fields) ->
@@ -2545,6 +2713,92 @@ fn nested_has_all(value: root_field.ResolvedValue, child: String) -> Bool {
       }
     _ -> False
   }
+}
+
+fn validate_cart_line_combination_tag_top_level_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> List(Json) {
+  case product_discounts_with_tags_settings(input) {
+    Some(settings) ->
+      case tag_add_remove_overlap(settings) {
+        True -> [
+          json.object([
+            #(
+              "message",
+              json.string(
+                "The same tag is present in both `add` and `remove` fields of `productDiscountsWithTagsOnSameCartLine`.",
+              ),
+            ),
+            #("locations", field_locations_json(field, document)),
+            #(
+              "extensions",
+              json.object([#("code", json.string("BAD_REQUEST"))]),
+            ),
+            #("path", json.array([get_field_response_key(field)], json.string)),
+          ]),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn validate_cart_line_combination_tag_settings(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_classes: List(String),
+) -> List(SourceValue) {
+  case product_discounts_with_tags_settings(input) {
+    Some(_) -> {
+      let path = [
+        input_name,
+        "combinesWith",
+        "productDiscountsWithTagsOnSameCartLine",
+      ]
+      let errors = [
+        user_error(
+          path,
+          "The shop's plan does not allow setting `productDiscountsWithTagsOnSameCartLine`.",
+          "PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_NOT_ENTITLED",
+        ),
+      ]
+      case list.contains(discount_classes, "PRODUCT") {
+        True -> errors
+        False ->
+          list.append(errors, [
+            user_error(
+              path,
+              "Combines with product discounts with tags on same cart line is only valid for discounts with the PRODUCT discount class",
+              "INVALID_PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_FOR_DISCOUNT_CLASS",
+            ),
+          ])
+      }
+    }
+    None -> []
+  }
+}
+
+fn product_discounts_with_tags_settings(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case read_value(input, "combinesWith") {
+    root_field.ObjectVal(combines) ->
+      case read_value(combines, "productDiscountsWithTagsOnSameCartLine") {
+        root_field.ObjectVal(settings) -> Some(settings)
+        _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn tag_add_remove_overlap(
+  settings: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  let add_tags = read_string_array(settings, "add", [])
+  let remove_tags = read_string_array(settings, "remove", [])
+  list.any(remove_tags, fn(tag) { list.contains(add_tags, tag) })
 }
 
 fn invalid_free_shipping_combines(
