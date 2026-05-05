@@ -38,7 +38,7 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
 });
 
 const companyCreateDocument = `#graphql
-  mutation HAR758ContactCascadeCompanyCreate($input: CompanyCreateInput!) {
+  mutation ContactCascadeCompanyCreate($input: CompanyCreateInput!) {
     companyCreate(input: $input) {
       company {
         id
@@ -64,7 +64,7 @@ const companyCreateDocument = `#graphql
 `;
 
 const locationCreateDocument = `#graphql
-  mutation HAR758ContactCascadeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+  mutation ContactCascadeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
     companyLocationCreate(companyId: $companyId, input: $input) {
       companyLocation { id name company { id } }
       userErrors { field message code }
@@ -73,7 +73,7 @@ const locationCreateDocument = `#graphql
 `;
 
 const assignRoleDocument = `#graphql
-  mutation HAR758ContactCascadeAssignRole(
+  mutation ContactCascadeAssignRole(
     $companyContactId: ID!
     $companyContactRoleId: ID!
     $companyLocationId: ID!
@@ -95,7 +95,7 @@ const assignRoleDocument = `#graphql
 `;
 
 const contactDeleteDocument = `#graphql
-  mutation HAR758ContactDeleteCleansRoleAssignments($companyContactId: ID!) {
+  mutation ContactDeleteCleansRoleAssignments($companyContactId: ID!) {
     companyContactDelete(companyContactId: $companyContactId) {
       deletedCompanyContactId
       userErrors { field message code }
@@ -104,7 +104,7 @@ const contactDeleteDocument = `#graphql
 `;
 
 const contactsDeleteDocument = `#graphql
-  mutation HAR758ContactsDeleteCleansRoleAssignments($companyContactIds: [ID!]!) {
+  mutation ContactsDeleteCleansRoleAssignments($companyContactIds: [ID!]!) {
     companyContactsDelete(companyContactIds: $companyContactIds) {
       deletedCompanyContactIds
       userErrors { field message code }
@@ -113,7 +113,7 @@ const contactsDeleteDocument = `#graphql
 `;
 
 const contactRemoveFromCompanyDocument = `#graphql
-  mutation HAR758ContactRemoveFromCompanyCleansRoleAssignments($companyContactId: ID!) {
+  mutation ContactRemoveFromCompanyCleansRoleAssignments($companyContactId: ID!) {
     companyContactRemoveFromCompany(companyContactId: $companyContactId) {
       removedCompanyContactId
       userErrors { field message code }
@@ -122,7 +122,7 @@ const contactRemoveFromCompanyDocument = `#graphql
 `;
 
 const locationsReadDocument = `#graphql
-  query HAR758ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {
+  query ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {
     mainLocation: companyLocation(id: $mainLocationId) {
       id
       roleAssignments(first: 5) {
@@ -149,7 +149,7 @@ const locationsReadDocument = `#graphql
 `;
 
 const companyDeleteDocument = `#graphql
-  mutation HAR758ContactCascadeCompanyDelete($id: ID!) {
+  mutation ContactCascadeCompanyDelete($id: ID!) {
     companyDelete(id: $id) {
       deletedCompanyId
       userErrors { field message code }

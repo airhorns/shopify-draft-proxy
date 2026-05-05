@@ -1,4 +1,4 @@
-mutation HAR758ContactRemoveFromCompanyCleansRoleAssignments($companyContactId: ID!) {
+mutation ContactRemoveFromCompanyCleansRoleAssignments($companyContactId: ID!) {
   companyContactRemoveFromCompany(companyContactId: $companyContactId) {
     removedCompanyContactId
     userErrors {

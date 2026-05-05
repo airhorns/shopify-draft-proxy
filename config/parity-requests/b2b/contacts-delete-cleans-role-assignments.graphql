@@ -1,4 +1,4 @@
-mutation HAR758ContactsDeleteCleansRoleAssignments($companyContactIds: [ID!]!) {
+mutation ContactsDeleteCleansRoleAssignments($companyContactIds: [ID!]!) {
   companyContactsDelete(companyContactIds: $companyContactIds) {
     deletedCompanyContactIds
     userErrors {

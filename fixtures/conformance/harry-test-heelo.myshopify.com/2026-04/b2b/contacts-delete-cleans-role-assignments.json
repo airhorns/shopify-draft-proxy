@@ -1,6 +1,6 @@
 {
   "scenarioId": "b2b-contacts-delete-cleans-role-assignments",
-  "capturedAt": "2026-05-05T22:50:15.004Z",
+  "capturedAt": "2026-05-05T23:06:30.488Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "intent": {
@@ -9,22 +9,22 @@
   },
   "companyCreate": {
     "request": {
-      "query": "#graphql\n  mutation HAR758ContactCascadeCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          title\n          isMainContact\n          roleAssignments(first: 5) {\n            nodes {\n              id\n              role { id name }\n              companyLocation { id name }\n            }\n          }\n        }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation ContactCascadeCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          title\n          isMainContact\n          roleAssignments(first: 5) {\n            nodes {\n              id\n              role { id name }\n              companyLocation { id name }\n            }\n          }\n        }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-758 contacts-delete-cleans-role-assignments 1778021411021",
+            "name": "HAR-758 contacts-delete-cleans-role-assignments 1778022386792",
             "note": "HAR-758 contact-removal role-assignment cascade contacts-delete-cleans-role-assignments",
-            "externalId": "har-758-1778021411021-contactsDelete"
+            "externalId": "har-758-1778022386792-contactsDelete"
           },
           "companyContact": {
             "firstName": "Har",
             "lastName": "Cascade contacts-delete-cleans-role-assignments",
-            "email": "har-758-1778021411021-contacts-delete-cleans-role-assignments@example.com",
+            "email": "har-758-1778022386792-contacts-delete-cleans-role-assignments@example.com",
             "title": "Buyer"
           },
           "companyLocation": {
-            "name": "HAR-758 contacts-delete-cleans-role-assignments 1778021411021 HQ",
+            "name": "HAR-758 contacts-delete-cleans-role-assignments 1778022386792 HQ",
             "phone": "+16135550758",
             "billingAddress": {
               "address1": "758 B2B Way",
@@ -40,23 +40,23 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5439324466",
-            "name": "HAR-758 contacts-delete-cleans-role-assignments 1778021411021",
+            "id": "gid://shopify/Company/5439455538",
+            "name": "HAR-758 contacts-delete-cleans-role-assignments 1778022386792",
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10149953842",
+              "id": "gid://shopify/CompanyContact/10150117682",
               "title": "Buyer",
               "isMainContact": true,
               "roleAssignments": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CompanyContactRoleAssignment/44650725682",
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44650922290",
                     "role": {
-                      "id": "gid://shopify/CompanyContactRole/10670113074",
+                      "id": "gid://shopify/CompanyContactRole/10670375218",
                       "name": "Ordering only"
                     },
                     "companyLocation": {
-                      "id": "gid://shopify/CompanyLocation/8250982706",
-                      "name": "HAR-758 contacts-delete-cleans-role-assignments 1778021411021 HQ"
+                      "id": "gid://shopify/CompanyLocation/8251375922",
+                      "name": "HAR-758 contacts-delete-cleans-role-assignments 1778022386792 HQ"
                     }
                   }
                 ]
@@ -65,19 +65,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8250982706",
-                  "name": "HAR-758 contacts-delete-cleans-role-assignments 1778021411021 HQ"
+                  "id": "gid://shopify/CompanyLocation/8251375922",
+                  "name": "HAR-758 contacts-delete-cleans-role-assignments 1778022386792 HQ"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10670080306",
+                  "id": "gid://shopify/CompanyContactRole/10670342450",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10670113074",
+                  "id": "gid://shopify/CompanyContactRole/10670375218",
                   "name": "Ordering only"
                 }
               ]
@@ -101,11 +101,11 @@
   },
   "extraLocationCreate": {
     "request": {
-      "query": "#graphql\n  mutation HAR758ContactCascadeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation ContactCascadeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5439324466",
+        "companyId": "gid://shopify/Company/5439455538",
         "input": {
-          "name": "HAR-758 contacts-delete-cleans-role-assignments Branch 1778021411021",
+          "name": "HAR-758 contacts-delete-cleans-role-assignments Branch 1778022386792",
           "phone": "+16135550759"
         }
       }
@@ -115,10 +115,10 @@
       "data": {
         "companyLocationCreate": {
           "companyLocation": {
-            "id": "gid://shopify/CompanyLocation/8251015474",
-            "name": "HAR-758 contacts-delete-cleans-role-assignments Branch 1778021411021",
+            "id": "gid://shopify/CompanyLocation/8251408690",
+            "name": "HAR-758 contacts-delete-cleans-role-assignments Branch 1778022386792",
             "company": {
-              "id": "gid://shopify/Company/5439324466"
+              "id": "gid://shopify/Company/5439455538"
             }
           },
           "userErrors": []
@@ -139,11 +139,11 @@
   },
   "assignExtraLocationRole": {
     "request": {
-      "query": "#graphql\n  mutation HAR758ContactCascadeAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact { id title }\n        role { id name }\n        companyLocation { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation ContactCascadeAssignRole(\n    $companyContactId: ID!\n    $companyContactRoleId: ID!\n    $companyLocationId: ID!\n  ) {\n    companyContactAssignRole(\n      companyContactId: $companyContactId\n      companyContactRoleId: $companyContactRoleId\n      companyLocationId: $companyLocationId\n    ) {\n      companyContactRoleAssignment {\n        id\n        companyContact { id title }\n        role { id name }\n        companyLocation { id name }\n      }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10149953842",
-        "companyContactRoleId": "gid://shopify/CompanyContactRole/10670080306",
-        "companyLocationId": "gid://shopify/CompanyLocation/8251015474"
+        "companyContactId": "gid://shopify/CompanyContact/10150117682",
+        "companyContactRoleId": "gid://shopify/CompanyContactRole/10670342450",
+        "companyLocationId": "gid://shopify/CompanyLocation/8251408690"
       }
     },
     "response": {
@@ -151,18 +151,18 @@
       "data": {
         "companyContactAssignRole": {
           "companyContactRoleAssignment": {
-            "id": "gid://shopify/CompanyContactRoleAssignment/44650758450",
+            "id": "gid://shopify/CompanyContactRoleAssignment/44650955058",
             "companyContact": {
-              "id": "gid://shopify/CompanyContact/10149953842",
+              "id": "gid://shopify/CompanyContact/10150117682",
               "title": "Buyer"
             },
             "role": {
-              "id": "gid://shopify/CompanyContactRole/10670080306",
+              "id": "gid://shopify/CompanyContactRole/10670342450",
               "name": "Location admin"
             },
             "companyLocation": {
-              "id": "gid://shopify/CompanyLocation/8251015474",
-              "name": "HAR-758 contacts-delete-cleans-role-assignments Branch 1778021411021"
+              "id": "gid://shopify/CompanyLocation/8251408690",
+              "name": "HAR-758 contacts-delete-cleans-role-assignments Branch 1778022386792"
             }
           },
           "userErrors": []
@@ -183,16 +183,16 @@
   },
   "contactRemoval": {
     "request": {
-      "query": "#graphql\n  mutation HAR758ContactsDeleteCleansRoleAssignments($companyContactIds: [ID!]!) {\n    companyContactsDelete(companyContactIds: $companyContactIds) {\n      deletedCompanyContactIds\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation ContactsDeleteCleansRoleAssignments($companyContactIds: [ID!]!) {\n    companyContactsDelete(companyContactIds: $companyContactIds) {\n      deletedCompanyContactIds\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyContactIds": ["gid://shopify/CompanyContact/10149953842"]
+        "companyContactIds": ["gid://shopify/CompanyContact/10150117682"]
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyContactsDelete": {
-          "deletedCompanyContactIds": ["gid://shopify/CompanyContact/10149953842"],
+          "deletedCompanyContactIds": ["gid://shopify/CompanyContact/10150117682"],
           "userErrors": []
         }
       },
@@ -211,23 +211,23 @@
   },
   "readAfterRemoval": {
     "request": {
-      "query": "#graphql\n  query HAR758ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {\n    mainLocation: companyLocation(id: $mainLocationId) {\n      id\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n    extraLocation: companyLocation(id: $extraLocationId) {\n      id\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n  }\n",
+      "query": "#graphql\n  query ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {\n    mainLocation: companyLocation(id: $mainLocationId) {\n      id\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n    extraLocation: companyLocation(id: $extraLocationId) {\n      id\n      roleAssignments(first: 5) {\n        nodes {\n          id\n          companyContact { id title }\n          role { id name }\n          companyLocation { id name }\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "mainLocationId": "gid://shopify/CompanyLocation/8250982706",
-        "extraLocationId": "gid://shopify/CompanyLocation/8251015474"
+        "mainLocationId": "gid://shopify/CompanyLocation/8251375922",
+        "extraLocationId": "gid://shopify/CompanyLocation/8251408690"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "mainLocation": {
-          "id": "gid://shopify/CompanyLocation/8250982706",
+          "id": "gid://shopify/CompanyLocation/8251375922",
           "roleAssignments": {
             "nodes": []
           }
         },
         "extraLocation": {
-          "id": "gid://shopify/CompanyLocation/8251015474",
+          "id": "gid://shopify/CompanyLocation/8251408690",
           "roleAssignments": {
             "nodes": []
           }
@@ -249,16 +249,16 @@
   "cleanup": {
     "companyDelete": {
       "request": {
-        "query": "#graphql\n  mutation HAR758ContactCascadeCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+        "query": "#graphql\n  mutation ContactCascadeCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Company/5439324466"
+          "id": "gid://shopify/Company/5439455538"
         }
       },
       "response": {
         "status": 200,
         "data": {
           "companyDelete": {
-            "deletedCompanyId": "gid://shopify/Company/5439324466",
+            "deletedCompanyId": "gid://shopify/Company/5439455538",
             "userErrors": []
           }
         },
@@ -268,7 +268,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1988,
+              "currentlyAvailable": 1989,
               "restoreRate": 100
             }
           }
@@ -278,9 +278,9 @@
   },
   "upstreamCalls": [
     {
-      "operationName": "HAR758ContactCascadeLocationsRead",
+      "operationName": "ContactCascadeLocationsRead",
       "variables": {},
-      "query": "query HAR758ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {\n  mainLocation: companyLocation(id: $mainLocationId) {\n    id\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  extraLocation: companyLocation(id: $extraLocationId) {\n    id\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
+      "query": "query ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {\n  mainLocation: companyLocation(id: $mainLocationId) {\n    id\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n  extraLocation: companyLocation(id: $extraLocationId) {\n    id\n    roleAssignments(first: 5) {\n      nodes {\n        id\n        companyContact {\n          id\n          title\n        }\n        role {\n          id\n          name\n        }\n        companyLocation {\n          id\n          name\n        }\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
@@ -290,7 +290,7 @@
               "locations": [
                 {
                   "line": 1,
-                  "column": 41
+                  "column": 35
                 }
               ],
               "extensions": {
@@ -309,7 +309,7 @@
               "locations": [
                 {
                   "line": 1,
-                  "column": 63
+                  "column": 57
                 }
               ],
               "extensions": {

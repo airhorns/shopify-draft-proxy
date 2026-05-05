@@ -1,4 +1,4 @@
-mutation HAR758ContactCascadeAssignRole($companyContactId: ID!, $companyContactRoleId: ID!, $companyLocationId: ID!) {
+mutation ContactCascadeAssignRole($companyContactId: ID!, $companyContactRoleId: ID!, $companyLocationId: ID!) {
   companyContactAssignRole(
     companyContactId: $companyContactId
     companyContactRoleId: $companyContactRoleId

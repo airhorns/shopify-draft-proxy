@@ -1,4 +1,4 @@
-query HAR758ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {
+query ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {
   mainLocation: companyLocation(id: $mainLocationId) {
     id
     roleAssignments(first: 5) {

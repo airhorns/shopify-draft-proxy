@@ -1,4 +1,4 @@
-mutation HAR758ContactCascadeCompanyCreate($input: CompanyCreateInput!) {
+mutation ContactCascadeCompanyCreate($input: CompanyCreateInput!) {
   companyCreate(input: $input) {
     company {
       id

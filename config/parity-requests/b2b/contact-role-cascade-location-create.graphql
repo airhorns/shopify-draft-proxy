@@ -1,4 +1,4 @@
-mutation HAR758ContactCascadeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+mutation ContactCascadeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
   companyLocationCreate(companyId: $companyId, input: $input) {
     companyLocation {
       id
