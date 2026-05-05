@@ -1,0 +1,54 @@
+mutation FunctionsValidationCreateErrorShape(
+  $unknownFunctionId: String!
+  $cartFunctionId: String!
+  $cartFunctionHandle: String!
+) {
+  unknownFunction: validationCreate(
+    validation: { functionId: $unknownFunctionId, title: "Unknown function id shape" }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  apiMismatch: validationCreate(validation: { functionId: $cartFunctionId, title: "Wrong API shape" }) {
+    validation {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  missingIdentifier: validationCreate(validation: {}) {
+    validation {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  multipleIdentifiers: validationCreate(
+    validation: {
+      functionId: $cartFunctionId
+      functionHandle: $cartFunctionHandle
+      title: "Multiple identifiers shape"
+    }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}
