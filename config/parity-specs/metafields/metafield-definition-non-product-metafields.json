@@ -1,0 +1,283 @@
+{
+  "scenarioId": "metafield-definition-non-product-metafields",
+  "operationNames": [
+    "customerCreate",
+    "orderCreate",
+    "companyCreate",
+    "metafieldDefinitionCreate",
+    "metafieldsSet",
+    "customer",
+    "order",
+    "company"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "selected-fields",
+    "read-after-write",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-non-product-metafields.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metafield_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerCreate-parity-plan.graphql",
+    "variablesCapturePath": "$.captures[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-customer-definition-for-metafields",
+        "capturePath": "$.captures[1].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-create.graphql",
+          "variablesCapturePath": "$.captures[1].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "set-customer-definition-backed-metafield",
+        "capturePath": "$.captures[2].response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-metafields-set.graphql",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+                "namespace": { "fromCapturePath": "$.captures[2].request.variables.metafields[0].namespace" },
+                "key": { "fromCapturePath": "$.captures[2].request.variables.metafields[0].key" },
+                "type": { "fromCapturePath": "$.captures[2].request.variables.metafields[0].type" },
+                "value": { "fromCapturePath": "$.captures[2].request.variables.metafields[0].value" }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic synthetic metafield ID while Shopify returned the live-store metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "read-customer-definition-backed-metafield",
+        "capturePath": "$.captures[3].response.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-metafields-customer-read.graphql",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" },
+            "namespace": { "fromCapturePath": "$.captures[3].request.variables.namespace" },
+            "key": { "fromCapturePath": "$.captures[3].request.variables.key" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The downstream proxy read uses the locally staged customer ID."
+          },
+          {
+            "path": "$.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The downstream proxy read uses the locally staged metafield ID."
+          },
+          {
+            "path": "$.metafields.nodes[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The downstream proxy connection uses the locally staged metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "create-order-owner-user-errors",
+        "capturePath": "$.captures[4].response.data.orderCreate.userErrors",
+        "proxyPath": "$.data.orderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCreate-parity-plan.graphql",
+          "variablesCapturePath": "$.captures[4].request.variables"
+        }
+      },
+      {
+        "name": "create-order-definition-for-metafields",
+        "capturePath": "$.captures[5].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-create.graphql",
+          "variablesCapturePath": "$.captures[5].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "set-order-definition-backed-metafield",
+        "capturePath": "$.captures[6].response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-metafields-set.graphql",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromProxyResponse": "create-order-owner-user-errors",
+                  "path": "$.data.orderCreate.order.id"
+                },
+                "namespace": { "fromCapturePath": "$.captures[6].request.variables.metafields[0].namespace" },
+                "key": { "fromCapturePath": "$.captures[6].request.variables.metafields[0].key" },
+                "type": { "fromCapturePath": "$.captures[6].request.variables.metafields[0].type" },
+                "value": { "fromCapturePath": "$.captures[6].request.variables.metafields[0].value" }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic synthetic metafield ID while Shopify returned the live-store metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "read-order-definition-backed-metafield",
+        "capturePath": "$.captures[7].response.data.order",
+        "proxyPath": "$.data.order",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-metafields-order-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-order-owner-user-errors",
+              "path": "$.data.orderCreate.order.id"
+            },
+            "namespace": { "fromCapturePath": "$.captures[7].request.variables.namespace" },
+            "key": { "fromCapturePath": "$.captures[7].request.variables.key" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Order",
+            "reason": "The downstream proxy read uses the locally staged order ID."
+          },
+          {
+            "path": "$.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The downstream proxy read uses the locally staged metafield ID."
+          },
+          {
+            "path": "$.metafields.nodes[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The downstream proxy connection uses the locally staged metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "create-company-owner-user-errors",
+        "capturePath": "$.captures[8].response.data.companyCreate.userErrors",
+        "proxyPath": "$.data.companyCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-create-lifecycle.graphql",
+          "variablesCapturePath": "$.captures[8].request.variables"
+        }
+      },
+      {
+        "name": "create-company-definition-for-metafields",
+        "capturePath": "$.captures[9].response.data.metafieldDefinitionCreate",
+        "proxyPath": "$.data.metafieldDefinitionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-create.graphql",
+          "variablesCapturePath": "$.captures[9].request.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "set-company-definition-backed-metafield",
+        "capturePath": "$.captures[10].response.data.metafieldsSet",
+        "proxyPath": "$.data.metafieldsSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-metafields-set.graphql",
+          "variables": {
+            "metafields": [
+              {
+                "ownerId": {
+                  "fromProxyResponse": "create-company-owner-user-errors",
+                  "path": "$.data.companyCreate.company.id"
+                },
+                "namespace": { "fromCapturePath": "$.captures[10].request.variables.metafields[0].namespace" },
+                "key": { "fromCapturePath": "$.captures[10].request.variables.metafields[0].key" },
+                "type": { "fromCapturePath": "$.captures[10].request.variables.metafields[0].type" },
+                "value": { "fromCapturePath": "$.captures[10].request.variables.metafields[0].value" }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metafields[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy stages a deterministic synthetic metafield ID while Shopify returned the live-store metafield ID."
+          }
+        ]
+      },
+      {
+        "name": "read-company-definition-backed-metafield",
+        "capturePath": "$.captures[11].response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-non-product-metafields-company-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-company-owner-user-errors",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "namespace": { "fromCapturePath": "$.captures[11].request.variables.namespace" },
+            "key": { "fromCapturePath": "$.captures[11].request.variables.key" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The downstream proxy read uses the locally staged company ID."
+          },
+          {
+            "path": "$.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The downstream proxy read uses the locally staged metafield ID."
+          },
+          {
+            "path": "$.metafields.nodes[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The downstream proxy connection uses the locally staged metafield ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-691 rework coverage for definition-backed metafields on CUSTOMER, ORDER, and COMPANY owners. The scenario creates disposable owners, creates a non-product metafield definition for each owner type, stages metafieldsSet locally against the proxy-generated owner ids, and verifies owner-scoped singular/connection reads observe the staged values without runtime Shopify writes."
+}

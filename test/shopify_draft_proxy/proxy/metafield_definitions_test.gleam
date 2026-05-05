@@ -72,8 +72,22 @@ pub fn non_product_owner_definition_lifecycle_test() {
   assert string.contains(update_json, "\"userErrors\":[]")
   assert !string.contains(update_json, "UNSUPPORTED_OWNER_TYPE")
 
+  let set_metafields =
+    "mutation { metafieldsSet(metafields: [{ ownerId: \"gid://shopify/Customer/1\", namespace: \"loyalty\", key: \"tier\", type: \"single_line_text_field\", value: \"gold\" }, { ownerId: \"gid://shopify/Order/1\", namespace: \"fulfillment\", key: \"channel\", type: \"single_line_text_field\", value: \"web\" }, { ownerId: \"gid://shopify/Company/1\", namespace: \"b2b\", key: \"segment\", type: \"single_line_text_field\", value: \"enterprise\" }]) { metafields { id ownerType namespace key type value } userErrors { field code message } } }"
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(proxy, set_metafields)
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"ownerType\":\"CUSTOMER\"")
+  assert string.contains(set_json, "\"ownerType\":\"ORDER\"")
+  assert string.contains(set_json, "\"ownerType\":\"COMPANY\"")
+  assert string.contains(set_json, "\"value\":\"gold\"")
+  assert string.contains(set_json, "\"value\":\"web\"")
+  assert string.contains(set_json, "\"value\":\"enterprise\"")
+  assert string.contains(set_json, "\"userErrors\":[]")
+
   let read_customer =
-    "query { byId: metafieldDefinition(id: \"gid://shopify/MetafieldDefinition/1\") { id ownerType namespace key name description } byIdentifier: metafieldDefinition(identifier: { ownerType: CUSTOMER, namespace: \"loyalty\", key: \"tier\" }) { id ownerType namespace key name } customer(id: \"gid://shopify/Customer/1\") { id metafieldDefinitions(first: 5, namespace: \"loyalty\") { nodes { id ownerType namespace key name } } } metafieldDefinitions(ownerType: ORDER, namespace: \"fulfillment\", first: 5) { nodes { id ownerType namespace key name } } }"
+    "query { byId: metafieldDefinition(id: \"gid://shopify/MetafieldDefinition/1\") { id ownerType namespace key name description metafields(first: 5) { nodes { ownerType value } } } byIdentifier: metafieldDefinition(identifier: { ownerType: CUSTOMER, namespace: \"loyalty\", key: \"tier\" }) { id ownerType namespace key name } customer(id: \"gid://shopify/Customer/1\") { id metafieldDefinitions(first: 5, namespace: \"loyalty\") { nodes { id ownerType namespace key name } } metafield(namespace: \"loyalty\", key: \"tier\") { ownerType value } } metafieldDefinitions(ownerType: ORDER, namespace: \"fulfillment\", first: 5) { nodes { id ownerType namespace key name metafields(first: 5) { nodes { ownerType value } } } } }"
   let #(Response(status: read_status, body: read_body, ..), proxy) =
     graphql(proxy, read_customer)
   assert read_status == 200
@@ -92,6 +106,8 @@ pub fn non_product_owner_definition_lifecycle_test() {
   )
   assert string.contains(read_json, "\"name\":\"Loyalty Tier Updated\"")
   assert string.contains(read_json, "\"ownerType\":\"ORDER\"")
+  assert string.contains(read_json, "\"value\":\"gold\"")
+  assert string.contains(read_json, "\"value\":\"web\"")
 
   let delete_customer =
     "mutation { metafieldDefinitionDelete(id: \"gid://shopify/MetafieldDefinition/1\", deleteAllAssociatedMetafields: true) { deletedDefinitionId deletedDefinition { ownerType namespace key } userErrors { field code message } } }"

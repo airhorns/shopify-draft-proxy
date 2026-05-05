@@ -51,14 +51,14 @@ import shopify_draft_proxy/state/types.{
   type CustomerMergeRequestRecord, type CustomerMetafieldRecord,
   type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord, type Money,
-  type StoreCreditAccountRecord, type StoreCreditAccountTransactionRecord,
-  CustomerAccountPageRecord, CustomerAddressRecord,
-  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
-  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
-  CustomerEmailMarketingConsentRecord, CustomerMergeRequestRecord,
-  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
-  CustomerSmsMarketingConsentRecord, Money, StoreCreditAccountRecord,
-  StoreCreditAccountTransactionRecord,
+  type ProductMetafieldRecord, type StoreCreditAccountRecord,
+  type StoreCreditAccountTransactionRecord, CustomerAccountPageRecord,
+  CustomerAddressRecord, CustomerCatalogPageInfoRecord,
+  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
+  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
+  CustomerMergeRequestRecord, CustomerMetafieldRecord,
+  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
+  Money, StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
 }
 
 pub type CustomersError {
@@ -757,8 +757,7 @@ fn address_source(address: CustomerAddressRecord) -> SourceValue {
 }
 
 fn customer_to_source(store: Store, customer: CustomerRecord) -> SourceValue {
-  let customer_metafields =
-    store.get_effective_metafields_by_customer_id(store, customer.id)
+  let customer_metafields = customer_metafields_for_source(store, customer.id)
   src_object([
     #("__typename", SrcString("Customer")),
     #("id", SrcString(customer.id)),
@@ -836,6 +835,45 @@ fn customer_to_source(store: Store, customer: CustomerRecord) -> SourceValue {
     #("createdAt", graphql_helpers.option_string_source(customer.created_at)),
     #("updatedAt", graphql_helpers.option_string_source(customer.updated_at)),
   ])
+}
+
+fn customer_metafields_for_source(
+  store: Store,
+  customer_id: String,
+) -> List(CustomerMetafieldRecord) {
+  let generic_metafields =
+    store.get_effective_metafields_by_owner_id(store, customer_id)
+    |> list.filter_map(fn(metafield) {
+      generic_customer_metafield_to_record(customer_id, metafield)
+    })
+  let generic_keys = list.map(generic_metafields, customer_metafield_key)
+  let native_metafields =
+    store.get_effective_metafields_by_customer_id(store, customer_id)
+    |> list.filter(fn(metafield) {
+      !list.contains(generic_keys, customer_metafield_key(metafield))
+    })
+  list.append(native_metafields, generic_metafields)
+}
+
+fn generic_customer_metafield_to_record(
+  customer_id: String,
+  metafield: ProductMetafieldRecord,
+) -> Result(CustomerMetafieldRecord, Nil) {
+  case metafield.type_, metafield.value {
+    Some(type_), Some(value) ->
+      Ok(CustomerMetafieldRecord(
+        id: metafield.id,
+        customer_id: customer_id,
+        namespace: metafield.namespace,
+        key: metafield.key,
+        type_: type_,
+        value: value,
+        compare_digest: metafield.compare_digest,
+        created_at: metafield.created_at,
+        updated_at: metafield.updated_at,
+      ))
+    _, _ -> Error(Nil)
+  }
 }
 
 fn connection_source(

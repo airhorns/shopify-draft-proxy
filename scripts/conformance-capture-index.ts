@@ -615,6 +615,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-non-product-metafields',
+    scriptPath: 'scripts/capture-metafield-definition-non-product-metafields-conformance.mts',
+    purpose: 'Definition-backed metafieldsSet and owner-scoped reads for CUSTOMER, ORDER, and COMPANY owner types.',
+    requiredAuthScopes: [
+      'read_customers',
+      'write_customers',
+      'read_orders',
+      'write_orders',
+      'read_companies',
+      'write_companies',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-non-product-metafields.json`,
+      'config/parity-specs/metafields/metafield-definition-non-product-metafields.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable CUSTOMER, ORDER, and COMPANY owners plus matching metafield definitions; deletes definitions, customer, and company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'custom-data-field-types',
     scriptPath: 'scripts/capture-custom-data-field-type-conformance.ts',
     purpose: 'Metafield and metaobject custom-data field type value/jsonValue set-and-read matrix.',

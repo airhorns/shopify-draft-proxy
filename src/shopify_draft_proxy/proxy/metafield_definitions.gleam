@@ -1049,18 +1049,14 @@ fn get_product_metafields_for_definition(
   store_in: Store,
   definition: MetafieldDefinitionRecord,
 ) -> List(ProductMetafieldRecord) {
-  case definition.owner_type {
-    "PRODUCT" ->
-      store_in
-      |> all_effective_metafields()
-      |> list.filter(fn(metafield) {
-        metafield.owner_type == Some("PRODUCT")
-        && metafield.namespace == definition.namespace
-        && metafield.key == definition.key
-      })
-      |> list.sort(fn(left, right) { string.compare(left.id, right.id) })
-    _ -> []
-  }
+  store_in
+  |> all_effective_metafields()
+  |> list.filter(fn(metafield) {
+    metafield.owner_type == Some(definition.owner_type)
+    && metafield.namespace == definition.namespace
+    && metafield.key == definition.key
+  })
+  |> list.sort(fn(left, right) { string.compare(left.id, right.id) })
 }
 
 fn product_metafield_owner_ids_for_definition(
@@ -4291,6 +4287,8 @@ fn owner_type_from_id(owner_id: String) -> Option(String) {
     ["gid:", "", "shopify", "ProductVariant", _] -> Some("PRODUCTVARIANT")
     ["gid:", "", "shopify", "Collection", _] -> Some("COLLECTION")
     ["gid:", "", "shopify", "Customer", _] -> Some("CUSTOMER")
+    ["gid:", "", "shopify", "Order", _] -> Some("ORDER")
+    ["gid:", "", "shopify", "Company", _] -> Some("COMPANY")
     _ -> None
   }
 }
