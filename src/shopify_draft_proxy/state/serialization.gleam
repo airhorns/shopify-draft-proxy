@@ -3037,6 +3037,10 @@ fn customer_json(record: types.CustomerRecord) -> Json {
       "defaultAddress",
       optional_to_json(record.default_address, customer_default_address_json),
     ),
+    #(
+      "accountActivationToken",
+      optional_string(record.account_activation_token),
+    ),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
   ])

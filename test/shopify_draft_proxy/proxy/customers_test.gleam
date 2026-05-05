@@ -6,7 +6,7 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/types.{
-  CustomerRecord, Money, StoreCreditAccountRecord,
+  type CustomerRecord, CustomerRecord, Money, StoreCreditAccountRecord,
 }
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
@@ -73,6 +73,106 @@ fn assert_missing_customer_error(body: json.Json) {
     json.to_string(body),
     "\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"Customer does not exist\"}]",
   )
+}
+
+fn customer_with_state(id: String, state: String) -> CustomerRecord {
+  CustomerRecord(
+    id: id,
+    first_name: None,
+    last_name: None,
+    display_name: Some(state <> " Customer"),
+    email: Some(string.lowercase(state) <> "@example.com"),
+    legacy_resource_id: None,
+    locale: Some("en"),
+    note: None,
+    can_delete: Some(True),
+    verified_email: Some(True),
+    data_sale_opt_out: False,
+    tax_exempt: Some(False),
+    tax_exemptions: [],
+    state: Some(state),
+    tags: [],
+    number_of_orders: Some("0"),
+    amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
+    default_email_address: None,
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    account_activation_token: None,
+    created_at: Some("2024-01-01T00:00:00.000Z"),
+    updated_at: Some("2024-01-01T00:00:00.000Z"),
+  )
+}
+
+fn customer_state_proxy(id: String, state: String) -> draft_proxy.DraftProxy {
+  let proxy = draft_proxy.new()
+  proxy_state.DraftProxy(
+    ..proxy,
+    store: store_mod.upsert_base_customers(proxy.store, [
+      customer_with_state(id, state),
+    ]),
+  )
+}
+
+fn activation_mutation(customer_id: String) -> String {
+  "mutation { customerGenerateAccountActivationUrl(customerId: \""
+  <> customer_id
+  <> "\") { accountActivationUrl userErrors { field message code } } }"
+}
+
+pub fn customer_activation_url_rejects_enabled_or_declined_customers_test() {
+  assert_activation_rejects_state("ENABLED")
+  assert_activation_rejects_state("DECLINED")
+}
+
+fn assert_activation_rejects_state(state: String) {
+  let customer_id = "gid://shopify/Customer/" <> state
+  let proxy = customer_state_proxy(customer_id, state)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy, activation_mutation(customer_id))
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"accountActivationUrl\":null")
+  assert string.contains(body_json, "\"code\":\"account_already_enabled\"")
+}
+
+pub fn customer_activation_url_generates_token_for_disabled_or_invited_customers_test() {
+  assert_activation_generates_token("DISABLED")
+  assert_activation_generates_token("INVITED")
+}
+
+fn assert_activation_generates_token(state: String) {
+  let customer_id = "gid://shopify/Customer/" <> state
+  let proxy = customer_state_proxy(customer_id, state)
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(proxy, activation_mutation(customer_id))
+  assert first_status == 200
+  let first_json = json.to_string(first_body)
+  assert string.contains(first_json, "\"userErrors\":[]")
+  assert string.contains(first_json, "account_activation_token=")
+
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql(proxy, activation_mutation(customer_id))
+  assert second_status == 200
+  assert json.to_string(second_body) == first_json
+
+  let state_json =
+    draft_proxy.get_state_snapshot(proxy)
+    |> json.to_string
+  assert string.contains(state_json, "\"accountActivationToken\":\"")
+}
+
+pub fn customer_activation_url_missing_customer_uses_snake_case_code_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      activation_mutation("gid://shopify/Customer/999999"),
+    )
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"accountActivationUrl\":null")
+  assert string.contains(body_json, "\"code\":\"customer_does_not_exist\"")
 }
 
 pub fn customer_merge_required_argument_validation_test() {
