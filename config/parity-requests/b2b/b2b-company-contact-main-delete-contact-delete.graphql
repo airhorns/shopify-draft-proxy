@@ -1,0 +1,10 @@
+mutation B2BCompanyLifecycleContactDelete($companyContactId: ID!) {
+  companyContactDelete(companyContactId: $companyContactId) {
+    deletedCompanyContactId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-27T17:08:46.911Z",
+  "capturedAt": "2026-05-05T18:18:49.779Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
   "notes": [
@@ -12,10 +12,10 @@
         "query": "#graphql\n  mutation StoreCreditConformanceCustomerCreate($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer {\n        \n  id\n  email\n  displayName\n  storeCreditAccounts(first: 5) {\n    nodes {\n      id\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "email": "hermes-store-credit-1777309726055@example.com",
+            "email": "hermes-store-credit-1778005127982@example.com",
             "firstName": "Hermes",
             "lastName": "StoreCredit",
-            "tags": ["store-credit-parity", "1777309726055"]
+            "tags": ["store-credit-parity", "1778005127982"]
           }
         }
       },
@@ -24,8 +24,8 @@
         "data": {
           "customerCreate": {
             "customer": {
-              "id": "gid://shopify/Customer/10547205636402",
-              "email": "hermes-store-credit-1777309726055@example.com",
+              "id": "gid://shopify/Customer/10582440018226",
+              "email": "hermes-store-credit-1778005127982@example.com",
               "displayName": "Hermes StoreCredit",
               "storeCreditAccounts": {
                 "nodes": [],
@@ -55,7 +55,7 @@
       "request": {
         "query": "#graphql\n  mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/Customer/10547205636402",
+          "id": "gid://shopify/Customer/10582440018226",
           "creditInput": {
             "creditAmount": {
               "amount": "7.23",
@@ -80,14 +80,14 @@
               "event": "ADJUSTMENT",
               "origin": null,
               "account": {
-                "id": "gid://shopify/StoreCreditAccount/937001266",
+                "id": "gid://shopify/StoreCreditAccount/960004402",
                 "balance": {
                   "amount": "7.23",
                   "currencyCode": "USD"
                 },
                 "owner": {
-                  "id": "gid://shopify/Customer/10547205636402",
-                  "email": "hermes-store-credit-1777309726055@example.com"
+                  "id": "gid://shopify/Customer/10582440018226",
+                  "email": "hermes-store-credit-1778005127982@example.com"
                 }
               }
             },
@@ -108,11 +108,230 @@
       }
     }
   },
+  "validations": {
+    "accountCurrencyMismatch": {
+      "request": {
+        "query": "#graphql\n  mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/StoreCreditAccount/960004402",
+          "creditInput": {
+            "creditAmount": {
+              "amount": "2.00",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "storeCreditAccountCredit": {
+            "storeCreditAccountTransaction": null,
+            "userErrors": [
+              {
+                "field": ["creditInput", "creditAmount", "currencyCode"],
+                "message": "The currency provided does not match the currency of the store credit account",
+                "code": "MISMATCHING_CURRENCY"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "pastExpiry": {
+      "request": {
+        "query": "#graphql\n  mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Customer/10582440018226",
+          "creditInput": {
+            "creditAmount": {
+              "amount": "1.00",
+              "currencyCode": "USD"
+            },
+            "expiresAt": "2000-01-01T00:00:00Z"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "storeCreditAccountCredit": {
+            "storeCreditAccountTransaction": null,
+            "userErrors": [
+              {
+                "field": ["creditInput", "expiresAt"],
+                "message": "The expiry date must be in the future",
+                "code": "EXPIRES_AT_IN_PAST"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "zeroCredit": {
+      "request": {
+        "query": "#graphql\n  mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Customer/10582440018226",
+          "creditInput": {
+            "creditAmount": {
+              "amount": "0.00",
+              "currencyCode": "USD"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "storeCreditAccountCredit": {
+            "storeCreditAccountTransaction": null,
+            "userErrors": [
+              {
+                "field": ["creditInput", "creditAmount", "amount"],
+                "message": "A positive amount must be used to credit a store credit account",
+                "code": "NEGATIVE_OR_ZERO_AMOUNT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "ownerSecondCurrencyCredit": {
+      "request": {
+        "query": "#graphql\n  mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Customer/10582440018226",
+          "creditInput": {
+            "creditAmount": {
+              "amount": "2.00",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "storeCreditAccountCredit": {
+            "storeCreditAccountTransaction": {
+              "amount": {
+                "amount": "2.0",
+                "currencyCode": "CAD"
+              },
+              "balanceAfterTransaction": {
+                "amount": "2.0",
+                "currencyCode": "CAD"
+              },
+              "event": "ADJUSTMENT",
+              "origin": null,
+              "account": {
+                "id": "gid://shopify/StoreCreditAccount/960037170",
+                "balance": {
+                  "amount": "2.0",
+                  "currencyCode": "CAD"
+                },
+                "owner": {
+                  "id": "gid://shopify/Customer/10582440018226",
+                  "email": "hermes-store-credit-1778005127982@example.com"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "overLimitDebit": {
+      "request": {
+        "query": "#graphql\n  mutation StoreCreditAccountDebitParity($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {\n    storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Customer/10582440018226",
+          "debitInput": {
+            "debitAmount": {
+              "amount": "9999.00",
+              "currencyCode": "USD"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "storeCreditAccountDebit": {
+            "storeCreditAccountTransaction": null,
+            "userErrors": [
+              {
+                "field": ["debitInput", "debitAmount", "amount"],
+                "message": "The store credit account does not have sufficient funds to satisfy the request",
+                "code": "INSUFFICIENT_FUNDS"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
   "mutation": {
     "request": {
       "query": "#graphql\n  mutation StoreCreditAccountCreditParity($id: ID!, $creditInput: StoreCreditAccountCreditInput!) {\n    storeCreditAccountCredit(id: $id, creditInput: $creditInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/StoreCreditAccount/937001266",
+        "id": "gid://shopify/StoreCreditAccount/960004402",
         "creditInput": {
           "creditAmount": {
             "amount": "1.11",
@@ -137,14 +356,14 @@
             "event": "ADJUSTMENT",
             "origin": null,
             "account": {
-              "id": "gid://shopify/StoreCreditAccount/937001266",
+              "id": "gid://shopify/StoreCreditAccount/960004402",
               "balance": {
                 "amount": "8.34",
                 "currencyCode": "USD"
               },
               "owner": {
-                "id": "gid://shopify/Customer/10547205636402",
-                "email": "hermes-store-credit-1777309726055@example.com"
+                "id": "gid://shopify/Customer/10582440018226",
+                "email": "hermes-store-credit-1778005127982@example.com"
               }
             }
           },
@@ -157,7 +376,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1981,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }
@@ -168,7 +387,7 @@
     "request": {
       "query": "#graphql\n  mutation StoreCreditAccountDebitParity($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {\n    storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/StoreCreditAccount/937001266",
+        "id": "gid://shopify/StoreCreditAccount/960004402",
         "debitInput": {
           "debitAmount": {
             "amount": "2.22",
@@ -193,14 +412,14 @@
             "event": "ADJUSTMENT",
             "origin": null,
             "account": {
-              "id": "gid://shopify/StoreCreditAccount/937001266",
+              "id": "gid://shopify/StoreCreditAccount/960004402",
               "balance": {
                 "amount": "6.12",
                 "currencyCode": "USD"
               },
               "owner": {
-                "id": "gid://shopify/Customer/10547205636402",
-                "email": "hermes-store-credit-1777309726055@example.com"
+                "id": "gid://shopify/Customer/10582440018226",
+                "email": "hermes-store-credit-1778005127982@example.com"
               }
             }
           },
@@ -213,7 +432,7 @@
           "actualQueryCost": 18,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1978,
+            "currentlyAvailable": 1982,
             "restoreRate": 100
           }
         }
@@ -224,24 +443,31 @@
     "request": {
       "query": "#graphql\n  query StoreCreditAccountReadbackParity($customerId: ID!, $accountId: ID!) {\n    customer(id: $customerId) {\n      \n  id\n  email\n  displayName\n  storeCreditAccounts(first: 5) {\n    nodes {\n      id\n      balance {\n        amount\n        currencyCode\n      }\n    }\n    pageInfo {\n      hasNextPage\n      hasPreviousPage\n    }\n  }\n\n    }\n    storeCreditAccount(id: $accountId) {\n      id\n      balance {\n        amount\n        currencyCode\n      }\n      owner {\n        ... on Customer {\n          id\n          email\n        }\n      }\n    }\n  }\n",
       "variables": {
-        "customerId": "gid://shopify/Customer/10547205636402",
-        "accountId": "gid://shopify/StoreCreditAccount/937001266"
+        "customerId": "gid://shopify/Customer/10582440018226",
+        "accountId": "gid://shopify/StoreCreditAccount/960004402"
       }
     },
     "status": 200,
     "response": {
       "data": {
         "customer": {
-          "id": "gid://shopify/Customer/10547205636402",
-          "email": "hermes-store-credit-1777309726055@example.com",
+          "id": "gid://shopify/Customer/10582440018226",
+          "email": "hermes-store-credit-1778005127982@example.com",
           "displayName": "Hermes StoreCredit",
           "storeCreditAccounts": {
             "nodes": [
               {
-                "id": "gid://shopify/StoreCreditAccount/937001266",
+                "id": "gid://shopify/StoreCreditAccount/960004402",
                 "balance": {
                   "amount": "6.12",
                   "currencyCode": "USD"
+                }
+              },
+              {
+                "id": "gid://shopify/StoreCreditAccount/960037170",
+                "balance": {
+                  "amount": "2.0",
+                  "currencyCode": "CAD"
                 }
               }
             ],
@@ -252,24 +478,24 @@
           }
         },
         "storeCreditAccount": {
-          "id": "gid://shopify/StoreCreditAccount/937001266",
+          "id": "gid://shopify/StoreCreditAccount/960004402",
           "balance": {
             "amount": "6.12",
             "currencyCode": "USD"
           },
           "owner": {
-            "id": "gid://shopify/Customer/10547205636402",
-            "email": "hermes-store-credit-1777309726055@example.com"
+            "id": "gid://shopify/Customer/10582440018226",
+            "email": "hermes-store-credit-1778005127982@example.com"
           }
         }
       },
       "extensions": {
         "cost": {
           "requestedQueryCost": 28,
-          "actualQueryCost": 17,
+          "actualQueryCost": 20,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1982,
+            "currentlyAvailable": 1978,
             "restoreRate": 100
           }
         }
@@ -277,11 +503,67 @@
     }
   },
   "cleanup": {
+    "debitSecondaryCurrencyBalance": {
+      "request": {
+        "query": "#graphql\n  mutation StoreCreditAccountDebitParity($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {\n    storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/StoreCreditAccount/960037170",
+          "debitInput": {
+            "debitAmount": {
+              "amount": "2.0",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "storeCreditAccountDebit": {
+            "storeCreditAccountTransaction": {
+              "amount": {
+                "amount": "-2.0",
+                "currencyCode": "CAD"
+              },
+              "balanceAfterTransaction": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              },
+              "event": "ADJUSTMENT",
+              "origin": null,
+              "account": {
+                "id": "gid://shopify/StoreCreditAccount/960037170",
+                "balance": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "owner": {
+                  "id": "gid://shopify/Customer/10582440018226",
+                  "email": "hermes-store-credit-1778005127982@example.com"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1971,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
     "debitRemainingBalance": {
       "request": {
         "query": "#graphql\n  mutation StoreCreditAccountDebitParity($id: ID!, $debitInput: StoreCreditAccountDebitInput!) {\n    storeCreditAccountDebit(id: $id, debitInput: $debitInput) {\n      storeCreditAccountTransaction {\n        \n  amount {\n    amount\n    currencyCode\n  }\n  balanceAfterTransaction {\n    amount\n    currencyCode\n  }\n  event\n  origin\n  account {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
         "variables": {
-          "id": "gid://shopify/StoreCreditAccount/937001266",
+          "id": "gid://shopify/StoreCreditAccount/960004402",
           "debitInput": {
             "debitAmount": {
               "amount": "6.12",
@@ -306,14 +588,14 @@
               "event": "ADJUSTMENT",
               "origin": null,
               "account": {
-                "id": "gid://shopify/StoreCreditAccount/937001266",
+                "id": "gid://shopify/StoreCreditAccount/960004402",
                 "balance": {
                   "amount": "0.0",
                   "currencyCode": "USD"
                 },
                 "owner": {
-                  "id": "gid://shopify/Customer/10547205636402",
-                  "email": "hermes-store-credit-1777309726055@example.com"
+                  "id": "gid://shopify/Customer/10582440018226",
+                  "email": "hermes-store-credit-1778005127982@example.com"
                 }
               }
             },
@@ -326,7 +608,7 @@
             "actualQueryCost": 18,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1978,
+              "currentlyAvailable": 1970,
               "restoreRate": 100
             }
           }
@@ -338,7 +620,7 @@
         "query": "#graphql\n  mutation StoreCreditConformanceCustomerDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Customer/10547205636402"
+            "id": "gid://shopify/Customer/10582440018226"
           }
         }
       },
@@ -346,7 +628,7 @@
       "response": {
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10547205636402",
+            "deletedCustomerId": "gid://shopify/Customer/10582440018226",
             "userErrors": []
           }
         },
@@ -356,7 +638,7 @@
             "actualQueryCost": 10,
             "throttleStatus": {
               "maximumAvailable": 2000,
-              "currentlyAvailable": 1986,
+              "currentlyAvailable": 1988,
               "restoreRate": 100
             }
           }
@@ -367,83 +649,51 @@
   "upstreamCalls": [
     {
       "operationName": "StoreCreditAccountReadbackParity",
-      "variables": {
-        "customerId": "gid://shopify/Customer/10547205636402",
-        "accountId": "gid://shopify/StoreCreditAccount/937001266"
-      },
+      "variables": {},
+      "query": "query StoreCreditAccountReadbackParity($customerId: ID!, $accountId: ID!) {\n  customer(id: $customerId) {\n    id\n    email\n    displayName\n    storeCreditAccounts(first: 5) {\n      nodes {\n        id\n        balance {\n          amount\n          currencyCode\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n  storeCreditAccount(id: $accountId) {\n    id\n    balance {\n      amount\n      currencyCode\n    }\n    owner {\n      ... on Customer {\n        id\n        email\n      }\n    }\n  }\n}\n",
       "response": {
         "status": 200,
         "body": {
-          "data": {
-            "customer": {
-              "id": "gid://shopify/Customer/10547205636402",
-              "email": "hermes-store-credit-1777309726055@example.com",
-              "displayName": "Hermes StoreCredit",
-              "storeCreditAccounts": {
-                "nodes": [
-                  {
-                    "id": "gid://shopify/StoreCreditAccount/937001266",
-                    "balance": {
-                      "amount": "6.12",
-                      "currencyCode": "USD"
-                    }
-                  }
-                ],
-                "pageInfo": {
-                  "hasNextPage": false,
-                  "hasPreviousPage": false
+          "errors": [
+            {
+              "message": "Variable $customerId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 40
                 }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
               }
             },
-            "storeCreditAccount": {
-              "id": "gid://shopify/StoreCreditAccount/937001266",
-              "balance": {
-                "amount": "6.12",
-                "currencyCode": "USD"
-              },
-              "owner": {
-                "id": "gid://shopify/Customer/10547205636402",
-                "email": "hermes-store-credit-1777309726055@example.com"
+            {
+              "message": "Variable $accountId of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 58
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
               }
             }
-          },
-          "extensions": {
-            "cost": {
-              "requestedQueryCost": 28,
-              "actualQueryCost": 17,
-              "throttleStatus": {
-                "maximumAvailable": 2000,
-                "currentlyAvailable": 1982,
-                "restoreRate": 100
-              }
-            }
-          }
-        }
-      }
-    },
-    {
-      "operationName": "StoreCreditAccountHydrate",
-      "variables": {
-        "id": "gid://shopify/StoreCreditAccount/937001266"
-      },
-      "query": "hand-synthesized from checked-in customer parity capture",
-      "response": {
-        "status": 200,
-        "body": {
-          "data": {
-            "storeCreditAccount": {
-              "id": "gid://shopify/StoreCreditAccount/937001266",
-              "balance": {
-                "amount": "7.23",
-                "currencyCode": "USD"
-              },
-              "owner": {
-                "id": "gid://shopify/Customer/10547205636402",
-                "email": "hermes-store-credit-1777309726055@example.com",
-                "displayName": "Hermes StoreCredit"
-              }
-            }
-          }
+          ]
         }
       }
     }

@@ -410,6 +410,82 @@ pub fn market_create_rejects_duplicate_region_country_test() {
     == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"regions\",\"0\",\"countryCode\"],\"message\":\"Code has already been taken\",\"code\":\"TAKEN\"}]}}}"
 }
 
+pub fn market_create_dedupes_generated_handles_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Europe!\" }) { market { handle } userErrors { field message code } } }",
+    )
+  let #(Response(status: third_status, body: third_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Europe?\" }) { market { handle } userErrors { field message code } } }",
+    )
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe\"},\"userErrors\":[]}}}"
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe-1\"},\"userErrors\":[]}}}"
+  assert third_status == 200
+  assert json.to_string(third_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe-2\"},\"userErrors\":[]}}}"
+}
+
+pub fn market_create_rejects_duplicate_name_before_handle_dedupe_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe\"},\"userErrors\":[]}}}"
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\",\"code\":\"TAKEN\"}]}}}"
+}
+
+pub fn market_create_slugifies_generated_handle_like_shopify_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"  North & South / EU!  \" }) { market { handle } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"north-south-eu\"},\"userErrors\":[]}}}"
+}
+
+pub fn market_create_rejects_explicit_duplicate_handle_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Other\", handle: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe\"},\"userErrors\":[]}}}"
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"handle\"],\"message\":\"Generated handle has already been taken\",\"code\":\"GENERATED_DUPLICATED_HANDLE\"}]}}}"
+}
+
 pub fn market_localizations_register_rejects_more_than_100_keys_test() {
   let input = too_many_market_localization_inputs()
   let #(Response(status: status, body: body, ..), _) =

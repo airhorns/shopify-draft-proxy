@@ -98,7 +98,6 @@ mutation DiscountValidationBranches(
     userErrors {
       field
       message
-      code
       extraInfo
     }
   }

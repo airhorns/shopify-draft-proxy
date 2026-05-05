@@ -1,15 +1,15 @@
 {
   "scenarioId": "store-credit-account-local-staging",
-  "operationNames": ["storeCreditAccount", "storeCreditAccountCredit", "storeCreditAccountDebit"],
+  "operationNames": ["customerCreate", "storeCreditAccount", "storeCreditAccountCredit", "storeCreditAccountDebit"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "runtime-staging", "downstream-read-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/store-credit-account-parity.json"
   ],
-  "runtimeTestFiles": ["tests/integration/store-credit-flow.test.ts"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
-    "variablesCapturePath": "$.mutation.request.variables"
+    "documentPath": "config/parity-requests/customers/storeCreditCustomerCreate-parity.graphql",
+    "variablesCapturePath": "$.setup.createCustomer.request.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "comparison": {
@@ -17,29 +17,241 @@
     "expectedDifferences": [],
     "targets": [
       {
+        "name": "customer-create-data",
+        "capturePath": "$.setup.createCustomer.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.customerCreate.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy stages customerCreate locally and returns a stable synthetic Customer GID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "owner-id-account-create-data",
+        "capturePath": "$.setup.createAccountCredit.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.setup.createAccountCredit.request.variables.creditInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "account-currency-mismatch-data",
+        "capturePath": "$.validations.accountCurrencyMismatch.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "owner-id-account-create-data",
+              "path": "$.data.storeCreditAccountCredit.storeCreditAccountTransaction.account.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.validations.accountCurrencyMismatch.request.variables.creditInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "past-expiry-data",
+        "capturePath": "$.validations.pastExpiry.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.validations.pastExpiry.request.variables.creditInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "zero-credit-data",
+        "capturePath": "$.validations.zeroCredit.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.validations.zeroCredit.request.variables.creditInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "owner-second-currency-credit-data",
+        "capturePath": "$.validations.ownerSecondCurrencyCredit.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the second-currency store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.validations.ownerSecondCurrencyCredit.request.variables.creditInput"
+            }
+          }
+        }
+      },
+      {
+        "name": "over-limit-debit-data",
+        "capturePath": "$.validations.overLimitDebit.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "debitInput": {
+              "fromCapturePath": "$.validations.overLimitDebit.request.variables.debitInput"
+            }
+          }
+        }
+      },
+      {
         "name": "credit-mutation-data",
         "capturePath": "$.mutation.response.data",
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.storeCreditAccountCredit.storeCreditAccountTransaction.account.owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/storeCreditAccountCredit-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "owner-id-account-create-data",
+              "path": "$.data.storeCreditAccountCredit.storeCreditAccountTransaction.account.id"
+            },
+            "creditInput": {
+              "fromCapturePath": "$.mutation.request.variables.creditInput"
+            }
+          }
+        }
       },
       {
         "name": "debit-mutation-data",
         "capturePath": "$.debit.response.data",
         "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.storeCreditAccountDebit.storeCreditAccountTransaction.account.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The proxy stages the store credit account locally and returns a stable synthetic StoreCreditAccount GID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.storeCreditAccountDebit.storeCreditAccountTransaction.account.owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The account owner references the proxy-created synthetic Customer GID from the local setup mutation."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/storeCreditAccountDebit-parity.graphql",
-          "variablesCapturePath": "$.debit.request.variables"
+          "variables": {
+            "id": {
+              "fromProxyResponse": "owner-id-account-create-data",
+              "path": "$.data.storeCreditAccountCredit.storeCreditAccountTransaction.account.id"
+            },
+            "debitInput": {
+              "fromCapturePath": "$.debit.request.variables.debitInput"
+            }
+          }
         }
       },
       {
         "name": "downstream-read-data",
         "capturePath": "$.downstreamRead.response.data",
         "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The downstream read sees the proxy-created synthetic Customer GID."
+          },
+          {
+            "path": "$.customer.storeCreditAccounts.nodes[0].id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The downstream nested account read sees the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.customer.storeCreditAccounts.nodes[1].id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The downstream nested second-currency account read sees the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.storeCreditAccount.id",
+            "matcher": "shopify-gid:StoreCreditAccount",
+            "reason": "The downstream direct account read sees the proxy-created synthetic StoreCreditAccount GID."
+          },
+          {
+            "path": "$.storeCreditAccount.owner.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The downstream direct account owner references the proxy-created synthetic Customer GID."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/storeCreditAccount-readback-parity.graphql",
-          "variablesCapturePath": "$.downstreamRead.request.variables"
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "accountId": {
+              "fromProxyResponse": "owner-id-account-create-data",
+              "path": "$.data.storeCreditAccountCredit.storeCreditAccountTransaction.account.id"
+            }
+          }
         }
       }
     ]
   },
-  "notes": "HAR-317 captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, then captures account-id credit/debit mutations and downstream direct/nested balance reads for generic parity replay."
+  "notes": "HAR-317/HAR-635 captures a disposable-customer store-credit flow. The recorder uses storeCreditAccountCredit with the customer id to make Shopify create a real store credit account, captures account-ID validation branches and owner-ID validation branches, then replays account-ID credit/debit mutations plus downstream direct/nested balance reads. Expected differences are limited to live Shopify IDs versus proxy-local synthetic IDs for locally created customers/accounts."
 }
