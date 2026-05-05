@@ -1,0 +1,73 @@
+{
+  "scenarioId": "saved-search-query-grammar-validation",
+  "operationNames": ["savedSearchCreate", "savedSearchUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "query-validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-query-grammar-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreateValidation.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-729 live evidence for saved-search query validation. Shopify rejects ORDER reference_location_id as a reserved filter on create, rejects PRODUCT collection_id combined with tag, error_feedback, or published_status, accepts collection_id alone, and returns a non-staged savedSearchUpdate payload echo for PRODUCT collection_id+tag update validation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "order-reserved-filter-create",
+        "capturePath": "$.savedSearchCreateValidation.payload.data.orderReserved",
+        "proxyPath": "$.data.orderReserved",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-collection-tag-create",
+        "capturePath": "$.savedSearchCreateValidation.payload.data.productCollectionTag",
+        "proxyPath": "$.data.productCollectionTag",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-collection-published-create",
+        "capturePath": "$.savedSearchCreateValidation.payload.data.productCollectionPublished",
+        "proxyPath": "$.data.productCollectionPublished",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-collection-error-feedback-create",
+        "capturePath": "$.savedSearchCreateValidation.payload.data.productCollectionErrorFeedback",
+        "proxyPath": "$.data.productCollectionErrorFeedback",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-collection-id-positive-control",
+        "capturePath": "$.savedSearchCreateValidation.payload.data.productPositive",
+        "proxyPath": "$.data.productPositive",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.savedSearch.query", "$.savedSearch.resourceType", "$.userErrors"]
+      },
+      {
+        "name": "product-collection-tag-update",
+        "capturePath": "$.savedSearchUpdateCollectionTag.payload.data.savedSearchUpdate",
+        "proxyPath": "$.data.savedSearchUpdate",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.savedSearch.name", "$.savedSearch.query", "$.savedSearch.resourceType", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.productPositive.savedSearch.id"
+              },
+              "query": "collection_id:\"123\" tag:\"AAA\""
+            }
+          }
+        }
+      }
+    ]
+  }
+}

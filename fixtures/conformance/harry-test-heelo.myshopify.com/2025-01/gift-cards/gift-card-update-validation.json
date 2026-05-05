@@ -1,0 +1,475 @@
+{
+  "capturedAt": "2026-05-05T18:50:03.378Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "notes": [
+    "HAR-694 captures live giftCardUpdate validation branches for deactivated-card protected fields, missing update arguments, missing changed customerId, recipient text length, and success.",
+    "The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the live request records field/message only; expected replay data adds the typed code values required by the internal GiftCardErrorCode contract.",
+    "Setup creates disposable Customer A/B plus active/deactivated gift cards; cleanup deactivates setup gift cards and deletes setup customers."
+  ],
+  "proxyVariables": {
+    "updateValidation": {
+      "activeId": "gid://shopify/GiftCard/har694-active",
+      "deactivatedId": "gid://shopify/GiftCard/har694-deactivated",
+      "missingCustomerId": "gid://shopify/Customer/999999999999",
+      "recipientId": "gid://shopify/Customer/10582524297522",
+      "tooLongPreferredName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "tooLongMessage": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "successNote": "HAR-694 updated note"
+    }
+  },
+  "setup": [
+    {
+      "label": "customerACreate",
+      "query": "#graphql\n      mutation GiftCardUpdateValidationCustomerCreate($input: CustomerInput!) {\n        customerCreate(input: $input) {\n          customer {\n            id\n            email\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "email": "har694-a-1778007002040@example.com",
+          "firstName": "HAR694",
+          "lastName": "Customer A",
+          "note": "Disposable HAR-694 gift-card update validation customer A."
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582524264754",
+                "email": "har694-a-1778007002040@example.com"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "customerBCreate",
+      "query": "#graphql\n      mutation GiftCardUpdateValidationCustomerCreate($input: CustomerInput!) {\n        customerCreate(input: $input) {\n          customer {\n            id\n            email\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "email": "har694-b-1778007002040@example.com",
+          "firstName": "HAR694",
+          "lastName": "Customer B",
+          "note": "Disposable HAR-694 gift-card update validation customer B."
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582524297522",
+                "email": "har694-b-1778007002040@example.com"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cardAActiveCreate",
+      "query": "#graphql\n      mutation GiftCardUpdateValidationGiftCardCreate($input: GiftCardCreateInput!) {\n        giftCardCreate(input: $input) {\n          giftCard {\n            id\n            enabled\n            customer {\n              id\n            }\n          }\n          giftCardCode\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "H694Amoszgn20",
+          "note": "HAR-694 active update validation card.",
+          "customerId": "gid://shopify/Customer/10582524264754"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654852292914",
+                "enabled": true,
+                "customer": {
+                  "id": "gid://shopify/Customer/10582524264754"
+                }
+              },
+              "giftCardCode": "h694amoszgn20",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cardBDeactivatedCreate",
+      "query": "#graphql\n      mutation GiftCardUpdateValidationGiftCardCreate($input: GiftCardCreateInput!) {\n        giftCardCreate(input: $input) {\n          giftCard {\n            id\n            enabled\n            customer {\n              id\n            }\n          }\n          giftCardCode\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "H694Bmoszgn20",
+          "note": "HAR-694 deactivated update validation card."
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654852325682",
+                "enabled": true,
+                "customer": null
+              },
+              "giftCardCode": "h694bmoszgn20",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cardBDeactivate",
+      "query": "#graphql\n      mutation GiftCardUpdateValidationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654852325682"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654852325682",
+                "enabled": false,
+                "deactivatedAt": "2026-05-05T18:50:02Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "operations": {
+    "updateValidation": {
+      "label": "updateValidation",
+      "query": "#graphql\n  mutation GiftCardUpdateValidation(\n    $activeId: ID!\n    $deactivatedId: ID!\n    $missingCustomerId: ID!\n    $recipientId: ID!\n    $tooLongPreferredName: String!\n    $tooLongMessage: String!\n    $successNote: String!\n  ) {\n    deactivatedExpiresOn: giftCardUpdate(id: $deactivatedId, input: { expiresOn: \"2099-12-31\" }) {\n      giftCard {\n        id\n        enabled\n        expiresOn\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    emptyInput: giftCardUpdate(id: $activeId, input: {}) {\n      giftCard {\n        id\n        note\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    missingCustomer: giftCardUpdate(id: $activeId, input: { customerId: $missingCustomerId }) {\n      giftCard {\n        id\n        customer {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    longRecipientName: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, preferredName: $tooLongPreferredName } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          preferredName\n          recipient {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    longRecipientMessage: giftCardUpdate(\n      id: $activeId\n      input: { recipientAttributes: { id: $recipientId, message: $tooLongMessage } }\n    ) {\n      giftCard {\n        id\n        recipientAttributes {\n          message\n          recipient {\n            id\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n    success: giftCardUpdate(id: $activeId, input: { note: $successNote }) {\n      giftCard {\n        id\n        note\n        updatedAt\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "activeId": "gid://shopify/GiftCard/654852292914",
+        "deactivatedId": "gid://shopify/GiftCard/654852325682",
+        "missingCustomerId": "gid://shopify/Customer/999999999999",
+        "recipientId": "gid://shopify/Customer/10582524297522",
+        "tooLongPreferredName": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "tooLongMessage": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "successNote": "HAR-694 updated note"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "preferredName is too long (maximum is 255)",
+              "locations": [
+                {
+                  "line": 44,
+                  "column": 5
+                },
+                {
+                  "line": 46,
+                  "column": 57
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["longRecipientName"]
+            },
+            {
+              "message": "message is too long (maximum is 200)",
+              "locations": [
+                {
+                  "line": 62,
+                  "column": 5
+                },
+                {
+                  "line": 64,
+                  "column": 57
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_FIELD_ARGUMENTS"
+              },
+              "path": ["longRecipientMessage"]
+            }
+          ],
+          "data": {
+            "deactivatedExpiresOn": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "expiresOn"],
+                  "message": "The gift card is deactivated."
+                }
+              ]
+            },
+            "emptyInput": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "At least one argument is required in the input."
+                }
+              ]
+            },
+            "missingCustomer": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["input", "customerId"],
+                  "message": "The customer could not be found."
+                }
+              ]
+            },
+            "longRecipientName": null,
+            "longRecipientMessage": null,
+            "success": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654852292914",
+                "note": "HAR-694 updated note",
+                "updatedAt": "2026-05-05T18:50:02Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 65,
+              "actualQueryCost": 60,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1940,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "data": {
+      "deactivatedExpiresOn": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "expiresOn"],
+            "message": "The gift card is deactivated.",
+            "code": "INVALID"
+          }
+        ]
+      },
+      "emptyInput": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input"],
+            "message": "At least one argument is required in the input.",
+            "code": "INVALID"
+          }
+        ]
+      },
+      "missingCustomer": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "customerId"],
+            "message": "The customer could not be found.",
+            "code": "CUSTOMER_NOT_FOUND"
+          }
+        ]
+      },
+      "longRecipientName": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "preferredName"],
+            "code": "TOO_LONG",
+            "message": "preferredName is too long (maximum is 255)"
+          }
+        ]
+      },
+      "longRecipientMessage": {
+        "giftCard": null,
+        "userErrors": [
+          {
+            "field": ["input", "recipientAttributes", "message"],
+            "code": "TOO_LONG",
+            "message": "message is too long (maximum is 200)"
+          }
+        ]
+      },
+      "success": {
+        "giftCard": {
+          "id": "gid://shopify/GiftCard/654852292914",
+          "note": "HAR-694 updated note",
+          "updatedAt": "2026-05-05T18:50:02Z"
+        },
+        "userErrors": []
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDeactivate:cardA",
+      "query": "#graphql\n      mutation GiftCardUpdateValidationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654852292914"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654852292914",
+                "enabled": false,
+                "deactivatedAt": "2026-05-05T18:50:02Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1941,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupCustomer:gid://shopify/Customer/10582524264754",
+      "query": "#graphql\n      mutation GiftCardUpdateValidationCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582524264754"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10582524264754",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1943,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupCustomer:gid://shopify/Customer/10582524297522",
+      "query": "#graphql\n      mutation GiftCardUpdateValidationCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582524297522"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10582524297522",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1951,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

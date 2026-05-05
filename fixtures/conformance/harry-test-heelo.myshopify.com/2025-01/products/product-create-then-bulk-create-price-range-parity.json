@@ -1,0 +1,268 @@
+{
+  "create": {
+    "variables": {
+      "product": {
+        "title": "HAR592 Price Range Hat 1777950701775",
+        "status": "DRAFT",
+        "productOptions": [
+          {
+            "name": "Color",
+            "values": [
+              {
+                "name": "Red"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "response": {
+      "data": {
+        "productCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10177003127090",
+            "variants": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ProductVariant/51126289301810",
+                  "title": "Red",
+                  "price": "0.00",
+                  "selectedOptions": [
+                    {
+                      "name": "Color",
+                      "value": "Red"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "priceUpdate": {
+    "variables": {
+      "productId": "gid://shopify/Product/10177003127090",
+      "variants": [
+        {
+          "id": "gid://shopify/ProductVariant/51126289301810",
+          "price": "10.00"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkUpdate": {
+          "product": {
+            "id": "gid://shopify/Product/10177003127090",
+            "priceRangeV2": {
+              "minVariantPrice": {
+                "amount": "10.0",
+                "currencyCode": "CAD"
+              },
+              "maxVariantPrice": {
+                "amount": "10.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalVariants": 1,
+            "hasOnlyDefaultVariant": false,
+            "hasOutOfStockVariants": false,
+            "tracksInventory": false,
+            "totalInventory": 0
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51126289301810",
+              "price": "10.00"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "bulkCreate": {
+    "variables": {
+      "productId": "gid://shopify/Product/10177003127090",
+      "variants": [
+        {
+          "optionValues": [
+            {
+              "optionName": "Color",
+              "name": "Blue"
+            }
+          ],
+          "price": "5.00"
+        },
+        {
+          "optionValues": [
+            {
+              "optionName": "Color",
+              "name": "Green"
+            }
+          ],
+          "price": "20.00"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "productVariantsBulkCreate": {
+          "product": {
+            "id": "gid://shopify/Product/10177003127090",
+            "priceRangeV2": {
+              "minVariantPrice": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "maxVariantPrice": {
+                "amount": "20.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "priceRange": {
+              "minVariantPrice": {
+                "amount": "500.0",
+                "currencyCode": "CAD"
+              },
+              "maxVariantPrice": {
+                "amount": "2000.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "totalVariants": 3,
+            "hasOnlyDefaultVariant": false,
+            "hasOutOfStockVariants": true,
+            "tracksInventory": true,
+            "totalInventory": 0
+          },
+          "productVariants": [
+            {
+              "id": "gid://shopify/ProductVariant/51126289334578",
+              "title": "Blue",
+              "price": "5.00"
+            },
+            {
+              "id": "gid://shopify/ProductVariant/51126289367346",
+              "title": "Green",
+              "price": "20.00"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "data": {
+      "product": {
+        "id": "gid://shopify/Product/10177003127090",
+        "priceRangeV2": {
+          "minVariantPrice": {
+            "amount": "5.0",
+            "currencyCode": "CAD"
+          },
+          "maxVariantPrice": {
+            "amount": "20.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "priceRange": {
+          "minVariantPrice": {
+            "amount": "500.0",
+            "currencyCode": "CAD"
+          },
+          "maxVariantPrice": {
+            "amount": "2000.0",
+            "currencyCode": "CAD"
+          }
+        },
+        "totalVariants": 3,
+        "hasOnlyDefaultVariant": false,
+        "hasOutOfStockVariants": true,
+        "tracksInventory": true,
+        "totalInventory": 0
+      }
+    },
+    "extensions": {
+      "cost": {
+        "requestedQueryCost": 3,
+        "actualQueryCost": 3,
+        "throttleStatus": {
+          "maximumAvailable": 2000,
+          "currentlyAvailable": 1997,
+          "restoreRate": 100
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductDerivedFieldsDownstream",
+      "variables": {},
+      "query": "query ProductDerivedFieldsDownstream($id: ID!) {\n  product(id: $id) {\n    id\n    priceRangeV2 {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    priceRange {\n      minVariantPrice {\n        amount\n        currencyCode\n      }\n      maxVariantPrice {\n        amount\n        currencyCode\n      }\n    }\n    totalVariants\n    hasOnlyDefaultVariant\n    hasOutOfStockVariants\n    tracksInventory\n    totalInventory\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "errors": [
+            {
+              "message": "Variable $id of type ID! was provided invalid value",
+              "locations": [
+                {
+                  "line": 1,
+                  "column": 38
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": null,
+                "problems": [
+                  {
+                    "path": [],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

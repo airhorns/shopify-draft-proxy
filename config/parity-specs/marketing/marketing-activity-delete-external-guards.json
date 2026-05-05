@@ -1,0 +1,48 @@
+{
+  "scenarioId": "marketing-activity-delete-external-guards",
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "local-staging", "marketing-activity-delete-guards"],
+  "operationNames": [
+    "marketingActivityCreateExternal",
+    "marketingActivityDeleteExternal",
+    "marketingActivitiesDeleteAllExternal"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/marketing/marketing-activity-delete-external-guards.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/marketing_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-delete-external-guards.graphql",
+    "variablesCapturePath": "$.operations.primary.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "no-args-delete-guard",
+        "capturePath": "$.operations.primary.response.payload.data.noArgsDelete",
+        "proxyPath": "$.data.noArgsDelete"
+      },
+      {
+        "name": "delete-all-job",
+        "capturePath": "$.operations.primary.response.payload.data.deleteAllExternal",
+        "proxyPath": "$.data.deleteAllExternal",
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "Shopify returns a live asynchronous Job id; the proxy creates a deterministic synthetic Job id for local delete-all staging."
+          }
+        ]
+      },
+      {
+        "name": "create-after-delete-all-guard",
+        "capturePath": "$.operations.primary.response.payload.data.createAfterDeleteAll",
+        "proxyPath": "$.data.createAfterDeleteAll"
+      }
+    ]
+  },
+  "notes": "HAR-687 captures live Shopify guards for marketingActivityDeleteExternal with neither selector and marketingActivityCreateExternal immediately after marketingActivitiesDeleteAllExternal enqueues a delete-all job. The disposable conformance shop cannot currently create the campaign-level parent needed for the child-events delete guard because every tested channelHandle is rejected, and it has no discoverable non-external MarketingActivity for the native delete guard; focused Gleam runtime tests cover those local no-state-change branches while the fixture records the live setup blockers."
+}

@@ -1,0 +1,50 @@
+{
+  "scenarioId": "app-revoke-access-scopes-codes",
+  "operationNames": ["appPurchaseOneTimeCreate", "appRevokeAccessScopes"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "mutation-atomicity"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-revoke-access-scopes-codes.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-local-lifecycle.graphql"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-scope-code",
+        "capturePath": "$.evidence.parity.expected.unknownScope.data.appRevokeAccessScopes",
+        "proxyPath": "$.data.appRevokeAccessScopes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-fake-scope.graphql"
+        }
+      },
+      {
+        "name": "mixed-unknown-scope-atomicity",
+        "capturePath": "$.evidence.parity.expected.mixedUnknownScope.data.appRevokeAccessScopes",
+        "proxyPath": "$.data.appRevokeAccessScopes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-mixed-fake-scope.graphql"
+        }
+      },
+      {
+        "name": "required-scope-code",
+        "capturePath": "$.evidence.parity.expected.requiredScope.data.appRevokeAccessScopes",
+        "proxyPath": "$.data.appRevokeAccessScopes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-required-read-products.graphql"
+        }
+      },
+      {
+        "name": "optional-grant-success",
+        "capturePath": "$.evidence.parity.expected.optionalGrant.data.appRevokeAccessScopes",
+        "proxyPath": "$.data.appRevokeAccessScopes",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appRevokeAccessScopes-optional-write-products.graphql"
+        }
+      }
+    ]
+  }
+}

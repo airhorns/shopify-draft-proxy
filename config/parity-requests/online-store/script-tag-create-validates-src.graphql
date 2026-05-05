@@ -1,0 +1,42 @@
+mutation ScriptTagCreateValidatesSrc {
+  blank: scriptTagCreate(input: { src: "" }) {
+    scriptTag {
+      id
+      src
+      displayScope
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  tooLong: scriptTagCreate(
+    input: {
+      src: "https://example.test/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ) {
+    scriptTag {
+      id
+      src
+      displayScope
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+  invalid: scriptTagCreate(input: { src: "not-a-url" }) {
+    scriptTag {
+      id
+      src
+      displayScope
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

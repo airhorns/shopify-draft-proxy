@@ -1,0 +1,13 @@
+mutation DiscountInvalidDateRangeAutomaticFreeShipping($input: DiscountAutomaticFreeShippingInput!) {
+  discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: $input) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

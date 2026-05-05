@@ -60,7 +60,14 @@
             "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
             "productId": "gid://shopify/Product/10171266400562"
           }
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities; this older capture recorded Shopify's immediately stale product aggregate."
+          }
+        ]
       },
       {
         "name": "set-downstream-location-0",
@@ -189,7 +196,14 @@
             "inventoryItemId": "gid://shopify/InventoryItem/53204673823026",
             "productId": "gid://shopify/Product/10171266400562"
           }
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities; this older capture recorded Shopify's immediately stale product aggregate."
+          }
+        ]
       },
       {
         "name": "move-downstream-location-0-available",

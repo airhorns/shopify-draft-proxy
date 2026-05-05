@@ -35,6 +35,21 @@ There is **no per-domain "hydrate from upstream" pass** and no uniform
 its own, whether it needs an upstream read and what to do with the
 result. See _Per-operation upstream access_ below.
 
+### Apps billing test-charge activation
+
+Real Shopify app billing charges remain pending until the merchant opens
+the billing confirmation URL. For local parity and agent flows, the apps
+handler treats `appSubscriptionCreate(test: true)` and
+`appPurchaseOneTimeCreate(test: true)` as accepted test charges and stages
+them with `status: "ACTIVE"` immediately. This does not write to upstream;
+the synthetic confirmation URL is still returned for shape fidelity.
+
+Activated test subscriptions are added to
+`AppInstallation.activeSubscriptions` and receive a deterministic
+`currentPeriodEnd` from the activation timestamp plus the line item's
+billing interval and `trialDays`. The executable local-runtime proof is
+`config/parity-specs/apps/app-subscription-activation-readback.json`.
+
 ## Spec shape
 
 ```jsonc
@@ -54,6 +69,14 @@ result. See _Per-operation upstream access_ below.
 
 `comparison.mode` is the comparison contract for the target payloads. It
 is distinct from proxy runtime read mode, which the runner owns.
+
+Parity specs must not include `proxyRequest.localSetups` or any other
+runner setup hook that pre-seeds proxy state before the request is
+executed. If the proxy needs existing Shopify state to answer a request,
+the operation handler must model that state from earlier scenario
+requests or from cassette-backed upstream reads. If that is not
+implemented yet, keep the gap out of the checked-in parity spec and
+track the missing fidelity work outside the scenario corpus.
 
 ## Cassette shape
 
@@ -471,9 +494,10 @@ Per-scenario steps:
 ## Seed Keys Are Forbidden
 
 Capture files must not carry top-level `seedProducts`, `seedCustomers`,
-`seedDiscounts`, or similar `seedX` keys. Those keys were inputs to the
-unsupported seed-based runner. The cheating-lint test fails the build if
-they reappear under `fixtures/conformance/**`.
+`seedDiscounts`, `localRuntimeCases`, or similar artificial setup keys.
+Parity specs must not carry `localSetups`. Those keys were inputs to the
+unsupported seed-based runner. Seed-style fixture and spec keys remain
+banned by policy and should be removed rather than expanded.
 
 ## Why we changed
 

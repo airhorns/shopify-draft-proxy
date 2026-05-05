@@ -1,0 +1,165 @@
+{
+  "scenarioId": "payment-customization-metafields-and-handle-update",
+  "operationNames": ["paymentCustomizationCreate", "paymentCustomizationUpdate", "paymentCustomization"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-metafields-and-handle-update.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-customization-metafields-create.graphql",
+    "variablesCapturePath": "$.operations.paymentCustomizationCreate.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.paymentCustomization.id",
+        "matcher": "shopify-gid:PaymentCustomization",
+        "reason": "Shopify and the local proxy generate independent payment customization IDs."
+      },
+      {
+        "path": "$.paymentCustomization.metafields.edges[0].node.id",
+        "matcher": "shopify-gid:Metafield",
+        "reason": "Shopify and the local proxy generate independent metafield IDs."
+      },
+      {
+        "path": "$.paymentCustomization.metafields.edges[0].node.createdAt",
+        "matcher": "iso-timestamp",
+        "reason": "Shopify and the local proxy generate independent creation timestamps."
+      },
+      {
+        "path": "$.paymentCustomization.metafields.edges[0].node.updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Shopify and the local proxy generate independent update timestamps."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-payload",
+        "capturePath": "$.operations.paymentCustomizationCreate.response.data.paymentCustomizationCreate",
+        "proxyPath": "$.data.paymentCustomizationCreate"
+      },
+      {
+        "name": "update-metafields-payload",
+        "capturePath": "$.operations.paymentCustomizationUpdateMetafields.response.data.paymentCustomizationUpdate",
+        "proxyPath": "$.data.paymentCustomizationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-metafields-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"
+            },
+            "input": {
+              "fromCapturePath": "$.operations.paymentCustomizationUpdateMetafields.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentCustomization.id",
+            "matcher": "shopify-gid:PaymentCustomization",
+            "reason": "Shopify and the local proxy update independently generated payment customization IDs."
+          },
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy retain independent metafield IDs."
+          },
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generated independent creation timestamps."
+          },
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generated independent update timestamps."
+          }
+        ]
+      },
+      {
+        "name": "update-function-handle-payload",
+        "capturePath": "$.operations.paymentCustomizationUpdateHandle.response.data.paymentCustomizationUpdate",
+        "proxyPath": "$.data.paymentCustomizationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-metafields-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"
+            },
+            "input": {
+              "fromCapturePath": "$.operations.paymentCustomizationUpdateHandle.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentCustomization.id",
+            "matcher": "shopify-gid:PaymentCustomization",
+            "reason": "Shopify and the local proxy update independently generated payment customization IDs."
+          },
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy retain independent metafield IDs."
+          },
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generated independent creation timestamps."
+          },
+          {
+            "path": "$.paymentCustomization.metafields.edges[0].node.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generated independent update timestamps."
+          }
+        ]
+      },
+      {
+        "name": "read-after-updates",
+        "capturePath": "$.reads.afterUpdates.response.data.paymentCustomization",
+        "proxyPath": "$.data.paymentCustomization",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-metafields-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentCustomization",
+            "reason": "Shopify and the local proxy read independently generated payment customization IDs."
+          },
+          {
+            "path": "$.metafields.edges[0].node.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "Shopify and the local proxy retain independent metafield IDs."
+          },
+          {
+            "path": "$.metafields.edges[0].node.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generated independent creation timestamps."
+          },
+          {
+            "path": "$.metafields.edges[0].node.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "Shopify and the local proxy generated independent update timestamps."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Executable parity for paymentCustomizationCreate metafield staging, paymentCustomizationUpdate metafield replacement, functionHandle input update, and downstream paymentCustomization(id:) read-after-write. Shopify Admin 2026-04 does not expose paymentCustomization.functionHandle as an output field in the active schema, so this spec compares the resolved functionId while the runtime test asserts local functionHandle readback."
+}

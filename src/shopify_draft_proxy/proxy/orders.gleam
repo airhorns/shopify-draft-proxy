@@ -29,6 +29,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_field_value, project_graphql_value, resolved_value_to_source,
   serialize_connection, source_to_json, src_object,
 }
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome, RequiredArgument,
   find_argument, single_root_log_draft, validate_required_field_arguments,
@@ -48,11 +49,12 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type AbandonedCheckoutRecord, type AbandonmentRecord, type CapturedJsonValue,
   type CustomerRecord, type DraftOrderRecord,
-  type DraftOrderVariantCatalogRecord, type OrderRecord, type ProductRecord,
-  type ProductVariantRecord, AbandonmentDeliveryActivityRecord, CapturedArray,
-  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
-  CapturedString, CustomerRecord, DraftOrderRecord,
-  DraftOrderVariantCatalogRecord, OrderRecord, ProductVariantRecord,
+  type DraftOrderVariantCatalogRecord, type OrderRecord,
+  type ProductMetafieldRecord, type ProductRecord, type ProductVariantRecord,
+  AbandonmentDeliveryActivityRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CustomerRecord,
+  DraftOrderRecord, DraftOrderVariantCatalogRecord, OrderRecord,
+  ProductVariantRecord,
 }
 
 pub type OrdersError {
@@ -121,8 +123,8 @@ fn infer_user_error_code(
     | "abandonment_not_found"
     | "Reverse fulfillment order does not exist." ->
       Some(user_error_codes.not_found)
-    "Quantity is not removable from return." ->
-      Some(user_error_codes.return_line_item_quantity_invalid)
+    "Quantity is not removable from return."
+    | "Quantity is not available for return." -> Some(user_error_codes.invalid)
     "Quantity cannot refund more items than were purchased" ->
       Some(user_error_codes.invalid)
     _ ->
@@ -610,7 +612,14 @@ fn serialize_query_field(
       case id {
         Some(id) ->
           case store.get_order_by_id(store, id) {
-            Some(order) -> serialize_order_node(field, order, fragments)
+            Some(order) ->
+              serialize_order_node(
+                Some(store),
+                field,
+                order,
+                fragments,
+                variables,
+              )
             None -> json.null()
           }
         None -> json.null()
@@ -679,9 +688,11 @@ fn serialize_query_field(
 }
 
 fn serialize_order_node(
+  store: Option(Store),
   field: Selection,
   order: OrderRecord,
   fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let source = captured_json_source(order.data)
   let entries =
@@ -707,12 +718,110 @@ fn serialize_order_node(
                 fragments,
               ),
             )
+            "metafield" -> #(key, case store {
+              Some(store) -> {
+                let value =
+                  serialize_order_metafield(store, order.id, child, variables)
+                case json.to_string(value) {
+                  "null" ->
+                    project_graphql_field_value(source, child, fragments)
+                  _ -> value
+                }
+              }
+              None -> project_graphql_field_value(source, child, fragments)
+            })
+            "metafields" -> #(key, case store {
+              Some(store) -> {
+                case
+                  store.get_effective_metafields_by_owner_id(store, order.id)
+                {
+                  [] -> project_graphql_field_value(source, child, fragments)
+                  _ ->
+                    serialize_order_metafields_connection(
+                      store,
+                      order.id,
+                      child,
+                      variables,
+                    )
+                }
+              }
+              None -> project_graphql_field_value(source, child, fragments)
+            })
             _ -> #(key, project_graphql_field_value(source, child, fragments))
           }
         _ -> #(key, json.null())
       }
     })
   json.object(entries)
+}
+
+fn serialize_order_metafield(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_arguments(field, variables)
+  let namespace = read_string(args, "namespace")
+  let key = read_string(args, "key")
+  let found =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.find(fn(metafield) {
+      metafield.namespace == option.unwrap(namespace, "")
+      && metafield.key == option.unwrap(key, "")
+    })
+    |> option.from_result
+  case found {
+    Some(metafield) ->
+      metafields.serialize_metafield_selection(
+        order_metafield_to_core(metafield),
+        field,
+        default_selected_field_options(),
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_order_metafields_connection(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_arguments(field, variables)
+  let namespace = read_string(args, "namespace")
+  let records =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.filter(fn(metafield) {
+      case namespace {
+        Some(ns) -> metafield.namespace == ns
+        None -> True
+      }
+    })
+    |> list.map(order_metafield_to_core)
+  metafields.serialize_metafields_connection(
+    records,
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn order_metafield_to_core(
+  record: ProductMetafieldRecord,
+) -> metafields.MetafieldRecordCore {
+  metafields.MetafieldRecordCore(
+    id: record.id,
+    namespace: record.namespace,
+    key: record.key,
+    type_: record.type_,
+    value: record.value,
+    compare_digest: record.compare_digest,
+    json_value: record.json_value,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    owner_type: record.owner_type,
+  )
 }
 
 fn serialize_order_fulfillment_orders_connection(
@@ -1825,6 +1934,7 @@ pub fn process_mutation(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let #(key, payload, next_errors, next_drafts) = result
               case next_errors {
@@ -3404,6 +3514,7 @@ fn handle_draft_order_calculate(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(String, Json, List(Json), List(LogDraft)) {
   let key = get_field_response_key(field)
   let validation_errors =
@@ -3421,28 +3532,63 @@ fn handle_draft_order_calculate(
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
-          let #(draft_order, _) =
-            build_draft_order_from_input(store, identity, input)
-          let calculated = build_calculated_draft_order_from_draft(draft_order)
-          let payload =
-            serialize_draft_order_calculate_payload(
-              field,
-              Some(calculated),
-              [],
-              fragments,
+          let hydrated_store =
+            maybe_hydrate_draft_order_variant_catalog_from_input(
+              store,
+              input,
+              upstream,
             )
-          let draft =
-            single_root_log_draft(
-              "draftOrderCalculate",
-              [],
-              store.Staged,
-              "orders",
-              "stage-locally",
-              Some(
-                "Locally calculated draftOrderCalculate in shopify-draft-proxy.",
-              ),
-            )
-          #(key, payload, [], [draft])
+            |> maybe_hydrate_draft_order_customer_from_input(input, upstream)
+          let user_errors =
+            validate_draft_order_calculate_input(hydrated_store, input)
+          case user_errors {
+            [] -> {
+              let #(draft_order, _) =
+                build_draft_order_from_input(hydrated_store, identity, input)
+              let calculated =
+                build_calculated_draft_order_from_draft(draft_order)
+              let payload =
+                serialize_draft_order_calculate_payload(
+                  field,
+                  Some(calculated),
+                  [],
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "draftOrderCalculate",
+                  [],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally calculated draftOrderCalculate in shopify-draft-proxy.",
+                  ),
+                )
+              #(key, payload, [], [draft])
+            }
+            _ -> {
+              let payload =
+                serialize_draft_order_calculate_payload(
+                  field,
+                  None,
+                  user_errors,
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "draftOrderCalculate",
+                  [],
+                  store.Failed,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally rejected draftOrderCalculate validation branch.",
+                  ),
+                )
+              #(key, payload, [], [draft])
+            }
+          }
         }
         _ -> #(key, json.null(), [], [])
       }
@@ -3465,7 +3611,7 @@ fn build_calculated_draft_order_from_draft(
 fn serialize_draft_order_calculate_payload(
   field: Selection,
   calculated: Option(CapturedJsonValue),
-  user_errors: List(#(List(String), String, Option(String))),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -3486,7 +3632,7 @@ fn serialize_draft_order_calculate_payload(
             "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
-                serialize_user_error(child, error)
+                serialize_nullable_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
@@ -3981,7 +4127,7 @@ fn handle_order_lifecycle_mutation(
               field,
               None,
               [
-                inferred_user_error(["id"], "Order does not exist"),
+                mutation_user_error(["id"], "Order does not exist"),
               ],
               fragments,
             )
@@ -3999,16 +4145,15 @@ fn handle_order_lifecycle_mutation(
                   field,
                   None,
                   [
-                    inferred_user_error(["id"], "Order does not exist"),
+                    mutation_user_error(["id"], "Order does not exist"),
                   ],
                   fragments,
                 )
               #(key, payload, hydrated_store, identity, [], [], [])
             }
             Some(order) -> {
-              let #(updated_order, next_identity) =
+              let #(updated_order, next_identity, changed) =
                 apply_order_lifecycle_update(order, identity, root_name)
-              let next_store = store.stage_order(hydrated_store, updated_order)
               let payload =
                 serialize_order_mutation_payload(
                   field,
@@ -4016,18 +4161,35 @@ fn handle_order_lifecycle_mutation(
                   [],
                   fragments,
                 )
-              let draft =
-                single_root_log_draft(
-                  root_name,
-                  [id],
-                  store.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally staged " <> root_name <> " in shopify-draft-proxy.",
-                  ),
+              case changed {
+                False -> #(
+                  key,
+                  payload,
+                  hydrated_store,
+                  next_identity,
+                  [],
+                  [],
+                  [],
                 )
-              #(key, payload, next_store, next_identity, [id], [], [draft])
+                True -> {
+                  let next_store =
+                    store.stage_order(hydrated_store, updated_order)
+                  let draft =
+                    single_root_log_draft(
+                      root_name,
+                      [id],
+                      store.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged "
+                        <> root_name
+                        <> " in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, next_store, next_identity, [id], [], [draft])
+                }
+              }
             }
           }
         }
@@ -4040,35 +4202,80 @@ fn apply_order_lifecycle_update(
   order: OrderRecord,
   identity: SyntheticIdentityRegistry,
   root_name: String,
-) -> #(OrderRecord, SyntheticIdentityRegistry) {
-  let #(timestamp, next_identity) =
-    synthetic_identity.make_synthetic_timestamp(identity)
-  let replacements = case root_name {
-    "orderClose" -> [
-      #("closed", CapturedBool(True)),
-      #("closedAt", CapturedString(timestamp)),
-      #("updatedAt", CapturedString(timestamp)),
-    ]
-    "orderOpen" -> [
-      #("closed", CapturedBool(False)),
-      #("closedAt", CapturedNull),
-      #("updatedAt", CapturedString(timestamp)),
-    ]
-    _ -> []
+) -> #(OrderRecord, SyntheticIdentityRegistry, Bool) {
+  case root_name {
+    "orderClose" ->
+      case order_lifecycle_transition_is_noop(order, root_name) {
+        True -> #(order, identity, False)
+        False -> {
+          let #(timestamp, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let replacements = [
+            #("closed", CapturedBool(True)),
+            #("closedAt", CapturedString(timestamp)),
+            #("updatedAt", CapturedString(timestamp)),
+          ]
+          #(
+            OrderRecord(
+              ..order,
+              data: replace_captured_object_fields(order.data, replacements),
+            ),
+            next_identity,
+            True,
+          )
+        }
+      }
+    "orderOpen" ->
+      case order_lifecycle_transition_is_noop(order, root_name) {
+        True -> #(order, identity, False)
+        False -> {
+          let #(timestamp, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let replacements = [
+            #("closed", CapturedBool(False)),
+            #("closedAt", CapturedNull),
+            #("updatedAt", CapturedString(timestamp)),
+          ]
+          #(
+            OrderRecord(
+              ..order,
+              data: replace_captured_object_fields(order.data, replacements),
+            ),
+            next_identity,
+            True,
+          )
+        }
+      }
+    _ -> #(order, identity, False)
   }
-  #(
-    OrderRecord(
-      ..order,
-      data: replace_captured_object_fields(order.data, replacements),
-    ),
-    next_identity,
-  )
+}
+
+fn order_lifecycle_transition_is_noop(
+  order: OrderRecord,
+  root_name: String,
+) -> Bool {
+  case root_name {
+    "orderClose" -> order_currently_closed(order)
+    "orderOpen" -> !order_currently_closed(order)
+    _ -> False
+  }
+}
+
+fn order_currently_closed(order: OrderRecord) -> Bool {
+  case captured_bool_field(order.data, "closed") {
+    Some(value) -> value
+    None ->
+      case captured_object_field(order.data, "closedAt") {
+        Some(CapturedString(_)) -> True
+        _ -> False
+      }
+  }
 }
 
 fn serialize_order_mutation_payload(
   field: Selection,
   order: Option(OrderRecord),
-  user_errors: List(#(List(String), String, Option(String))),
+  user_errors: List(OrderMutationUserError),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -4078,13 +4285,14 @@ fn serialize_order_mutation_payload(
         Field(name: name, ..) ->
           case name.value {
             "order" -> #(key, case order {
-              Some(record) -> serialize_order_node(child, record, fragments)
+              Some(record) ->
+                serialize_order_node(None, child, record, fragments, dict.new())
               None -> json.null()
             })
             "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
-                serialize_user_error(child, error)
+                serialize_order_mutation_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
@@ -4417,7 +4625,7 @@ fn handle_order_invoice_send(
                 field,
                 None,
                 [
-                  inferred_user_error(["id"], "Order does not exist"),
+                  mutation_user_error(["id"], "Order does not exist"),
                 ],
                 fragments,
               ),
@@ -4431,7 +4639,7 @@ fn handle_order_invoice_send(
             field,
             None,
             [
-              inferred_user_error(["id"], "Order does not exist"),
+              mutation_user_error(["id"], "Order does not exist"),
             ],
             fragments,
           ),
@@ -4485,7 +4693,7 @@ fn handle_order_mark_as_paid_mutation(
               field,
               None,
               [
-                inferred_user_error(["id"], "Order does not exist"),
+                mutation_user_error(["id"], "Order does not exist"),
               ],
               fragments,
             )
@@ -4502,33 +4710,50 @@ fn handle_order_mark_as_paid_mutation(
                   field,
                   None,
                   [
-                    inferred_user_error(["id"], "Order does not exist"),
+                    mutation_user_error(["id"], "Order does not exist"),
                   ],
                   fragments,
                 )
               #(key, payload, hydrated_store, identity, [], [], [])
             }
             Some(order) -> {
-              let #(updated_order, next_identity) =
-                apply_order_mark_as_paid_update(order, identity)
-              let next_store = store.stage_order(hydrated_store, updated_order)
-              let payload =
-                serialize_order_mutation_payload(
-                  field,
-                  Some(updated_order),
-                  [],
-                  fragments,
-                )
-              let draft =
-                single_root_log_draft(
-                  "orderMarkAsPaid",
-                  [id],
-                  store.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some("Locally staged orderMarkAsPaid in shopify-draft-proxy."),
-                )
-              #(key, payload, next_store, next_identity, [id], [], [draft])
+              case order_mark_as_paid_invalid_error(order) {
+                Some(error) -> {
+                  let payload =
+                    serialize_order_mutation_payload(
+                      field,
+                      Some(order),
+                      [error],
+                      fragments,
+                    )
+                  #(key, payload, hydrated_store, identity, [], [], [])
+                }
+                None -> {
+                  let #(updated_order, next_identity) =
+                    apply_order_mark_as_paid_update(order, identity)
+                  let next_store =
+                    store.stage_order(hydrated_store, updated_order)
+                  let payload =
+                    serialize_order_mutation_payload(
+                      field,
+                      Some(updated_order),
+                      [],
+                      fragments,
+                    )
+                  let draft =
+                    single_root_log_draft(
+                      "orderMarkAsPaid",
+                      [id],
+                      store.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged orderMarkAsPaid in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, next_store, next_identity, [id], [], [draft])
+                }
+              }
             }
           }
         }
@@ -4537,40 +4762,70 @@ fn handle_order_mark_as_paid_mutation(
   }
 }
 
+fn order_mark_as_paid_invalid_error(
+  order: OrderRecord,
+) -> Option(OrderMutationUserError) {
+  case order_cancelled(order) {
+    True ->
+      Some(invalid_id_user_error("Order is cancelled and cannot be marked paid"))
+    False ->
+      case captured_string_field(order.data, "displayFinancialStatus") {
+        Some("PAID") ->
+          Some(invalid_id_user_error("Order cannot be marked as paid."))
+        Some("REFUNDED") ->
+          Some(invalid_id_user_error("Order cannot be marked as paid."))
+        Some("PARTIALLY_REFUNDED") ->
+          Some(invalid_id_user_error("Order cannot be marked as paid."))
+        Some("VOIDED") ->
+          Some(invalid_id_user_error("Order cannot be marked as paid."))
+        _ -> None
+      }
+  }
+}
+
+fn order_cancelled(order: OrderRecord) -> Bool {
+  case captured_object_field(order.data, "cancelledAt") {
+    Some(CapturedNull) | None -> False
+    _ -> True
+  }
+}
+
+fn invalid_id_user_error(message: String) -> OrderMutationUserError {
+  order_mutation_user_error([UserErrorField("id")], message, Some("INVALID"))
+}
+
 fn apply_order_mark_as_paid_update(
   order: OrderRecord,
   identity: SyntheticIdentityRegistry,
 ) -> #(OrderRecord, SyntheticIdentityRegistry) {
-  case captured_string_field(order.data, "displayFinancialStatus") {
-    Some("PAID") -> #(order, identity)
-    _ -> {
-      let #(timestamp, next_identity) =
-        synthetic_identity.make_synthetic_timestamp(identity)
-      let amount_set = order_payment_amount_set(order)
-      let transaction =
-        CapturedObject([
-          #("kind", CapturedString("SALE")),
-          #("status", CapturedString("SUCCESS")),
-          #("gateway", CapturedString("manual")),
-          #("amountSet", amount_set),
-        ])
-      let updated_data =
-        order.data
-        |> replace_captured_object_fields([
-          #("updatedAt", CapturedString(timestamp)),
-          #("displayFinancialStatus", CapturedString("PAID")),
-          #("paymentGatewayNames", CapturedArray([CapturedString("manual")])),
-          #("totalOutstandingSet", order_money_set(order, 0.0)),
-          #("totalReceivedSet", amount_set),
-          #("netPaymentSet", amount_set),
-          #(
-            "transactions",
-            CapturedArray(list.append(order_transactions(order), [transaction])),
-          ),
-        ])
-      #(OrderRecord(..order, data: updated_data), next_identity)
-    }
-  }
+  let #(transaction_id, identity_after_transaction) =
+    synthetic_identity.make_synthetic_gid(identity, "OrderTransaction")
+  let #(timestamp, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_transaction)
+  let amount_set = order_payment_amount_set(order)
+  let transaction =
+    CapturedObject([
+      #("id", CapturedString(transaction_id)),
+      #("kind", CapturedString("SALE")),
+      #("status", CapturedString("SUCCESS")),
+      #("gateway", CapturedString("manual")),
+      #("amountSet", amount_set),
+    ])
+  let updated_data =
+    order.data
+    |> replace_captured_object_fields([
+      #("updatedAt", CapturedString(timestamp)),
+      #("displayFinancialStatus", CapturedString("PAID")),
+      #("paymentGatewayNames", CapturedArray([CapturedString("manual")])),
+      #("totalOutstandingSet", order_money_set(order, 0.0)),
+      #("totalReceivedSet", amount_set),
+      #("netPaymentSet", amount_set),
+      #(
+        "transactions",
+        CapturedArray(list.append(order_transactions(order), [transaction])),
+      ),
+    ])
+  #(OrderRecord(..order, data: updated_data), next_identity)
 }
 
 fn order_payment_amount_set(order: OrderRecord) -> CapturedJsonValue {
@@ -4584,11 +4839,12 @@ fn order_payment_amount_set(order: OrderRecord) -> CapturedJsonValue {
       }
     None -> None
   }
-  outstanding
-  |> option.or(captured_object_field(order.data, "currentTotalPriceSet"))
-  |> option.or(captured_object_field(order.data, "totalPriceSet"))
-  |> option.map(ensure_money_bag_presentment)
-  |> option.unwrap(money_set_string("0.0", order_currency_code(order)))
+  let amount_set =
+    outstanding
+    |> option.or(captured_object_field(order.data, "currentTotalPriceSet"))
+    |> option.or(captured_object_field(order.data, "totalPriceSet"))
+    |> option.unwrap(order_money_set_string(order, 0.0))
+  ensure_order_money_bag_presentment(order, amount_set)
 }
 
 fn order_currency_code(order: OrderRecord) -> String {
@@ -4599,29 +4855,20 @@ fn order_currency_code(order: OrderRecord) -> String {
   |> option.unwrap("CAD")
 }
 
+fn order_presentment_currency_code(order: OrderRecord) -> String {
+  captured_string_field(order.data, "presentmentCurrencyCode")
+  |> option.unwrap(first_money_set_presentment_currency(
+    order_presentment_reference_money_sets(order),
+    order_currency_code(order),
+  ))
+}
+
 fn captured_money_set_currency(value: CapturedJsonValue) -> String {
   case captured_object_field(value, "shopMoney") {
     Some(shop_money) ->
       captured_string_field(shop_money, "currencyCode") |> option.unwrap("CAD")
     None -> "CAD"
   }
-}
-
-fn captured_money_set_presentment_currency(value: CapturedJsonValue) -> String {
-  case captured_object_field(value, "presentmentMoney") {
-    Some(presentment_money) ->
-      captured_string_field(presentment_money, "currencyCode")
-      |> option.unwrap(captured_money_set_currency(value))
-    None -> captured_money_set_currency(value)
-  }
-}
-
-fn order_presentment_currency_code(order: OrderRecord) -> String {
-  order_presentment_reference_money_sets(order)
-  |> list.find_map(fn(money_set) {
-    captured_money_set_presentment_currency(money_set) |> Ok
-  })
-  |> result.unwrap(order_currency_code(order))
 }
 
 fn order_money_set(order: OrderRecord, amount: Float) -> CapturedJsonValue {
@@ -4648,10 +4895,15 @@ fn order_money_set_string(
 fn order_presentment_rate(order: OrderRecord) -> Float {
   order_presentment_reference_money_sets(order)
   |> list.find_map(fn(money_set) {
-    let amount = captured_money_value(money_set)
-    case amount >. 0.0 {
-      True -> Ok(captured_money_presentment_value(money_set) /. amount)
-      False -> Error(Nil)
+    case captured_object_field(money_set, "presentmentMoney") {
+      Some(_) -> {
+        let amount = captured_money_value(money_set)
+        case amount >. 0.0 {
+          True -> Ok(captured_money_presentment_value(money_set) /. amount)
+          False -> Error(Nil)
+        }
+      }
+      None -> Error(Nil)
     }
   })
   |> result.unwrap(1.0)
@@ -4712,7 +4964,10 @@ fn money_set_string_with_presentment(
   ])
 }
 
-fn ensure_money_bag_presentment(value: CapturedJsonValue) -> CapturedJsonValue {
+fn ensure_order_money_bag_presentment(
+  order: OrderRecord,
+  value: CapturedJsonValue,
+) -> CapturedJsonValue {
   case captured_object_field(value, "presentmentMoney") {
     Some(CapturedObject(_)) -> value
     _ ->
@@ -4724,7 +4979,14 @@ fn ensure_money_bag_presentment(value: CapturedJsonValue) -> CapturedJsonValue {
           let currency_code =
             captured_string_field(shop_money, "currencyCode")
             |> option.unwrap(captured_money_set_currency(value))
-          money_set_string(amount, currency_code)
+          money_set_string_with_presentment(
+            amount,
+            currency_code,
+            format_decimal_amount(
+              captured_money_value(value) *. order_presentment_rate(order),
+            ),
+            order_presentment_currency_code(order),
+          )
         }
         None -> value
       }
@@ -5809,7 +6071,8 @@ fn serialize_order_capture_payload(
               serialize_captured_selection(child, transaction, fragments),
             )
             "order" -> #(key, case order {
-              Some(order) -> serialize_order_node(child, order, fragments)
+              Some(order) ->
+                serialize_order_node(None, child, order, fragments, dict.new())
               None -> json.null()
             })
             "userErrors" -> #(
@@ -5883,7 +6146,8 @@ fn serialize_mandate_payment_payload(
               graphql_helpers.option_string_json(payment_reference_id),
             )
             "order" -> #(key, case order {
-              Some(order) -> serialize_order_node(child, order, fragments)
+              Some(order) ->
+                serialize_order_node(None, child, order, fragments, dict.new())
               None -> json.null()
             })
             "userErrors" -> #(
@@ -7851,7 +8115,13 @@ fn build_return_line_items(
                 let available_quantity =
                   captured_int_field(fulfillment_line_item, "quantity")
                   |> option.unwrap(0)
-                case quantity <= 0 || quantity > available_quantity {
+                let already_returned =
+                  fulfillment_line_item_id
+                  |> option.map(fn(id) { already_returned_quantity(order, id) })
+                  |> option.unwrap(0)
+                let remaining_quantity =
+                  int.max(0, available_quantity - already_returned)
+                case quantity <= 0 || quantity > remaining_quantity {
                   True -> #(
                     items,
                     list.append(errors, [
@@ -7886,6 +8156,38 @@ fn build_return_line_items(
         _ -> Error(user_errors)
       }
     }
+  }
+}
+
+fn already_returned_quantity(
+  order: OrderRecord,
+  fulfillment_line_item_id: String,
+) -> Int {
+  order_returns(order.data)
+  |> list.filter(fn(order_return) {
+    captured_string_field(order_return, "status") != Some("CANCELED")
+  })
+  |> list.flat_map(order_return_line_items)
+  |> list.filter(fn(return_line_item) {
+    return_line_item_fulfillment_line_item_id(return_line_item)
+    == Some(fulfillment_line_item_id)
+  })
+  |> list.fold(0, fn(total, return_line_item) {
+    total
+    + { captured_int_field(return_line_item, "quantity") |> option.unwrap(0) }
+  })
+}
+
+fn return_line_item_fulfillment_line_item_id(
+  return_line_item: CapturedJsonValue,
+) -> Option(String) {
+  case captured_string_field(return_line_item, "fulfillmentLineItemId") {
+    Some(id) -> Some(id)
+    None ->
+      captured_object_field(return_line_item, "fulfillmentLineItem")
+      |> option.then(fn(fulfillment_line_item) {
+        captured_string_field(fulfillment_line_item, "id")
+      })
   }
 }
 
@@ -8790,7 +9092,10 @@ fn serialize_order_return(
       case child {
         Field(name: name, ..) ->
           case name.value {
-            "order" -> #(key, serialize_order_node(child, order, fragments))
+            "order" -> #(
+              key,
+              serialize_order_node(None, child, order, fragments, dict.new()),
+            )
             "totalQuantity" -> #(
               key,
               json.int(
@@ -9025,7 +9330,10 @@ fn serialize_reverse_fulfillment_order(
               key,
               serialize_order_return(child, order_return, order, fragments),
             )
-            "order" -> #(key, serialize_order_node(child, order, fragments))
+            "order" -> #(
+              key,
+              serialize_order_node(None, child, order, fragments, dict.new()),
+            )
             "lineItems" | "reverseFulfillmentOrderLineItems" -> #(
               key,
               serialize_reverse_fulfillment_order_line_items_connection(
@@ -10655,7 +10963,10 @@ fn serialize_order_edit_commit_payload(
       case child {
         Field(name: name, ..) ->
           case name.value {
-            "order" -> #(key, serialize_order_node(child, order, fragments))
+            "order" -> #(
+              key,
+              serialize_order_node(None, child, order, fragments, dict.new()),
+            )
             "successMessages" -> #(
               key,
               json.array(["Order updated"], json.string),
@@ -11345,10 +11656,10 @@ fn fulfillment_order_hold_validation_errors(
       let handle = fulfillment_order_hold_handle(input)
       case string.length(handle) > fulfillment_hold_handle_max_length {
         True -> [
-          #(
+          nullable_user_error(
             Some(["fulfillmentHold", "handle"]),
             "Handle is too long (maximum is 64 characters)",
-            None,
+            Some(user_error_codes.too_long),
           ),
         ]
         False -> {
@@ -11359,10 +11670,10 @@ fn fulfillment_order_hold_validation_errors(
             == Some("ON_HOLD")
           {
             True -> [
-              #(
+              nullable_user_error(
                 Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
                 "The fulfillment order is not in a splittable state.",
-                None,
+                Some(user_error_codes.fulfillment_order_not_splittable),
               ),
             ]
             False ->
@@ -11373,10 +11684,10 @@ fn fulfillment_order_hold_validation_errors(
                 )
               {
                 True -> [
-                  #(
+                  nullable_user_error(
                     Some(["fulfillmentHold", "handle"]),
                     "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
-                    None,
+                    Some(user_error_codes.duplicate_fulfillment_hold_handle),
                   ),
                 ]
                 False ->
@@ -11387,10 +11698,12 @@ fn fulfillment_order_hold_validation_errors(
                     >= max_fulfillment_holds_per_api_client
                   {
                     True -> [
-                      #(
+                      nullable_user_error(
                         Some(["id"]),
                         "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
-                        None,
+                        Some(
+                          user_error_codes.fulfillment_order_hold_limit_reached,
+                        ),
                       ),
                     ]
                     False -> []
@@ -11408,24 +11721,28 @@ fn fulfillment_order_hold_line_item_quantity_errors(
 ) -> List(#(Option(List(String)), String, Option(String))) {
   inputs
   |> list.index_fold([], fn(errors, input, index) {
-    let invalid_message = case dict.get(input, "quantity") {
+    let invalid_error = case dict.get(input, "quantity") {
       Ok(root_field.IntVal(quantity)) if quantity <= 0 ->
-        Some("You must select at least one item to place on partial hold.")
+        Some(#(
+          "You must select at least one item to place on partial hold.",
+          user_error_codes.greater_than_zero,
+        ))
       Ok(root_field.IntVal(_)) -> None
-      _ -> Some("The line item quantity is invalid.")
+      _ ->
+        Some(#("The line item quantity is invalid.", user_error_codes.invalid))
     }
-    case invalid_message {
-      Some(message) ->
+    case invalid_error {
+      Some(error) ->
         list.append(errors, [
-          #(
+          nullable_user_error(
             Some([
               "fulfillmentHold",
               "fulfillmentOrderLineItems",
               int.to_string(index),
               "quantity",
             ]),
-            message,
-            None,
+            error.0,
+            Some(error.1),
           ),
         ])
       None -> errors
@@ -11446,10 +11763,10 @@ fn fulfillment_order_hold_duplicate_line_item_errors(
     })
   case contains_duplicate_string(ids) {
     True -> [
-      #(
+      nullable_user_error(
         Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
         "must contain unique line item ids",
-        None,
+        Some(user_error_codes.duplicated_fulfillment_order_line_items),
       ),
     ]
     False -> []
@@ -14871,7 +15188,8 @@ fn serialize_refund_create_payload(
               None -> json.null()
             })
             "order" -> #(key, case order {
-              Some(record) -> serialize_order_node(child, record, fragments)
+              Some(record) ->
+                serialize_order_node(None, child, record, fragments, dict.new())
               None -> json.null()
             })
             "userErrors" -> #(
@@ -17282,6 +17600,7 @@ fn customer_record_from_json(
     email_marketing_consent: None,
     sms_marketing_consent: None,
     default_address: None,
+    account_activation_token: None,
     created_at: None,
     updated_at: None,
   ))
@@ -17482,7 +17801,7 @@ fn maybe_hydrate_order_by_id(
     False -> {
       let query =
         "query OrdersOrderHydrate($id: ID!) {
-  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } } totalReceivedSet { shopMoney { amount currencyCode } } totalRefundedSet { shopMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } transactions { id kind status gateway amountSet { shopMoney { amount currencyCode } } } refunds { id note totalRefundedSet { shopMoney { amount currencyCode } } refundLineItems(first: 10) { nodes { id quantity restockType lineItem { id title } subtotalSet { shopMoney { amount currencyCode } } } } transactions(first: 10) { nodes { id kind status gateway amountSet { shopMoney { amount currencyCode } } } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity currentQuantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } variant { id title sku } } } }
+  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus presentmentCurrencyCode paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalReceivedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } transactions { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } refunds { id note totalRefundedSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } refundLineItems(first: 10) { nodes { id quantity restockType lineItem { id title } subtotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } transactions(first: 10) { nodes { id kind status gateway amountSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity currentQuantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } variant { id title sku } } } }
 }
 "
       let variables = json.object([#("id", json.string(order_id))])
@@ -18159,6 +18478,29 @@ fn validate_draft_order_create_input(
   }
 }
 
+fn validate_draft_order_calculate_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(Option(List(String)), String, Option(String))) {
+  let line_items = read_object_list(input, "lineItems")
+  case line_items {
+    [] -> [inferred_nullable_user_error(None, "Add at least 1 product")]
+    _ -> {
+      let line_item_errors =
+        line_items
+        |> list.index_map(fn(line_item, index) {
+          validate_draft_order_create_line_item(store, line_item, index)
+        })
+        |> list.flatten
+      list.flatten([
+        validate_draft_order_create_email(input),
+        validate_draft_order_create_reserve(input),
+        line_item_errors,
+      ])
+    }
+  }
+}
+
 fn validate_draft_order_create_email(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(#(Option(List(String)), String, Option(String))) {
@@ -18427,6 +18769,11 @@ fn build_updated_draft_order(
       "shippingLine",
       build_draft_order_shipping_line(read_object(input, "shippingLine")),
     )
+    |> replace_if_present(
+      input,
+      "purchasingEntity",
+      build_draft_order_purchasing_entity(read_object(input, "purchasingEntity")),
+    )
     |> prepend_captured_replacement("updatedAt", CapturedString(updated_at))
     |> prepend_captured_replacement(
       "lineItems",
@@ -18679,6 +19026,10 @@ fn build_order_from_completed_draft_order(
       #("taxLines", CapturedArray([])),
       #("taxesIncluded", CapturedBool(False)),
       #("customer", captured_field_or_null(draft_order.data, "customer")),
+      #(
+        "purchasingEntity",
+        captured_field_or_null(draft_order.data, "purchasingEntity"),
+      ),
       #("shippingLines", completed_order_shipping_lines(draft_order.data)),
       #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
       #(
@@ -19029,6 +19380,13 @@ fn build_draft_order_from_input(
       #("ready", CapturedBool(True)),
       #("email", optional_captured_string(read_string(input, "email"))),
       #("note", optional_captured_string(read_string(input, "note"))),
+      #(
+        "purchasingEntity",
+        build_draft_order_purchasing_entity(read_object(
+          input,
+          "purchasingEntity",
+        )),
+      ),
       #("customer", build_draft_order_customer(store, input)),
       #("taxExempt", CapturedBool(read_bool(input, "taxExempt", False))),
       #("taxesIncluded", CapturedBool(read_bool(input, "taxesIncluded", False))),
@@ -19275,6 +19633,47 @@ fn build_draft_order_customer(
         ),
       ])
     }
+  }
+}
+
+fn build_draft_order_purchasing_entity(
+  input: Option(Dict(String, root_field.ResolvedValue)),
+) -> CapturedJsonValue {
+  case input {
+    Some(entity) ->
+      case read_object(entity, "purchasingCompany") {
+        Some(purchasing_company) ->
+          CapturedObject([
+            #("__typename", CapturedString("PurchasingCompany")),
+            #(
+              "company",
+              captured_id_object(read_string(purchasing_company, "companyId")),
+            ),
+            #(
+              "contact",
+              captured_id_object(read_string(
+                purchasing_company,
+                "companyContactId",
+              )),
+            ),
+            #(
+              "location",
+              captured_id_object(read_string(
+                purchasing_company,
+                "companyLocationId",
+              )),
+            ),
+          ])
+        None -> CapturedNull
+      }
+    None -> CapturedNull
+  }
+}
+
+fn captured_id_object(id: Option(String)) -> CapturedJsonValue {
+  case id {
+    Some(id) -> CapturedObject([#("id", CapturedString(id))])
+    None -> CapturedNull
   }
 }
 

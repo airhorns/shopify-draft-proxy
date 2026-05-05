@@ -1,0 +1,26 @@
+mutation AppSubscriptionCreateActivationReadback {
+  appSubscriptionCreate(
+    name: "Activation readback plan"
+    returnUrl: "https://app.example.test/return"
+    trialDays: 7
+    test: true
+    lineItems: [
+      {
+        plan: { appRecurringPricingDetails: { price: { amount: "10.00", currencyCode: USD }, interval: EVERY_30_DAYS } }
+      }
+    ]
+  ) {
+    confirmationUrl
+    appSubscription {
+      id
+      status
+      test
+      trialDays
+      currentPeriodEnd
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "scenarioId": "payment-reminder-send-shape",
+  "operationNames": ["paymentReminderSend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "schema-validation", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-reminder-send-invalid-field.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases.invalidSelection.request.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer-payment-method-selection-rejected",
+        "capturePath": "$.cases.invalidSelection.response",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "HAR-655 paymentReminderSend payload shape guard. The success and unknown-schedule strict payload branches remain in the live-captured payment-reminder-send-eligibility scenario; this dedicated spec prevents the proxy from accepting customerPaymentMethod on PaymentReminderSendPayload."
+}

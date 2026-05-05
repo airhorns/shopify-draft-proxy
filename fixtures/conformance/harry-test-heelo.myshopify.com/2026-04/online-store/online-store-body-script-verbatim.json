@@ -1,0 +1,271 @@
+{
+  "scenarioId": "online-store/body-script-verbatim",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T19:37:24.891Z",
+  "interactions": [
+    {
+      "name": "blogCreate-setup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreBodyScriptBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "HAR 741 Body Script Blog 20260505193723"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120976212274",
+              "title": "HAR 741 Body Script Blog 20260505193723",
+              "handle": "har-741-body-script-blog-20260505193723"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageCreate-script-body",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreBodyScriptPageCreate($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page { id title body bodySummary }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "page": {
+            "title": "HAR 741 Body Script Page 20260505193723",
+            "body": "<script>window.__har741='2026-04'</script><p onclick=\"bad\" class=\"safe\">Keep page 2026-04</p>"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/159607423282",
+              "title": "HAR 741 Body Script Page 20260505193723",
+              "body": "<script>window.__har741='2026-04'</script><p onclick=\"bad\" class=\"safe\">Keep page 2026-04</p>",
+              "bodySummary": "window.__har741='2026-04'Keep page 2026-04"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageRead-after-create",
+      "request": {
+        "query": "#graphql\n  query OnlineStoreBodyScriptPageRead($id: ID!) {\n    page(id: $id) { id body bodySummary }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/159607423282"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "page": {
+            "id": "gid://shopify/Page/159607423282",
+            "body": "<script>window.__har741='2026-04'</script><p onclick=\"bad\" class=\"safe\">Keep page 2026-04</p>",
+            "bodySummary": "window.__har741='2026-04'Keep page 2026-04"
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-script-body",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreBodyScriptArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title body summary }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "HAR 741 Body Script Article 20260505193723",
+            "blogId": "gid://shopify/Blog/120976212274",
+            "author": {
+              "name": "HAR 741 Probe"
+            },
+            "body": "<p onclick=\"bad\">Keep article 2026-04</p><script>window.__har741_article='2026-04'</script>"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683150836018",
+              "title": "HAR 741 Body Script Article 20260505193723",
+              "body": "<p onclick=\"bad\">Keep article 2026-04</p><script>window.__har741_article='2026-04'</script>",
+              "summary": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleRead-after-create",
+      "request": {
+        "query": "#graphql\n  query OnlineStoreBodyScriptArticleRead($id: ID!) {\n    article(id: $id) { id body summary }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683150836018"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "article": {
+            "id": "gid://shopify/Article/683150836018",
+            "body": "<p onclick=\"bad\">Keep article 2026-04</p><script>window.__har741_article='2026-04'</script>",
+            "summary": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 1,
+            "actualQueryCost": 1,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1999,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "articleDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreBodyScriptArticleDelete($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683150836018"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683150836018",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreBodyScriptPageDelete($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/159607423282"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/159607423282",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreBodyScriptBlogDelete($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/120976212274"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/120976212274",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

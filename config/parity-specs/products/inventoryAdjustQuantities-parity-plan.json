@@ -89,8 +89,7 @@
           "$.firstProduct.variants.nodes[*].inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
           "$.firstVariant.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
           "$.firstInventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt"
-        ],
-        "expectedDifferences": []
+        ]
       }
     ]
   }

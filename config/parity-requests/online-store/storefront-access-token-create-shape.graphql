@@ -1,0 +1,20 @@
+mutation StorefrontAccessTokenCreateShape($input: StorefrontAccessTokenInput!) {
+  storefrontAccessTokenCreate(input: $input) {
+    storefrontAccessToken {
+      id
+      title
+      accessToken
+      accessScopes {
+        handle
+      }
+    }
+    shop {
+      id
+    }
+    userErrors {
+      code
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,38 @@
+mutation CustomerPaymentMethodCreditCardCreateSuccess(
+  $customerId: ID!
+  $billingAddress: MailingAddressInput!
+  $sessionId: String!
+) {
+  customerPaymentMethodCreditCardCreate(
+    customerId: $customerId
+    billingAddress: $billingAddress
+    sessionId: $sessionId
+  ) {
+    customerPaymentMethod {
+      id
+      instrument {
+        __typename
+        ... on CustomerCreditCard {
+          billingAddress {
+            firstName
+            lastName
+            address1
+            city
+            zip
+            countryCodeV2
+            provinceCode
+          }
+        }
+      }
+      customer {
+        id
+      }
+    }
+    processing
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

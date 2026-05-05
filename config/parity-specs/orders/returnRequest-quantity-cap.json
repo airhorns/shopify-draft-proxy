@@ -1,0 +1,33 @@
+{
+  "scenarioId": "returnRequest-quantity-cap",
+  "operationNames": ["returnRequest", "returnCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/orders/return-quantity-validation.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/return-request-quantity-cap.graphql",
+    "variablesCapturePath": "$.returnRequestQuantityCap.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "return-request-over-remaining-quantity",
+        "capturePath": "$.expected.returnRequestQuantityCap",
+        "proxyPath": "$"
+      },
+      {
+        "name": "return-create-over-remaining-quantity",
+        "capturePath": "$.expected.returnCreateQuantityCap",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/return-create-quantity-validation.graphql",
+          "variablesCapturePath": "$.returnCreateQuantityCap.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-589 executable local-runtime parity for returnRequest and returnCreate quantity caps. The hydrated order already has an OPEN return consuming 3 of 5 units, so requesting 4 more must fail before local state changes."
+}

@@ -502,7 +502,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["appRevokeAccessScopes", "AppRevokeAccessScopes"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-364 stages access-scope revocation locally against the current app installation and surfaces requested unknown-scope userErrors without changing the real app grant.",
+        "HAR-672 stages optional access-scope revocation locally against the current app installation and differentiates unknown, undeclared, required, implied, missing-source, missing-app, and not-installed userErrors without changing the real app grant.",
       ),
     ),
     RegistryEntry(
@@ -1841,9 +1841,12 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerGenerateAccountActivationUrl",
         "CustomerGenerateAccountActivationUrl",
       ],
-      runtime_tests: ["test/parity_test.gleam"],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/customers_test.gleam",
+      ],
       support_notes: Some(
-        "Staged locally with a synthetic non-deliverable activation URL. The original raw mutation is retained in the mutation log for commit replay; runtime support does not request a live Shopify activation URL.",
+        "Staged locally for DISABLED/INVITED customers only, with a stable synthetic reset-token-bearing activation URL recorded on the local customer row. Non-eligible customer states return account_already_enabled; runtime support does not request a live Shopify activation URL.",
       ),
     ),
     RegistryEntry(
@@ -1870,7 +1873,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["storeCreditAccountCredit", "StoreCreditAccountCredit"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-317: stages credit adjustments only for existing normalized store credit accounts, updates local balance/transactions, returns captured unknown-id userErrors locally, and keeps the original raw mutation for commit replay without runtime Shopify writes.",
+        "HAR-635: stages credit adjustments for StoreCreditAccount, Customer, and CompanyLocation IDs; first owner credit creates a local account, validation returns snake-case Shopify-style userError codes, and original raw mutations are retained for commit replay without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(
@@ -1882,7 +1885,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["storeCreditAccountDebit", "StoreCreditAccountDebit"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-317: stages debit adjustments only for existing normalized store credit accounts, enforces local currency/funds checks, updates downstream balance/transactions, and keeps the original raw mutation for commit replay without runtime Shopify writes.",
+        "HAR-635: stages debit adjustments for StoreCreditAccount, Customer, and CompanyLocation IDs when a local account exists, enforces local currency/amount/limit checks with snake-case Shopify-style userError codes, updates downstream balance/transactions, and keeps the original raw mutation for commit replay without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(
@@ -3582,7 +3585,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["bulkOperationRunQuery", "BulkOperationRunQuery"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-264: stages supported products/productVariants query exports locally, writes completed BulkOperation jobs plus JSONL result records, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, groupObjects, and unsupported nested connection shapes without runtime Shopify passthrough.",
+        "HAR-264: stages supported products/productVariants query exports locally, writes completed BulkOperation jobs plus JSONL result records, retains original raw mutation bodies in the mutation log, and returns local userErrors for unsupported roots, malformed query strings, and unsupported nested connection shapes without runtime Shopify passthrough. HAR-721 accepts explicit true/false and omitted groupObjects arguments without changing local export semantics.",
       ),
     ),
     RegistryEntry(
@@ -4166,7 +4169,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metafieldDefinition", "MetafieldDefinition"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Product-owner definition detail reads are modeled locally from normalized metafield definition state and product-owned metafields.",
+        "Metafield definition detail reads are modeled locally from normalized owner-type-scoped metafield definition state. Definition-backed metafields are currently counted/serialized for product-owned metafields only.",
       ),
     ),
     RegistryEntry(
@@ -4178,7 +4181,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metafieldDefinitions", "MetafieldDefinitions"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Product-owner definition catalogs are modeled locally with owner type, namespace, key, pinned, constraint, query, sort, and pagination filters.",
+        "Metafield definition catalogs are modeled locally across owner types with owner type, namespace, key, pinned, constraint, query, sort, and pagination filters.",
       ),
     ),
     RegistryEntry(
@@ -4205,7 +4208,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metafieldDefinitionCreate", "MetafieldDefinitionCreate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages product-owner metafield definition creation from MetafieldDefinitionInput, including normalized definition state, selected validation/access/capability fields, optional pinning, downstream read visibility, and mutation-log preservation without runtime Shopify writes.",
+        "Locally stages metafield definition creation for Shopify metafield owner types from MetafieldDefinitionInput, including normalized definition state, selected validation/access/capability fields, optional pinning, downstream read visibility, and mutation-log preservation without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(
@@ -4217,7 +4220,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metafieldDefinitionUpdate", "MetafieldDefinitionUpdate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages product-owner metafield definition updates for existing normalized definitions. Type, namespace, key, and owner type remain immutable; selected name, description, validations, access, and capability fields update downstream reads.",
+        "Locally stages metafield definition updates for existing normalized definitions across owner types. Type, namespace, key, and owner type remain immutable; selected name, description, validations, access, and capability fields update downstream reads.",
       ),
     ),
     RegistryEntry(
@@ -4229,7 +4232,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metafieldDefinitionDelete", "MetafieldDefinitionDelete"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages product-owner metafield definition deletion by id or identifier. The local tombstone hides base/staged definitions from downstream reads; deleteAllAssociatedMetafields conservatively removes matching product-owned metafields only.",
+        "Locally stages metafield definition deletion by id or identifier across owner types. The local tombstone hides base/staged definitions from downstream reads; deleteAllAssociatedMetafields conservatively removes matching product-owned metafields only.",
       ),
     ),
     RegistryEntry(
@@ -4436,7 +4439,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metaobjectDefinitionDelete", "MetaobjectDefinitionDelete"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages definition deletion for definitions with no modeled associated entries and hides deleted base/staged definitions from downstream reads. Definitions with associated metaobjects return an explicit local unsupported userError until entry cascade behavior is modeled.",
+        "Locally stages definition deletion and cascades tombstones to every effective metaobject of that definition type so downstream definition, id, handle, and type-catalog reads observe null or empty results.",
       ),
     ),
     RegistryEntry(
@@ -4451,7 +4454,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages captured-safe standard metaobject definition enablement for the bounded local template catalog and returns TEMPLATE_NOT_FOUND for unknown template types without runtime Shopify writes.",
+        "Locally stages standard metaobject definition enablement from the checked-in 2026-04 template catalog and returns RECORD_NOT_FOUND for unknown template types without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(
@@ -4875,7 +4878,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages revocation on existing normalized payment methods by setting revokedAt/revokedReason locally. Revoked rows are hidden from customerPaymentMethod and Customer.paymentMethods unless showRevoked is true, and supported calls do not proxy destructive revocation upstream.",
+        "Stages revocation on existing normalized payment methods by setting revokedAt/revokedReason locally. Local subscription-contract links block revoke with ACTIVE_CONTRACT, already-revoked rows return idempotent success without replacing metadata, revoked rows are hidden from customerPaymentMethod and Customer.paymentMethods unless showRevoked is true, and supported calls do not proxy destructive revocation upstream.",
       ),
     ),
     RegistryEntry(
@@ -5034,7 +5037,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["paymentReminderSend", "PaymentReminderSend"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Stages a local payment reminder intent for PaymentSchedule GIDs and records it in meta state/logs. Runtime support never sends customer email upstream; delivery can only happen later through explicit commit replay of the original raw mutation.",
+        "Stages a local payment reminder intent only for locally known overdue PaymentSchedule GIDs whose schedule is unpaid and whose owner order is open. Runtime support never sends customer email upstream; delivery can only happen later through explicit commit replay of the original raw mutation.",
       ),
     ),
     RegistryEntry(
@@ -5990,7 +5993,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["shippingPackageUpdate", "ShippingPackageUpdate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages normalized custom shipping package name, type, default flag, weight, and dimensions updates for known package IDs. Unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape.",
+        "Locally stages normalized custom shipping package name, type, default flag, weight, and dimensions updates for known non-FLAT_RATE package IDs. Carrier-supplied FLAT_RATE boxes return CUSTOM_SHIPPING_BOX_NOT_UPDATABLE userErrors without staging; unknown IDs return the captured RESOURCE_NOT_FOUND top-level GraphQL error shape.",
       ),
     ),
     RegistryEntry(
@@ -6615,7 +6618,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["draftOrderCalculate", "DraftOrderCalculate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Local support calculates DraftOrderInput into a CalculatedDraftOrder-like payload without staging or runtime Shopify writes. Covered fields share the draft-order pricing model and captured empty availableShippingRates behavior.",
+        "Local support validates covered DraftOrderInput branches and calculates a CalculatedDraftOrder-like payload without staging or runtime Shopify writes. Covered fields share the draft-order pricing model and captured empty availableShippingRates behavior; non-empty delivery-profile-backed rate calculation is not modeled.",
       ),
     ),
     RegistryEntry(

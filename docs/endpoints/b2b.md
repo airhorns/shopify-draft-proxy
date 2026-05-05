@@ -71,9 +71,16 @@ Contacts created from `companyCreate(input.companyContact)` or
 reference so downstream B2B `CompanyContact.customer { id }` reads match
 Shopify's company/customer-contact relationship without broadening customer
 catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
-as that contact reference. `companyRevokeMainContact` clears all local
-`isMainContact` flags and downstream `Company.mainContact` reads return `null`,
-matching the captured Shopify 2026-04 behavior.
+as that contact reference only after resolving the customer from the effective
+local customer registry. It rejects unknown customers, customers without an
+email address, duplicate customer/contact assignments on the same company, and
+companies that have reached the 10,000-contact cap. Main-contact lifecycle
+stores a single `Company.mainContactId` pointer; returned
+`CompanyContact.isMainContact` values are derived from that pointer.
+`companyRevokeMainContact` clears only the company pointer and downstream
+`Company.mainContact` reads return `null`, matching the captured Shopify
+2026-04 behavior. `companyAssignMainContact` returns `INVALID_INPUT` when the
+provided contact belongs to a different company.
 
 Contact create/update inputs are prepared before staging to mirror Shopify's
 B2B contact input handling. Supported local paths normalize valid phone numbers
@@ -88,15 +95,18 @@ normalized phone values return Shopify's captured `TAKEN` user error code with
 the relevant `input.email` or `input.phone` field path.
 `companyAssignCustomerAsContact` currently has only `companyId` and
 `customerId` arguments in the checked-in Admin schema, so the local handler
-defaults the created contact locale but has no phone/email input to normalize or
-deduplicate on that root.
+defaults the created contact locale and derives the contact customer payload
+from the resolved local `Customer` record instead of synthesizing an arbitrary
+customer shape.
 
 HAR-446 captured a fidelity trap in the company-create path: when
 `companyCreate` creates both a main contact and a default company location,
 Shopify automatically assigns that contact the `Ordering only` role for that
 location. The local staged graph now creates the same normalized role
 assignment, rejects attempts to assign a second role to the same contact/location
-pair with Shopify's `LIMIT_REACHED` userError, and resolves nested
+pair with Shopify's current `LIMIT_REACHED` userError for the single-role
+assignment surface,
+and resolves nested
 `CompanyContactRoleAssignment.companyContact` / `.companyLocation` fields from
 the current normalized contact/location records so later contact or location
 updates are reflected in downstream assignment reads. Generic Admin
@@ -105,12 +115,71 @@ updates are reflected in downstream assignment reads. Generic Admin
 `CompanyAddress` IDs from effective company-location billing/shipping address
 payloads.
 
+HAR-620 tightens B2B contact deletion and role-assignment guardrails from the
+Business Customers implementation. Company contacts can carry local associated
+order evidence in their normalized data (`ordersCount`,
+`associatedOrdersCount`, `hasAssociatedOrders`, or an `orders` list). When that
+marker indicates one or more orders, `companyContactDelete` returns
+`FAILED_TO_DELETE` with Shopify's current "Cannot delete a company contact with
+existing orders or draft orders." message and retains the contact. Successful
+deletion continues to remove the contact from the company contact list, so
+downstream `Company.mainContact` reads clear when the deleted contact was the
+main contact.
+Role-assignment mutation roots now reject missing or cross-company locations and
+roles with `RESOURCE_NOT_FOUND` and Shopify's current company-location or
+company-contact-role not-found messages instead of a generic `rolesToAssign`
+error. The 2026-04 `b2b-contact-business-rule-preconditions` capture records the
+duplicate role, foreign/missing role, foreign/missing location, successful main
+contact delete, and completed B2B order-history delete rejection branches as
+strict replayable parity evidence.
+
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`
 shape. The proxy also preserves the earlier flat fields used by local tests for
 compatibility with the staged record data, but `taxSettings` is the
-live-captured 2026-04 readback shape.
+live-captured 2026-04 readback shape. The flat mutation arguments follow
+Shopify's validation boundary: invalid `TaxExemption` variable values are
+rejected as top-level GraphQL `INVALID_VARIABLE` errors before the local
+resolver runs, an update with no tax settings knob returns `NO_INPUT` at
+`companyLocationId`, and explicit `taxExempt: null` returns `INVALID_INPUT` at
+`taxExempt`.
+
+Company location create/update input validation enforces HAR-612's
+`billingSameAsShipping` and `billingAddress` guardrails before local staging:
+`billingSameAsShipping: true` rejects a non-empty explicit `billingAddress`,
+`billingSameAsShipping: false` rejects a missing or blank `billingAddress`, and
+explicit `taxExempt: null` rejects with `INVALID_INPUT`. `companyCreate`
+applies the same checks to its nested `companyLocation` input. The 2026-04
+`b2b-billing-same-as-shipping-validation` capture gives strict executable
+evidence for the live-reproduced payload userErrors: explicit billing while
+`billingSameAsShipping` is true, and `taxExempt: null`, on `companyCreate` and
+`companyLocationCreate`. That capture also records public-schema boundaries:
+the active live target accepts the `billingSameAsShipping: false` / no billing
+create branch, and does not expose these location fields on
+`CompanyLocationUpdateInput`; those ticket-required guardrails are therefore
+runtime-test-backed instead of parity-compared.
+
+HAR-623 tightens B2B location/address lifecycle behavior. `companyLocationCreate`
+now derives an omitted or blank location name from
+`input.shippingAddress.address1` before falling back to the company name.
+`companyLocationAssignAddress` rejects duplicate `addressTypes` entries before
+staging an address, matching the captured `INVALID_INPUT` branch with a null
+error field and `addresses: null`. `companyAddressDelete` detaches a deleted
+address from every billing/shipping side that currently references it and clears
+the local `billingSameAsShipping` flag when the deleted address was the shared
+anchor. `companyLocationDelete` also removes contact role assignments that point
+at the deleted location, so downstream `CompanyContact.roleAssignments` reads no
+longer expose assignments to a missing location.
+
+The HAR-623 2026-04 capture records one public Admin API wrinkle:
+`billingSameAsShipping: true` with a shipping address returns separate public
+`billingAddress` and `shippingAddress` IDs, and `billingSameAsShipping` itself is
+not selectable on `CompanyLocation` in that schema. The local runtime still
+models the shared same-as-shipping anchor as a single address ID so the internal
+flag invariant can be tested directly; the parity spec documents the public
+readback difference for that single captured path while the focused runtime test
+covers the local shared-anchor cascade.
 
 `companyContactSendWelcomeEmail` remains unsupported. It is an outbound side
 effect rather than durable B2B state, so runtime passthrough remains the
@@ -155,6 +224,14 @@ conformance-backed local modeling.
   `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
 - Contact/location assignment and tax settings parity scenario:
   `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json`
+- Contact business-rule preconditions capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-contact-business-rule-preconditions.json`
+- Contact business-rule preconditions parity scenario:
+  `config/parity-specs/b2b/b2b-contact-business-rule-preconditions.json`
+- Location/address management capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
+- Location/address management parity scenario:
+  `config/parity-specs/b2b/b2b-location-address-management.json`
 - Lifecycle runtime coverage:
 - Root inventory:
   `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
@@ -204,3 +281,17 @@ company notes/contact titles, accepted a 300-character contact title, and
 reported only `TOO_LONG` for HTML-plus-too-long notes. Those internal-source
 HTML/title branches remain covered by runtime tests rather than a misleading
 parity spec.
+
+HAR-608 adds local `externalId` guardrails for company and company-location
+create/update mutations. The proxy enforces Shopify's 64-character maximum,
+rejects characters outside the captured `ExternalIdValidator` allow-list with
+`INVALID`, and checks staged per-shop uniqueness before writing local B2B state.
+The public Admin API's `BusinessCustomerUserError` exposes `field`, `message`,
+and `code`; internal validator detail remains covered by runtime tests when
+selected locally. The 2026-04 live capture for
+`b2b-external-id-validation` shows duplicate company and company-location
+external IDs returning Shopify's observable `TAKEN` code, so the proxy emits
+`TAKEN` for normal duplicate externalId validation rather than the lower-level
+DB-conflict enum names. Update mutations use the same checks while allowing the
+current record to retain its own unchanged external ID. Executable parity specs
+cover charset, too-long, duplicate-company, and duplicate-location branches.

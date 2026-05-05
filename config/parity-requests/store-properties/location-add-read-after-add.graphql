@@ -1,0 +1,14 @@
+#graphql
+query LocationAddRead($id: ID!) {
+  location(id: $id) {
+    id
+    name
+    fulfillsOnlineOrders
+    address {
+      address1
+      city
+      countryCode
+      zip
+    }
+  }
+}

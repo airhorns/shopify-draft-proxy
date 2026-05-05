@@ -412,6 +412,7 @@ pub type ShippingPackageRecord {
     id: String,
     name: Option(String),
     type_: Option(String),
+    box_type: Option(String),
     default: Bool,
     weight: Option(ShippingPackageWeightRecord),
     dimensions: Option(ShippingPackageDimensionsRecord),
@@ -560,6 +561,11 @@ pub type ProductRecord {
     vendor: Option(String),
     product_type: Option(String),
     tags: List(String),
+    price_range_min: Option(String),
+    price_range_max: Option(String),
+    total_variants: Option(Int),
+    has_only_default_variant: Option(Bool),
+    has_out_of_stock_variants: Option(Bool),
     total_inventory: Option(Int),
     tracks_inventory: Option(Bool),
     created_at: Option(String),
@@ -636,6 +642,10 @@ pub type MarketLocalizationRecord {
   )
 }
 
+pub type MarketLocalizableContentRecord {
+  MarketLocalizableContentRecord(key: String, value: String, digest: String)
+}
+
 // ---------------------------------------------------------------------------
 // Metafields domain
 // ---------------------------------------------------------------------------
@@ -653,6 +663,7 @@ pub type ProductMetafieldRecord {
     created_at: Option(String),
     updated_at: Option(String),
     owner_type: Option(String),
+    market_localizable_content: List(MarketLocalizableContentRecord),
   )
 }
 
@@ -864,6 +875,7 @@ pub type ShopPolicyRecord {
     url: String,
     created_at: String,
     updated_at: String,
+    migrated_to_html: Bool,
   )
 }
 
@@ -929,6 +941,7 @@ pub type B2BCompanyRecord {
     id: String,
     cursor: Option(String),
     data: Dict(String, StorePropertyValue),
+    main_contact_id: Option(String),
     contact_ids: List(String),
     location_ids: List(String),
     contact_role_ids: List(String),
@@ -1380,6 +1393,21 @@ pub type MarketingEngagementRecord {
 /// Mirrors `ValidationRecord`. `enable`/`blockOnFailure` are nullable
 /// in TS so the same handler can model partial upstream payloads;
 /// here they're `Option(Bool)`.
+pub type ValidationMetafieldRecord {
+  ValidationMetafieldRecord(
+    id: String,
+    validation_id: String,
+    namespace: String,
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    compare_digest: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    owner_type: Option(String),
+  )
+}
+
 pub type ValidationRecord {
   ValidationRecord(
     id: String,
@@ -1389,6 +1417,7 @@ pub type ValidationRecord {
     function_id: Option(String),
     function_handle: Option(String),
     shopify_function_id: Option(String),
+    metafields: List(ValidationMetafieldRecord),
     created_at: Option(String),
     updated_at: Option(String),
   )
@@ -1460,6 +1489,7 @@ pub type GiftCardRecord {
     legacy_resource_id: String,
     last_characters: String,
     masked_code: String,
+    code: Option(String),
     enabled: Bool,
     notify: Bool,
     deactivated_at: Option(String),
@@ -1598,6 +1628,7 @@ pub type CustomerRecord {
     email_marketing_consent: Option(CustomerEmailMarketingConsentRecord),
     sms_marketing_consent: Option(CustomerSmsMarketingConsentRecord),
     default_address: Option(CustomerDefaultAddressRecord),
+    account_activation_token: Option(String),
     created_at: Option(String),
     updated_at: Option(String),
   )

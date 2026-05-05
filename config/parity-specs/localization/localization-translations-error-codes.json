@@ -1,0 +1,67 @@
+{
+  "scenarioId": "localization-translations-error-codes",
+  "operationNames": ["translationsRegister", "translationsRemove"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-branch-parity", "empty-state-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-error-codes.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-translations-error-codes-read.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.setupRead.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "translations-register-empty-list",
+        "capturePath": "$.emptyRegister.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.emptyRegister.variables"
+        }
+      },
+      {
+        "name": "translations-register-blank-value",
+        "capturePath": "$.blankValue.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.blankValue.variables"
+        }
+      },
+      {
+        "name": "translations-register-too-many-keys",
+        "capturePath": "$.tooManyKeys.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.tooManyKeys.variables"
+        }
+      },
+      {
+        "name": "translations-remove-empty-locales",
+        "capturePath": "$.removeEmptyLocales.response.data.translationsRemove",
+        "proxyPath": "$.data.translationsRemove",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-remove.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.removeEmptyLocales.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-710 live Admin GraphQL 2026-04 capture creates one disposable product, ensures the French shop locale is enabled, captures translationsRegister empty-list, blank-value, over-100-key, and translationsRemove empty-locales behavior, then deletes the product and restores the locale only when the script enabled it."
+}

@@ -17,7 +17,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, single_root_log_draft,
+  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
+  MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
@@ -34,14 +35,6 @@ pub type PrivacyError {
 
 type UserError {
   UserError(field: List(String), message: String, code: Option(String))
-}
-
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
-  )
 }
 
 pub fn is_privacy_mutation_root(name: String) -> Bool {
@@ -133,7 +126,7 @@ fn handle_data_sale_opt_out(
   let email =
     graphql_helpers.field_args(field, variables)
     |> graphql_helpers.read_arg_string_nonempty("email")
-    |> option_map(string.trim)
+    |> option_map(sanitize_data_sale_email)
   case email {
     Some(value) -> {
       case is_valid_data_sale_email(value) {
@@ -230,7 +223,7 @@ fn opt_out_new_customer(
       display_name: Some(email),
       email: Some(email),
       legacy_resource_id: gid_tail(id),
-      locale: None,
+      locale: Some("en"),
       note: None,
       can_delete: Some(True),
       verified_email: Some(True),
@@ -238,7 +231,7 @@ fn opt_out_new_customer(
       tax_exempt: Some(False),
       tax_exemptions: [],
       state: Some("DISABLED"),
-      tags: [],
+      tags: ["created-by-dns-form"],
       number_of_orders: Some("0"),
       amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
       default_email_address: Some(CustomerDefaultEmailAddressRecord(
@@ -251,6 +244,7 @@ fn opt_out_new_customer(
       email_marketing_consent: None,
       sms_marketing_consent: None,
       default_address: None,
+      account_activation_token: None,
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
     )
@@ -326,7 +320,11 @@ fn fetch_upstream_customer_by_email(
   customerByIdentifier(identifier: $identifier) {
     id
     email
+    locale
+    verifiedEmail
     dataSaleOptOut
+    state
+    tags
     defaultEmailAddress { emailAddress }
   }
 }
@@ -384,18 +382,18 @@ fn customer_record_from_upstream_node(
         display_name: Some(email),
         email: Some(email),
         legacy_resource_id: gid_tail(id),
-        locale: None,
+        locale: json_get_string(node, "locale"),
         note: None,
         can_delete: Some(True),
-        verified_email: Some(True),
+        verified_email: json_get_bool(node, "verifiedEmail"),
         data_sale_opt_out: option.unwrap(
           json_get_bool(node, "dataSaleOptOut"),
           False,
         ),
         tax_exempt: Some(False),
         tax_exemptions: [],
-        state: Some("DISABLED"),
-        tags: [],
+        state: json_get_string(node, "state") |> option.or(Some("DISABLED")),
+        tags: json_get_string_list(node, "tags"),
         number_of_orders: Some("0"),
         amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
         default_email_address: Some(CustomerDefaultEmailAddressRecord(
@@ -408,6 +406,7 @@ fn customer_record_from_upstream_node(
         email_marketing_consent: None,
         sms_marketing_consent: None,
         default_address: None,
+        account_activation_token: None,
         created_at: None,
         updated_at: None,
       ))
@@ -416,21 +415,95 @@ fn customer_record_from_upstream_node(
 }
 
 fn is_valid_data_sale_email(email: String) -> Bool {
-  let trimmed = string.trim(email)
-  case trimmed == email && !string.contains(trimmed, " ") {
+  case string.split(email, "@") {
+    [local, domain] ->
+      // Approximation of Shopify's upstream
+      // `EmailAddressValidator::EmailAddress#pattern_is_valid?`, after
+      // `CustomerFoundations::EmailAddress.try_new` strips whitespace:
+      // /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
+      local != ""
+      && local_matches_data_sale_email_pattern(local)
+      && domain_matches_data_sale_email_pattern(domain)
+    _ -> False
+  }
+}
+
+fn sanitize_data_sale_email(email: String) -> String {
+  email
+  |> string.to_graphemes
+  |> list.filter(fn(grapheme) {
+    !is_data_sale_email_removed_whitespace(grapheme)
+  })
+  |> string.concat
+}
+
+fn is_data_sale_email_removed_whitespace(grapheme: String) -> Bool {
+  // Live Admin 2025-01 captures show spaces and newlines are stripped before
+  // validation, while tabs still produce Shopify's FAILED userError. Keep this
+  // intentionally narrower than generic `string.trim`.
+  grapheme == " " || grapheme == "\n" || grapheme == "\r"
+}
+
+fn local_matches_data_sale_email_pattern(local: String) -> Bool {
+  local
+  |> string.to_utf_codepoints
+  |> list.all(is_data_sale_email_local_codepoint)
+}
+
+fn domain_matches_data_sale_email_pattern(domain: String) -> Bool {
+  let parts = string.split(domain, ".")
+  list.length(parts) >= 2 && list.all(parts, is_valid_data_sale_domain_label)
+}
+
+fn is_valid_data_sale_domain_label(label: String) -> Bool {
+  case string.length(label) <= 63 {
     False -> False
     True ->
-      case string.split(trimmed, "@") {
-        [local, domain] ->
-          local != "" && domain_has_dot_with_nonempty_parts(domain)
-        _ -> False
+      case string.to_utf_codepoints(label) {
+        [] -> False
+        [first] -> is_ascii_alphanumeric_codepoint(first)
+        [first, ..rest] ->
+          case list.last(rest) {
+            Ok(last) ->
+              is_ascii_alphanumeric_codepoint(first)
+              && is_ascii_alphanumeric_codepoint(last)
+              && list.all(rest, is_data_sale_email_domain_codepoint)
+            Error(_) -> False
+          }
       }
   }
 }
 
-fn domain_has_dot_with_nonempty_parts(domain: String) -> Bool {
-  let parts = string.split(domain, ".")
-  list.length(parts) >= 2 && list.all(parts, fn(part) { part != "" })
+fn is_data_sale_email_local_codepoint(codepoint) -> Bool {
+  let code = string.utf_codepoint_to_int(codepoint)
+  is_ascii_alphanumeric(code)
+  || list.contains(
+    [
+      33, 35, 36, 37, 38, 39, 42, 43, 45, 46, 47, 61, 63, 94, 95, 96, 123, 124,
+      125, 126,
+    ],
+    code,
+  )
+}
+
+fn is_data_sale_email_domain_codepoint(codepoint) -> Bool {
+  let code = string.utf_codepoint_to_int(codepoint)
+  is_ascii_alphanumeric(code) || code == 45
+}
+
+fn is_ascii_alphanumeric_codepoint(codepoint) -> Bool {
+  codepoint
+  |> string.utf_codepoint_to_int
+  |> is_ascii_alphanumeric
+}
+
+fn is_ascii_alphanumeric(codepoint: Int) -> Bool {
+  codepoint >= 48
+  && codepoint <= 57
+  || codepoint >= 65
+  && codepoint <= 90
+  || codepoint >= 97
+  && codepoint <= 122
 }
 
 fn gid_tail(id: String) -> Option(String) {
@@ -451,6 +524,19 @@ fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
   case json_get(value, key) {
     Some(commit.JsonBool(b)) -> Some(b)
     _ -> None
+  }
+}
+
+fn json_get_string_list(value: commit.JsonValue, key: String) -> List(String) {
+  case json_get(value, key) {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          commit.JsonString(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
   }
 }
 

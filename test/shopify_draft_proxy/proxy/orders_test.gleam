@@ -480,6 +480,11 @@ pub fn orders_order_edit_add_variant_payload_test() {
         vendor: None,
         product_type: None,
         tags: [],
+        price_range_min: None,
+        price_range_max: None,
+        total_variants: None,
+        has_only_default_variant: None,
+        has_out_of_stock_variants: None,
         total_inventory: None,
         tracks_inventory: None,
         created_at: None,
@@ -6282,6 +6287,135 @@ pub fn orders_order_open_close_read_after_write_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":false,\"closedAt\":null}}}"
 }
 
+pub fn order_close_noops_when_order_already_closed_test() {
+  let order_id = "gid://shopify/Order/6830646198505"
+  let closed_at = "2024-04-01T12:00:00.000Z"
+  let updated_at = "2024-04-01T12:05:00.000Z"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("closed", types.CapturedBool(True)),
+          #("closedAt", types.CapturedString(closed_at)),
+          #("updatedAt", types.CapturedString(updated_at)),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation {
+      orderClose(input: { id: \"gid://shopify/Order/6830646198505\" }) {
+        order {
+          id
+          closed
+          closedAt
+          updatedAt
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderClose\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":true,\"closedAt\":\"2024-04-01T12:00:00.000Z\",\"updatedAt\":\"2024-04-01T12:05:00.000Z\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+
+  let identity_state = synthetic_identity.dump_state(outcome.identity)
+  assert identity_state.next_synthetic_timestamp == "2024-01-01T00:00:00.000Z"
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/6830646198505\") {
+        id
+        closed
+        closedAt
+        updatedAt
+      }
+    }
+  "
+  let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":true,\"closedAt\":\"2024-04-01T12:00:00.000Z\",\"updatedAt\":\"2024-04-01T12:05:00.000Z\"}}}"
+}
+
+pub fn order_open_noops_when_order_already_open_test() {
+  let order_id = "gid://shopify/Order/6830646198505"
+  let updated_at = "2024-04-01T12:05:00.000Z"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("closed", types.CapturedBool(False)),
+          #("closedAt", types.CapturedNull),
+          #("updatedAt", types.CapturedString(updated_at)),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation {
+      orderOpen(input: { id: \"gid://shopify/Order/6830646198505\" }) {
+        order {
+          id
+          closed
+          closedAt
+          updatedAt
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderOpen\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":false,\"closedAt\":null,\"updatedAt\":\"2024-04-01T12:05:00.000Z\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+
+  let identity_state = synthetic_identity.dump_state(outcome.identity)
+  assert identity_state.next_synthetic_timestamp == "2024-01-01T00:00:00.000Z"
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/6830646198505\") {
+        id
+        closed
+        closedAt
+        updatedAt
+      }
+    }
+  "
+  let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":false,\"closedAt\":null,\"updatedAt\":\"2024-04-01T12:05:00.000Z\"}}}"
+}
+
 pub fn orders_order_cancel_read_after_write_test() {
   let order_id = "gid://shopify/Order/6830646329577"
   let seeded =
@@ -6709,6 +6843,242 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
   let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
   assert json.to_string(read)
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]}}}"
+}
+
+pub fn orders_order_mark_as_paid_invalid_states_do_not_stage_test() {
+  let cases = [
+    #("PAID", "Order cannot be marked as paid."),
+    #("REFUNDED", "Order cannot be marked as paid."),
+    #("PARTIALLY_REFUNDED", "Order cannot be marked as paid."),
+    #("VOIDED", "Order cannot be marked as paid."),
+  ]
+  list.each(cases, fn(item) {
+    let #(status, message) = item
+    let order_id = "gid://shopify/Order/mark-as-paid-" <> status
+    let seeded =
+      store.new()
+      |> store.upsert_base_orders([
+        mark_as_paid_order_record(
+          order_id,
+          status,
+          types.CapturedNull,
+          "19.0",
+          "CAD",
+          None,
+        ),
+      ])
+    let outcome =
+      orders.process_mutation(
+        seeded,
+        synthetic_identity.new(),
+        "/admin/api/2026-04/graphql.json",
+        mark_as_paid_validation_mutation(),
+        mark_as_paid_variables(order_id),
+        empty_upstream_context(),
+      )
+    assert json.to_string(outcome.data)
+      == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\""
+      <> order_id
+      <> "\",\"displayFinancialStatus\":\""
+      <> status
+      <> "\",\"paymentGatewayNames\":[\"previous\"],\"transactions\":[]},\"userErrors\":[{\"field\":[\"id\"],\"message\":\""
+      <> message
+      <> "\",\"code\":\"INVALID\"}]}}}"
+    assert outcome.staged_resource_ids == []
+    assert outcome.log_drafts == []
+  })
+}
+
+pub fn orders_order_mark_as_paid_cancelled_order_does_not_stage_test() {
+  let order_id = "gid://shopify/Order/mark-as-paid-cancelled"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      mark_as_paid_order_record(
+        order_id,
+        "PENDING",
+        types.CapturedString("2024-01-02T00:00:00.000Z"),
+        "19.0",
+        "CAD",
+        None,
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mark_as_paid_validation_mutation(),
+      mark_as_paid_variables(order_id),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/mark-as-paid-cancelled\",\"displayFinancialStatus\":\"PENDING\",\"paymentGatewayNames\":[\"previous\"],\"transactions\":[]},\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Order is cancelled and cannot be marked paid\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn orders_order_mark_as_paid_multi_currency_uses_presentment_currency_test() {
+  let order_id = "gid://shopify/Order/mark-as-paid-multi-currency"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      mark_as_paid_order_record(
+        order_id,
+        "PENDING",
+        types.CapturedNull,
+        "12.5",
+        "USD",
+        Some("CAD"),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mark_as_paid_money_bag_mutation(),
+      mark_as_paid_variables(order_id),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/mark-as-paid-multi-currency\",\"presentmentCurrencyCode\":\"CAD\",\"displayFinancialStatus\":\"PAID\",\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"amountSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [order_id]
+  assert list.length(outcome.log_drafts) == 1
+}
+
+fn mark_as_paid_order_record(
+  order_id: String,
+  display_financial_status: String,
+  cancelled_at: types.CapturedJsonValue,
+  amount: String,
+  currency_code: String,
+  presentment_currency_code: Option(String),
+) -> types.OrderRecord {
+  let presentment_fields = case presentment_currency_code {
+    Some(value) -> [#("presentmentCurrencyCode", types.CapturedString(value))]
+    None -> []
+  }
+  types.OrderRecord(
+    id: order_id,
+    cursor: None,
+    data: types.CapturedObject(list.append(
+      [
+        #("id", types.CapturedString(order_id)),
+        #(
+          "displayFinancialStatus",
+          types.CapturedString(display_financial_status),
+        ),
+        #("cancelledAt", cancelled_at),
+        #(
+          "paymentGatewayNames",
+          types.CapturedArray([types.CapturedString("previous")]),
+        ),
+        #(
+          "totalOutstandingSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString(amount)),
+                #("currencyCode", types.CapturedString(currency_code)),
+              ]),
+            ),
+          ]),
+        ),
+        #(
+          "currentTotalPriceSet",
+          types.CapturedObject([
+            #(
+              "shopMoney",
+              types.CapturedObject([
+                #("amount", types.CapturedString(amount)),
+                #("currencyCode", types.CapturedString(currency_code)),
+              ]),
+            ),
+          ]),
+        ),
+        #("transactions", types.CapturedArray([])),
+      ],
+      presentment_fields,
+    )),
+  )
+}
+
+fn mark_as_paid_variables(
+  order_id: String,
+) -> Dict(String, root_field.ResolvedValue) {
+  dict.from_list([
+    #(
+      "input",
+      root_field.ObjectVal(
+        dict.from_list([#("id", root_field.StringVal(order_id))]),
+      ),
+    ),
+  ])
+}
+
+fn mark_as_paid_validation_mutation() -> String {
+  "
+    mutation OrderMarkAsPaidValidation($input: OrderMarkAsPaidInput!) {
+      orderMarkAsPaid(input: $input) {
+        order {
+          id
+          displayFinancialStatus
+          paymentGatewayNames
+          transactions {
+            kind
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+fn mark_as_paid_money_bag_mutation() -> String {
+  "
+    mutation OrderMarkAsPaidMoneyBag($input: OrderMarkAsPaidInput!) {
+      orderMarkAsPaid(input: $input) {
+        order {
+          id
+          presentmentCurrencyCode
+          displayFinancialStatus
+          totalOutstandingSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          transactions {
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+              presentmentMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
 }
 
 pub fn orders_order_edit_missing_id_validation_guardrails_test() {
@@ -7913,4 +8283,51 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       dict.new(),
     )
   assert json.to_string(after_delete_read) == "{\"data\":{\"draftOrder\":null}}"
+}
+
+pub fn orders_draft_order_calculate_validation_and_shipping_rates_test() {
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "
+      mutation {
+        emptyLineItems: draftOrderCalculate(input: { lineItems: [] }) {
+          calculatedDraftOrder { currencyCode }
+          userErrors { field message }
+        }
+        invalidEmail: draftOrderCalculate(input: {
+          email: \"bad email\"
+          lineItems: [{ title: \"Bad email\", quantity: 1, originalUnitPrice: \"1.00\" }]
+        }) {
+          calculatedDraftOrder { currencyCode }
+          userErrors { field message }
+        }
+        availableShippingRatesEmpty: draftOrderCalculate(input: {
+          lineItems: [{ title: \"Needs shipping\", quantity: 1, originalUnitPrice: \"1.00\" }]
+        }) {
+          calculatedDraftOrder {
+            availableShippingRates { handle title }
+          }
+          userErrors { field message }
+        }
+        paymentTermsTemplateId: draftOrderCalculate(input: {
+          lineItems: [{ title: \"Payment terms\", quantity: 1, originalUnitPrice: \"1.00\" }]
+          paymentTerms: {
+            paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/4\"
+            paymentSchedules: [{ issuedAt: \"2026-01-01T00:00:00Z\" }]
+          }
+        }) {
+          calculatedDraftOrder { currencyCode }
+          userErrors { field message }
+        }
+      }
+    ",
+      dict.new(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"emptyLineItems\":{\"calculatedDraftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\"}]},\"invalidEmail\":{\"calculatedDraftOrder\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is invalid\"}]},\"availableShippingRatesEmpty\":{\"calculatedDraftOrder\":{\"availableShippingRates\":[]},\"userErrors\":[]},\"paymentTermsTemplateId\":{\"calculatedDraftOrder\":{\"currencyCode\":\"CAD\"},\"userErrors\":[]}}}"
 }

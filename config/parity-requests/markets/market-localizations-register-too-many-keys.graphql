@@ -1,0 +1,24 @@
+#graphql
+mutation MarketLocalizationsRegisterTooManyKeys(
+  $resourceId: ID!
+  $marketLocalizations: [MarketLocalizationRegisterInput!]!
+) {
+  marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {
+    marketLocalizations {
+      key
+      value
+      updatedAt
+      outdated
+      market {
+        id
+        name
+      }
+    }
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

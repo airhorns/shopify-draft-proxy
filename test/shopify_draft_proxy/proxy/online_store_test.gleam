@@ -1,16 +1,46 @@
 import gleam/dict
 import gleam/json
 import gleam/list
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{
-  type DraftProxy, type Request, Request, Response,
+  type DraftProxy, type Request, DraftProxy, Request, Response,
 }
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/types.{
+  AccessScopeRecord, AppInstallationRecord, AppRecord,
+}
+
+const comment_id: String = "gid://shopify/Comment/har-587"
 
 fn proxy() -> DraftProxy {
   draft_proxy.new()
   |> draft_proxy.with_default_registry()
+}
+
+fn proxy_with_comment(status: String) -> DraftProxy {
+  let proxy = proxy()
+  let comment =
+    types.OnlineStoreContentRecord(
+      id: comment_id,
+      kind: "comment",
+      cursor: None,
+      parent_id: Some("gid://shopify/Article/har-587"),
+      created_at: Some("2026-05-05T00:00:00.000Z"),
+      updated_at: Some("2026-05-05T00:00:00.000Z"),
+      data: types.CapturedObject([
+        #("__typename", types.CapturedString("Comment")),
+        #("id", types.CapturedString(comment_id)),
+        #("status", types.CapturedString(status)),
+        #("isPublished", types.CapturedBool(status == "PUBLISHED")),
+        #("body", types.CapturedString("HAR-587 moderation fixture")),
+        #("bodyHtml", types.CapturedString("<p>HAR-587 moderation fixture</p>")),
+      ]),
+    )
+  let seeded_store =
+    store.upsert_base_online_store_content(proxy.store, [comment])
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
 fn graphql_request(query: String) -> Request {
@@ -39,11 +69,227 @@ fn run_graphql(proxy: DraftProxy, query: String) -> #(String, DraftProxy) {
   #(json.to_string(body), proxy)
 }
 
+pub fn comment_moderation_uses_core_status_enum_values_test() {
+  let #(approved, proxy) =
+    run_graphql(
+      proxy_with_comment("UNAPPROVED"),
+      "mutation { commentApprove(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } }",
+    )
+  assert approved
+    == "{\"data\":{\"commentApprove\":{\"comment\":{\"id\":\"gid://shopify/Comment/har-587\",\"status\":\"PUBLISHED\"},\"userErrors\":[]}}}"
+
+  let #(spam, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { commentSpam(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } }",
+    )
+  assert spam
+    == "{\"data\":{\"commentSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/har-587\",\"status\":\"SPAM\"},\"userErrors\":[]}}}"
+
+  let #(not_spam, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { commentNotSpam(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } }",
+    )
+  assert not_spam
+    == "{\"data\":{\"commentNotSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/har-587\",\"status\":\"UNAPPROVED\"},\"userErrors\":[]}}}"
+
+  let #(deleted, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { commentDelete(id: \""
+        <> comment_id
+        <> "\") { deletedCommentId userErrors { field message code } } }",
+    )
+  assert deleted
+    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/har-587\",\"userErrors\":[]}}}"
+
+  let #(read_after_delete, _) =
+    run_graphql(
+      proxy,
+      "query { comment(id: \"" <> comment_id <> "\") { id status } }",
+    )
+  assert read_after_delete
+    == "{\"data\":{\"comment\":{\"id\":\"gid://shopify/Comment/har-587\",\"status\":\"REMOVED\"}}}"
+}
+
+pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test() {
+  let #(body, _) =
+    run_graphql(
+      proxy_with_comment("REMOVED"),
+      "mutation { approve: commentApprove(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } spam: commentSpam(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } delete: commentDelete(id: \""
+        <> comment_id
+        <> "\") { deletedCommentId userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"approve\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"spam\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"delete\":{\"deletedCommentId\":\"gid://shopify/Comment/har-587\",\"userErrors\":[]}}}"
+}
+
 fn read_state(proxy: DraftProxy) -> String {
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(proxy, meta_state_request())
   assert status == 200
   json.to_string(body)
+}
+
+fn storefront_token_shape(token: String) -> Bool {
+  string.starts_with(token, "shpat_")
+  && string.length(token) == 22
+  && {
+    string.drop_start(token, 6)
+    |> string.to_graphemes
+    |> list.all(is_hex_character)
+  }
+}
+
+fn is_hex_character(char: String) -> Bool {
+  case char {
+    "0"
+    | "1"
+    | "2"
+    | "3"
+    | "4"
+    | "5"
+    | "6"
+    | "7"
+    | "8"
+    | "9"
+    | "a"
+    | "b"
+    | "c"
+    | "d"
+    | "e"
+    | "f" -> True
+    _ -> False
+  }
+}
+
+fn create_storefront_token_loop(
+  proxy: DraftProxy,
+  remaining: Int,
+) -> DraftProxy {
+  case remaining <= 0 {
+    True -> proxy
+    False -> {
+      let query =
+        "mutation { storefrontAccessTokenCreate(input: { title: \"Hydrogen\" }) { storefrontAccessToken { id } userErrors { code field message } } }"
+      let #(_, proxy) = run_graphql(proxy, query)
+      create_storefront_token_loop(proxy, remaining - 1)
+    }
+  }
+}
+
+fn proxy_with_current_app_scopes(scopes: List(String)) -> DraftProxy {
+  let app =
+    AppRecord(
+      id: "gid://shopify/App/1",
+      api_key: Some("local-app"),
+      handle: Some("local-app"),
+      title: Some("Local app"),
+      developer_name: Some("test-dev"),
+      embedded: Some(True),
+      previously_installed: Some(False),
+      requested_access_scopes: [],
+    )
+  let installation =
+    AppInstallationRecord(
+      id: "gid://shopify/AppInstallation/1",
+      app_id: app.id,
+      launch_url: None,
+      uninstall_url: None,
+      access_scopes: list.map(scopes, fn(handle) {
+        AccessScopeRecord(handle: handle, description: None)
+      }),
+      active_subscription_ids: [],
+      all_subscription_ids: [],
+      one_time_purchase_ids: [],
+      uninstalled_at: None,
+    )
+  let seeded_store =
+    store.upsert_base_app_installation(store.new(), installation, app)
+  DraftProxy(..proxy(), store: seeded_store)
+}
+
+pub fn storefront_access_token_create_returns_unique_token_scopes_and_shop_test() {
+  let query =
+    "mutation { storefrontAccessTokenCreate(input: { title: \"Hydrogen\" }) { storefrontAccessToken { id title accessToken accessScopes { handle } } shop { id } userErrors { code field message } } }"
+  let #(first, proxy) = run_graphql(proxy(), query)
+  assert first
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":{\"id\":\"gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic\",\"title\":\"Hydrogen\",\"accessToken\":\"shpat_bcc6fd83f41123b4\",\"accessScopes\":[{\"handle\":\"unauthenticated_read_product_listings\"},{\"handle\":\"unauthenticated_read_product_inventory\"}]},\"shop\":{\"id\":\"gid://shopify/Shop/92891250994\"},\"userErrors\":[]}}}"
+  assert storefront_token_shape("shpat_bcc6fd83f41123b4")
+
+  let #(second, _) = run_graphql(proxy, query)
+  assert second
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":{\"id\":\"gid://shopify/StorefrontAccessToken/3?shopify-draft-proxy=synthetic\",\"title\":\"Hydrogen\",\"accessToken\":\"shpat_43199f7763e24d2f\",\"accessScopes\":[{\"handle\":\"unauthenticated_read_product_listings\"},{\"handle\":\"unauthenticated_read_product_inventory\"}]},\"shop\":{\"id\":\"gid://shopify/Shop/92891250994\"},\"userErrors\":[]}}}"
+  assert first != second
+}
+
+pub fn storefront_access_token_create_filters_current_app_storefront_scopes_test() {
+  let seeded_proxy =
+    proxy_with_current_app_scopes([
+      "read_products",
+      "unauthenticated_read_customers",
+      "unauthenticated_read_product_inventory",
+      "write_orders",
+    ])
+  let query =
+    "mutation { storefrontAccessTokenCreate(input: { title: \"Hydrogen\" }) { storefrontAccessToken { accessScopes { handle } } userErrors { code field message } } }"
+  let #(body, _) = run_graphql(seeded_proxy, query)
+  assert body
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":{\"accessScopes\":[{\"handle\":\"unauthenticated_read_customers\"},{\"handle\":\"unauthenticated_read_product_inventory\"}]},\"userErrors\":[]}}}"
+}
+
+pub fn storefront_access_token_create_blank_title_returns_blank_user_error_test() {
+  let query =
+    "mutation { storefrontAccessTokenCreate(input: { title: \"   \" }) { storefrontAccessToken { id } shop { id } userErrors { code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":null,\"shop\":{\"id\":\"gid://shopify/Shop/92891250994\"},\"userErrors\":[{\"code\":\"BLANK\",\"field\":[\"input\",\"title\"],\"message\":\"Title can't be blank\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "storefrontAccessToken",
+    )
+    |> list.length
+    == 0
+  let assert [log] = store.get_log(proxy.store)
+  assert log.status == store.Failed
+  assert log.staged_resource_ids == []
+}
+
+pub fn storefront_access_token_create_reaches_limit_at_100_tokens_test() {
+  let proxy = create_storefront_token_loop(proxy(), 100)
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "storefrontAccessToken",
+    )
+    |> list.length
+    == 100
+
+  let query =
+    "mutation { storefrontAccessTokenCreate(input: { title: \"One too many\" }) { storefrontAccessToken { id } userErrors { code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"storefrontAccessTokenCreate\":{\"storefrontAccessToken\":null,\"userErrors\":[{\"code\":\"REACHED_LIMIT\",\"field\":[\"input\"],\"message\":\"apps.admin.graph_api_errors.storefront_access_token_create.reached_limit\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "storefrontAccessToken",
+    )
+    |> list.length
+    == 100
 }
 
 pub fn web_pixel_duplicate_create_returns_taken_error_test() {
@@ -56,6 +302,72 @@ pub fn web_pixel_duplicate_create_returns_taken_error_test() {
   let #(second, _) = run_graphql(proxy, query)
   assert second
     == "{\"data\":{\"webPixelCreate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"TAKEN\",\"field\":null,\"message\":\"Web pixel is taken.\"}]}}}"
+}
+
+pub fn script_tag_create_validates_src_without_staging_test() {
+  let too_long_src = "https://example.test/" <> string.repeat("a", times: 260)
+  let query =
+    "mutation { missing: scriptTagCreate(input: {}) { scriptTag { id } userErrors { __typename code field message } } blank: scriptTagCreate(input: { src: \"   \" }) { scriptTag { id } userErrors { __typename code field message } } invalid: scriptTagCreate(input: { src: \"not-a-url\" }) { scriptTag { id } userErrors { __typename code field message } } tooLong: scriptTagCreate(input: { src: \""
+    <> too_long_src
+    <> "\" }) { scriptTag { id } userErrors { __typename code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"missing\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"BLANK\",\"field\":[\"input\",\"src\"],\"message\":\"Source can't be blank\"}]},\"blank\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"BLANK\",\"field\":[\"input\",\"src\"],\"message\":\"Source can't be blank\"}]},\"invalid\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"input\",\"src\"],\"message\":\"Source is invalid\"}]},\"tooLong\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"TOO_LONG\",\"field\":[\"input\",\"src\"],\"message\":\"Source is too long (maximum is 255 characters)\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "scriptTag",
+    )
+    |> list.length
+    == 0
+}
+
+pub fn script_tag_create_defaults_display_scope_to_online_store_test() {
+  let query =
+    "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\" }) { scriptTag { id src displayScope cache } userErrors { code field message } } }"
+  let #(body, proxy) = run_graphql(proxy(), query)
+  assert body
+    == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ONLINE_STORE\",\"cache\":false},\"userErrors\":[]}}}"
+
+  let state = read_state(proxy)
+  assert string.contains(state, "\"displayScope\":\"online_store\"")
+}
+
+pub fn script_tag_create_rejects_invalid_display_scope_test() {
+  let query =
+    "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\", displayScope: \"FOO\" }) { scriptTag { id } userErrors { __typename code field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INCLUSION\",\"field\":[\"input\",\"displayScope\"],\"message\":\"Display scope is not included in the list\"}]}}}"
+  assert store.list_effective_online_store_integrations(
+      proxy.store,
+      "scriptTag",
+    )
+    |> list.length
+    == 0
+}
+
+pub fn script_tag_update_validates_changed_fields_only_test() {
+  let create_query =
+    "mutation { scriptTagCreate(input: { src: \"https://cdn.example.test/app.js\", displayScope: ALL }) { scriptTag { id src displayScope } userErrors { code field message } } }"
+  let #(create_body, proxy) = run_graphql(proxy(), create_query)
+  assert create_body
+    == "{\"data\":{\"scriptTagCreate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ALL\"},\"userErrors\":[]}}}"
+
+  let invalid_update =
+    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { src: \"ftp://cdn.example.test/app.js\" }) { scriptTag { id src displayScope } userErrors { __typename code field message } } }"
+  let #(invalid_body, proxy) = run_graphql(proxy, invalid_update)
+  assert invalid_body
+    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"INVALID\",\"field\":[\"input\",\"src\"],\"message\":\"Source is invalid\"}]}}}"
+
+  let valid_update =
+    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\", input: { cache: true }) { scriptTag { id src displayScope cache } userErrors { code field message } } }"
+  let #(valid_body, _) = run_graphql(proxy, valid_update)
+  assert valid_body
+    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":{\"id\":\"gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic\",\"src\":\"https://cdn.example.test/app.js\",\"displayScope\":\"ALL\",\"cache\":true},\"userErrors\":[]}}}"
 }
 
 pub fn web_pixel_create_without_settings_needs_configuration_test() {
@@ -71,13 +383,35 @@ pub fn web_pixel_update_and_delete_errors_use_web_pixel_user_error_test() {
     "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/missing\", webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { __typename code field message } } }"
   let #(update_body, proxy) = run_graphql(proxy(), update_query)
   assert update_body
-    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":null,\"field\":[\"id\"],\"message\":\"Pixel does not exist\"}]}}}"
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]}}}"
 
   let delete_query =
     "mutation { webPixelDelete(id: \"gid://shopify/WebPixel/missing\") { deletedWebPixelId userErrors { __typename code field message } } }"
   let #(delete_body, _) = run_graphql(proxy, delete_query)
   assert delete_body
-    == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":null,\"field\":[\"id\"],\"message\":\"Integration does not exist\"}]}}}"
+    == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]}}}"
+}
+
+pub fn online_store_integration_missing_ids_return_not_found_codes_test() {
+  let update_query =
+    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/9999999999\", input: { src: \"https://example.test/a.js\" }) { scriptTag { id } userErrors { __typename code field message } } themeUpdate(id: \"gid://shopify/OnlineStoreTheme/9999999999\", input: { name: \"Missing\" }) { theme { id } userErrors { __typename code field message } } eventBridgeServerPixelUpdate(arn: \"arn:aws:events:us-east-1:123456789012:event-bus/missing\") { serverPixel { id } userErrors { code field message } } mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/9999999999\", input: {}) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(update_body, proxy) = run_graphql(proxy(), update_query)
+  assert update_body
+    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Script tag not found\"}]},\"themeUpdate\":{\"theme\":null,\"userErrors\":[{\"__typename\":\"ThemeUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Theme not found\"}]},\"eventBridgeServerPixelUpdate\":{\"serverPixel\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]},\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Mobile platform application not found\"}]}}}"
+
+  let delete_query =
+    "mutation { webPixelDelete(id: \"gid://shopify/WebPixel/9999999999\") { deletedWebPixelId userErrors { code field message } } scriptTagDelete(id: \"gid://shopify/ScriptTag/9999999999\") { deletedScriptTagId userErrors { code field message } } themeDelete(id: \"gid://shopify/OnlineStoreTheme/9999999999\") { deletedThemeId userErrors { code field message } } serverPixelDelete { deletedServerPixelId userErrors { code field message } } mobilePlatformApplicationDelete(id: \"gid://shopify/MobilePlatformApplication/9999999999\") { deletedMobilePlatformApplicationId userErrors { code field message } } }"
+  let #(delete_body, _) = run_graphql(proxy, delete_query)
+  assert delete_body
+    == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]},\"scriptTagDelete\":{\"deletedScriptTagId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Script tag not found\"}]},\"themeDelete\":{\"deletedThemeId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Theme not found\"}]},\"serverPixelDelete\":{\"deletedServerPixelId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]},\"mobilePlatformApplicationDelete\":{\"deletedMobilePlatformApplicationId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Mobile platform application not found\"}]}}}"
+}
+
+pub fn online_store_integration_malformed_ids_return_invalid_codes_test() {
+  let query =
+    "mutation { webPixelDelete(id: \"not-a-gid\") { deletedWebPixelId userErrors { __typename code field message } } themeUpdate(id: \"not-a-gid\", input: { name: \"Invalid\" }) { theme { id } userErrors { __typename code field message } } }"
+  let #(body, _) = run_graphql(proxy(), query)
+  assert body
+    == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID\",\"field\":[\"id\"],\"message\":\"Invalid global id\"}]},\"themeUpdate\":{\"theme\":null,\"userErrors\":[{\"__typename\":\"ThemeUserError\",\"code\":\"INVALID\",\"field\":[\"id\"],\"message\":\"Invalid global id\"}]}}}"
 }
 
 pub fn web_pixel_state_omits_webhook_endpoint_address_test() {
@@ -189,6 +523,76 @@ pub fn page_update_omitted_title_preserves_existing_title_test() {
   let assert [record] =
     store.list_effective_online_store_content(proxy.store, "page")
   assert record.id == "gid://shopify/Page/1?shopify-draft-proxy=synthetic"
+}
+
+pub fn page_body_html_is_preserved_on_create_update_and_read_test() {
+  let proxy = draft_proxy.new()
+  let create_query =
+    "mutation { pageCreate(page: { title: \"Verbatim Page\", body: \"<script>alert(1)</script><p onclick='alert(2)' class='safe'>Hi</p>\" }) { page { id body bodySummary } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<script>alert(1)</script><p onclick='alert(2)' class='safe'>Hi</p>\",\"bodySummary\":\"alert(1)Hi\"},\"userErrors\":[]}}}"
+
+  let read_after_create =
+    "query { page(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\") { id body bodySummary } }"
+  let #(Response(status: read_create_status, body: read_create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(read_after_create))
+  assert read_create_status == 200
+  assert json.to_string(read_create_body)
+    == "{\"data\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<script>alert(1)</script><p onclick='alert(2)' class='safe'>Hi</p>\",\"bodySummary\":\"alert(1)Hi\"}}}"
+
+  let update_query =
+    "mutation { pageUpdate(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\", page: { body: \"<div><script>outer<script>inner</script></script><iframe src='https://example.com/embed'>fallback</iframe><p onmouseover='bad'>After</p></div>\" }) { page { id body bodySummary } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"pageUpdate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<div><script>outer<script>inner</script></script><iframe src='https://example.com/embed'>fallback</iframe><p onmouseover='bad'>After</p></div>\",\"bodySummary\":\"outerinnerfallbackAfter\"},\"userErrors\":[]}}}"
+
+  let read_after_update =
+    "query { page(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\") { id body bodySummary } }"
+  let #(Response(status: read_update_status, body: read_update_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_after_update))
+  assert read_update_status == 200
+  assert json.to_string(read_update_body)
+    == "{\"data\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<div><script>outer<script>inner</script></script><iframe src='https://example.com/embed'>fallback</iframe><p onmouseover='bad'>After</p></div>\",\"bodySummary\":\"outerinnerfallbackAfter\"}}}"
+}
+
+pub fn article_body_html_is_preserved_on_create_update_and_read_test() {
+  let proxy = draft_proxy.new()
+  let blog_query =
+    "mutation { blogCreate(blog: { title: \"Verbatim Blog\" }) { blog { id title } userErrors { field message code } } }"
+  let #(Response(status: blog_status, body: blog_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(blog_query))
+  assert blog_status == 200
+  assert json.to_string(blog_body)
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Verbatim Blog\"},\"userErrors\":[]}}}"
+
+  let create_query =
+    "mutation { articleCreate(article: { title: \"Verbatim Article\", body: \"<p onclick='bad'>Hi</p><script>alert(1)</script>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"HAR 741 Probe\" } }) { article { id body summary } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<p onclick='bad'>Hi</p><script>alert(1)</script>\",\"summary\":null},\"userErrors\":[]}}}"
+
+  let update_query =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { body: \"<section><iframe src='x'></iframe><script>outer<script>inner</script></script><p onload='bad' data-ok='yes'>After</p></section>\" }) { article { id body } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"articleUpdate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<section><iframe src='x'></iframe><script>outer<script>inner</script></script><p onload='bad' data-ok='yes'>After</p></section>\"},\"userErrors\":[]}}}"
+
+  let read_after_update =
+    "query { article(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { id body } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_after_update))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<section><iframe src='x'></iframe><script>outer<script>inner</script></script><p onload='bad' data-ok='yes'>After</p></section>\"}}}"
 }
 
 pub fn page_handles_slugify_dedupe_and_reject_taken_updates_test() {
@@ -544,4 +948,101 @@ pub fn theme_publish_rejects_demo_locked_or_archived_theme_test() {
   assert read_status == 200
   assert json.to_string(read_body)
     == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"DEMO\"},\"themes\":{\"nodes\":[]}}}"
+}
+
+pub fn theme_files_upsert_uses_body_checksum_size_and_validates_filename_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"HAR 585 Theme\") { theme { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"themeCreate\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+
+  let first =
+    "mutation { themeFilesUpsert(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ filename: \"templates/index.json\", body: { type: TEXT, value: \"hello\" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(first))
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[{\"filename\":\"templates/index.json\",\"checksumMd5\":\"5d41402abc4b2a76b9719d911017c592\",\"size\":5,\"body\":{\"content\":\"hello\"}}],\"userErrors\":[]}}}"
+
+  let second =
+    "mutation { themeFilesUpsert(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ filename: \"templates/index.json\", body: { type: TEXT, value: \"hello world\" } }]) { upsertedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } } }"
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(second))
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[{\"filename\":\"templates/index.json\",\"checksumMd5\":\"5eb63bbbe01eeed093cb22bb8f5acdc3\",\"size\":11,\"body\":{\"content\":\"hello world\"}}],\"userErrors\":[]}}}"
+
+  let invalid =
+    "mutation { themeFilesUpsert(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ filename: \"evil/path.liquid\", body: { type: TEXT, value: \"ignored\" } }]) { upsertedThemeFiles { filename } userErrors { field message code } } }"
+  let #(Response(status: invalid_status, body: invalid_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(invalid))
+  assert invalid_status == 200
+  assert json.to_string(invalid_body)
+    == "{\"data\":{\"themeFilesUpsert\":{\"upsertedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Filename is invalid\",\"code\":\"INVALID\"}]}}}"
+
+  let read =
+    "query { theme(id: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\") { files(first: 10) { nodes { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"files\":{\"nodes\":[{\"filename\":\"templates/index.json\",\"checksumMd5\":\"5eb63bbbe01eeed093cb22bb8f5acdc3\",\"size\":11,\"body\":{\"content\":\"hello world\"}}]}}}}"
+}
+
+pub fn theme_files_copy_and_delete_validate_local_file_lifecycle_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation { themeCreate(source: \"https://example.com/theme.zip\", name: \"HAR 585 Theme\") { theme { id } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(create))
+  let upsert =
+    "mutation { themeFilesUpsert(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ filename: \"assets/app.js\", body: { type: TEXT, value: \"console.log(1)\" } }]) { upsertedThemeFiles { filename } userErrors { field message code } } }"
+  let #(_, proxy) = draft_proxy.process_request(proxy, graphql_request(upsert))
+
+  let missing_copy =
+    "mutation { themeFilesCopy(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ srcFilename: \"assets/missing.js\", dstFilename: \"assets/copy.js\" }]) { copiedThemeFiles { filename } userErrors { field message code } } }"
+  let #(
+    Response(status: missing_copy_status, body: missing_copy_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(missing_copy))
+  assert missing_copy_status == 200
+  assert json.to_string(missing_copy_body)
+    == "{\"data\":{\"themeFilesCopy\":{\"copiedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"srcFilename\"],\"message\":\"File not found\",\"code\":\"NOT_FOUND\"}]}}}"
+
+  let copy =
+    "mutation { themeFilesCopy(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [{ srcFilename: \"assets/app.js\", dstFilename: \"assets/copy.js\" }]) { copiedThemeFiles { filename checksumMd5 size body { ... on OnlineStoreThemeFileBodyText { content } } } userErrors { field message code } } }"
+  let #(Response(status: copy_status, body: copy_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(copy))
+  assert copy_status == 200
+  assert json.to_string(copy_body)
+    == "{\"data\":{\"themeFilesCopy\":{\"copiedThemeFiles\":[{\"filename\":\"assets/copy.js\",\"checksumMd5\":\"6114f5adc373accd7b2051bd87078f62\",\"size\":14,\"body\":{\"content\":\"console.log(1)\"}}],\"userErrors\":[]}}}"
+
+  let required_delete =
+    "mutation { themeFilesDelete(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [\"config/settings_data.json\", \"config/settings_schema.json\"]) { deletedThemeFiles { filename } userErrors { field message code } } }"
+  let #(
+    Response(status: required_delete_status, body: required_delete_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(required_delete))
+  assert required_delete_status == 200
+  assert json.to_string(required_delete_body)
+    == "{\"data\":{\"themeFilesDelete\":{\"deletedThemeFiles\":[],\"userErrors\":[{\"field\":[\"files\",\"0\"],\"message\":\"File is required and can't be deleted\",\"code\":\"INVALID\"},{\"field\":[\"files\",\"1\"],\"message\":\"File is required and can't be deleted\",\"code\":\"INVALID\"}]}}}"
+
+  let delete_copy =
+    "mutation { themeFilesDelete(themeId: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\", files: [\"assets/copy.js\"]) { deletedThemeFiles { filename } userErrors { field message code } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(delete_copy))
+  assert delete_status == 200
+  assert json.to_string(delete_body)
+    == "{\"data\":{\"themeFilesDelete\":{\"deletedThemeFiles\":[{\"filename\":\"assets/copy.js\"}],\"userErrors\":[]}}}"
+
+  let read =
+    "query { theme(id: \"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\") { files(first: 10) { nodes { filename } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"theme\":{\"files\":{\"nodes\":[{\"filename\":\"assets/app.js\"}]}}}}"
 }

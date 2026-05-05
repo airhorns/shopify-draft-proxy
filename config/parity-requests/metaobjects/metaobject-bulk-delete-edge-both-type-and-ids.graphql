@@ -1,0 +1,15 @@
+mutation MetaobjectBulkDeleteEdgeBothTypeAndIds {
+  metaobjectBulkDelete(where: { type: "codex_har_680_invalid", ids: [] }) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

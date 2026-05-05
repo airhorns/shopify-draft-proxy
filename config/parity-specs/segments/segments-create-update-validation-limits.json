@@ -1,0 +1,95 @@
+{
+  "scenarioId": "segments-create-update-validation-limits",
+  "operationNames": ["segmentCreate", "segmentUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-semantics"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segments-create-update-validation-limits.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-create-validation-limits.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-713 live Shopify evidence covers segmentCreate/segmentUpdate name and query length errors. The segment-limit branch is intentionally not included in this parity spec because the previous runner setup pre-seeded 6000 staged segments, which is not valid parity evidence.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-create-long-name",
+        "capturePath": "$.cases[0].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate"
+      },
+      {
+        "name": "segment-create-long-query",
+        "capturePath": "$.cases[1].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-validation-limits.graphql",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        }
+      },
+      {
+        "name": "segment-create-update-setup",
+        "capturePath": "$.cases[2].response.payload.data.segmentCreate",
+        "proxyPath": "$.data.segmentCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.segment.id",
+            "matcher": "shopify-gid:Segment",
+            "reason": "Proxy uses synthetic segment IDs while Shopify returns live store IDs."
+          },
+          {
+            "path": "$.segment.creationDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          },
+          {
+            "path": "$.segment.lastEditDate",
+            "matcher": "iso-timestamp",
+            "reason": "Proxy uses deterministic synthetic timestamps while Shopify returns live timestamps."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-create-validation-limits.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        }
+      },
+      {
+        "name": "segment-update-long-name",
+        "capturePath": "$.cases[3].response.payload.data.segmentUpdate",
+        "proxyPath": "$.data.segmentUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-update-name-validation-limits.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-create-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
+            },
+            "name": {
+              "fromCapturePath": "$.cases[3].request.variables.name"
+            }
+          }
+        }
+      },
+      {
+        "name": "segment-update-long-query",
+        "capturePath": "$.cases[4].response.payload.data.segmentUpdate",
+        "proxyPath": "$.data.segmentUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-update-query-validation-limits.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "segment-create-update-setup",
+              "path": "$.data.segmentCreate.segment.id"
+            },
+            "query": {
+              "fromCapturePath": "$.cases[4].request.variables.query"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

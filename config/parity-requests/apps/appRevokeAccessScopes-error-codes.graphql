@@ -1,0 +1,13 @@
+mutation AppRevokeAccessScopesErrorCodes {
+  appRevokeAccessScopes(scopes: ["write_products"]) {
+    revoked {
+      handle
+      description
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

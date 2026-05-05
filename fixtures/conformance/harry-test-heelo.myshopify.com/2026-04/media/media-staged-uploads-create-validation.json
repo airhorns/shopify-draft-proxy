@@ -1,0 +1,295 @@
+{
+  "notes": "HAR-704 captures stagedUploadsCreate validation branches and success target metadata. No upload bytes are sent; this fixture records resolver validation, enum coercion, and signed target metadata only.",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "videoMissingFileSize",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadValidation($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "VIDEO",
+              "filename": "har-704-video.mp4",
+              "mimeType": "video/mp4"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": null,
+                  "resourceUrl": null,
+                  "parameters": []
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["input", "0", "fileSize"],
+                  "message": "file size is required for video resources"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "imagePng",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadValidation($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "IMAGE",
+              "filename": "har-704-image.png",
+              "mimeType": "image/png",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://shopify-staged-uploads.storage.googleapis.com/",
+                  "resourceUrl": "https://shopify-staged-uploads.storage.googleapis.com/tmp/92891250994/products/bb4f872d-124c-4442-acd2-e4b0f4105d6b/har-704-image.png",
+                  "parameters": [
+                    {
+                      "name": "Content-Type",
+                      "value": "image/png"
+                    },
+                    {
+                      "name": "success_action_status",
+                      "value": "201"
+                    },
+                    {
+                      "name": "acl",
+                      "value": "private"
+                    },
+                    {
+                      "name": "key",
+                      "value": "tmp/92891250994/products/bb4f872d-124c-4442-acd2-e4b0f4105d6b/har-704-image.png"
+                    },
+                    {
+                      "name": "x-goog-date",
+                      "value": "20260505T101019Z"
+                    },
+                    {
+                      "name": "x-goog-credential",
+                      "value": "merchant-assets@shopify-tiers.iam.gserviceaccount.com/20260505/auto/storage/goog4_request"
+                    },
+                    {
+                      "name": "x-goog-algorithm",
+                      "value": "GOOG4-RSA-SHA256"
+                    },
+                    {
+                      "name": "x-goog-signature",
+                      "value": "5e7fce92a0cde7b9a88de515b74ab6eb888c95cba66ded6413a3334fcbc759357779e3714f8d806fdbca5e489bcca8d016d0641600fdd42141d9a69791cb038a75a94dfb865796c9ddce2ca0c9484ef6d0061afb2f93a3d247e8e0b189d145db908cb119644e5e1d951b2e49057445d0cca8800542e419b443f4928cecfff33ec97102e5646231665185652dfabd5ff75cab09e349dc2e575847697fbff2cbca357bfa6f20c9fc116047376a5379910339c55282c7f4d03ca6784f53502ae7fdc4da7e845f0c0dd074b0e8c539c8f0fdda99aec3f81144063aca91d6b3991ffb48cea36d2ea4cf77242824e57346b5171f0f5735a7276723e79e855bf07a8f1e"
+                    },
+                    {
+                      "name": "policy",
+                      "value": "eyJjb25kaXRpb25zIjpbeyJDb250ZW50LVR5cGUiOiJpbWFnZVwvcG5nIn0seyJzdWNjZXNzX2FjdGlvbl9zdGF0dXMiOiIyMDEifSx7ImFjbCI6InByaXZhdGUifSxbImNvbnRlbnQtbGVuZ3RoLXJhbmdlIiwxLDIwOTcxNTIwXSx7ImJ1Y2tldCI6InNob3BpZnktc3RhZ2VkLXVwbG9hZHMifSx7ImtleSI6InRtcFwvOTI4OTEyNTA5OTRcL3Byb2R1Y3RzXC9iYjRmODcyZC0xMjRjLTQ0NDItYWNkMi1lNGIwZjQxMDVkNmJcL2hhci03MDQtaW1hZ2UucG5nIn0seyJ4LWdvb2ctZGF0ZSI6IjIwMjYwNTA1VDEwMTAxOVoifSx7IngtZ29vZy1jcmVkZW50aWFsIjoibWVyY2hhbnQtYXNzZXRzQHNob3BpZnktdGllcnMuaWFtLmdzZXJ2aWNlYWNjb3VudC5jb21cLzIwMjYwNTA1XC9hdXRvXC9zdG9yYWdlXC9nb29nNF9yZXF1ZXN0In0seyJ4LWdvb2ctYWxnb3JpdGhtIjoiR09PRzQtUlNBLVNIQTI1NiJ9XSwiZXhwaXJhdGlvbiI6IjIwMjYtMDUtMDZUMTA6MTA6MTlaIn0="
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "unknownResource",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadValidation($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "BANANA",
+              "filename": "har-704-banana",
+              "mimeType": "x/x"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type [StagedUploadInput!]! was provided invalid value for 0.resource (Expected \"BANANA\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 35
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": [
+                  {
+                    "resource": "BANANA",
+                    "filename": "har-704-banana",
+                    "mimeType": "x/x"
+                  }
+                ],
+                "problems": [
+                  {
+                    "path": [0, "resource"],
+                    "explanation": "Expected \"BANANA\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "imageUnsupportedMime",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadValidation($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "IMAGE",
+              "filename": "har-704-image.exe",
+              "mimeType": "application/x-msdownload",
+              "httpMethod": "POST"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": null,
+                  "resourceUrl": null,
+                  "parameters": []
+                }
+              ],
+              "userErrors": [
+                {
+                  "field": ["input", "0", "mimeType"],
+                  "message": "har-704-image.exe: (application/x-msdownload) is not a recognized format"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "model3dGlb",
+      "request": {
+        "document": "#graphql\n  mutation StagedUploadValidation($input: [StagedUploadInput!]!) {\n    stagedUploadsCreate(input: $input) {\n      stagedTargets {\n        url\n        resourceUrl\n        parameters {\n          name\n          value\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+        "variables": {
+          "input": [
+            {
+              "resource": "MODEL_3D",
+              "filename": "har-704-model.glb",
+              "mimeType": "model/gltf-binary",
+              "httpMethod": "POST",
+              "fileSize": "1024"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "stagedUploadsCreate": {
+              "stagedTargets": [
+                {
+                  "url": "https://storage.googleapis.com/threed-models-production/models/75920d31bd249020/har-704-model.glb?external_model3d_id=bW9kZWwzZC0xOTQ0MjQx",
+                  "resourceUrl": "https://storage.googleapis.com/threed-models-production/models/75920d31bd249020/har-704-model.glb?external_model3d_id=bW9kZWwzZC0xOTQ0MjQx",
+                  "parameters": [
+                    {
+                      "name": "GoogleAccessId",
+                      "value": "threed-model-service-prod@threed-model-service.iam.gserviceaccount.com"
+                    },
+                    {
+                      "name": "key",
+                      "value": "models/75920d31bd249020/har-704-model.glb"
+                    },
+                    {
+                      "name": "policy",
+                      "value": "eyJleHBpcmF0aW9uIjoiMjAyNi0wNS0wNVQxMDoyNToyMFoiLCJjb25kaXRpb25zIjpbWyJlcSIsIiRidWNrZXQiLCJ0aHJlZWQtbW9kZWxzLXByb2R1Y3Rpb24iXSxbImVxIiwiJGtleSIsIm1vZGVscy83NTkyMGQzMWJkMjQ5MDIwL2hhci03MDQtbW9kZWwuZ2xiIl0sWyJjb250ZW50LWxlbmd0aC1yYW5nZSIsMTAyNCwxMDI0XV19"
+                    },
+                    {
+                      "name": "signature",
+                      "value": "GW9yMNrWfTYMOX/0b4vxzNhvpqlA3eTEBJf+AiW2bDUr4q+97mY3AkGbS9YTPDsEhQeqGpcaXk5W917xzwxyJIqT/thhIw8Q38uaWxhJ+5nxfdXGIMfTUb9ukUm+S1Y6OTEUl9B5xKpfrYSJrPkX3JXGYbyGfX8K5W1DSwK8UVyuXAe/BfiHPp55aiHxWlalI4cm4h8mnlpxO8n5WUQ0AJcRZOJkn/o24A7DLFZe/fouXaaeHR4jmKn6JavvSmj1PKbGOry/z/JWF2fus5O3cPmL9AdlkH35J+AL9SGVadCTPzFE2Md4AlZEqeU0ufSCRJWIa3h5fFj9M4ySLPoQEQ=="
+                    }
+                  ]
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

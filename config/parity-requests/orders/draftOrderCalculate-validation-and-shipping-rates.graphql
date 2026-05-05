@@ -1,0 +1,50 @@
+mutation DraftOrderCalculateValidationAndShippingRates(
+  $emptyLineItems: DraftOrderInput!
+  $invalidEmail: DraftOrderInput!
+  $availableShippingRatesEmpty: DraftOrderInput!
+  $paymentTermsTemplateId: DraftOrderInput!
+) {
+  emptyLineItems: draftOrderCalculate(input: $emptyLineItems) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  invalidEmail: draftOrderCalculate(input: $invalidEmail) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  availableShippingRatesEmpty: draftOrderCalculate(input: $availableShippingRatesEmpty) {
+    calculatedDraftOrder {
+      availableShippingRates {
+        handle
+        title
+        price {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  paymentTermsTemplateId: draftOrderCalculate(input: $paymentTermsTemplateId) {
+    calculatedDraftOrder {
+      currencyCode
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

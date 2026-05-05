@@ -17,11 +17,15 @@ import gleam/order.{Eq}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Selection, Field, FragmentDefinition, FragmentSpread, InlineFragment,
-  NamedType, SelectionSet,
+  type Location, type ObjectField, type Selection, Argument, Field,
+  FragmentDefinition, FragmentSpread, InlineFragment, NamedType, ObjectField,
+  ObjectValue, SelectionSet,
 }
+import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source as graphql_source
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionWindow, SelectedFieldOptions,
@@ -31,6 +35,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
+import shopify_draft_proxy/proxy/metafield_values
+import shopify_draft_proxy/proxy/metaobject_standard_templates_data as standard_templates
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome, read_optional_string,
   single_root_log_draft,
@@ -96,6 +102,12 @@ type BulkDeleteJob {
   BulkDeleteJob(id: String, done: Bool)
 }
 
+type BulkDeleteWhere {
+  BulkDeleteByIds(List(String))
+  BulkDeleteByType(String)
+  BulkDeleteNoSelector
+}
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -145,11 +157,31 @@ pub fn handle_metaobject_definitions_query(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, MetaobjectDefinitionsError) {
+  handle_metaobject_definitions_query_with_app_id(
+    store,
+    document,
+    variables,
+    None,
+  )
+}
+
+pub fn handle_metaobject_definitions_query_with_app_id(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Result(Json, MetaobjectDefinitionsError) {
   case root_field.get_root_fields(document) {
     Error(err) -> Error(ParseFailed(err))
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(serialize_root_fields(store, fields, fragments, variables))
+      Ok(serialize_root_fields(
+        store,
+        fields,
+        fragments,
+        variables,
+        requesting_api_client_id,
+      ))
     }
   }
 }
@@ -159,6 +191,7 @@ fn serialize_root_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Json {
   json.object(
     list.map(fields, fn(field) {
@@ -184,7 +217,10 @@ fn serialize_root_fields(
               case read_string_arg(field, variables, "type") {
                 Some(type_) ->
                   case
-                    find_effective_metaobject_definition_by_type(store, type_)
+                    find_effective_metaobject_definition_by_normalized_type(
+                      store,
+                      normalize_definition_type(type_, requesting_api_client_id),
+                    )
                   {
                     Some(definition) ->
                       serialize_definition_selection(
@@ -202,6 +238,7 @@ fn serialize_root_fields(
                 field,
                 fragments,
                 variables,
+                requesting_api_client_id,
               )
             "metaobject" ->
               case read_id_arg(field, variables) {
@@ -256,7 +293,23 @@ pub fn process(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, MetaobjectDefinitionsError) {
-  case handle_metaobject_definitions_query(store, document, variables) {
+  process_with_requesting_api_client_id(store, document, variables, None)
+}
+
+pub fn process_with_requesting_api_client_id(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Result(Json, MetaobjectDefinitionsError) {
+  case
+    handle_metaobject_definitions_query_with_app_id(
+      store,
+      document,
+      variables,
+      requesting_api_client_id,
+    )
+  {
     Ok(data) -> Ok(graphql_helpers.wrap_data(data))
     Error(e) -> Error(e)
   }
@@ -286,7 +339,14 @@ pub fn handle_query_request(
     // so supported mutations preserve read-after-write behavior.
     True -> passthrough.passthrough_sync(proxy, request)
     False ->
-      case process(proxy.store, document, variables) {
+      case
+        process_with_requesting_api_client_id(
+          proxy.store,
+          document,
+          variables,
+          app_identity.read_requesting_api_client_id(request.headers),
+        )
+      {
         Ok(envelope) -> #(
           Response(status: 200, body: envelope, headers: []),
           proxy,
@@ -341,6 +401,39 @@ fn should_passthrough_in_live_hybrid(
       !local_has_metaobject_definitions(proxy)
     _, _ -> False
   }
+}
+
+fn normalize_definition_type(
+  type_: String,
+  requesting_api_client_id: Option(String),
+) -> String {
+  let resolved = case string.starts_with(type_, "$app:") {
+    True ->
+      case requesting_api_client_id {
+        Some(api_client_id) ->
+          "app--"
+          <> api_client_id
+          <> "--"
+          <> string.drop_start(type_, string.length("$app:"))
+        None -> type_
+      }
+    False -> type_
+  }
+  string.lowercase(resolved)
+}
+
+fn normalized_definition_type_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Option(String) {
+  read_string(input, "type")
+  |> option.map(fn(type_) {
+    normalize_definition_type(type_, requesting_api_client_id)
+  })
+}
+
+fn is_app_reserved_definition_type_input(type_: String) -> Bool {
+  string.starts_with(type_, "$app:")
 }
 
 fn local_has_metaobject_id(
@@ -400,6 +493,28 @@ fn local_has_metaobject_definitions(proxy: DraftProxy) -> Bool {
   ))
 }
 
+fn find_effective_metaobject_definition_by_normalized_type(
+  store: Store,
+  normalized_type: String,
+) -> Option(MetaobjectDefinitionRecord) {
+  list_effective_metaobject_definitions(store)
+  |> list.find(fn(definition) {
+    string.lowercase(definition.type_) == normalized_type
+  })
+  |> option.from_result
+}
+
+fn find_effective_metaobject_definition_by_input_type(
+  store: Store,
+  type_: String,
+  requesting_api_client_id: Option(String),
+) -> Option(MetaobjectDefinitionRecord) {
+  find_effective_metaobject_definition_by_normalized_type(
+    store,
+    normalize_definition_type(type_, requesting_api_client_id),
+  )
+}
+
 fn resolved_value_strings(value: root_field.ResolvedValue) -> List(String) {
   case value {
     root_field.StringVal(value) -> [value]
@@ -418,18 +533,70 @@ pub fn process_mutation(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
+  process_mutation_with_requesting_api_client_id(
+    store,
+    identity,
+    document,
+    variables,
+    upstream,
+    app_identity.read_requesting_api_client_id(upstream.headers),
+  )
+}
+
+pub fn process_mutation_with_headers(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  _request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  request_headers: Dict(String, String),
+) -> MutationOutcome {
+  process_mutation_with_requesting_api_client_id(
+    store,
+    identity,
+    document,
+    variables,
+    upstream,
+    app_identity.read_requesting_api_client_id(request_headers),
+  )
+}
+
+fn process_mutation_with_requesting_api_client_id(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      handle_mutation_fields(
-        store,
-        identity,
-        fields,
-        fragments,
-        variables,
-        upstream,
-      )
+      case bulk_delete_where_exactly_one_errors(fields, variables, document) {
+        [] ->
+          handle_mutation_fields(
+            store,
+            identity,
+            fields,
+            fragments,
+            variables,
+            upstream,
+            requesting_api_client_id,
+          )
+        errors ->
+          MutationOutcome(
+            data: json.object([
+              #("errors", json.preprocessed_array(errors)),
+              #("data", json.object([#("metaobjectBulkDelete", json.null())])),
+            ]),
+            store: store,
+            identity: identity,
+            staged_resource_ids: [],
+            log_drafts: [],
+          )
+      }
     }
   }
 }
@@ -441,6 +608,7 @@ fn handle_mutation_fields(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   let initial = #([], [], store, identity, [], [])
   let #(entries, errors, final_store, final_identity, staged_ids, drafts) =
@@ -464,6 +632,7 @@ fn handle_mutation_fields(
               variables,
               name.value,
               upstream,
+              requesting_api_client_id,
             )
           let #(field_result, next_store, next_identity) = result
           let next_errors =
@@ -510,6 +679,124 @@ fn handle_mutation_fields(
   )
 }
 
+fn bulk_delete_where_exactly_one_errors(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  source_body: String,
+) -> List(Json) {
+  list.filter_map(fields, fn(field) {
+    case field {
+      Field(name: name, ..) ->
+        case name.value == "metaobjectBulkDelete" {
+          False -> Error(Nil)
+          True -> {
+            let args = graphql_helpers.field_args(field, variables)
+            case read_object(args, "where") {
+              None -> Error(Nil)
+              Some(where) -> {
+                let provided =
+                  bool_to_int(dict.has_key(where, "type"))
+                  + bool_to_int(dict.has_key(where, "ids"))
+                case provided == 1 {
+                  True -> Error(Nil)
+                  False -> Ok(bulk_delete_exactly_one_error(field, source_body))
+                }
+              }
+            }
+          }
+        }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn bool_to_int(value: Bool) -> Int {
+  case value {
+    True -> 1
+    False -> 0
+  }
+}
+
+fn bulk_delete_exactly_one_error(
+  field: Selection,
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "MetaobjectBulkDeleteWhereCondition requires exactly one of type, ids",
+      ),
+    ),
+  ]
+  let with_locations = case bulk_delete_where_locations(field, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", json.array(["metaobjectBulkDelete"], json.string)),
+      #(
+        "extensions",
+        json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
+      ),
+    ]),
+  )
+}
+
+fn bulk_delete_where_locations(
+  field: Selection,
+  source_body: String,
+) -> Option(Json) {
+  case field {
+    Field(arguments: arguments, loc: field_loc, ..) ->
+      case mutation_helpers.find_argument(arguments, "where") {
+        Some(Argument(value: ObjectValue(fields: fields, ..), ..)) ->
+          json_locations(
+            [field_loc, bulk_delete_conflicting_field_location(fields)],
+            source_body,
+          )
+        _ -> json_locations([field_loc], source_body)
+      }
+    _ -> None
+  }
+}
+
+fn bulk_delete_conflicting_field_location(
+  fields: List(ObjectField),
+) -> Option(Location) {
+  case fields {
+    [] -> None
+    [ObjectField(name: name, loc: loc, ..), ..rest] ->
+      case name.value == "ids" {
+        True -> loc
+        False -> bulk_delete_conflicting_field_location(rest)
+      }
+  }
+}
+
+fn json_locations(
+  locations: List(Option(Location)),
+  source_body: String,
+) -> Option(Json) {
+  let encoded =
+    list.filter_map(locations, fn(location) {
+      use loc <- result.try(option_to_result(location))
+      let source = graphql_source.new(source_body)
+      let computed = graphql_location.get_location(source, position: loc.start)
+      Ok(
+        json.object([
+          #("line", json.int(computed.line)),
+          #("column", json.int(computed.column)),
+        ]),
+      )
+    })
+  case encoded {
+    [] -> None
+    _ -> Some(json.preprocessed_array(encoded))
+  }
+}
+
 fn dispatch_mutation_field(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -518,12 +805,28 @@ fn dispatch_mutation_field(
   variables: Dict(String, root_field.ResolvedValue),
   name: String,
   upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   case name {
     "metaobjectDefinitionCreate" ->
-      handle_definition_create(store, identity, field, fragments, variables)
+      handle_definition_create(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+        upstream,
+        requesting_api_client_id,
+      )
     "metaobjectDefinitionUpdate" ->
-      handle_definition_update(store, identity, field, fragments, variables)
+      handle_definition_update(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+        requesting_api_client_id,
+      )
     "metaobjectDefinitionDelete" ->
       handle_definition_delete(store, identity, field, variables)
     "standardMetaobjectDefinitionEnable" ->
@@ -542,6 +845,7 @@ fn dispatch_mutation_field(
         fragments,
         variables,
         upstream,
+        requesting_api_client_id,
       )
     "metaobjectUpdate" ->
       handle_metaobject_update(
@@ -560,6 +864,7 @@ fn dispatch_mutation_field(
         fragments,
         variables,
         upstream,
+        requesting_api_client_id,
       )
     "metaobjectDelete" ->
       handle_metaobject_delete(store, identity, field, variables, upstream)
@@ -596,11 +901,33 @@ fn handle_definition_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let input = read_object_arg(args, "definition")
-  let user_errors = build_create_definition_user_errors(store, input)
+  let validation_errors =
+    build_create_definition_validation_errors(input, requesting_api_client_id)
+  let store = case validation_errors {
+    [] ->
+      maybe_hydrate_definition_for_create(
+        store,
+        input,
+        upstream,
+        requesting_api_client_id,
+      )
+    [_, ..] -> store
+  }
+  let user_errors = case validation_errors {
+    [] ->
+      build_create_definition_uniqueness_errors(
+        store,
+        input,
+        requesting_api_client_id,
+      )
+    [_, ..] -> validation_errors
+  }
   case user_errors {
     [_, ..] -> {
       let payload = definition_payload(field, fragments, None, user_errors)
@@ -608,7 +935,11 @@ fn handle_definition_create(
     }
     [] -> {
       let #(definition, next_identity) =
-        build_definition_from_create_input(identity, input)
+        build_definition_from_create_input(
+          identity,
+          input,
+          requesting_api_client_id,
+        )
       let #(staged, next_store) =
         upsert_staged_metaobject_definition(store, definition)
       let payload = definition_payload(field, fragments, Some(staged), [])
@@ -629,6 +960,7 @@ fn handle_definition_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
@@ -657,10 +989,12 @@ fn handle_definition_update(
             || option.unwrap(read_bool(input, "resetFieldOrder"), False)
           let #(updated, next_identity, user_errors) =
             apply_definition_update(
+              store,
               identity,
               existing,
               input,
               reset_field_order,
+              requesting_api_client_id,
             )
           case user_errors {
             [_, ..] -> {
@@ -713,33 +1047,30 @@ fn handle_definition_delete(
           identity,
         )
         Some(definition) -> {
-          let count = option.unwrap(definition.metaobjects_count, 0)
-          case count > 0 {
-            True -> {
-              let user_error =
-                UserError(
-                  field: Some(["id"]),
-                  message: "Local proxy cannot delete a metaobject definition with associated metaobjects until entry cascade behavior is modeled.",
-                  code: "UNSUPPORTED",
-                  element_key: None,
-                  element_index: None,
-                )
-              #(
-                definition_delete_result(key, field, None, [user_error]),
-                store,
-                identity,
-              )
-            }
-            False -> {
-              let next_store =
-                delete_staged_metaobject_definition(store, definition_id)
-              #(
-                definition_delete_result(key, field, Some(definition_id), []),
-                next_store,
-                identity,
-              )
-            }
-          }
+          let cascaded_metaobject_ids =
+            list_effective_metaobjects_by_type(store, definition.type_)
+            |> list.map(fn(metaobject) { metaobject.id })
+          let store_after_entries =
+            list.fold(cascaded_metaobject_ids, store, fn(acc, metaobject_id) {
+              delete_staged_metaobject(acc, metaobject_id)
+            })
+          let next_store =
+            delete_staged_metaobject_definition(
+              store_after_entries,
+              definition_id,
+            )
+          let staged_ids = list.append([definition_id], cascaded_metaobject_ids)
+          #(
+            definition_delete_result_with_staged_ids(
+              key,
+              field,
+              Some(definition_id),
+              [],
+              staged_ids,
+            ),
+            next_store,
+            identity,
+          )
         }
       }
   }
@@ -758,13 +1089,7 @@ fn handle_standard_definition_enable(
     None -> {
       let payload =
         definition_payload(field, fragments, None, [
-          UserError(
-            Some(["type"]),
-            "A standard metaobject definition wasn't found for the specified type.",
-            "TEMPLATE_NOT_FOUND",
-            None,
-            None,
-          ),
+          standard_template_record_not_found_error(),
         ])
       #(MutationFieldResult(key, payload, [], [], []), store, identity)
     }
@@ -773,36 +1098,40 @@ fn handle_standard_definition_enable(
         None -> {
           let payload =
             definition_payload(field, fragments, None, [
-              UserError(
-                Some(["type"]),
-                "A standard metaobject definition wasn't found for the specified type.",
-                "TEMPLATE_NOT_FOUND",
-                None,
-                None,
-              ),
+              standard_template_record_not_found_error(),
             ])
           #(MutationFieldResult(key, payload, [], [], []), store, identity)
         }
         Some(template) -> {
-          let #(definition, next_identity) = case
-            find_effective_metaobject_definition_by_type(store, type_)
-          {
-            Some(existing) -> #(existing, identity)
-            None -> build_standard_definition(identity, template)
+          case find_effective_metaobject_definition_by_type(store, type_) {
+            Some(existing) -> {
+              let payload =
+                definition_payload(field, fragments, Some(existing), [])
+              #(MutationFieldResult(key, payload, [], [], []), store, identity)
+            }
+            None -> {
+              let #(definition, next_identity) =
+                build_standard_definition(identity, template)
+              let #(staged, next_store) =
+                upsert_staged_metaobject_definition(store, definition)
+              let payload =
+                definition_payload(field, fragments, Some(staged), [])
+              #(
+                MutationFieldResult(key, payload, [staged.id], [], [
+                  log_draft("standardMetaobjectDefinitionEnable", [staged.id]),
+                ]),
+                next_store,
+                next_identity,
+              )
+            }
           }
-          let #(staged, next_store) =
-            upsert_staged_metaobject_definition(store, definition)
-          let payload = definition_payload(field, fragments, Some(staged), [])
-          #(
-            MutationFieldResult(key, payload, [staged.id], [], [
-              log_draft("standardMetaobjectDefinitionEnable", [staged.id]),
-            ]),
-            next_store,
-            next_identity,
-          )
         }
       }
   }
+}
+
+fn standard_template_record_not_found_error() -> UserError {
+  UserError(Some(["type"]), "Record not found", "RECORD_NOT_FOUND", None, None)
 }
 
 fn handle_metaobject_create(
@@ -812,6 +1141,7 @@ fn handle_metaobject_create(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let input =
@@ -819,9 +1149,20 @@ fn handle_metaobject_create(
   let type_ = read_string(input, "type")
   // Pattern 2: cold LiveHybrid creates still stage locally, but first
   // hydrate the upstream definition so valid types do not fail as unknown.
-  let store = maybe_hydrate_definition_by_type(store, type_, upstream)
+  let store =
+    maybe_hydrate_definition_by_type(
+      store,
+      type_,
+      upstream,
+      requesting_api_client_id,
+    )
   let definition = case type_ {
-    Some(t) -> find_effective_metaobject_definition_by_type(store, t)
+    Some(t) ->
+      find_effective_metaobject_definition_by_input_type(
+        store,
+        t,
+        requesting_api_client_id,
+      )
     None -> None
   }
   let user_errors = build_create_metaobject_user_errors(type_, definition)
@@ -1045,17 +1386,56 @@ fn handle_metaobject_upsert(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let #(type_, handle) = read_handle_value(read_object_arg(args, "handle"))
-  let input = read_object_arg(args, "metaobject")
-  case type_, handle {
-    Some(t), Some(h) -> {
+  let input = read_upsert_payload_input(args)
+  let handle_is_blank = case handle {
+    Some(h) -> string.trim(h) == ""
+    None -> False
+  }
+  case type_, handle, handle_is_blank {
+    Some(_), Some(_), True -> {
+      let err =
+        UserError(
+          Some(["handle", "handle"]),
+          "Handle can't be blank",
+          "BLANK",
+          None,
+          None,
+        )
+      #(
+        MutationFieldResult(
+          key,
+          metaobject_payload(store, field, fragments, None, [err]),
+          [],
+          [],
+          [],
+        ),
+        store,
+        identity,
+      )
+    }
+    Some(t), Some(h), False -> {
       // Pattern 2: hydrate the definition for cold LiveHybrid upserts; the
       // upsert write itself remains local and Snapshot mode stays local.
-      let store = maybe_hydrate_definition_by_type(store, Some(t), upstream)
-      case find_effective_metaobject_definition_by_type(store, t) {
+      let store =
+        maybe_hydrate_definition_by_type(
+          store,
+          Some(t),
+          upstream,
+          requesting_api_client_id,
+        )
+      let store = maybe_hydrate_metaobject_by_handle(store, t, h, upstream)
+      case
+        find_effective_metaobject_definition_by_input_type(
+          store,
+          t,
+          requesting_api_client_id,
+        )
+      {
         None -> {
           let err =
             UserError(
@@ -1080,6 +1460,14 @@ fn handle_metaobject_upsert(
         Some(definition) ->
           case find_effective_metaobject_by_handle(store, t, h) {
             Some(existing) -> {
+              let store =
+                maybe_hydrate_metaobject_by_handle(
+                  store,
+                  t,
+                  read_string(input, "handle")
+                    |> option.unwrap(existing.handle),
+                  upstream,
+                )
               let input_with_handle = case dict.get(input, "handle") {
                 Ok(_) -> input
                 Error(_) ->
@@ -1097,6 +1485,7 @@ fn handle_metaobject_upsert(
                   input_with_handle,
                   definition,
                 )
+              let user_errors = partition_upsert_user_errors(user_errors)
               case user_errors, updated {
                 [_, ..], _ -> #(
                   MutationFieldResult(
@@ -1116,25 +1505,46 @@ fn handle_metaobject_upsert(
                   identity,
                 )
                 [], Some(metaobject) -> {
-                  let #(staged, next_store) =
-                    upsert_staged_metaobject(store, metaobject)
-                  #(
-                    MutationFieldResult(
-                      key,
-                      metaobject_payload(
-                        next_store,
-                        field,
-                        fragments,
-                        Some(staged),
+                  case metaobject_upsert_exact_match(existing, metaobject) {
+                    True -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(
+                          store,
+                          field,
+                          fragments,
+                          Some(existing),
+                          [],
+                        ),
+                        [],
+                        [],
                         [],
                       ),
-                      [staged.id],
-                      [],
-                      [log_draft("metaobjectUpsert", [staged.id])],
-                    ),
-                    next_store,
-                    next_identity,
-                  )
+                      store,
+                      identity,
+                    )
+                    False -> {
+                      let #(staged, next_store) =
+                        upsert_staged_metaobject(store, metaobject)
+                      #(
+                        MutationFieldResult(
+                          key,
+                          metaobject_payload(
+                            next_store,
+                            field,
+                            fragments,
+                            Some(staged),
+                            [],
+                          ),
+                          [staged.id],
+                          [],
+                          [log_draft("metaobjectUpsert", [staged.id])],
+                        ),
+                        next_store,
+                        next_identity,
+                      )
+                    }
+                  }
                 }
                 [], None -> #(
                   MutationFieldResult(
@@ -1161,6 +1571,7 @@ fn handle_metaobject_upsert(
                   create_input,
                   definition,
                 )
+              let field_errors = partition_upsert_user_errors(field_errors)
               case field_errors, created {
                 [_, ..], _ -> #(
                   MutationFieldResult(
@@ -1223,10 +1634,10 @@ fn handle_metaobject_upsert(
           }
       }
     }
-    _, _ -> {
+    _, _, _ -> {
       let err =
         UserError(
-          Some(["handle"]),
+          Some(["handle", "handle"]),
           "Handle can't be blank",
           "BLANK",
           None,
@@ -1244,6 +1655,55 @@ fn handle_metaobject_upsert(
         identity,
       )
     }
+  }
+}
+
+fn read_upsert_payload_input(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case read_object(args, "metaobject") {
+    Some(input) -> input
+    None ->
+      case dict.get(args, "values") {
+        Ok(root_field.ListVal(values)) ->
+          dict.insert(dict.new(), "fields", root_field.ListVal(values))
+        _ -> dict.new()
+      }
+  }
+}
+
+fn metaobject_upsert_exact_match(
+  existing: MetaobjectRecord,
+  updated: MetaobjectRecord,
+) -> Bool {
+  existing.handle == updated.handle
+  && existing.fields == updated.fields
+  && existing.capabilities == updated.capabilities
+}
+
+fn partition_upsert_user_errors(errors: List(UserError)) -> List(UserError) {
+  list.map(errors, fn(error) {
+    let UserError(field, message, code, element_key, element_index) = error
+    UserError(
+      partition_upsert_user_error_field(field),
+      message,
+      code,
+      element_key,
+      element_index,
+    )
+  })
+}
+
+fn partition_upsert_user_error_field(
+  field: Option(List(String)),
+) -> Option(List(String)) {
+  case field {
+    Some(["metaobject", "handle", ..rest]) ->
+      Some(list.append(["handle", "handle"], rest))
+    Some(["metaobject", "fields", ..rest]) ->
+      Some(list.append(["fields"], rest))
+    Some(["metaobject"]) -> Some([])
+    _ -> field
   }
 }
 
@@ -1310,27 +1770,72 @@ fn handle_metaobject_bulk_delete(
   // Pattern 2: type-scoped bulk delete needs the upstream selection set
   // before staging local deletes; downstream reads observe local markers.
   let store = maybe_hydrate_bulk_delete_selection(store, args, upstream)
-  let ids = read_bulk_delete_ids(store, args)
+  case read_bulk_delete_where(args) {
+    BulkDeleteByType(type_) ->
+      case find_effective_metaobject_definition_by_type(store, type_) {
+        None -> {
+          let err =
+            UserError(
+              Some(["where", "type"]),
+              "No metaobject definition exists for type \"" <> type_ <> "\"",
+              "RECORD_NOT_FOUND",
+              None,
+              None,
+            )
+          #(
+            MutationFieldResult(
+              key,
+              bulk_delete_payload(field, fragments, None, [err]),
+              [],
+              [],
+              [],
+            ),
+            store,
+            identity,
+          )
+        }
+        Some(_) -> {
+          let ids = read_bulk_delete_ids(store, args)
+          bulk_delete_selected_ids(store, identity, key, field, fragments, ids)
+        }
+      }
+    BulkDeleteByIds(ids) ->
+      bulk_delete_selected_ids(
+        store,
+        identity,
+        key,
+        field,
+        fragments,
+        list.take(ids, 250),
+      )
+    BulkDeleteNoSelector ->
+      bulk_delete_selected_ids(store, identity, key, field, fragments, [])
+  }
+}
+
+fn bulk_delete_selected_ids(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  ids: List(String),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   case ids {
     [] -> {
-      let err =
-        UserError(
-          Some(["where"]),
-          "No metaobjects were selected for deletion.",
-          "NO_OBJECTS_SELECTED",
-          None,
-          None,
-        )
+      let #(job_id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "Job")
+      let job = BulkDeleteJob(id: job_id, done: False)
       #(
         MutationFieldResult(
           key,
-          bulk_delete_payload(field, fragments, None, [err]),
+          bulk_delete_payload(field, fragments, Some(job), []),
+          [job_id],
           [],
-          [],
-          [],
+          [log_draft("metaobjectBulkDelete", [job_id])],
         ),
         store,
-        identity,
+        next_identity,
       )
     }
     _ -> {
@@ -1406,12 +1911,18 @@ fn maybe_hydrate_definition_by_type(
   store: Store,
   type_: Option(String),
   upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
 ) -> Store {
   case type_ {
     None -> store
-    Some(metaobject_type) ->
+    Some(metaobject_type) -> {
+      let normalized_type =
+        normalize_definition_type(metaobject_type, requesting_api_client_id)
       case
-        find_effective_metaobject_definition_by_type(store, metaobject_type)
+        find_effective_metaobject_definition_by_normalized_type(
+          store,
+          normalized_type,
+        )
       {
         Some(_) -> store
         None ->
@@ -1420,9 +1931,39 @@ fn maybe_hydrate_definition_by_type(
             upstream,
             "MetaobjectDefinitionHydrateByType",
             metaobject_definition_hydrate_query(),
-            json.object([#("type", json.string(metaobject_type))]),
+            json.object([#("type", json.string(normalized_type))]),
           )
       }
+    }
+  }
+}
+
+fn maybe_hydrate_definition_for_create(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+  requesting_api_client_id: Option(String),
+) -> Store {
+  case read_string(input, "type") {
+    None -> store
+    Some(raw_type) -> {
+      let normalized_type =
+        normalize_definition_type(raw_type, requesting_api_client_id)
+      case
+        raw_type == normalized_type
+        || is_app_reserved_definition_type_input(raw_type)
+      {
+        True ->
+          fetch_and_hydrate(
+            store,
+            upstream,
+            "MetaobjectDefinitionHydrateByType",
+            metaobject_definition_hydrate_query(),
+            json.object([#("type", json.string(normalized_type))]),
+          )
+        False -> store
+      }
+    }
   }
 }
 
@@ -1448,13 +1989,35 @@ fn maybe_hydrate_metaobject_by_id(
   }
 }
 
+fn maybe_hydrate_metaobject_by_handle(
+  store: Store,
+  type_: String,
+  handle: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case find_effective_metaobject_by_handle(store, type_, handle) {
+    Some(_) -> store
+    None ->
+      fetch_and_hydrate(
+        store,
+        upstream,
+        "MetaobjectHydrateByHandle",
+        metaobject_hydrate_by_handle_query(),
+        json.object([
+          #("type", json.string(type_)),
+          #("handle", json.string(handle)),
+        ]),
+      )
+  }
+}
+
 fn maybe_hydrate_bulk_delete_selection(
   store: Store,
   args: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> Store {
   let explicit_ids = case read_object(args, "where") {
-    Some(where) -> read_string_list(where, "ids")
+    Some(where) -> read_string_list(where, "ids") |> list.take(250)
     None -> []
   }
   case explicit_ids {
@@ -1467,13 +2030,17 @@ fn maybe_hydrate_bulk_delete_selection(
         Some(where) ->
           case read_string(where, "type") {
             Some(type_) ->
-              fetch_and_hydrate(
-                store,
-                upstream,
-                "MetaobjectBulkDeleteHydrateByType",
-                metaobject_bulk_delete_hydrate_query(),
-                json.object([#("type", json.string(type_))]),
-              )
+              case list_effective_metaobject_definitions(store) {
+                [] ->
+                  fetch_and_hydrate(
+                    store,
+                    upstream,
+                    "MetaobjectBulkDeleteHydrateByType",
+                    metaobject_bulk_delete_hydrate_query(),
+                    json.object([#("type", json.string(type_))]),
+                  )
+                _ -> store
+              }
             None -> store
           }
         None -> store
@@ -1874,6 +2441,10 @@ fn metaobject_hydrate_query() -> String {
   "query MetaobjectHydrateById($id: ID!) { metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }"
 }
 
+fn metaobject_hydrate_by_handle_query() -> String {
+  "query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }"
+}
+
 fn metaobject_bulk_delete_hydrate_query() -> String {
   "query MetaobjectBulkDeleteHydrateByType($type: String!) { catalog: metaobjects(type: $type, first: 250) { nodes { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } } } definition: metaobjectDefinitionByType(type: $type) { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } }"
 }
@@ -1978,16 +2549,16 @@ fn default_definition_capabilities() -> MetaobjectDefinitionCapabilitiesRecord {
   )
 }
 
-fn build_create_definition_user_errors(
-  store: Store,
+fn build_create_definition_validation_errors(
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> List(UserError) {
   let type_ = read_string(input, "type")
   let name = read_string(input, "name")
   let access = read_object(input, "access")
   []
   |> append_if(
-    option.is_none(type_),
+    is_missing_definition_type(type_),
     UserError(
       Some(["definition", "type"]),
       "Type can't be blank",
@@ -2009,7 +2580,7 @@ fn build_create_definition_user_errors(
   |> append_if(
     case type_, access {
       Some(t), Some(a) ->
-        !string.starts_with(t, "$app:") && dict.has_key(a, "admin")
+        !is_app_reserved_definition_type_input(t) && dict.has_key(a, "admin")
       _, _ -> False
     },
     UserError(
@@ -2020,10 +2591,25 @@ fn build_create_definition_user_errors(
       None,
     ),
   )
+  |> append_definition_type_validation_errors(type_, requesting_api_client_id)
+  |> append_create_field_definition_key_errors(read_list(
+    input,
+    "fieldDefinitions",
+  ))
+}
+
+fn build_create_definition_uniqueness_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  []
   |> append_if(
-    case type_ {
+    case
+      normalized_definition_type_from_input(input, requesting_api_client_id)
+    {
       Some(t) ->
-        case find_effective_metaobject_definition_by_type(store, t) {
+        case find_effective_metaobject_definition_by_normalized_type(store, t) {
           Some(_) -> True
           None -> False
         }
@@ -2039,9 +2625,143 @@ fn build_create_definition_user_errors(
   )
 }
 
+fn is_missing_definition_type(type_: Option(String)) -> Bool {
+  case type_ {
+    None -> True
+    Some(value) -> string.trim(value) == ""
+  }
+}
+
+fn append_definition_type_validation_errors(
+  errors: List(UserError),
+  type_: Option(String),
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  case type_ {
+    None -> errors
+    Some(raw) ->
+      case string.trim(raw) {
+        "" -> errors
+        _ -> {
+          let type_ = normalize_definition_type(raw, requesting_api_client_id)
+          let length = string.length(type_)
+          errors
+          |> append_if(
+            length < 3,
+            UserError(
+              Some(["definition", "type"]),
+              "Type is too short (minimum is 3 characters)",
+              "TOO_SHORT",
+              None,
+              None,
+            ),
+          )
+          |> append_if(
+            length > 255,
+            UserError(
+              Some(["definition", "type"]),
+              "Type is too long (maximum is 255 characters)",
+              "TOO_LONG",
+              None,
+              None,
+            ),
+          )
+          |> append_if(
+            !is_valid_definition_type(type_),
+            UserError(
+              Some(["definition", "type"]),
+              "Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
+              "INVALID",
+              None,
+              None,
+            ),
+          )
+        }
+      }
+  }
+}
+
+fn is_valid_definition_type(type_: String) -> Bool {
+  type_ != ""
+  && list.all(string.to_utf_codepoints(type_), fn(char) {
+    is_definition_type_codepoint(string.utf_codepoint_to_int(char))
+  })
+}
+
+fn is_definition_type_codepoint(codepoint: Int) -> Bool {
+  is_ascii_lowercase_letter(codepoint)
+  || is_ascii_uppercase_letter(codepoint)
+  || is_ascii_digit(codepoint)
+  || codepoint == 45
+  || codepoint == 95
+}
+
+fn is_valid_field_key(key: String) -> Bool {
+  key != ""
+  && list.all(string.to_utf_codepoints(key), fn(char) {
+    let codepoint = string.utf_codepoint_to_int(char)
+    is_ascii_lowercase_letter(codepoint)
+    || is_ascii_digit(codepoint)
+    || codepoint == 95
+  })
+}
+
+fn is_ascii_lowercase_letter(codepoint: Int) -> Bool {
+  codepoint >= 97 && codepoint <= 122
+}
+
+fn is_ascii_uppercase_letter(codepoint: Int) -> Bool {
+  codepoint >= 65 && codepoint <= 90
+}
+
+fn is_ascii_digit(codepoint: Int) -> Bool {
+  codepoint >= 48 && codepoint <= 57
+}
+
+fn append_create_field_definition_key_errors(
+  errors: List(UserError),
+  values: List(root_field.ResolvedValue),
+) -> List(UserError) {
+  list.fold(enumerate_values(values), errors, fn(acc, pair) {
+    let #(index, value) = pair
+    case value {
+      root_field.ObjectVal(input) ->
+        append_field_key_validation_error(acc, read_string(input, "key"), index)
+      _ -> acc
+    }
+  })
+}
+
+fn append_field_key_validation_error(
+  errors: List(UserError),
+  key: Option(String),
+  index: Int,
+) -> List(UserError) {
+  case key {
+    Some(k) ->
+      append_if(
+        errors,
+        !is_valid_field_key(k),
+        invalid_field_key_user_error(index, k),
+      )
+    None -> errors
+  }
+}
+
+fn invalid_field_key_user_error(index: Int, key: String) -> UserError {
+  UserError(
+    Some(["definition", "fieldDefinitions", int.to_string(index), "key"]),
+    "is invalid",
+    "INVALID",
+    Some(key),
+    Some(index),
+  )
+}
+
 fn build_definition_from_create_input(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry) {
   let #(id, after_id) =
     synthetic_identity.make_proxy_synthetic_gid(
@@ -2050,7 +2770,8 @@ fn build_definition_from_create_input(
     )
   let #(now, after_time) = synthetic_identity.make_synthetic_timestamp(after_id)
   let type_ =
-    read_string(input, "type") |> option.unwrap("metaobject_definition")
+    normalized_definition_type_from_input(input, requesting_api_client_id)
+    |> option.unwrap("metaobject_definition")
   #(
     MetaobjectDefinitionRecord(
       id: id,
@@ -2081,10 +2802,12 @@ fn build_definition_from_create_input(
 }
 
 fn apply_definition_update(
+  store: Store,
   identity: SyntheticIdentityRegistry,
   existing: MetaobjectDefinitionRecord,
   input: Dict(String, root_field.ResolvedValue),
   reset_field_order: Bool,
+  requesting_api_client_id: Option(String),
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry, List(UserError)) {
   let #(now, next_identity) =
     synthetic_identity.make_synthetic_timestamp(identity)
@@ -2097,9 +2820,21 @@ fn apply_definition_update(
     True -> reorder_field_definitions(fields, ordered_keys)
     False -> fields
   }
+  let type_ =
+    normalized_definition_type_from_input(input, requesting_api_client_id)
+    |> option.unwrap(existing.type_)
+  let type_errors =
+    build_update_definition_type_user_errors(
+      store,
+      existing.id,
+      input,
+      requesting_api_client_id,
+    )
+  let access_errors = build_update_definition_access_user_errors(input, type_)
   let updated =
     MetaobjectDefinitionRecord(
       ..existing,
+      type_: type_,
       name: read_string_if_present(input, "name", existing.name),
       description: read_string_if_present(
         input,
@@ -2126,49 +2861,106 @@ fn apply_definition_update(
       field_definitions: next_fields,
       updated_at: Some(now),
     )
-  #(updated, next_identity, user_errors)
+  #(
+    updated,
+    next_identity,
+    list.flatten([
+      type_errors,
+      access_errors,
+      user_errors,
+    ]),
+  )
+}
+
+fn build_update_definition_type_user_errors(
+  store: Store,
+  existing_id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  let type_ = read_string(input, "type")
+  let validation_errors =
+    []
+    |> append_definition_type_validation_errors(type_, requesting_api_client_id)
+  case
+    validation_errors,
+    normalized_definition_type_from_input(input, requesting_api_client_id)
+  {
+    [], Some(normalized_type) ->
+      []
+      |> append_if(
+        case
+          find_effective_metaobject_definition_by_normalized_type(
+            store,
+            normalized_type,
+          )
+        {
+          Some(definition) -> definition.id != existing_id
+          None -> False
+        },
+        UserError(
+          Some(["definition", "type"]),
+          "Type has already been taken",
+          "TAKEN",
+          None,
+          None,
+        ),
+      )
+    [_, ..], _ -> validation_errors
+    [], None -> []
+  }
+}
+
+fn build_update_definition_access_user_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  next_type: String,
+) -> List(UserError) {
+  []
+  |> append_if(
+    case read_object(input, "access") {
+      Some(access) ->
+        dict.has_key(access, "admin")
+        && !{
+          case read_string(input, "type") {
+            Some(raw_type) -> is_app_reserved_definition_type_input(raw_type)
+            None -> is_app_reserved_resolved_definition_type(next_type)
+          }
+        }
+      None -> False
+    },
+    UserError(
+      Some(["definition", "access", "admin"]),
+      "Admin access can only be specified on metaobject definitions that have an app-reserved type.",
+      "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
+      None,
+      None,
+    ),
+  )
+}
+
+fn is_app_reserved_resolved_definition_type(type_: String) -> Bool {
+  case string.split(type_, "--") {
+    ["app", api_client_id, rest, ..] -> api_client_id != "" && rest != ""
+    _ -> False
+  }
 }
 
 fn standard_template(
   type_: String,
-) -> Option(#(String, String, String, List(MetaobjectFieldDefinitionRecord))) {
-  case type_ {
-    "shopify--qa-pair" ->
-      Some(
-        #("shopify--qa-pair", "Q&A pair", "question", [
-          MetaobjectFieldDefinitionRecord(
-            "question",
-            Some("Question"),
-            None,
-            Some(True),
-            MetaobjectDefinitionTypeRecord(
-              "single_line_text_field",
-              Some("TEXT"),
-            ),
-            [],
-          ),
-          MetaobjectFieldDefinitionRecord(
-            "answer",
-            Some("Answer"),
-            None,
-            Some(True),
-            MetaobjectDefinitionTypeRecord(
-              "multi_line_text_field",
-              Some("TEXT"),
-            ),
-            [],
-          ),
-        ]),
-      )
-    _ -> None
+) -> Option(standard_templates.StandardMetaobjectTemplate) {
+  case
+    standard_templates.templates()
+    |> list.find(fn(template) { template.type_ == type_ })
+  {
+    Ok(template) -> Some(template)
+    Error(_) -> None
   }
 }
 
 fn build_standard_definition(
   identity: SyntheticIdentityRegistry,
-  template: #(String, String, String, List(MetaobjectFieldDefinitionRecord)),
+  template: standard_templates.StandardMetaobjectTemplate,
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry) {
-  let #(type_, name, display_name_key, fields) = template
   let #(id, after_id) =
     synthetic_identity.make_proxy_synthetic_gid(
       identity,
@@ -2178,18 +2970,18 @@ fn build_standard_definition(
   #(
     MetaobjectDefinitionRecord(
       id: id,
-      type_: type_,
-      name: Some(name),
-      description: None,
-      display_name_key: Some(display_name_key),
-      access: default_definition_access(),
-      capabilities: default_definition_capabilities(),
-      field_definitions: fields,
-      has_thumbnail_field: Some(False),
+      type_: template.type_,
+      name: Some(template.name),
+      description: template.description,
+      display_name_key: Some(template.display_name_key),
+      access: template.access,
+      capabilities: template.capabilities,
+      field_definitions: template.field_definitions,
+      has_thumbnail_field: template.has_thumbnail_field,
       metaobjects_count: Some(0),
       standard_template: Some(MetaobjectStandardTemplateRecord(
-        Some(type_),
-        Some(name),
+        Some(template.type_),
+        Some(template.name),
       )),
       created_at: Some(now),
       updated_at: Some(now),
@@ -2264,14 +3056,22 @@ fn apply_field_definition_operations(
             ordered_keys,
           )
           Some(k) ->
-            apply_field_operation(
-              fields,
-              errors,
-              list.append(ordered_keys, [k]),
-              operation,
-              k,
-              index,
-            )
+            case is_valid_field_key(k) {
+              False -> #(
+                fields,
+                list.append(errors, [invalid_field_key_user_error(index, k)]),
+                ordered_keys,
+              )
+              True ->
+                apply_field_operation(
+                  fields,
+                  errors,
+                  list.append(ordered_keys, [k]),
+                  operation,
+                  k,
+                  index,
+                )
+            }
         }
       }
     }
@@ -2513,7 +3313,15 @@ fn build_metaobject_from_create_input(
   definition: MetaobjectDefinitionRecord,
 ) -> #(Option(MetaobjectRecord), SyntheticIdentityRegistry, List(UserError)) {
   let #(fields, errors) =
-    build_metaobject_fields_from_input(input, definition, [], True, True)
+    build_metaobject_fields_from_input(
+      store,
+      input,
+      definition,
+      [],
+      True,
+      True,
+      True,
+    )
   case errors {
     [_, ..] -> #(None, identity, errors)
     [] -> {
@@ -2582,11 +3390,13 @@ fn apply_metaobject_update_input(
         _ -> {
           let #(fields_from_input, errors) =
             build_metaobject_fields_from_input(
+              store,
               input,
               definition,
               existing.fields,
               False,
               True,
+              False,
             )
           case errors {
             [_, ..] -> #(None, identity, errors)
@@ -2628,11 +3438,13 @@ fn apply_metaobject_update_input(
 }
 
 fn build_metaobject_fields_from_input(
+  store: Store,
   input: Dict(String, root_field.ResolvedValue),
   definition: MetaobjectDefinitionRecord,
   existing_fields: List(MetaobjectFieldRecord),
   include_missing: Bool,
   require_required: Bool,
+  allow_scalar_boolean_coercion: Bool,
 ) -> #(List(MetaobjectFieldRecord), List(UserError)) {
   let existing_by_key =
     list.fold(existing_fields, dict.new(), fn(acc, field) {
@@ -2683,9 +3495,11 @@ fn build_metaobject_fields_from_input(
                   Ok(field_definition) -> {
                     let value_errors =
                       validate_metaobject_field_input_value(
+                        store,
                         raw_field,
                         field_definition,
                         index,
+                        allow_scalar_boolean_coercion,
                       )
                     case value_errors {
                       [_, ..] -> #(
@@ -2751,9 +3565,11 @@ fn build_metaobject_fields_from_input(
 }
 
 fn validate_metaobject_field_input_value(
+  store: Store,
   raw_field: Dict(String, root_field.ResolvedValue),
   field_definition: MetaobjectFieldDefinitionRecord,
   index: Int,
+  allow_scalar_boolean_coercion: Bool,
 ) -> List(UserError) {
   let value = read_string(raw_field, "value")
   let json_error = case value, field_definition.type_.name {
@@ -2772,30 +3588,25 @@ fn validate_metaobject_field_input_value(
       }
     _, _ -> []
   }
-  let max_error = case
-    value,
-    find_validation(field_definition.validations, "max")
-  {
-    Some(v), Some(max_string) ->
-      case int.parse(max_string) {
-        Ok(max) ->
-          case string.length(v) > max {
-            True -> [
-              UserError(
-                Some(["metaobject", "fields", int.to_string(index)]),
-                "Value has a maximum length of " <> int.to_string(max) <> ".",
-                "INVALID_VALUE",
-                Some(field_definition.key),
-                None,
-              ),
-            ]
-            False -> []
-          }
-        Error(_) -> []
-      }
-    _, _ -> []
-  }
-  list.append(json_error, max_error)
+  let coercion_errors =
+    metafield_values.validate_metaobject_value(
+      store,
+      field_definition.type_.name,
+      value,
+      field_definition.validations,
+      allow_scalar_boolean_coercion,
+    )
+    |> list.map(fn(error) {
+      let metafield_values.ValidationError(message:, element_index:) = error
+      UserError(
+        Some(["metaobject", "fields", int.to_string(index)]),
+        message,
+        "INVALID_VALUE",
+        Some(field_definition.key),
+        element_index,
+      )
+    })
+  list.append(json_error, coercion_errors)
 }
 
 fn build_metaobject_field_from_input(
@@ -3194,13 +4005,17 @@ fn serialize_definitions_connection(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
   let items = case read_string(args, "type") {
-    Some(type_) ->
+    Some(type_) -> {
+      let normalized_type =
+        normalize_definition_type(type_, requesting_api_client_id)
       list.filter(list_effective_metaobject_definitions(store), fn(defn) {
-        defn.type_ == type_
+        string.lowercase(defn.type_) == normalized_type
       })
+    }
     None -> list_effective_metaobject_definitions(store)
   }
   let window =
@@ -3986,6 +4801,22 @@ fn definition_delete_result(
   deleted_id: Option(String),
   user_errors: List(UserError),
 ) -> MutationFieldResult {
+  definition_delete_result_with_staged_ids(
+    key,
+    field,
+    deleted_id,
+    user_errors,
+    option_string_to_list(deleted_id),
+  )
+}
+
+fn definition_delete_result_with_staged_ids(
+  key: String,
+  field: Selection,
+  deleted_id: Option(String),
+  user_errors: List(UserError),
+  staged_resource_ids: List(String),
+) -> MutationFieldResult {
   let source =
     src_object([
       #("deletedId", graphql_helpers.option_string_source(deleted_id)),
@@ -3994,10 +4825,12 @@ fn definition_delete_result(
   MutationFieldResult(
     key,
     project_selection(source, field, dict.new()),
-    option_string_to_list(deleted_id),
+    staged_resource_ids,
     [],
     case deleted_id {
-      Some(id) -> [log_draft("metaobjectDefinitionDelete", [id])]
+      Some(_) -> [
+        log_draft("metaobjectDefinitionDelete", staged_resource_ids),
+      ]
       None -> []
     },
   )
@@ -4593,6 +5426,8 @@ fn normalize_metaobject_value(
     None -> None
     Some(raw) ->
       case type_name {
+        "boolean" -> Some(normalize_boolean_value(raw))
+        "number_integer" -> Some(normalize_integer_value(raw))
         "date_time" -> Some(normalize_date_time_value(raw))
         "rating" -> Some(normalize_rating_value_string(raw))
         _ ->
@@ -4608,6 +5443,24 @@ fn normalize_metaobject_value(
                 False -> Some(raw)
               }
           }
+      }
+  }
+}
+
+fn normalize_boolean_value(raw: String) -> String {
+  case raw {
+    "false" -> "false"
+    _ -> "true"
+  }
+}
+
+fn normalize_integer_value(raw: String) -> String {
+  case int.parse(raw) {
+    Ok(value) -> int.to_string(value)
+    Error(_) ->
+      case float.parse(raw) {
+        Ok(value) -> int.to_string(float.truncate(value))
+        Error(_) -> "0"
       }
   }
 }
@@ -5168,25 +6021,31 @@ fn read_bulk_delete_ids(
   store: Store,
   args: Dict(String, root_field.ResolvedValue),
 ) -> List(String) {
-  let explicit_ids = case read_object(args, "where") {
-    Some(where) -> read_string_list(where, "ids")
-    None -> []
+  case read_bulk_delete_where(args) {
+    BulkDeleteByIds(ids) -> list.take(ids, 250)
+    BulkDeleteByType(type_) ->
+      list.map(list_effective_metaobjects_by_type(store, type_), fn(item) {
+        item.id
+      })
+      |> list.take(250)
+    BulkDeleteNoSelector -> []
   }
-  case explicit_ids {
-    [_, ..] -> explicit_ids
-    [] ->
-      case read_object(args, "where") {
-        Some(where) ->
+}
+
+fn read_bulk_delete_where(
+  args: Dict(String, root_field.ResolvedValue),
+) -> BulkDeleteWhere {
+  case read_object(args, "where") {
+    Some(where) ->
+      case dict.has_key(where, "ids") {
+        True -> BulkDeleteByIds(read_string_list(where, "ids"))
+        False ->
           case read_string(where, "type") {
-            Some(type_) ->
-              list.map(
-                list_effective_metaobjects_by_type(store, type_),
-                fn(item) { item.id },
-              )
-            None -> []
+            Some(type_) -> BulkDeleteByType(type_)
+            None -> BulkDeleteNoSelector
           }
-        None -> []
       }
+    None -> BulkDeleteNoSelector
   }
 }
 
@@ -5215,15 +6074,6 @@ fn build_invalid_json_message(value: String) -> String {
     True -> "Value is invalid JSON."
     False -> "Value is invalid JSON."
   }
-}
-
-fn find_validation(
-  validations: List(MetaobjectFieldDefinitionValidationRecord),
-  name: String,
-) -> Option(String) {
-  list.find(validations, fn(validation) { validation.name == name })
-  |> result.map(fn(validation) { validation.value })
-  |> result.unwrap(None)
 }
 
 fn find_field_definition(

@@ -1,0 +1,26 @@
+mutation AppPurchaseOneTimeCreateValidationSuccess {
+  appPurchaseOneTimeCreate(
+    name: "HAR-646 valid test"
+    returnUrl: "https://app.example.test/return"
+    price: { amount: "5.00", currencyCode: USD }
+    test: true
+  ) {
+    appPurchaseOneTime {
+      id
+      name
+      status
+      test
+      createdAt
+      price {
+        amount
+        currencyCode
+      }
+    }
+    confirmationUrl
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

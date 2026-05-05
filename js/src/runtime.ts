@@ -30,6 +30,8 @@ import {
   Config,
   Live,
   LiveHybrid,
+  PassthroughUnsupportedMutations,
+  RejectUnsupportedMutations,
   Request as GleamRequest,
   type Response as GleamResponse,
   Snapshot,
@@ -58,6 +60,7 @@ import type {
   DraftProxyStateDump,
   DraftProxyStateSnapshot,
   ReadMode,
+  UnsupportedMutationMode,
 } from './types.js';
 import { DraftProxyCommitError } from './types.js';
 
@@ -72,9 +75,26 @@ function readModeToGleam(mode: ReadMode): Snapshot | LiveHybrid | Live {
   }
 }
 
+function unsupportedMutationModeToGleam(
+  mode: UnsupportedMutationMode | undefined,
+): PassthroughUnsupportedMutations | RejectUnsupportedMutations {
+  switch (mode ?? 'passthrough') {
+    case 'passthrough':
+      return new PassthroughUnsupportedMutations();
+    case 'reject':
+      return new RejectUnsupportedMutations();
+  }
+}
+
 function configToGleam(config: AppConfig): Config {
   const snapshotPath = config.snapshotPath === undefined ? new None() : new Some(config.snapshotPath);
-  return new Config(readModeToGleam(config.readMode), config.port, config.shopifyAdminOrigin, snapshotPath);
+  return new Config(
+    readModeToGleam(config.readMode),
+    unsupportedMutationModeToGleam(config.unsupportedMutationMode),
+    config.port,
+    config.shopifyAdminOrigin,
+    snapshotPath,
+  );
 }
 
 function headersToDict(headers: Record<string, DraftProxyHeaderValue> | undefined) {

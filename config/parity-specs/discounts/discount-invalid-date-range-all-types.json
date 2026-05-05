@@ -1,0 +1,74 @@
+{
+  "scenarioId": "discount-invalid-date-range-all-types",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBxgyCreate",
+    "discountCodeFreeShippingCreate",
+    "discountAutomaticBxgyCreate",
+    "discountAutomaticFreeShippingCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-invalid-date-range-all-types.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-invalid-date-range-code-basic.graphql",
+    "variablesCapturePath": "$.cases.codeBasic.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "code-basic-invalid-date-user-errors",
+        "capturePath": "$.cases.codeBasic.response.data.discountCodeBasicCreate.userErrors",
+        "proxyPath": "$.data.discountCodeBasicCreate.userErrors"
+      },
+      {
+        "name": "code-bxgy-invalid-date-user-errors",
+        "capturePath": "$.cases.codeBxgy.response.data.discountCodeBxgyCreate.userErrors",
+        "proxyPath": "$.data.discountCodeBxgyCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-invalid-date-range-code-bxgy.graphql",
+          "variablesCapturePath": "$.cases.codeBxgy.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "code-free-shipping-invalid-date-user-errors",
+        "capturePath": "$.cases.codeFreeShipping.response.data.discountCodeFreeShippingCreate.userErrors",
+        "proxyPath": "$.data.discountCodeFreeShippingCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-invalid-date-range-code-free-shipping.graphql",
+          "variablesCapturePath": "$.cases.codeFreeShipping.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-bxgy-invalid-date-user-errors",
+        "capturePath": "$.cases.automaticBxgy.response.data.discountAutomaticBxgyCreate.userErrors",
+        "proxyPath": "$.data.discountAutomaticBxgyCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-invalid-date-range-automatic-bxgy.graphql",
+          "variablesCapturePath": "$.cases.automaticBxgy.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "automatic-free-shipping-invalid-date-user-errors",
+        "capturePath": "$.cases.automaticFreeShipping.response.data.discountAutomaticFreeShippingCreate.userErrors",
+        "proxyPath": "$.data.discountAutomaticFreeShippingCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-invalid-date-range-automatic-free-shipping.graphql",
+          "variablesCapturePath": "$.cases.automaticFreeShipping.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-595 records live 2026-04 Shopify validation-only responses for inverted startsAt/endsAt across code basic, code BXGY, code free shipping, automatic BXGY, and automatic free shipping creates. Live Shopify returned the message `Ends at needs to be after starts_at`; this differs from the issue's quoted `End date must be after start date`, so the proxy follows captured Admin API behavior."
+}

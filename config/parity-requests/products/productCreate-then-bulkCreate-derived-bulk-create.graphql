@@ -1,0 +1,42 @@
+mutation ProductDerivedFieldsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+  productVariantsBulkCreate(productId: $productId, variants: $variants) {
+    product {
+      id
+      priceRangeV2 {
+        minVariantPrice {
+          amount
+          currencyCode
+        }
+        maxVariantPrice {
+          amount
+          currencyCode
+        }
+      }
+      priceRange {
+        minVariantPrice {
+          amount
+          currencyCode
+        }
+        maxVariantPrice {
+          amount
+          currencyCode
+        }
+      }
+      totalVariants
+      hasOnlyDefaultVariant
+      hasOutOfStockVariants
+      tracksInventory
+      totalInventory
+    }
+    productVariants {
+      id
+      title
+      price
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -26,6 +26,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   serialize_empty_connection, source_to_json, src_object,
 }
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
@@ -33,16 +34,19 @@ import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
-  type B2BCompanyLocationRecord, type B2BCompanyRecord, type StorePropertyValue,
+  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CapturedJsonValue,
+  type CustomerRecord, type ProductMetafieldRecord, type StorePropertyValue,
   B2BCompanyContactRecord, B2BCompanyContactRoleRecord, B2BCompanyLocationRecord,
-  B2BCompanyRecord, StorePropertyBool, StorePropertyFloat, StorePropertyInt,
-  StorePropertyList, StorePropertyNull, StorePropertyObject, StorePropertyString,
+  B2BCompanyRecord, CapturedObject, CapturedString, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
+  StorePropertyObject, StorePropertyString,
 }
 
 const domain = "b2b"
@@ -50,6 +54,14 @@ const domain = "b2b"
 const default_string_max_length = 255
 
 const notes_max_length = 5000
+
+const external_id_max_length = 64
+
+const external_id_invalid_chars_detail = "external_id_contains_invalid_chars"
+
+const external_id_invalid_chars_message = "External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\\/?<>_-~,.;:'`\""
+
+const company_contact_maximum_cap = 10_000
 
 pub type B2BError {
   ParseFailed(root_field.RootFieldError)
@@ -60,6 +72,7 @@ type UserError {
     field: Option(List(String)),
     message: String,
     code: user_error_code.Code,
+    detail: Option(String),
   )
 }
 
@@ -320,6 +333,7 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  _upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -688,6 +702,21 @@ fn contact_source(contact: B2BCompanyContactRecord) -> SourceValue {
   record_source("CompanyContact", contact.id, contact.data)
 }
 
+fn contact_source_with_main_flag(
+  store: Store,
+  contact: B2BCompanyContactRecord,
+) -> SourceValue {
+  case contact_source(contact) {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(
+        fields,
+        "isMainContact",
+        SrcBool(contact_is_main_contact(store, contact)),
+      ))
+    source -> source
+  }
+}
+
 fn role_source(role: B2BCompanyContactRoleRecord) -> SourceValue {
   record_source("CompanyContactRole", role.id, role.data)
 }
@@ -799,29 +828,119 @@ fn serialize_company(
               key,
               serialize_count(child, list.length(locations)),
             )
-            "mainContact" -> #(key, case find_main_contact(contacts) {
-              Some(contact) ->
-                serialize_contact(store, contact, child, fragments)
+            "mainContact" -> #(key, case company.main_contact_id {
+              Some(contact_id) ->
+                case
+                  store.get_effective_b2b_company_contact_by_id(
+                    store,
+                    contact_id,
+                  )
+                {
+                  Some(contact) if contact.company_id == company.id ->
+                    serialize_contact(store, contact, child, fragments)
+                  _ -> json.null()
+                }
               None -> json.null()
             })
             "defaultRole" -> #(key, case roles {
               [role, ..] -> project_source(role_source(role), child, fragments)
               [] -> json.null()
             })
-            "orders" | "draftOrders" | "events" | "metafields" -> #(
+            "orders" | "draftOrders" | "events" -> #(
               key,
               serialize_empty_connection(
                 child,
                 default_selected_field_options(),
               ),
             )
+            "metafields" -> #(
+              key,
+              serialize_company_metafields_connection(
+                store,
+                company.id,
+                child,
+                variables,
+              ),
+            )
             "ordersCount" -> #(key, serialize_count(child, 0))
-            "metafield" -> #(key, json.null())
+            "metafield" -> #(
+              key,
+              serialize_company_metafield(store, company.id, child, variables),
+            )
             _ -> source_field(source, child, fragments)
           }
         _ -> #(key, json.null())
       }
     }),
+  )
+}
+
+fn serialize_company_metafield(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = graphql_helpers.field_args(field, variables)
+  let namespace = read_string(args, "namespace")
+  let key = read_string(args, "key")
+  let found =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.find(fn(metafield) {
+      metafield.namespace == option.unwrap(namespace, "")
+      && metafield.key == option.unwrap(key, "")
+    })
+    |> option.from_result
+  case found {
+    Some(metafield) ->
+      metafields.serialize_metafield_selection(
+        company_metafield_to_core(metafield),
+        field,
+        default_selected_field_options(),
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_company_metafields_connection(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = graphql_helpers.field_args(field, variables)
+  let namespace = read_string(args, "namespace")
+  let records =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.filter(fn(metafield) {
+      case namespace {
+        Some(ns) -> metafield.namespace == ns
+        None -> True
+      }
+    })
+    |> list.map(company_metafield_to_core)
+  metafields.serialize_metafields_connection(
+    records,
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn company_metafield_to_core(
+  record: ProductMetafieldRecord,
+) -> metafields.MetafieldRecordCore {
+  metafields.MetafieldRecordCore(
+    id: record.id,
+    namespace: record.namespace,
+    key: record.key,
+    type_: record.type_,
+    value: record.value,
+    compare_digest: record.compare_digest,
+    json_value: record.json_value,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    owner_type: record.owner_type,
   )
 }
 
@@ -831,7 +950,7 @@ fn serialize_contact(
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
-  let source = contact_source(contact)
+  let source = contact_source_with_main_flag(store, contact)
   json.object(
     selected_children(field)
     |> list.map(fn(child) {
@@ -880,6 +999,10 @@ fn serialize_contact(
                 selected_children(child),
                 fragments,
               ),
+            )
+            "isMainContact" -> #(
+              key,
+              json.bool(contact_is_main_contact(store, contact)),
             )
             "note" ->
               source_field(
@@ -1222,6 +1345,80 @@ fn company_contacts(store: Store, company: B2BCompanyRecord) {
   })
 }
 
+fn contact_customer_id(contact: B2BCompanyContactRecord) -> Option(String) {
+  case dict.get(contact.data, "customerId") {
+    Ok(StorePropertyString(customer_id)) -> Some(customer_id)
+    _ -> None
+  }
+}
+
+fn find_company_contact_by_customer_id(
+  contacts: List(B2BCompanyContactRecord),
+  customer_id: String,
+) -> Option(B2BCompanyContactRecord) {
+  contacts
+  |> list.find(fn(contact) { contact_customer_id(contact) == Some(customer_id) })
+  |> option_from_result
+}
+
+fn customer_email(customer: CustomerRecord) -> Option(String) {
+  case customer.email {
+    Some(email) -> {
+      let trimmed = string.trim(email)
+      case trimmed == "" {
+        True -> None
+        False -> Some(email)
+      }
+    }
+    None -> None
+  }
+}
+
+fn customer_contact_source(
+  customer: CustomerRecord,
+  email: String,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Customer")),
+    #("id", SrcString(customer.id)),
+    #("email", SrcString(email)),
+    #("firstName", customer.first_name |> optional_src_string),
+    #("lastName", customer.last_name |> optional_src_string),
+  ])
+}
+
+fn company_contact_cap_reached(company: B2BCompanyRecord) -> Bool {
+  list.length(company.contact_ids) >= company_contact_maximum_cap
+}
+
+fn company_contact_cap_error() -> UserError {
+  user_error(
+    Some(["companyId"]),
+    "Company contact maximum cap reached.",
+    user_error_code.company_contact_max_cap_reached,
+  )
+}
+
+fn company_contact_mutation_error(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: List(String),
+  message: String,
+  code: user_error_code.Code,
+) -> RootResult {
+  RootResult(
+    Payload(
+      ..empty_payload([
+        user_error(Some(field), message, code),
+      ]),
+      company_contact: None,
+    ),
+    store,
+    identity,
+    [],
+  )
+}
+
 fn company_locations(store: Store, company: B2BCompanyRecord) {
   company.location_ids
   |> list.filter_map(fn(id) {
@@ -1242,13 +1439,14 @@ fn company_roles(store: Store, company: B2BCompanyRecord) {
   })
 }
 
-fn find_main_contact(
-  contacts: List(B2BCompanyContactRecord),
-) -> Option(B2BCompanyContactRecord) {
-  list.find(contacts, fn(contact) {
-    data_get(contact.data, "isMainContact") == SrcBool(True)
-  })
-  |> option_from_result
+fn contact_is_main_contact(
+  store: Store,
+  contact: B2BCompanyContactRecord,
+) -> Bool {
+  case store.get_effective_b2b_company_by_id(store, contact.company_id) {
+    Some(company) -> company.main_contact_id == Some(contact.id)
+    None -> False
+  }
 }
 
 fn option_from_result(value: Result(a, b)) -> Option(a) {
@@ -1262,6 +1460,21 @@ fn append_unique(items: List(String), value: String) -> List(String) {
   case list.contains(items, value) {
     True -> items
     False -> list.append(items, [value])
+  }
+}
+
+fn has_duplicate_strings(items: List(String)) -> Bool {
+  has_duplicate_strings_loop(items, [])
+}
+
+fn has_duplicate_strings_loop(items: List(String), seen: List(String)) -> Bool {
+  case items {
+    [] -> False
+    [first, ..rest] ->
+      case list.contains(seen, first) {
+        True -> True
+        False -> has_duplicate_strings_loop(rest, [first, ..seen])
+      }
   }
 }
 
@@ -1304,7 +1517,16 @@ fn user_error(
   message: String,
   code: user_error_code.Code,
 ) {
-  UserError(field: field, message: message, code: code)
+  UserError(field: field, message: message, code: code, detail: None)
+}
+
+fn detailed_user_error(
+  field: Option(List(String)),
+  message: String,
+  code: user_error_code.Code,
+  detail: String,
+) {
+  UserError(field: field, message: message, code: code, detail: Some(detail))
 }
 
 fn field_path(prefix: List(String), field: String) -> List(String) {
@@ -1373,6 +1595,138 @@ fn validate_text_field(
   }
 }
 
+fn validate_external_id_field(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(UserError) {
+  case read_string(input, "externalId") {
+    Some(value) -> {
+      validate_external_id_length(value, prefix)
+      |> list.append(validate_external_id_charset(value, prefix))
+    }
+    None -> []
+  }
+}
+
+fn validate_external_id_length(
+  value: String,
+  prefix: List(String),
+) -> List(UserError) {
+  case string.length(value) > external_id_max_length {
+    True -> [
+      user_error(
+        Some(field_path(prefix, "externalId")),
+        "External Id must be "
+          <> int.to_string(external_id_max_length)
+          <> " characters or less.",
+        user_error_code.too_long,
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn validate_external_id_charset(
+  value: String,
+  prefix: List(String),
+) -> List(UserError) {
+  case value |> string.to_graphemes |> list.all(external_id_char_allowed) {
+    True -> []
+    False -> [
+      detailed_user_error(
+        Some(field_path(prefix, "externalId")),
+        external_id_invalid_chars_message,
+        user_error_code.invalid,
+        external_id_invalid_chars_detail,
+      ),
+    ]
+  }
+}
+
+fn external_id_char_allowed(char: String) -> Bool {
+  string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\\/?<>_-~.,;:'\"`",
+    char,
+  )
+}
+
+fn value_is_present(value: root_field.ResolvedValue) -> Bool {
+  case value {
+    root_field.NullVal -> False
+    root_field.StringVal(value) -> string.trim(value) != ""
+    root_field.ListVal(items) -> list.any(items, value_is_present)
+    root_field.ObjectVal(fields) ->
+      fields
+      |> dict.to_list
+      |> list.any(fn(entry) { value_is_present(entry.1) })
+    _ -> True
+  }
+}
+
+fn has_non_empty_object_field(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+) -> Bool {
+  case dict.get(input, field) {
+    Ok(root_field.ObjectVal(fields)) ->
+      fields
+      |> dict.to_list
+      |> list.any(fn(entry) { value_is_present(entry.1) })
+    _ -> False
+  }
+}
+
+fn has_explicit_null_field(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+) -> Bool {
+  case dict.get(input, field) {
+    Ok(root_field.NullVal) -> True
+    _ -> False
+  }
+}
+
+fn validate_billing_same_as_shipping(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(UserError) {
+  let billing_address_present =
+    has_non_empty_object_field(input, "billingAddress")
+  case read_bool(input, "billingSameAsShipping") {
+    Some(True) if billing_address_present -> [
+      user_error(
+        Some(field_path(prefix, "billingAddress")),
+        "Invalid input.",
+        user_error_code.invalid_input,
+      ),
+    ]
+    Some(False) if !billing_address_present -> [
+      user_error(
+        Some(field_path(prefix, "billingAddress")),
+        "Billing address can't be blank when billingSameAsShipping is false",
+        user_error_code.invalid_input,
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_tax_exempt_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(UserError) {
+  case has_explicit_null_field(input, "taxExempt") {
+    True -> [
+      user_error(
+        Some(field_path(prefix, "taxExempt")),
+        "Invalid input.",
+        user_error_code.invalid_input,
+      ),
+    ]
+    False -> []
+  }
+}
+
 fn sanitize_name_field(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Dict(String, root_field.ResolvedValue) {
@@ -1407,6 +1761,7 @@ fn validate_company_input(
       notes_max_length,
       True,
     ))
+    |> list.append(validate_external_id_field(input, prefix))
   #(input, errors)
 }
 
@@ -1469,6 +1824,9 @@ fn validate_location_input(
       notes_max_length,
       True,
     ))
+    |> list.append(validate_billing_same_as_shipping(input, prefix))
+    |> list.append(validate_tax_exempt_input(input, prefix))
+    |> list.append(validate_external_id_field(input, prefix))
   #(input, errors)
 }
 
@@ -1542,6 +1900,38 @@ fn resource_not_found(field: List(String)) {
     Some(field),
     "Resource requested does not exist.",
     user_error_code.resource_not_found,
+  )
+}
+
+fn company_role_not_found() {
+  user_error(
+    Some(["companyContactRoleId"]),
+    "The company contact role doesn't exist.",
+    user_error_code.resource_not_found,
+  )
+}
+
+fn company_location_not_found() {
+  user_error(
+    Some(["companyLocationId"]),
+    "The company location doesn't exist.",
+    user_error_code.resource_not_found,
+  )
+}
+
+fn one_role_already_assigned() {
+  user_error(
+    None,
+    "Company contact has already been assigned a role in that company location.",
+    user_error_code.limit_reached,
+  )
+}
+
+fn existing_orders_error() {
+  user_error(
+    Some(["companyContactId"]),
+    "Cannot delete a company contact with existing orders or draft orders.",
+    user_error_code.failed_to_delete,
   )
 }
 
@@ -1820,6 +2210,78 @@ fn validate_contact_duplicate_phone(
       }
     None -> []
   }
+}
+
+fn validate_duplicate_company_external_id(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  exclude_company_id: Option(String),
+  prefix: List(String),
+) -> List(UserError) {
+  case read_string(input, "externalId") {
+    Some(external_id) ->
+      case company_external_id_exists(store, external_id, exclude_company_id) {
+        True -> [
+          user_error(
+            Some(field_path(prefix, "externalId")),
+            "External id has already been taken.",
+            user_error_code.taken,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn validate_duplicate_location_external_id(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  exclude_location_id: Option(String),
+  prefix: List(String),
+) -> List(UserError) {
+  case read_string(input, "externalId") {
+    Some(external_id) ->
+      case
+        location_external_id_exists(store, external_id, exclude_location_id)
+      {
+        True -> [
+          user_error(
+            Some(field_path(prefix, "externalId")),
+            "External id has already been taken.",
+            user_error_code.taken,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn company_external_id_exists(
+  store: Store,
+  external_id: String,
+  exclude_company_id: Option(String),
+) -> Bool {
+  let excluded = option.unwrap(exclude_company_id, "")
+  store.list_effective_b2b_companies(store)
+  |> list.any(fn(company) {
+    company.id != excluded
+    && source_string(data_get(company.data, "externalId")) == external_id
+  })
+}
+
+fn location_external_id_exists(
+  store: Store,
+  external_id: String,
+  exclude_location_id: Option(String),
+) -> Bool {
+  let excluded = option.unwrap(exclude_location_id, "")
+  store.list_effective_b2b_company_locations(store)
+  |> list.any(fn(location) {
+    location.id != excluded
+    && source_string(data_get(location.data, "externalId")) == external_id
+  })
 }
 
 fn contact_email_exists(
@@ -2169,7 +2631,7 @@ fn create_contact(
   identity: SyntheticIdentityRegistry,
   company_id: String,
   input: Dict(String, root_field.ResolvedValue),
-  is_main: Bool,
+  _is_main: Bool,
 ) -> #(B2BCompanyContactRecord, Store, SyntheticIdentityRegistry) {
   let #(id, identity) = make_gid(identity, "CompanyContact")
   let #(now, identity) = timestamp(identity)
@@ -2177,7 +2639,6 @@ fn create_contact(
     dict.from_list([
       #("id", StorePropertyString(id)),
       #("createdAt", StorePropertyString(now)),
-      #("isMainContact", StorePropertyBool(is_main)),
       #("roleAssignments", StorePropertyList([])),
     ])
   let data = contact_data_from_input(input, now, base)
@@ -2231,9 +2692,9 @@ fn create_location(
 ) -> #(B2BCompanyLocationRecord, Store, SyntheticIdentityRegistry) {
   let #(id, identity) = make_gid(identity, "CompanyLocation")
   let #(now, identity) = timestamp(identity)
-  let input = case dict.get(input, "name") {
-    Ok(_) -> input
-    Error(_) -> dict.insert(input, "name", root_field.StringVal(fallback_name))
+  let input = case read_string(input, "name") {
+    Some(_) -> input
+    None -> dict.insert(input, "name", root_field.StringVal(fallback_name))
   }
   let base =
     dict.from_list([
@@ -2255,6 +2716,22 @@ fn create_location(
   #(location, store, identity)
 }
 
+fn location_create_fallback_name(
+  company: B2BCompanyRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  case read_string(read_object(input, "shippingAddress"), "address1") {
+    Some(address1) -> address1
+    None -> {
+      let company_name = source_string(data_get(company.data, "name"))
+      case company_name {
+        "" -> "Company location"
+        _ -> company_name
+      }
+    }
+  }
+}
+
 fn handle_company_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -2268,6 +2745,22 @@ fn handle_company_create(
       "input",
       "companyLocation",
     ])
+  let company_errors =
+    company_errors
+    |> list.append(
+      validate_duplicate_company_external_id(store, company_input, None, [
+        "input",
+        "company",
+      ]),
+    )
+  let location_errors =
+    location_errors
+    |> list.append(
+      validate_duplicate_location_external_id(store, location_input, None, [
+        "input",
+        "companyLocation",
+      ]),
+    )
   let #(contact_input, contact_errors) = case
     dict.get(input, "companyContact")
   {
@@ -2328,6 +2821,10 @@ fn handle_company_create(
               #("createdAt", StorePropertyString(now)),
             ]),
           ),
+          main_contact_id: case contact {
+            Some(c) -> Some(c.id)
+            None -> None
+          },
           contact_ids: case contact {
             Some(c) -> [c.id]
             None -> []
@@ -2388,6 +2885,16 @@ fn handle_company_update(
         Some(company) -> {
           let #(input, validation_errors) =
             validate_company_input(read_object(args, "input"), ["input"])
+          let validation_errors =
+            validation_errors
+            |> list.append(
+              validate_duplicate_company_external_id(
+                store,
+                input,
+                Some(company_id),
+                ["input"],
+              ),
+            )
           let name = case dict.get(input, "name") {
             Ok(root_field.StringVal(value)) -> value
             _ -> source_string(data_get(company.data, "name"))
@@ -2580,36 +3087,53 @@ fn handle_contact_create(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let #(prepared, prepare_errors) =
-            prepare_contact_create_input(store, read_object(args, "input"))
-          let #(input, validation_errors) =
-            validate_contact_input(prepared, ["input"])
-          let errors = list.append(prepare_errors, validation_errors)
-          case errors {
-            [_, ..] ->
+          case company_contact_cap_reached(company) {
+            True ->
               RootResult(
-                Payload(..empty_payload(errors), company_contact: None),
+                Payload(
+                  ..empty_payload([company_contact_cap_error()]),
+                  company_contact: None,
+                ),
                 store,
                 identity,
                 [],
               )
-            [] -> {
-              let #(contact, store, identity) =
-                create_contact(store, identity, company_id, input, False)
-              let #(company, store) =
-                stage_company(
-                  store,
-                  B2BCompanyRecord(
-                    ..company,
-                    contact_ids: append_unique(company.contact_ids, contact.id),
-                  ),
-                )
-              RootResult(
-                Payload(..empty_payload([]), company_contact: Some(contact)),
-                store,
-                identity,
-                [contact.id, company.id],
-              )
+            False -> {
+              let #(prepared, prepare_errors) =
+                prepare_contact_create_input(store, read_object(args, "input"))
+              let #(input, validation_errors) =
+                validate_contact_input(prepared, ["input"])
+              let errors = list.append(prepare_errors, validation_errors)
+              case errors {
+                [_, ..] ->
+                  RootResult(
+                    Payload(..empty_payload(errors), company_contact: None),
+                    store,
+                    identity,
+                    [],
+                  )
+                [] -> {
+                  let #(contact, store, identity) =
+                    create_contact(store, identity, company_id, input, False)
+                  let #(company, store) =
+                    stage_company(
+                      store,
+                      B2BCompanyRecord(
+                        ..company,
+                        contact_ids: append_unique(
+                          company.contact_ids,
+                          contact.id,
+                        ),
+                      ),
+                    )
+                  RootResult(
+                    Payload(..empty_payload([]), company_contact: Some(contact)),
+                    store,
+                    identity,
+                    [contact.id, company.id],
+                  )
+                }
+              }
             }
           }
         }
@@ -2713,6 +3237,10 @@ fn delete_contact(store: Store, contact_id: String) -> #(Store, List(String)) {
               store,
               B2BCompanyRecord(
                 ..company,
+                main_contact_id: case company.main_contact_id {
+                  Some(id) if id == contact_id -> None
+                  other -> other
+                },
                 contact_ids: remove_string(company.contact_ids, contact_id),
               ),
             )
@@ -2726,6 +3254,99 @@ fn delete_contact(store: Store, contact_id: String) -> #(Store, List(String)) {
   }
 }
 
+fn contact_has_associated_orders(
+  store: Store,
+  contact: B2BCompanyContactRecord,
+) -> Bool {
+  contact_has_associated_order_marker(contact)
+  || contact_has_staged_order_history(store, contact.id)
+}
+
+fn contact_has_associated_order_marker(
+  contact: B2BCompanyContactRecord,
+) -> Bool {
+  case data_get(contact.data, "ordersCount") {
+    SrcInt(count) if count > 0 -> True
+    _ ->
+      case data_get(contact.data, "associatedOrdersCount") {
+        SrcInt(count) if count > 0 -> True
+        _ ->
+          case data_get(contact.data, "hasAssociatedOrders") {
+            SrcBool(True) -> True
+            _ ->
+              case data_get(contact.data, "orders") {
+                SrcList([_, ..]) -> True
+                _ -> False
+              }
+          }
+      }
+  }
+}
+
+fn contact_has_staged_order_history(store: Store, contact_id: String) -> Bool {
+  list.any(store.list_effective_orders(store), fn(order) {
+    purchasing_entity_contact_id(order.data) == Some(contact_id)
+  })
+  || list.any(store.list_effective_draft_orders(store), fn(draft_order) {
+    completed_draft_order_references_contact(draft_order.data, contact_id)
+  })
+}
+
+fn completed_draft_order_references_contact(
+  data: CapturedJsonValue,
+  contact_id: String,
+) -> Bool {
+  case captured_string_field(data, "status") {
+    Some("COMPLETED") -> purchasing_entity_contact_id(data) == Some(contact_id)
+    _ -> False
+  }
+  || case captured_object_field(data, "order") {
+    Some(order) -> purchasing_entity_contact_id(order) == Some(contact_id)
+    None -> False
+  }
+}
+
+fn purchasing_entity_contact_id(data: CapturedJsonValue) -> Option(String) {
+  data
+  |> captured_object_field("purchasingEntity")
+  |> option.then(fn(entity) {
+    entity
+    |> captured_object_field("contact")
+    |> option.then(fn(contact) { captured_string_field(contact, "id") })
+  })
+}
+
+fn captured_object_field(
+  data: CapturedJsonValue,
+  field: String,
+) -> Option(CapturedJsonValue) {
+  case data {
+    CapturedObject(fields) -> captured_field(fields, field)
+    _ -> None
+  }
+}
+
+fn captured_string_field(
+  data: CapturedJsonValue,
+  field: String,
+) -> Option(String) {
+  case captured_object_field(data, field) {
+    Some(CapturedString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn captured_field(
+  fields: List(#(String, CapturedJsonValue)),
+  field: String,
+) -> Option(CapturedJsonValue) {
+  case fields {
+    [] -> None
+    [#(key, value), ..] if key == field -> Some(value)
+    [_, ..rest] -> captured_field(rest, field)
+  }
+}
+
 fn handle_contact_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -2734,15 +3355,31 @@ fn handle_contact_delete(
   case read_string(args, "companyContactId") {
     Some(id) ->
       case store.get_effective_b2b_company_contact_by_id(store, id) {
-        Some(_) -> {
-          let #(store, ids) = delete_contact(store, id)
-          RootResult(
-            Payload(..empty_payload([]), deleted_company_contact_id: Some(id)),
-            store,
-            identity,
-            ids,
-          )
-        }
+        Some(contact) ->
+          case contact_has_associated_orders(store, contact) {
+            True ->
+              RootResult(
+                Payload(
+                  ..empty_payload([existing_orders_error()]),
+                  deleted_company_contact_id: None,
+                ),
+                store,
+                identity,
+                [],
+              )
+            False -> {
+              let #(store, ids) = delete_contact(store, id)
+              RootResult(
+                Payload(
+                  ..empty_payload([]),
+                  deleted_company_contact_id: Some(id),
+                ),
+                store,
+                identity,
+                ids,
+              )
+            }
+          }
         None ->
           RootResult(
             Payload(
@@ -2791,15 +3428,24 @@ fn handle_contacts_delete(
       fn(acc, id) {
         let #(current_store, deleted, staged, errors) = acc
         case store.get_effective_b2b_company_contact_by_id(current_store, id) {
-          Some(_) -> {
-            let #(next_store, ids) = delete_contact(current_store, id)
-            #(
-              next_store,
-              list.append(deleted, [id]),
-              list.append(staged, ids),
-              errors,
-            )
-          }
+          Some(contact) ->
+            case contact_has_associated_orders(current_store, contact) {
+              True -> #(
+                current_store,
+                deleted,
+                staged,
+                list.append(errors, [existing_orders_error()]),
+              )
+              False -> {
+                let #(next_store, ids) = delete_contact(current_store, id)
+                #(
+                  next_store,
+                  list.append(deleted, [id]),
+                  list.append(staged, ids),
+                  errors,
+                )
+              }
+            }
           None -> #(
             current_store,
             deleted,
@@ -2832,53 +3478,116 @@ fn handle_assign_customer_as_contact(
     Some(company_id), Some(customer_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let #(input, errors) = prepare_contact_create_input(store, dict.new())
-          case errors {
-            [_, ..] ->
-              RootResult(
-                Payload(..empty_payload(errors), company_contact: None),
+          let contacts = company_contacts(store, company)
+          case store.get_effective_customer_by_id(store, customer_id) {
+            None ->
+              company_contact_mutation_error(
                 store,
                 identity,
-                [],
+                ["customerId"],
+                "Customer does not exist.",
+                user_error_code.customer_not_found,
               )
-            [] -> {
-              let #(contact, store, identity) =
-                create_contact(store, identity, company_id, input, False)
-              let contact =
-                B2BCompanyContactRecord(
-                  ..contact,
-                  data: contact.data
-                    |> dict.insert(
-                      "customerId",
-                      StorePropertyString(customer_id),
-                    )
-                    |> dict.insert(
-                      "customer",
-                      source_to_value(
-                        src_object([
-                          #("__typename", SrcString("Customer")),
-                          #("id", SrcString(customer_id)),
-                        ]),
-                      ),
-                    ),
-                )
-              let #(contact, store) =
-                store.upsert_staged_b2b_company_contact(store, contact)
-              let #(company, store) =
-                stage_company(
-                  store,
-                  B2BCompanyRecord(
-                    ..company,
-                    contact_ids: append_unique(company.contact_ids, contact.id),
-                  ),
-                )
-              RootResult(
-                Payload(..empty_payload([]), company_contact: Some(contact)),
-                store,
-                identity,
-                [contact.id, company.id],
-              )
-            }
+            Some(customer) ->
+              case find_company_contact_by_customer_id(contacts, customer_id) {
+                Some(_) ->
+                  company_contact_mutation_error(
+                    store,
+                    identity,
+                    ["companyId"],
+                    "Customer is already associated with a company contact.",
+                    user_error_code.customer_already_a_contact,
+                  )
+                None ->
+                  case customer_email(customer) {
+                    None ->
+                      company_contact_mutation_error(
+                        store,
+                        identity,
+                        ["companyId"],
+                        "Customer must have an email address.",
+                        user_error_code.customer_email_must_exist,
+                      )
+                    Some(email) ->
+                      case company_contact_cap_reached(company) {
+                        True ->
+                          RootResult(
+                            Payload(
+                              ..empty_payload([company_contact_cap_error()]),
+                              company_contact: None,
+                            ),
+                            store,
+                            identity,
+                            [],
+                          )
+                        False -> {
+                          let #(input, errors) =
+                            prepare_contact_create_input(store, dict.new())
+                          case errors {
+                            [_, ..] ->
+                              RootResult(
+                                Payload(
+                                  ..empty_payload(errors),
+                                  company_contact: None,
+                                ),
+                                store,
+                                identity,
+                                [],
+                              )
+                            [] -> {
+                              let #(contact, store, identity) =
+                                create_contact(
+                                  store,
+                                  identity,
+                                  company_id,
+                                  input,
+                                  False,
+                                )
+                              let contact =
+                                B2BCompanyContactRecord(
+                                  ..contact,
+                                  data: contact.data
+                                    |> dict.insert(
+                                      "customerId",
+                                      StorePropertyString(customer_id),
+                                    )
+                                    |> dict.insert(
+                                      "customer",
+                                      customer_contact_source(customer, email)
+                                        |> source_to_value,
+                                    ),
+                                )
+                              let #(contact, store) =
+                                store.upsert_staged_b2b_company_contact(
+                                  store,
+                                  contact,
+                                )
+                              let #(company, store) =
+                                stage_company(
+                                  store,
+                                  B2BCompanyRecord(
+                                    ..company,
+                                    contact_ids: append_unique(
+                                      company.contact_ids,
+                                      contact.id,
+                                    ),
+                                  ),
+                                )
+                              RootResult(
+                                Payload(
+                                  ..empty_payload([]),
+                                  company_contact: Some(contact),
+                                ),
+                                store,
+                                identity,
+                                [contact.id, company.id],
+                              )
+                            }
+                          }
+                        }
+                      }
+                  }
+              }
           }
         }
         None ->
@@ -2955,43 +3664,33 @@ fn handle_assign_main_contact(
         store.get_effective_b2b_company_contact_by_id(store, contact_id)
       {
         Some(company), Some(contact) if contact.company_id == company_id -> {
-          let #(store, staged_ids) =
-            list.fold(company.contact_ids, #(store, [company_id]), fn(acc, id) {
-              let #(current_store, ids) = acc
-              case
-                store.get_effective_b2b_company_contact_by_id(current_store, id)
-              {
-                Some(candidate) -> {
-                  let updated =
-                    B2BCompanyContactRecord(
-                      ..candidate,
-                      data: dict.insert(
-                        candidate.data,
-                        "isMainContact",
-                        StorePropertyBool(candidate.id == contact_id),
-                      ),
-                    )
-                  let #(_, next_store) =
-                    store.upsert_staged_b2b_company_contact(
-                      current_store,
-                      updated,
-                    )
-                  #(next_store, list.append(ids, [candidate.id]))
-                }
-                None -> acc
-              }
-            })
+          let updated_company =
+            B2BCompanyRecord(..company, main_contact_id: Some(contact.id))
+          let #(updated_company, store) = stage_company(store, updated_company)
+          RootResult(
+            Payload(..empty_payload([]), company: Some(updated_company)),
+            store,
+            identity,
+            [updated_company.id],
+          )
+        }
+        Some(_company), Some(_contact) ->
           RootResult(
             Payload(
-              ..empty_payload([]),
-              company: store.get_effective_b2b_company_by_id(store, company_id),
+              ..empty_payload([
+                user_error(
+                  Some(["companyContactId"]),
+                  "The company contact does not belong to the company.",
+                  user_error_code.invalid_input,
+                ),
+              ]),
+              company: None,
             ),
             store,
             identity,
-            staged_ids,
+            [],
           )
-        }
-        Some(_), _ ->
+        Some(_company), None ->
           not_found_result(store, identity, "company", ["companyContactId"])
         _, _ -> not_found_result(store, identity, "company", ["companyId"])
       }
@@ -3008,40 +3707,14 @@ fn handle_revoke_main_contact(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let #(store, staged_ids) =
-            list.fold(company.contact_ids, #(store, [company_id]), fn(acc, id) {
-              let #(current_store, ids) = acc
-              case
-                store.get_effective_b2b_company_contact_by_id(current_store, id)
-              {
-                Some(contact) -> {
-                  let updated =
-                    B2BCompanyContactRecord(
-                      ..contact,
-                      data: dict.insert(
-                        contact.data,
-                        "isMainContact",
-                        StorePropertyBool(False),
-                      ),
-                    )
-                  let #(_, next_store) =
-                    store.upsert_staged_b2b_company_contact(
-                      current_store,
-                      updated,
-                    )
-                  #(next_store, list.append(ids, [contact.id]))
-                }
-                None -> acc
-              }
-            })
+          let updated_company =
+            B2BCompanyRecord(..company, main_contact_id: None)
+          let #(updated_company, store) = stage_company(store, updated_company)
           RootResult(
-            Payload(
-              ..empty_payload([]),
-              company: store.get_effective_b2b_company_by_id(store, company_id),
-            ),
+            Payload(..empty_payload([]), company: Some(updated_company)),
             store,
             identity,
-            staged_ids,
+            [updated_company.id],
           )
         }
         None -> not_found_result(store, identity, "company", ["companyId"])
@@ -3059,24 +3732,23 @@ fn handle_location_create(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let fallback = source_string(data_get(company.data, "name"))
+          let raw_input = read_object(args, "input")
           let #(input, validation_errors) =
-            validate_location_input(read_object(args, "input"), ["input"])
+            validate_location_input(raw_input, ["input"])
+          let validation_errors =
+            validation_errors
+            |> list.append(
+              validate_duplicate_location_external_id(store, input, None, [
+                "input",
+              ]),
+            )
+          let fallback = location_create_fallback_name(company, input)
           case validation_errors {
             [_, ..] ->
               RootResult(empty_payload(validation_errors), store, identity, [])
             [] -> {
               let #(location, store, identity) =
-                create_location(
-                  store,
-                  identity,
-                  company_id,
-                  input,
-                  case fallback {
-                    "" -> "Company location"
-                    _ -> fallback
-                  },
-                )
+                create_location(store, identity, company_id, input, fallback)
               let #(company, store) =
                 stage_company(
                   store,
@@ -3115,6 +3787,13 @@ fn handle_location_update(
         Some(location) -> {
           let #(input, validation_errors) =
             validate_location_input(read_object(args, "input"), ["input"])
+          let validation_errors =
+            validation_errors
+            |> list.append(
+              validate_duplicate_location_external_id(store, input, Some(id), [
+                "input",
+              ]),
+            )
           case validation_errors {
             [_, ..] ->
               RootResult(empty_payload(validation_errors), store, identity, [])
@@ -3177,6 +3856,8 @@ fn delete_location(
   case store.get_effective_b2b_company_location_by_id(store, location_id) {
     None -> #(store, [])
     Some(location) -> {
+      let #(store, cascade_ids) =
+        remove_role_assignments_for_location(store, location_id)
       let store = case
         store.get_effective_b2b_company_by_id(store, location.company_id)
       {
@@ -3194,9 +3875,60 @@ fn delete_location(
         None -> store
       }
       let store = store.delete_staged_b2b_company_location(store, location_id)
-      #(store, [location_id, location.company_id])
+      #(store, [location_id, location.company_id] |> list.append(cascade_ids))
     }
   }
+}
+
+fn remove_role_assignments_for_location(
+  store: Store,
+  location_id: String,
+) -> #(Store, List(String)) {
+  list.fold(
+    store.list_effective_b2b_company_contacts(store),
+    #(store, []),
+    fn(acc, contact) {
+      let #(current_store, staged_ids) = acc
+      let current =
+        read_object_sources(data_get(contact.data, "roleAssignments"))
+      let #(kept, removed_ids) =
+        remove_assignments_matching_location(current, location_id)
+      case list.length(kept) == list.length(current) {
+        True -> acc
+        False -> {
+          let updated =
+            B2BCompanyContactRecord(
+              ..contact,
+              data: put_source(contact.data, "roleAssignments", SrcList(kept)),
+            )
+          let #(_, next_store) =
+            store.upsert_staged_b2b_company_contact(current_store, updated)
+          #(
+            next_store,
+            staged_ids
+              |> list.append([contact.id])
+              |> list.append(removed_ids),
+          )
+        }
+      }
+    },
+  )
+}
+
+fn remove_assignments_matching_location(
+  assignments: List(SourceValue),
+  location_id: String,
+) -> #(List(SourceValue), List(String)) {
+  list.fold(assignments, #([], []), fn(acc, assignment) {
+    let #(kept, removed) = acc
+    case assignment_ref(assignment, "companyLocationId") {
+      Some(id) if id == location_id -> #(
+        kept,
+        list.append(removed, [source_id(assignment)]),
+      )
+      _ -> #(list.append(kept, [assignment]), removed)
+    }
+  })
 }
 
 fn handle_location_delete(
@@ -3349,7 +4081,11 @@ fn hydrate_role_assignment(
         store.get_effective_b2b_company_contact_by_id(store, contact_id)
       {
         Some(contact) ->
-          dict.insert(fields, "companyContact", contact_source(contact))
+          dict.insert(
+            fields,
+            "companyContact",
+            contact_source_with_main_flag(store, contact),
+          )
         None -> fields
       }
       let with_role = case
@@ -3454,8 +4190,8 @@ fn resolve_role_assignments(
   contact_fallback: Option(String),
   location_fallback: Option(String),
 ) -> #(List(SourceValue), List(UserError), SyntheticIdentityRegistry) {
-  list.fold(inputs, #([], [], identity), fn(acc, input) {
-    let #(assignments, errors, current_identity) = acc
+  list.fold(inputs, #([], [], identity, []), fn(acc, input) {
+    let #(assignments, errors, current_identity, planned_pairs) = acc
     let contact_id =
       read_string(input, "companyContactId") |> option_or(contact_fallback)
     let role_id = read_string(input, "companyContactRoleId")
@@ -3468,26 +4204,91 @@ fn resolve_role_assignments(
           store.get_effective_b2b_company_contact_role_by_id(store, role_id),
           store.get_effective_b2b_company_location_by_id(store, location_id)
         {
-          Some(contact), Some(role), Some(location)
-            if contact.company_id == role.company_id
-            && contact.company_id == location.company_id
-          -> {
-            let #(assignment, next_identity) =
-              build_role_assignment(current_identity, contact, role, location)
-            #(list.append(assignments, [assignment]), errors, next_identity)
-          }
-          _, _, _ -> #(
+          None, _, _ -> #(
             assignments,
-            list.append(errors, [resource_not_found(["rolesToAssign"])]),
+            list.append(errors, [resource_not_found(["companyContactId"])]),
             current_identity,
+            planned_pairs,
           )
+          _, None, _ -> #(
+            assignments,
+            list.append(errors, [company_role_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          Some(contact), Some(role), _
+            if role.company_id != contact.company_id
+          -> #(
+            assignments,
+            list.append(errors, [company_role_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          _, _, None -> #(
+            assignments,
+            list.append(errors, [company_location_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          Some(contact), _, Some(location)
+            if location.company_id != contact.company_id
+          -> #(
+            assignments,
+            list.append(errors, [company_location_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          Some(contact), Some(role), Some(location) -> {
+            let pair = #(contact.id, location.id)
+            case
+              contact_has_role_assignment_for_location(contact, location.id)
+              || list.contains(planned_pairs, pair)
+            {
+              True -> #(
+                assignments,
+                list.append(errors, [one_role_already_assigned()]),
+                current_identity,
+                planned_pairs,
+              )
+              False -> {
+                let #(assignment, next_identity) =
+                  build_role_assignment(
+                    current_identity,
+                    contact,
+                    role,
+                    location,
+                  )
+                #(
+                  list.append(assignments, [assignment]),
+                  errors,
+                  next_identity,
+                  list.append(planned_pairs, [pair]),
+                )
+              }
+            }
+          }
         }
       _, _, _ -> #(
         assignments,
         list.append(errors, [resource_not_found(["rolesToAssign"])]),
         current_identity,
+        planned_pairs,
       )
     }
+  })
+  |> fn(result) {
+    let #(assignments, errors, identity, _) = result
+    #(assignments, errors, identity)
+  }
+}
+
+fn contact_has_role_assignment_for_location(
+  contact: B2BCompanyContactRecord,
+  location_id: String,
+) -> Bool {
+  read_object_sources(data_get(contact.data, "roleAssignments"))
+  |> list.any(fn(assignment) {
+    assignment_ref(assignment, "companyLocationId") == Some(location_id)
   })
 }
 
@@ -3527,8 +4328,10 @@ fn handle_contact_assign_role(
   RootResult(
     Payload(
       ..empty_payload(errors),
-      company_contact_role_assignment: list.first(assignments)
-        |> option_from_result,
+      company_contact_role_assignment: case errors {
+        [] -> list.first(assignments) |> option_from_result
+        _ -> None
+      },
     ),
     store,
     identity,
@@ -3558,7 +4361,10 @@ fn handle_contact_assign_roles(
     _ -> #(store, [])
   }
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: assignments),
+    Payload(..empty_payload(errors), role_assignments: case errors {
+      [] -> assignments
+      _ -> []
+    }),
     store,
     identity,
     staged,
@@ -3583,7 +4389,10 @@ fn handle_location_assign_roles(
     _ -> #(store, [])
   }
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: assignments),
+    Payload(..empty_payload(errors), role_assignments: case errors {
+      [] -> assignments
+      _ -> []
+    }),
     store,
     identity,
     staged,
@@ -3773,33 +4582,16 @@ fn handle_assign_address(
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
-          let #(address, identity) =
-            address_from_input(identity, read_object(args, "address"), None)
           let address_types = read_string_list(args, "addressTypes")
-          let #(data, addresses) =
-            list.fold(address_types, #(location.data, []), fn(acc, typ) {
-              let #(data, addresses) = acc
-              case typ {
-                "BILLING" -> #(
-                  put_source(data, "billingAddress", address),
-                  list.append(addresses, [address]),
-                )
-                "SHIPPING" -> #(
-                  put_source(data, "shippingAddress", address),
-                  list.append(addresses, [address]),
-                )
-                _ -> acc
-              }
-            })
-          case addresses {
-            [] ->
+          case has_duplicate_strings(address_types) {
+            True ->
               RootResult(
                 Payload(
                   ..empty_payload([
                     user_error(
-                      Some(["addressTypes"]),
-                      "Address type is invalid",
-                      user_error_code.invalid,
+                      None,
+                      "Invalid input.",
+                      user_error_code.invalid_input,
                     ),
                   ]),
                   addresses: [],
@@ -3808,16 +4600,53 @@ fn handle_assign_address(
                 identity,
                 [],
               )
-            _ -> {
-              let updated = B2BCompanyLocationRecord(..location, data: data)
-              let #(updated, store) =
-                store.upsert_staged_b2b_company_location(store, updated)
-              RootResult(
-                Payload(..empty_payload([]), addresses: addresses),
-                store,
-                identity,
-                list.append([updated.id], list.map(addresses, source_id)),
-              )
+            False -> {
+              let #(address, identity) =
+                address_from_input(identity, read_object(args, "address"), None)
+              let #(data, addresses) =
+                list.fold(address_types, #(location.data, []), fn(acc, typ) {
+                  let #(data, addresses) = acc
+                  case typ {
+                    "BILLING" -> #(
+                      put_source(data, "billingAddress", address),
+                      list.append(addresses, [address]),
+                    )
+                    "SHIPPING" -> #(
+                      put_source(data, "shippingAddress", address),
+                      list.append(addresses, [address]),
+                    )
+                    _ -> acc
+                  }
+                })
+              case addresses {
+                [] ->
+                  RootResult(
+                    Payload(
+                      ..empty_payload([
+                        user_error(
+                          Some(["addressTypes"]),
+                          "Address type is invalid",
+                          user_error_code.invalid,
+                        ),
+                      ]),
+                      addresses: [],
+                    ),
+                    store,
+                    identity,
+                    [],
+                  )
+                _ -> {
+                  let updated = B2BCompanyLocationRecord(..location, data: data)
+                  let #(updated, store) =
+                    store.upsert_staged_b2b_company_location(store, updated)
+                  RootResult(
+                    Payload(..empty_payload([]), addresses: addresses),
+                    store,
+                    identity,
+                    list.append([updated.id], list.map(addresses, source_id)),
+                  )
+                }
+              }
             }
           }
         }
@@ -3852,33 +4681,10 @@ fn handle_address_delete(
 ) -> RootResult {
   case read_string(args, "addressId") {
     Some(target_address_id) -> {
-      let found =
-        list.find(
-          store.list_effective_b2b_company_locations(store),
-          fn(location) {
-            address_id(data_get(location.data, "billingAddress"))
-            == Some(target_address_id)
-            || address_id(data_get(location.data, "shippingAddress"))
-            == Some(target_address_id)
-          },
-        )
-      case found {
-        Ok(location) -> {
-          let data = case
-            address_id(data_get(location.data, "billingAddress"))
-          {
-            Some(id) if id == target_address_id ->
-              put_source(location.data, "billingAddress", SrcNull)
-            _ -> location.data
-          }
-          let data = case address_id(data_get(data, "shippingAddress")) {
-            Some(id) if id == target_address_id ->
-              put_source(data, "shippingAddress", SrcNull)
-            _ -> data
-          }
-          let updated = B2BCompanyLocationRecord(..location, data: data)
-          let #(_, store) =
-            store.upsert_staged_b2b_company_location(store, updated)
+      let #(store, detached_location_ids) =
+        detach_address_from_locations(store, target_address_id)
+      case detached_location_ids {
+        [_, ..] ->
           RootResult(
             Payload(
               ..empty_payload([]),
@@ -3886,10 +4692,9 @@ fn handle_address_delete(
             ),
             store,
             identity,
-            [location.id, target_address_id],
+            list.append(detached_location_ids, [target_address_id]),
           )
-        }
-        Error(_) ->
+        [] ->
           RootResult(
             Payload(
               ..empty_payload([resource_not_found(["addressId"])]),
@@ -3912,6 +4717,54 @@ fn handle_address_delete(
         [],
       )
   }
+}
+
+fn detach_address_from_locations(
+  store: Store,
+  target_address_id: String,
+) -> #(Store, List(String)) {
+  list.fold(
+    store.list_effective_b2b_company_locations(store),
+    #(store, []),
+    fn(acc, location) {
+      let #(current_store, detached_ids) = acc
+      let billing_matches =
+        address_id(data_get(location.data, "billingAddress"))
+        == Some(target_address_id)
+      let shipping_matches =
+        address_id(data_get(location.data, "shippingAddress"))
+        == Some(target_address_id)
+      case billing_matches || shipping_matches {
+        False -> acc
+        True -> {
+          let data = case billing_matches {
+            True -> put_source(location.data, "billingAddress", SrcNull)
+            False -> location.data
+          }
+          let data = case shipping_matches {
+            True -> put_source(data, "shippingAddress", SrcNull)
+            False -> data
+          }
+          let data = case
+            data_get(location.data, "billingSameAsShipping"),
+            billing_matches || shipping_matches
+          {
+            SrcBool(True), True ->
+              dict.insert(
+                data,
+                "billingSameAsShipping",
+                StorePropertyBool(False),
+              )
+            _, _ -> data
+          }
+          let updated = B2BCompanyLocationRecord(..location, data: data)
+          let #(_, next_store) =
+            store.upsert_staged_b2b_company_location(current_store, updated)
+          #(next_store, list.append(detached_ids, [location.id]))
+        }
+      }
+    },
+  )
 }
 
 fn handle_assign_staff(
@@ -4064,41 +4917,56 @@ fn handle_tax_settings_update(
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
-          let current_exemptions =
-            read_string_values(data_get(location.data, "taxExemptions"))
-            |> list.append(read_string_list(args, "exemptionsToAssign"))
-            |> list.filter(fn(item) {
-              !list.contains(read_string_list(args, "exemptionsToRemove"), item)
-            })
-          let #(now, identity) = timestamp(identity)
-          let data =
-            location.data
-            |> dict.insert(
-              "taxExemptions",
-              StorePropertyList(list.map(
-                current_exemptions,
-                StorePropertyString,
-              )),
-            )
-            |> dict.insert("updatedAt", StorePropertyString(now))
-            |> maybe_put_string(args, "taxRegistrationId")
-            |> maybe_put_bool(args, "taxExempt")
-          let tax_settings =
-            src_object([
-              #("taxRegistrationId", data_get(data, "taxRegistrationId")),
-              #("taxExempt", data_get(data, "taxExempt")),
-              #("taxExemptions", data_get(data, "taxExemptions")),
-            ])
-          let data = put_source(data, "taxSettings", tax_settings)
-          let updated = B2BCompanyLocationRecord(..location, data: data)
-          let #(updated, store) =
-            store.upsert_staged_b2b_company_location(store, updated)
-          RootResult(
-            Payload(..empty_payload([]), company_location: Some(updated)),
-            store,
-            identity,
-            [updated.id],
-          )
+          let errors = validate_tax_settings_update_args(args)
+          case errors {
+            [_, ..] ->
+              RootResult(
+                Payload(..empty_payload(errors), company_location: None),
+                store,
+                identity,
+                [],
+              )
+            [] -> {
+              let current_exemptions =
+                read_string_values(data_get(location.data, "taxExemptions"))
+                |> list.append(read_string_list(args, "exemptionsToAssign"))
+                |> list.filter(fn(item) {
+                  !list.contains(
+                    read_string_list(args, "exemptionsToRemove"),
+                    item,
+                  )
+                })
+              let #(now, identity) = timestamp(identity)
+              let data =
+                location.data
+                |> dict.insert(
+                  "taxExemptions",
+                  StorePropertyList(list.map(
+                    current_exemptions,
+                    StorePropertyString,
+                  )),
+                )
+                |> dict.insert("updatedAt", StorePropertyString(now))
+                |> maybe_put_string(args, "taxRegistrationId")
+                |> maybe_put_bool(args, "taxExempt")
+              let tax_settings =
+                src_object([
+                  #("taxRegistrationId", data_get(data, "taxRegistrationId")),
+                  #("taxExempt", data_get(data, "taxExempt")),
+                  #("taxExemptions", data_get(data, "taxExemptions")),
+                ])
+              let data = put_source(data, "taxSettings", tax_settings)
+              let updated = B2BCompanyLocationRecord(..location, data: data)
+              let #(updated, store) =
+                store.upsert_staged_b2b_company_location(store, updated)
+              RootResult(
+                Payload(..empty_payload([]), company_location: Some(updated)),
+                store,
+                identity,
+                [updated.id],
+              )
+            }
+          }
         }
         None ->
           RootResult(
@@ -4134,6 +5002,40 @@ fn handle_tax_settings_update(
         [],
       )
   }
+}
+
+fn validate_tax_settings_update_args(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(args, "taxExempt") {
+    Ok(root_field.NullVal) -> [
+      user_error(
+        Some(["taxExempt"]),
+        "Invalid input.",
+        user_error_code.invalid_input,
+      ),
+    ]
+    _ ->
+      case has_any_tax_settings_update_input(args) {
+        True -> []
+        False -> [
+          user_error(
+            Some(["companyLocationId"]),
+            "No input provided.",
+            user_error_code.no_input,
+          ),
+        ]
+      }
+  }
+}
+
+fn has_any_tax_settings_update_input(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.has_key(args, "taxRegistrationId")
+  || dict.has_key(args, "taxExempt")
+  || dict.has_key(args, "exemptionsToAssign")
+  || dict.has_key(args, "exemptionsToRemove")
 }
 
 fn read_string_values(value: SourceValue) -> List(String) {
@@ -4247,12 +5149,17 @@ fn serialize_mutation_payload(
                 serialize_role_assignment(store, item, child, fragments)
               }),
             )
-            "addresses" -> #(
-              key,
-              json.array(payload.addresses, fn(item) {
-                project_graphql_value(item, selected_children(child), fragments)
-              }),
-            )
+            "addresses" -> #(key, case payload.user_errors, payload.addresses {
+              [_, ..], [] -> json.null()
+              _, _ ->
+                json.array(payload.addresses, fn(item) {
+                  project_graphql_value(
+                    item,
+                    selected_children(child),
+                    fragments,
+                  )
+                })
+            })
             "companyLocationStaffMemberAssignments" -> #(
               key,
               json.array(
@@ -4342,6 +5249,10 @@ fn serialize_user_error(
       }),
       #("message", SrcString(error.message)),
       #("code", SrcString(user_error_code.value(error.code))),
+      #("detail", case error.detail {
+        Some(detail) -> SrcString(detail)
+        None -> SrcNull
+      }),
     ])
   project_source(source, field, fragments)
 }

@@ -1,0 +1,13 @@
+mutation AppSubscriptionTrialExtendValidation($id: ID!, $days: Int!) {
+  appSubscriptionTrialExtend(id: $id, days: $days) {
+    appSubscription {
+      id
+      trialDays
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
