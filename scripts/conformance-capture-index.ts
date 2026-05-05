@@ -1737,6 +1737,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'bulk-operations',
+    captureId: 'bulk-operation-run-query-group-objects',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operation-run-query-group-objects-conformance.ts',
+    purpose:
+      'bulkOperationRunQuery explicit groupObjects: true acceptance and omitted groupObjects default success behavior.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operation-run-query-group-objects.json`,
+      'config/parity-specs/bulk-operations/bulk-operation-run-query-group-objects.json',
+      'config/parity-requests/bulk-operations/bulk-operation-run-query-group-objects-*.graphql',
+    ],
+    cleanupBehavior:
+      'Starts safe product bulk query exports and polls them to terminal completion; no Shopify catalog data is created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
     captureId: 'bulk-operation-run-query-user-error-codes',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-bulk-operation-run-query-user-error-codes-conformance.ts',

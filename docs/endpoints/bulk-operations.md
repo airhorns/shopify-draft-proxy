@@ -39,7 +39,7 @@ Current root behavior:
 - `bulkOperation(id: ID!)` returns one job by ID. Locally, unknown valid BulkOperation GIDs return `null`; malformed non-BulkOperation IDs return a top-level invalid-id error.
 - `bulkOperations` returns the app's jobs as a connection, newest first by default, with pagination, `reverse`, `sortKey`, and search filters for `created_at`, `id`, `operation_type`, and `status`. Locally, the endpoint uses shared connection helpers for cursor windows, `nodes`/`edges`, and selected `pageInfo`.
 - `currentBulkOperation(type: BulkOperationType = QUERY)` is deprecated but still documents the app's most recent query or mutation job. Locally, it selects the newest effective job for the requested type and defaults to `QUERY`.
-- `bulkOperationRunQuery(query: String!, groupObjects: Boolean! = false)` creates an async query export. Locally supported product exports complete immediately against effective in-memory state, write JSONL result records, and never proxy supported export requests upstream at runtime.
+- `bulkOperationRunQuery(query: String!, groupObjects: Boolean! = false)` creates an async query export. Locally supported product exports complete immediately against effective in-memory state, write JSONL result records, accept explicit `groupObjects: true`/`false` as well as the omitted default path, and never proxy supported export requests upstream at runtime.
 - `bulkOperationRunMutation(mutation: String!, stagedUploadPath: String!, clientIdentifier: String, groupObjects: Boolean = true)` creates an async mutation import from uploaded JSONL variables. The `groupObjects` argument is deprecated.
 - `bulkOperationCancel(id: ID!)` starts asynchronous cancellation. Locally, staged non-terminal jobs transition to `CANCELING`; in LiveHybrid, a cold cancel can first read the target `BulkOperation` through the cassette/upstream read seam, then stage the local cancel overlay or terminal userError without sending Shopify's cancel mutation upstream.
 
@@ -109,6 +109,7 @@ Local `bulkOperationRunQuery` supports:
 - effective local/snapshot state as the export source, including staged products and variants
 - LiveHybrid product-export count hydration from upstream when the local product store is cold, so the staged job counters reflect the upstream store while the export mutation itself remains local-only
 - completed staged `BulkOperation` rows with `status: COMPLETED`, `type: QUERY`, `completedAt`, `objectCount`, `rootObjectCount`, `fileSize`, `url`, `partialDataUrl: null`, and original `query`
+- `groupObjects: true`, `groupObjects: false`, and omitted `groupObjects` arguments all stage the same supported local export shape; grouped JSONL ordering is not modeled as a separate local result mode
 - local result URLs at `https://shopify-draft-proxy.local/__meta/bulk-operations/<encoded-gid>/result.jsonl`; the JS adapter serves the matching path as `application/jsonl` from instance-owned memory until reset
 - `fileSize` is the byte length of the generated local JSONL payload. Captured Shopify `fileSize` values can differ from the downloaded JSONL byte length because Shopify reports its stored artifact size.
 - original raw mutation bodies in the meta mutation log for commit/replay observability
@@ -120,7 +121,6 @@ Local `bulkOperationRunQuery` rejects these branches locally with `userErrors` a
 - no connection, using the captured message `Bulk queries must contain at least one connection.`
 - multiple top-level fields, top-level `node`/`nodes`, unsupported roots, more than five detected connections, and connections deeper than two levels
 - unsupported nested connections other than product `variants`
-- `groupObjects: true`; grouped JSONL output is an explicit unsupported boundary for now
 - selected `BulkOperationUserError.code` values are serialized for these local validation branches as `INVALID`, matching the captured 2026-04 Admin API behavior instead of dropping the selected field
 
 Local `bulkOperationCancel` supports:

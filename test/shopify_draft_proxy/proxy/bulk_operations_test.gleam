@@ -232,6 +232,60 @@ pub fn run_query_stages_completed_operation_and_log_test() {
   assert list.length(store.get_log(outcome.store)) == 1
 }
 
+pub fn run_query_accepts_group_objects_true_false_and_default_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let fields =
+    "bulkOperation { id status type objectCount rootObjectCount fileSize url partialDataUrl query } userErrors { field message code }"
+  let query = "{ products { edges { node { id } } } }"
+  let document =
+    "mutation { default: bulkOperationRunQuery(query: \""
+    <> query
+    <> "\") { "
+    <> fields
+    <> " } explicitTrue: bulkOperationRunQuery(query: \""
+    <> query
+    <> "\", groupObjects: true) { "
+    <> fields
+    <> " } explicitFalse: bulkOperationRunQuery(query: \""
+    <> query
+    <> "\", groupObjects: false) { "
+    <> fields
+    <> " } }"
+  let outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(outcome.data)
+  assert string.contains(
+    response,
+    "\"default\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+  )
+  assert string.contains(
+    response,
+    "\"explicitTrue\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/2\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+  )
+  assert string.contains(
+    response,
+    "\"explicitFalse\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/3\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+  )
+  assert string.contains(response, "\"default\":{")
+  assert string.contains(response, "\"explicitTrue\":{")
+  assert string.contains(response, "\"explicitFalse\":{")
+  assert string.contains(response, "\"userErrors\":[]")
+  assert !string.contains(response, "groupObjects is not supported")
+  assert outcome.staged_resource_ids
+    == [
+      "gid://shopify/BulkOperation/1",
+      "gid://shopify/BulkOperation/2",
+      "gid://shopify/BulkOperation/3",
+    ]
+}
+
 pub fn run_query_exports_product_jsonl_and_metadata_test() {
   let source =
     store.new()
