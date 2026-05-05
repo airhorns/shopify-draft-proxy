@@ -120,6 +120,13 @@ variables)` returns a parsed `JsonValue` AST
 - domains decide on a per-operation basis whether to reach upstream
   via `upstream_query.fetch_sync` (see `docs/parity-runner.md`)
 
+`proxy/products.gleam` is a public entrypoint that preserves the historical
+products-domain API while delegating implementation to `proxy/products/*`
+submodules. Those submodules split product-adjacent behavior by concern
+including queries, mutations, hydration, collections, variants/options,
+inventory, inventory transfers, inventory shipments, publications/channels,
+selling plans, media, shared helpers, and shared types.
+
 ### `proxy/operation_registry.gleam` + `operation_registry_data.gleam`
 
 - vendored, pre-compiled mapping from operation name → capability
