@@ -1,0 +1,35 @@
+{
+  "scenarioId": "web-pixel-create-duplicate-returns-taken",
+  "operationNames": ["webPixelCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/web-pixel-create-duplicate-returns-taken.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/web-pixel-create-duplicate-returns-taken.graphql",
+    "variablesCapturePath": "$.primary.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "duplicate-web-pixel-create-taken",
+        "capturePath": "$.second.response.data.webPixelCreate",
+        "proxyPath": "$.data.webPixelCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/web-pixel-create-duplicate-returns-taken.graphql",
+          "variablesCapturePath": "$.primary.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": []
+      }
+    ]
+  },
+  "notes": "HAR-572 exercises the supported local webPixelCreate lifecycle twice in one proxy session. The second request is compared to Shopify Core's duplicate app/api_permission behavior: no WebPixel payload and one TAKEN WebPixelUserError. The scenario has no upstream calls because supported pixel mutations must stage locally rather than writing to Shopify at runtime."
+}
