@@ -44,22 +44,23 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type CustomerAccountPageRecord, type CustomerAddressRecord,
-  type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
-  type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
-  type CustomerDefaultPhoneNumberRecord,
+  type CapturedJsonValue, type CustomerAccountPageRecord,
+  type CustomerAddressRecord, type CustomerCatalogConnectionRecord,
+  type CustomerCatalogPageInfoRecord, type CustomerDefaultAddressRecord,
+  type CustomerDefaultEmailAddressRecord, type CustomerDefaultPhoneNumberRecord,
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMergeRequestRecord, type CustomerMetafieldRecord,
   type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord, type Money,
-  type ProductMetafieldRecord, type StoreCreditAccountRecord,
-  type StoreCreditAccountTransactionRecord, CustomerAccountPageRecord,
-  CustomerAddressRecord, CustomerCatalogPageInfoRecord,
-  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
-  CustomerMergeRequestRecord, CustomerMetafieldRecord,
-  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  Money, StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
+  type OrderRecord, type ProductMetafieldRecord, type StoreCreditAccountRecord,
+  type StoreCreditAccountTransactionRecord, CapturedObject, CapturedString,
+  CustomerAccountPageRecord, CustomerAddressRecord,
+  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerEmailMarketingConsentRecord, CustomerMergeRequestRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
+  CustomerSmsMarketingConsentRecord, Money, StoreCreditAccountRecord,
+  StoreCreditAccountTransactionRecord,
 }
 
 pub type CustomersError {
@@ -4617,28 +4618,61 @@ fn handle_customer_delete(
     Some(customer_id) ->
       case store.get_effective_customer_by_id(store, customer_id) {
         Some(_) -> {
-          let next_store = store.stage_delete_customer(store, customer_id)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerDeletePayload",
-              None,
-              Some(customer_id),
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [customer_id],
-              "customerDelete",
-            ),
-            next_store,
-            identity,
-          )
+          case customer_has_associated_orders(store, customer_id) {
+            True -> {
+              let payload =
+                customer_payload_json(
+                  store,
+                  "CustomerDeletePayload",
+                  None,
+                  None,
+                  None,
+                  [
+                    UserError(
+                      ["id"],
+                      "Customer can’t be deleted because they have associated orders",
+                      None,
+                    ),
+                  ],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [],
+                  "customerDelete",
+                ),
+                store,
+                identity,
+              )
+            }
+            False -> {
+              let next_store = store.stage_delete_customer(store, customer_id)
+              let payload =
+                customer_payload_json(
+                  next_store,
+                  "CustomerDeletePayload",
+                  None,
+                  Some(customer_id),
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [customer_id],
+                  "customerDelete",
+                ),
+                next_store,
+                identity,
+              )
+            }
+          }
         }
         None -> {
           let payload =
@@ -4691,6 +4725,49 @@ fn handle_customer_delete(
         identity,
       )
     }
+  }
+}
+
+fn customer_has_associated_orders(store: Store, customer_id: String) -> Bool {
+  case store.list_effective_customer_order_summaries(store, customer_id) {
+    [_, ..] -> True
+    [] ->
+      store.list_effective_orders(store)
+      |> list.any(fn(order) { order_customer_id(order) == Some(customer_id) })
+  }
+}
+
+fn order_customer_id(order: OrderRecord) -> Option(String) {
+  captured_object_field(order.data, "customer")
+  |> option.then(fn(customer) { captured_string_field(customer, "id") })
+}
+
+fn captured_object_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedObject(fields) ->
+      fields
+      |> list.find_map(fn(pair) {
+        let #(key, item) = pair
+        case key == name {
+          True -> Ok(item)
+          False -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn captured_string_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(String) {
+  case captured_object_field(value, name) {
+    Some(CapturedString(value)) -> Some(value)
+    _ -> None
   }
 }
 
