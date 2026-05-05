@@ -929,6 +929,7 @@ pub type B2BCompanyRecord {
     id: String,
     cursor: Option(String),
     data: Dict(String, StorePropertyValue),
+    main_contact_id: Option(String),
     contact_ids: List(String),
     location_ids: List(String),
     contact_role_ids: List(String),
