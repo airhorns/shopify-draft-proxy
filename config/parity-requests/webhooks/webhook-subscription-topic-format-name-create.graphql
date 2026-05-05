@@ -1,0 +1,29 @@
+mutation WebhookSubscriptionTopicFormatNameCreate(
+  $topic: WebhookSubscriptionTopic!
+  $webhookSubscription: WebhookSubscriptionInput!
+) {
+  webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+    webhookSubscription {
+      id
+      topic
+      format
+      filter
+      createdAt
+      updatedAt
+      endpoint {
+        __typename
+        ... on WebhookHttpEndpoint {
+          callbackUrl
+        }
+        ... on WebhookPubSubEndpoint {
+          pubSubProject
+          pubSubTopic
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
