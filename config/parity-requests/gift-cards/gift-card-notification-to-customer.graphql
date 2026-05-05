@@ -1,0 +1,12 @@
+mutation GiftCardNotificationToCustomerValidation($id: ID!) {
+  giftCardSendNotificationToCustomer(id: $id) {
+    giftCard {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

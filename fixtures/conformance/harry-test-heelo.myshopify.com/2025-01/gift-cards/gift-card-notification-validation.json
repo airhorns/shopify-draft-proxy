@@ -1,0 +1,1094 @@
+{
+  "capturedAt": "2026-05-05T01:37:40.645Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "scenarioId": "gift-card-notification-validation",
+  "notes": [
+    "HAR-688 captures validation-failing gift-card notification roots only, avoiding successful customer-visible notification dispatch.",
+    "Live Admin GraphQL 2025-01 serializes base-scoped notification userErrors with field: null; runtime tests keep the HAR-688 requested local field [\"base\"] contract for those branches.",
+    "Public Admin GraphQL 2025-01 does not expose a GiftCard notify field or GiftCardCreate/Update notify input, so notify-disabled validation remains covered by local runtime tests rather than live setup."
+  ],
+  "proxyVariables": {
+    "customerDeactivated": {
+      "id": "gid://shopify/GiftCard/654806810930"
+    },
+    "recipientDeactivated": {
+      "id": "gid://shopify/GiftCard/654806810930"
+    },
+    "customerNoCustomer": {
+      "id": "gid://shopify/GiftCard/654806843698"
+    },
+    "recipientNoContact": {
+      "id": "gid://shopify/GiftCard/654806876466"
+    },
+    "customerExpired": {
+      "id": "gid://shopify/GiftCard/654806909234"
+    },
+    "recipientExpired": {
+      "id": "gid://shopify/GiftCard/654806909234"
+    }
+  },
+  "setup": [
+    {
+      "label": "contactCustomerCreate",
+      "query": "#graphql\n      mutation GiftCardNotificationCustomerCreate($input: CustomerInput!) {\n        customerCreate(input: $input) {\n          customer {\n            id\n            email\n            phone\n            defaultEmailAddress {\n              emailAddress\n            }\n            defaultPhoneNumber {\n              phoneNumber\n            }\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "email": "har688-contact-1777945057339@example.com",
+          "firstName": "HAR688",
+          "lastName": "Notification Contact",
+          "note": "Disposable HAR-688 gift-card notification validation customer."
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10579927204146",
+                "email": "har688-contact-1777945057339@example.com",
+                "phone": null,
+                "defaultEmailAddress": {
+                  "emailAddress": "har688-contact-1777945057339@example.com"
+                },
+                "defaultPhoneNumber": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "noContactCustomerCreate",
+      "query": "#graphql\n      mutation GiftCardNotificationCustomerCreate($input: CustomerInput!) {\n        customerCreate(input: $input) {\n          customer {\n            id\n            email\n            phone\n            defaultEmailAddress {\n              emailAddress\n            }\n            defaultPhoneNumber {\n              phoneNumber\n            }\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "firstName": "HAR688",
+          "lastName": "Notification No Contact",
+          "note": "Disposable HAR-688 no-contact recipient validation customer."
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10579927236914",
+                "email": null,
+                "phone": null,
+                "defaultEmailAddress": null,
+                "defaultPhoneNumber": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cardADeactivatedCreate",
+      "query": "#graphql\n      mutation GiftCardNotificationGiftCardCreate($input: GiftCardCreateInput!) {\n        giftCardCreate(input: $input) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n            expiresOn\n            customer {\n              id\n              email\n              defaultEmailAddress {\n                emailAddress\n              }\n              defaultPhoneNumber {\n                phoneNumber\n              }\n            }\n            recipientAttributes {\n              recipient {\n                id\n                email\n                defaultEmailAddress {\n                  emailAddress\n                }\n                defaultPhoneNumber {\n                  phoneNumber\n                }\n              }\n            }\n          }\n          giftCardCode\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "HAR688A45057339",
+          "note": "HAR-688 deactivated notification validation.",
+          "customerId": "gid://shopify/Customer/10579927204146"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654806810930",
+                "enabled": true,
+                "deactivatedAt": null,
+                "expiresOn": null,
+                "customer": {
+                  "id": "gid://shopify/Customer/10579927204146",
+                  "email": "har688-contact-1777945057339@example.com",
+                  "defaultEmailAddress": {
+                    "emailAddress": "har688-contact-1777945057339@example.com"
+                  },
+                  "defaultPhoneNumber": null
+                },
+                "recipientAttributes": null
+              },
+              "giftCardCode": "har688a45057339",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cardADeactivate",
+      "query": "#graphql\n      mutation GiftCardNotificationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806810930"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654806810930",
+                "enabled": false,
+                "deactivatedAt": "2026-05-05T01:37:37Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cardBNoCustomerCreate",
+      "query": "#graphql\n      mutation GiftCardNotificationGiftCardCreate($input: GiftCardCreateInput!) {\n        giftCardCreate(input: $input) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n            expiresOn\n            customer {\n              id\n              email\n              defaultEmailAddress {\n                emailAddress\n              }\n              defaultPhoneNumber {\n                phoneNumber\n              }\n            }\n            recipientAttributes {\n              recipient {\n                id\n                email\n                defaultEmailAddress {\n                  emailAddress\n                }\n                defaultPhoneNumber {\n                  phoneNumber\n                }\n              }\n            }\n          }\n          giftCardCode\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "HAR688B45057339",
+          "note": "HAR-688 no-customer notification validation.",
+          "recipientAttributes": {
+            "id": "gid://shopify/Customer/10579927204146",
+            "preferredName": "HAR-688 recipient",
+            "message": "Validation-only notification branch."
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654806843698",
+                "enabled": true,
+                "deactivatedAt": null,
+                "expiresOn": null,
+                "customer": null,
+                "recipientAttributes": {
+                  "recipient": {
+                    "id": "gid://shopify/Customer/10579927204146",
+                    "email": "har688-contact-1777945057339@example.com",
+                    "defaultEmailAddress": {
+                      "emailAddress": "har688-contact-1777945057339@example.com"
+                    },
+                    "defaultPhoneNumber": null
+                  }
+                }
+              },
+              "giftCardCode": "har688b45057339",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cardCNoContactRecipientCreate",
+      "query": "#graphql\n      mutation GiftCardNotificationGiftCardCreate($input: GiftCardCreateInput!) {\n        giftCardCreate(input: $input) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n            expiresOn\n            customer {\n              id\n              email\n              defaultEmailAddress {\n                emailAddress\n              }\n              defaultPhoneNumber {\n                phoneNumber\n              }\n            }\n            recipientAttributes {\n              recipient {\n                id\n                email\n                defaultEmailAddress {\n                  emailAddress\n                }\n                defaultPhoneNumber {\n                  phoneNumber\n                }\n              }\n            }\n          }\n          giftCardCode\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "HAR688C45057339",
+          "note": "HAR-688 no-contact recipient notification validation.",
+          "recipientAttributes": {
+            "id": "gid://shopify/Customer/10579927236914",
+            "preferredName": "HAR-688 no-contact recipient",
+            "message": "Validation-only notification branch."
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654806876466",
+                "enabled": true,
+                "deactivatedAt": null,
+                "expiresOn": null,
+                "customer": null,
+                "recipientAttributes": {
+                  "recipient": {
+                    "id": "gid://shopify/Customer/10579927236914",
+                    "email": null,
+                    "defaultEmailAddress": null,
+                    "defaultPhoneNumber": null
+                  }
+                }
+              },
+              "giftCardCode": "har688c45057339",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cardEExpiredCreate",
+      "query": "#graphql\n      mutation GiftCardNotificationGiftCardCreate($input: GiftCardCreateInput!) {\n        giftCardCreate(input: $input) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n            expiresOn\n            customer {\n              id\n              email\n              defaultEmailAddress {\n                emailAddress\n              }\n              defaultPhoneNumber {\n                phoneNumber\n              }\n            }\n            recipientAttributes {\n              recipient {\n                id\n                email\n                defaultEmailAddress {\n                  emailAddress\n                }\n                defaultPhoneNumber {\n                  phoneNumber\n                }\n              }\n            }\n          }\n          giftCardCode\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "initialValue": "5.00",
+          "code": "HAR688E45057339",
+          "note": "HAR-688 expired notification validation.",
+          "expiresOn": "2000-01-01",
+          "customerId": "gid://shopify/Customer/10579927204146",
+          "recipientAttributes": {
+            "id": "gid://shopify/Customer/10579927204146",
+            "preferredName": "HAR-688 expired recipient",
+            "message": "Validation-only notification branch."
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardCreate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654806909234",
+                "enabled": true,
+                "deactivatedAt": null,
+                "expiresOn": "2000-01-01",
+                "customer": {
+                  "id": "gid://shopify/Customer/10579927204146",
+                  "email": "har688-contact-1777945057339@example.com",
+                  "defaultEmailAddress": {
+                    "emailAddress": "har688-contact-1777945057339@example.com"
+                  },
+                  "defaultPhoneNumber": null
+                },
+                "recipientAttributes": {
+                  "recipient": {
+                    "id": "gid://shopify/Customer/10579927204146",
+                    "email": "har688-contact-1777945057339@example.com",
+                    "defaultEmailAddress": {
+                      "emailAddress": "har688-contact-1777945057339@example.com"
+                    },
+                    "defaultPhoneNumber": null
+                  }
+                }
+              },
+              "giftCardCode": "har688e45057339",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 17,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1965,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "operations": {
+    "customerDeactivated": {
+      "label": "customerDeactivated",
+      "query": "#graphql\n      mutation GiftCardNotificationToCustomerValidation($id: ID!) {\n        giftCardSendNotificationToCustomer(id: $id) {\n          giftCard {\n            id\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806810930"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardSendNotificationToCustomer": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "code": "INVALID",
+                  "message": "The gift card is deactivated."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "recipientDeactivated": {
+      "label": "recipientDeactivated",
+      "query": "#graphql\n      mutation GiftCardNotificationToRecipientValidation($id: ID!) {\n        giftCardSendNotificationToRecipient(id: $id) {\n          giftCard {\n            id\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806810930"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardSendNotificationToRecipient": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "code": "INVALID",
+                  "message": "The gift card is deactivated."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customerNoCustomer": {
+      "label": "customerNoCustomer",
+      "query": "#graphql\n      mutation GiftCardNotificationToCustomerValidation($id: ID!) {\n        giftCardSendNotificationToCustomer(id: $id) {\n          giftCard {\n            id\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806843698"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardSendNotificationToCustomer": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "code": "INVALID",
+                  "message": "The gift card has no customer."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "recipientNoContact": {
+      "label": "recipientNoContact",
+      "query": "#graphql\n      mutation GiftCardNotificationToRecipientValidation($id: ID!) {\n        giftCardSendNotificationToRecipient(id: $id) {\n          giftCard {\n            id\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806876466"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardSendNotificationToRecipient": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "code": "INVALID",
+                  "message": "The recipient has no contact information (e.g. email address or phone number)."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "customerExpired": {
+      "label": "customerExpired",
+      "query": "#graphql\n      mutation GiftCardNotificationToCustomerValidation($id: ID!) {\n        giftCardSendNotificationToCustomer(id: $id) {\n          giftCard {\n            id\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806909234"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardSendNotificationToCustomer": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "code": "INVALID",
+                  "message": "The gift card has expired."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1976,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "recipientExpired": {
+      "label": "recipientExpired",
+      "query": "#graphql\n      mutation GiftCardNotificationToRecipientValidation($id: ID!) {\n        giftCardSendNotificationToRecipient(id: $id) {\n          giftCard {\n            id\n          }\n          userErrors {\n            field\n            code\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806909234"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardSendNotificationToRecipient": {
+              "giftCard": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "code": "INVALID",
+                  "message": "The gift card has expired."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1975,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "label": "cleanupDeactivate:gid://shopify/GiftCard/654806810930",
+      "query": "#graphql\n      mutation GiftCardNotificationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806810930"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654806810930",
+                "enabled": false,
+                "deactivatedAt": "2026-05-05T01:37:37Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupDeactivate:gid://shopify/GiftCard/654806843698",
+      "query": "#graphql\n      mutation GiftCardNotificationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806843698"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654806843698",
+                "enabled": false,
+                "deactivatedAt": "2026-05-05T01:37:39Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1977,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupDeactivate:gid://shopify/GiftCard/654806876466",
+      "query": "#graphql\n      mutation GiftCardNotificationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806876466"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654806876466",
+                "enabled": false,
+                "deactivatedAt": "2026-05-05T01:37:40Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupDeactivate:gid://shopify/GiftCard/654806909234",
+      "query": "#graphql\n      mutation GiftCardNotificationGiftCardDeactivate($id: ID!) {\n        giftCardDeactivate(id: $id) {\n          giftCard {\n            id\n            enabled\n            deactivatedAt\n          }\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806909234"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "giftCardDeactivate": {
+              "giftCard": {
+                "id": "gid://shopify/GiftCard/654806909234",
+                "enabled": false,
+                "deactivatedAt": "2026-05-05T01:37:40Z"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupCustomer:gid://shopify/Customer/10579927204146",
+      "query": "#graphql\n      mutation GiftCardNotificationCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10579927204146"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10579927204146",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanupCustomer:gid://shopify/Customer/10579927236914",
+      "query": "#graphql\n      mutation GiftCardNotificationCustomerDelete($input: CustomerDeleteInput!) {\n        customerDelete(input: $input) {\n          deletedCustomerId\n          userErrors {\n            field\n            message\n          }\n        }\n      }\n    ",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10579927236914"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "customerDelete": {
+              "deletedCustomerId": "gid://shopify/Customer/10579927236914",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notifyDisabledCapture": {
+    "captured": false,
+    "reason": "Public Admin GraphQL 2025-01 exposes no GiftCard notify field or GiftCardCreate/Update notify input to construct a notify=false gift card through this conformance harness."
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806810930"
+      },
+      "query": "#graphql\n    query GiftCardHydrate($id: ID!) {\n      giftCard(id: $id) {\n        id\n        lastCharacters\n        maskedCode\n        enabled\n        deactivatedAt\n        expiresOn\n        note\n        templateSuffix\n        createdAt\n        updatedAt\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n        customer {\n          id\n          email\n          defaultEmailAddress { emailAddress }\n          defaultPhoneNumber { phoneNumber }\n        }\n        recipientAttributes {\n          message\n          preferredName\n          sendNotificationAt\n          recipient {\n            id\n            email\n            defaultEmailAddress { emailAddress }\n            defaultPhoneNumber { phoneNumber }\n          }\n        }\n        transactions(first: 250) {\n          nodes {\n            __typename\n            id\n            note\n            processedAt\n            amount { amount currencyCode }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      giftCardConfiguration {\n        issueLimit { amount currencyCode }\n        purchaseLimit { amount currencyCode }\n      }\n    }\n  ",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654806810930",
+              "lastCharacters": "7339",
+              "maskedCode": "•••• •••• •••• 7339",
+              "enabled": false,
+              "deactivatedAt": "2026-05-05T01:37:37Z",
+              "expiresOn": null,
+              "note": "HAR-688 deactivated notification validation.",
+              "templateSuffix": null,
+              "createdAt": "2026-05-05T01:37:37Z",
+              "updatedAt": "2026-05-05T01:37:37Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10579927204146",
+                "email": "har688-contact-1777945057339@example.com",
+                "defaultEmailAddress": {
+                  "emailAddress": "har688-contact-1777945057339@example.com"
+                },
+                "defaultPhoneNumber": null
+              },
+              "recipientAttributes": null,
+              "transactions": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806843698"
+      },
+      "query": "#graphql\n    query GiftCardHydrate($id: ID!) {\n      giftCard(id: $id) {\n        id\n        lastCharacters\n        maskedCode\n        enabled\n        deactivatedAt\n        expiresOn\n        note\n        templateSuffix\n        createdAt\n        updatedAt\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n        customer {\n          id\n          email\n          defaultEmailAddress { emailAddress }\n          defaultPhoneNumber { phoneNumber }\n        }\n        recipientAttributes {\n          message\n          preferredName\n          sendNotificationAt\n          recipient {\n            id\n            email\n            defaultEmailAddress { emailAddress }\n            defaultPhoneNumber { phoneNumber }\n          }\n        }\n        transactions(first: 250) {\n          nodes {\n            __typename\n            id\n            note\n            processedAt\n            amount { amount currencyCode }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      giftCardConfiguration {\n        issueLimit { amount currencyCode }\n        purchaseLimit { amount currencyCode }\n      }\n    }\n  ",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654806843698",
+              "lastCharacters": "7339",
+              "maskedCode": "•••• •••• •••• 7339",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "HAR-688 no-customer notification validation.",
+              "templateSuffix": null,
+              "createdAt": "2026-05-05T01:37:38Z",
+              "updatedAt": "2026-05-05T01:37:38Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "customer": null,
+              "recipientAttributes": {
+                "message": "Validation-only notification branch.",
+                "preferredName": "HAR-688 recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/10579927204146",
+                  "email": "har688-contact-1777945057339@example.com",
+                  "defaultEmailAddress": {
+                    "emailAddress": "har688-contact-1777945057339@example.com"
+                  },
+                  "defaultPhoneNumber": null
+                }
+              },
+              "transactions": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806876466"
+      },
+      "query": "#graphql\n    query GiftCardHydrate($id: ID!) {\n      giftCard(id: $id) {\n        id\n        lastCharacters\n        maskedCode\n        enabled\n        deactivatedAt\n        expiresOn\n        note\n        templateSuffix\n        createdAt\n        updatedAt\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n        customer {\n          id\n          email\n          defaultEmailAddress { emailAddress }\n          defaultPhoneNumber { phoneNumber }\n        }\n        recipientAttributes {\n          message\n          preferredName\n          sendNotificationAt\n          recipient {\n            id\n            email\n            defaultEmailAddress { emailAddress }\n            defaultPhoneNumber { phoneNumber }\n          }\n        }\n        transactions(first: 250) {\n          nodes {\n            __typename\n            id\n            note\n            processedAt\n            amount { amount currencyCode }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      giftCardConfiguration {\n        issueLimit { amount currencyCode }\n        purchaseLimit { amount currencyCode }\n      }\n    }\n  ",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654806876466",
+              "lastCharacters": "7339",
+              "maskedCode": "•••• •••• •••• 7339",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": null,
+              "note": "HAR-688 no-contact recipient notification validation.",
+              "templateSuffix": null,
+              "createdAt": "2026-05-05T01:37:38Z",
+              "updatedAt": "2026-05-05T01:37:38Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "customer": null,
+              "recipientAttributes": {
+                "message": "Validation-only notification branch.",
+                "preferredName": "HAR-688 no-contact recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/10579927236914",
+                  "email": null,
+                  "defaultEmailAddress": null,
+                  "defaultPhoneNumber": null
+                }
+              },
+              "transactions": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "GiftCardHydrate",
+      "variables": {
+        "id": "gid://shopify/GiftCard/654806909234"
+      },
+      "query": "#graphql\n    query GiftCardHydrate($id: ID!) {\n      giftCard(id: $id) {\n        id\n        lastCharacters\n        maskedCode\n        enabled\n        deactivatedAt\n        expiresOn\n        note\n        templateSuffix\n        createdAt\n        updatedAt\n        initialValue { amount currencyCode }\n        balance { amount currencyCode }\n        customer {\n          id\n          email\n          defaultEmailAddress { emailAddress }\n          defaultPhoneNumber { phoneNumber }\n        }\n        recipientAttributes {\n          message\n          preferredName\n          sendNotificationAt\n          recipient {\n            id\n            email\n            defaultEmailAddress { emailAddress }\n            defaultPhoneNumber { phoneNumber }\n          }\n        }\n        transactions(first: 250) {\n          nodes {\n            __typename\n            id\n            note\n            processedAt\n            amount { amount currencyCode }\n          }\n          pageInfo {\n            hasNextPage\n            hasPreviousPage\n            startCursor\n            endCursor\n          }\n        }\n      }\n      giftCardConfiguration {\n        issueLimit { amount currencyCode }\n        purchaseLimit { amount currencyCode }\n      }\n    }\n  ",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "giftCard": {
+              "id": "gid://shopify/GiftCard/654806909234",
+              "lastCharacters": "7339",
+              "maskedCode": "•••• •••• •••• 7339",
+              "enabled": true,
+              "deactivatedAt": null,
+              "expiresOn": "2000-01-01",
+              "note": "HAR-688 expired notification validation.",
+              "templateSuffix": null,
+              "createdAt": "2026-05-05T01:37:38Z",
+              "updatedAt": "2026-05-05T01:37:38Z",
+              "initialValue": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "balance": {
+                "amount": "5.0",
+                "currencyCode": "CAD"
+              },
+              "customer": {
+                "id": "gid://shopify/Customer/10579927204146",
+                "email": "har688-contact-1777945057339@example.com",
+                "defaultEmailAddress": {
+                  "emailAddress": "har688-contact-1777945057339@example.com"
+                },
+                "defaultPhoneNumber": null
+              },
+              "recipientAttributes": {
+                "message": "Validation-only notification branch.",
+                "preferredName": "HAR-688 expired recipient",
+                "sendNotificationAt": null,
+                "recipient": {
+                  "id": "gid://shopify/Customer/10579927204146",
+                  "email": "har688-contact-1777945057339@example.com",
+                  "defaultEmailAddress": {
+                    "emailAddress": "har688-contact-1777945057339@example.com"
+                  },
+                  "defaultPhoneNumber": null
+                }
+              },
+              "transactions": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "giftCardConfiguration": {
+              "issueLimit": {
+                "amount": "3000.0",
+                "currencyCode": "CAD"
+              },
+              "purchaseLimit": {
+                "amount": "14000.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

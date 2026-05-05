@@ -2874,6 +2874,7 @@ fn gift_card_json(record: types.GiftCardRecord) -> Json {
     #("lastCharacters", json.string(record.last_characters)),
     #("maskedCode", json.string(record.masked_code)),
     #("enabled", json.bool(record.enabled)),
+    #("notify", json.bool(record.notify)),
     #("deactivatedAt", optional_string(record.deactivated_at)),
     #("expiresOn", optional_string(record.expires_on)),
     #("note", optional_string(record.note)),
@@ -5837,6 +5838,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
   use last_characters <- decode.field("lastCharacters", decode.string)
   use masked_code <- decode.field("maskedCode", decode.string)
   use enabled <- decode.field("enabled", decode.bool)
+  use notify <- optional_field("notify", True, decode.bool)
   use deactivated_at <- optional_string_field("deactivatedAt")
   use expires_on <- optional_string_field("expiresOn")
   use note <- optional_string_field("note")
@@ -5864,6 +5866,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
     last_characters: last_characters,
     masked_code: masked_code,
     enabled: enabled,
+    notify: notify,
     deactivated_at: deactivated_at,
     expires_on: expires_on,
     note: note,
