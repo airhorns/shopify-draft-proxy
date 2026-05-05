@@ -262,7 +262,7 @@
             {
               "field": ["returnLineItems", "0", "fulfillmentLineItemId"],
               "message": "Fulfillment line item does not exist.",
-              "code": null
+              "code": "INVALID"
             }
           ]
         }
