@@ -19,11 +19,7 @@
                 "column": 5
               }
             ],
-            "path": [
-              "mutation PaymentReminderSendInvalidField",
-              "paymentReminderSend",
-              "customerPaymentMethod"
-            ],
+            "path": ["mutation PaymentReminderSendInvalidField", "paymentReminderSend", "customerPaymentMethod"],
             "extensions": {
               "code": "undefinedField",
               "typeName": "PaymentReminderSendPayload",

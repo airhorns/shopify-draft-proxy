@@ -3,9 +3,7 @@
   "operationNames": ["paymentReminderSend"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "schema-validation", "no-upstream-passthrough"],
-  "liveCaptureFiles": [
-    "fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json"
-  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/payments/payment-reminder-send-shape.json"],
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
