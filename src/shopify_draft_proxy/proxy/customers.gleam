@@ -38,6 +38,7 @@ import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
 }
 import shopify_draft_proxy/search_query_parser
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -67,6 +68,14 @@ pub type CustomersError {
 
 type UserError {
   UserError(field: List(String), message: String, code: Option(String))
+}
+
+type StoreCreditAccountResolution {
+  StoreCreditAccountResolved(
+    account: StoreCreditAccountRecord,
+    identity: SyntheticIdentityRegistry,
+  )
+  StoreCreditAccountResolutionError(error: UserError)
 }
 
 type MutationFieldResult {
@@ -1082,18 +1091,35 @@ fn store_credit_account_shallow_source(
   store: Store,
   account: StoreCreditAccountRecord,
 ) -> SourceValue {
-  let owner = case
-    store.get_effective_customer_by_id(store, account.customer_id)
-  {
-    Some(customer) -> customer_owner_source(customer)
-    None -> SrcNull
-  }
+  let owner = store_credit_account_owner_source(store, account.customer_id)
   src_object([
     #("__typename", SrcString("StoreCreditAccount")),
     #("id", SrcString(account.id)),
     #("balance", money_source(account.balance)),
     #("owner", owner),
   ])
+}
+
+fn store_credit_account_owner_source(
+  store: Store,
+  owner_id: String,
+) -> SourceValue {
+  case string.starts_with(owner_id, "gid://shopify/CompanyLocation/") {
+    True ->
+      case store.get_effective_b2b_company_location_by_id(store, owner_id) {
+        Some(location) ->
+          src_object([
+            #("__typename", SrcString("CompanyLocation")),
+            #("id", SrcString(location.id)),
+          ])
+        None -> SrcNull
+      }
+    False ->
+      case store.get_effective_customer_by_id(store, owner_id) {
+        Some(customer) -> customer_owner_source(customer)
+        None -> SrcNull
+      }
+  }
 }
 
 fn store_credit_accounts_connection_source(
@@ -5529,86 +5555,139 @@ fn handle_store_credit_adjustment(
     True -> "StoreCreditAccountCreditPayload"
     False -> "StoreCreditAccountDebitPayload"
   }
+  let amount_key = case is_credit {
+    True -> "creditAmount"
+    False -> "debitAmount"
+  }
   case account_id, amount {
-    Some(id), Some(money) ->
-      case store.get_effective_store_credit_account_by_id(store, id) {
-        Some(account) -> {
-          let balance_cents = parse_cents(account.balance.amount)
-          let amount_cents = parse_cents(money.amount)
-          let signed = case is_credit {
-            True -> amount_cents
-            False -> 0 - amount_cents
-          }
-          let new_balance = balance_cents + signed
-          let errors = case !is_credit && new_balance < 0 {
-            True -> [
-              UserError(
-                [input_name, "amount"],
-                "Insufficient funds",
-                Some("INSUFFICIENT_FUNDS"),
-              ),
-            ]
-            False -> []
-          }
-          case errors {
-            [] -> {
-              let #(transaction_id, after_id) =
-                synthetic_identity.make_synthetic_gid(
-                  identity,
-                  "StoreCreditAccountTransaction",
-                )
-              let #(timestamp, after_ts) =
-                synthetic_identity.make_synthetic_timestamp(after_id)
-              let new_account =
-                StoreCreditAccountRecord(
-                  ..account,
-                  balance: Money(
-                    amount: format_cents(new_balance),
-                    currency_code: money.currency_code,
+    Some(id), Some(money) -> {
+      let validation_errors =
+        store_credit_adjustment_input_errors(
+          input,
+          input_name,
+          amount_key,
+          money,
+          is_credit,
+        )
+      case validation_errors {
+        [] ->
+          case
+            resolve_store_credit_account(store, identity, id, money, is_credit)
+          {
+            StoreCreditAccountResolved(account, resolved_identity) -> {
+              let identity = resolved_identity
+              let currency_errors = case
+                account.balance.currency_code != money.currency_code
+              {
+                True -> [
+                  UserError(
+                    [input_name, amount_key, "currencyCode"],
+                    "The currency provided does not match the currency of the store credit account.",
+                    Some("mismatching_currency"),
                   ),
-                )
-              let transaction =
-                StoreCreditAccountTransactionRecord(
-                  id: transaction_id,
-                  account_id: account.id,
-                  amount: Money(
-                    amount: format_cents(signed),
-                    currency_code: money.currency_code,
+                ]
+                False -> []
+              }
+              let balance_cents = parse_cents(account.balance.amount)
+              let amount_cents = parse_cents(money.amount)
+              let signed = case is_credit {
+                True -> amount_cents
+                False -> 0 - amount_cents
+              }
+              let new_balance = balance_cents + signed
+              let limit_errors = case !is_credit && new_balance < 0 {
+                True -> [
+                  UserError(
+                    [input_name, amount_key, "amount"],
+                    "Credit limit exceeded",
+                    Some("credit_limit_exceeded"),
                   ),
-                  balance_after_transaction: new_account.balance,
-                  created_at: timestamp,
-                  event: "ADJUSTMENT",
-                )
-              let next_store =
-                store.stage_store_credit_account(store, new_account)
-                |> store.stage_store_credit_account_transaction(transaction)
-              let payload =
-                store_credit_payload_json(
-                  next_store,
-                  typename,
-                  Some(transaction),
-                  [],
-                  field,
-                  fragments,
-                )
-              #(
-                MutationFieldResult(
-                  get_field_response_key(field),
-                  payload,
-                  [transaction.id, account.id],
-                  root,
-                ),
-                next_store,
-                after_ts,
-              )
+                ]
+                False -> []
+              }
+              let errors = list.append(currency_errors, limit_errors)
+              case errors {
+                [] -> {
+                  let #(transaction_id, after_id) =
+                    synthetic_identity.make_synthetic_gid(
+                      identity,
+                      "StoreCreditAccountTransaction",
+                    )
+                  let #(timestamp, after_ts) =
+                    synthetic_identity.make_synthetic_timestamp(after_id)
+                  let new_account =
+                    StoreCreditAccountRecord(
+                      ..account,
+                      balance: Money(
+                        amount: format_cents(new_balance),
+                        currency_code: account.balance.currency_code,
+                      ),
+                    )
+                  let transaction =
+                    StoreCreditAccountTransactionRecord(
+                      id: transaction_id,
+                      account_id: account.id,
+                      amount: Money(
+                        amount: format_cents(signed),
+                        currency_code: account.balance.currency_code,
+                      ),
+                      balance_after_transaction: new_account.balance,
+                      created_at: timestamp,
+                      event: "ADJUSTMENT",
+                    )
+                  let next_store =
+                    store.stage_store_credit_account(store, new_account)
+                    |> store.stage_store_credit_account_transaction(transaction)
+                  let payload =
+                    store_credit_payload_json(
+                      next_store,
+                      typename,
+                      Some(transaction),
+                      [],
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [transaction.id, account.id],
+                      root,
+                    ),
+                    next_store,
+                    after_ts,
+                  )
+                }
+                _ -> {
+                  let payload =
+                    store_credit_payload_json(
+                      store,
+                      typename,
+                      None,
+                      errors,
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [],
+                      root,
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+              }
             }
-            _ -> {
+            StoreCreditAccountResolutionError(error) -> {
               let payload =
                 store_credit_payload_json(
                   store,
                   typename,
                   None,
-                  errors,
+                  [error],
                   field,
                   fragments,
                 )
@@ -5624,20 +5703,13 @@ fn handle_store_credit_adjustment(
               )
             }
           }
-        }
-        None -> {
+        errors -> {
           let payload =
             store_credit_payload_json(
               store,
               typename,
               None,
-              [
-                UserError(
-                  ["id"],
-                  "Store credit account does not exist",
-                  Some("NOT_FOUND"),
-                ),
-              ],
+              errors,
               field,
               fragments,
             )
@@ -5653,6 +5725,7 @@ fn handle_store_credit_adjustment(
           )
         }
       }
+    }
     _, _ -> {
       let payload =
         store_credit_payload_json(
@@ -5675,6 +5748,174 @@ fn handle_store_credit_adjustment(
         identity,
       )
     }
+  }
+}
+
+fn store_credit_adjustment_input_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  input_name: String,
+  amount_key: String,
+  money: Money,
+  is_credit: Bool,
+) -> List(UserError) {
+  let amount_cents = parse_cents(money.amount)
+  let amount_errors = case amount_cents <= 0 {
+    True -> [
+      UserError(
+        [input_name, amount_key, "amount"],
+        "Amount must be greater than zero",
+        Some("negative_or_zero_amount"),
+      ),
+    ]
+    False -> []
+  }
+  let currency_errors = case
+    is_supported_store_credit_currency(money.currency_code)
+  {
+    True -> []
+    False -> [
+      UserError(
+        [input_name, amount_key, "currencyCode"],
+        "Currency is not supported",
+        Some("unsupported_currency"),
+      ),
+    ]
+  }
+  let expiry_errors = case is_credit, read_obj_string(input, "expiresAt") {
+    True, Some(expires_at) ->
+      case store_credit_expires_at_in_past(expires_at) {
+        True -> [
+          UserError(
+            [input_name, "expiresAt"],
+            "Expiration must be in the future",
+            Some("expires_at_in_past"),
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+  amount_errors
+  |> list.append(currency_errors)
+  |> list.append(expiry_errors)
+}
+
+fn resolve_store_credit_account(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  id: String,
+  money: Money,
+  is_credit: Bool,
+) -> StoreCreditAccountResolution {
+  case store_credit_id_kind(id) {
+    "account" ->
+      case store.get_effective_store_credit_account_by_id(store, id) {
+        Some(account) -> StoreCreditAccountResolved(account, identity)
+        None ->
+          StoreCreditAccountResolutionError(store_credit_account_not_found())
+      }
+    "customer" ->
+      case store.get_effective_customer_by_id(store, id) {
+        Some(_) ->
+          resolve_store_credit_owner_account(
+            store,
+            identity,
+            id,
+            money,
+            is_credit,
+          )
+        None ->
+          StoreCreditAccountResolutionError(store_credit_owner_not_found())
+      }
+    "company_location" ->
+      case store.get_effective_b2b_company_location_by_id(store, id) {
+        Some(_) ->
+          resolve_store_credit_owner_account(
+            store,
+            identity,
+            id,
+            money,
+            is_credit,
+          )
+        None ->
+          StoreCreditAccountResolutionError(store_credit_owner_not_found())
+      }
+    _ -> StoreCreditAccountResolutionError(store_credit_account_not_found())
+  }
+}
+
+fn resolve_store_credit_owner_account(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  owner_id: String,
+  money: Money,
+  is_credit: Bool,
+) -> StoreCreditAccountResolution {
+  case store.get_effective_store_credit_account_by_owner_id(store, owner_id) {
+    Some(account) -> StoreCreditAccountResolved(account, identity)
+    None ->
+      case is_credit {
+        True -> {
+          let #(account_id, after_account_id) =
+            synthetic_identity.make_synthetic_gid(
+              identity,
+              "StoreCreditAccount",
+            )
+          StoreCreditAccountResolved(
+            StoreCreditAccountRecord(
+              id: account_id,
+              customer_id: owner_id,
+              cursor: None,
+              balance: Money(amount: "0.0", currency_code: money.currency_code),
+            ),
+            after_account_id,
+          )
+        }
+        False ->
+          StoreCreditAccountResolutionError(store_credit_account_not_found())
+      }
+  }
+}
+
+fn store_credit_id_kind(id: String) -> String {
+  case string.starts_with(id, "gid://shopify/StoreCreditAccount/") {
+    True -> "account"
+    False ->
+      case string.starts_with(id, "gid://shopify/Customer/") {
+        True -> "customer"
+        False ->
+          case string.starts_with(id, "gid://shopify/CompanyLocation/") {
+            True -> "company_location"
+            False -> "unknown"
+          }
+      }
+  }
+}
+
+fn store_credit_account_not_found() -> UserError {
+  UserError(
+    ["id"],
+    "Store credit account does not exist",
+    Some("account_not_found"),
+  )
+}
+
+fn store_credit_owner_not_found() -> UserError {
+  UserError(["id"], "Owner does not exist", Some("owner_not_found"))
+}
+
+fn is_supported_store_credit_currency(currency_code: String) -> Bool {
+  currency_code != "" && currency_code != "XXX" && currency_code != "XTS"
+}
+
+fn store_credit_expires_at_in_past(expires_at: String) -> Bool {
+  case iso_timestamp.parse_iso(expires_at) {
+    Ok(expires_ms) ->
+      case iso_timestamp.parse_iso(iso_timestamp.now_iso()) {
+        Ok(now_ms) -> expires_ms < now_ms
+        Error(_) -> False
+      }
+    Error(_) -> False
   }
 }
 

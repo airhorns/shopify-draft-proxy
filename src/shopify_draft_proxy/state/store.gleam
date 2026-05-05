@@ -10366,12 +10366,34 @@ pub fn get_effective_store_credit_account_by_id(
   }
   case found {
     Some(account) ->
-      case get_effective_customer_by_id(store, account.customer_id) {
-        Some(_) -> Some(account)
-        None -> None
+      case store_credit_account_owner_exists(store, account.customer_id) {
+        True -> Some(account)
+        False -> None
       }
     None -> None
   }
+}
+
+pub fn get_effective_store_credit_account_by_owner_id(
+  store: Store,
+  owner_id: String,
+) -> Option(StoreCreditAccountRecord) {
+  dict.keys(dict.merge(
+    store.base_state.store_credit_accounts,
+    store.staged_state.store_credit_accounts,
+  ))
+  |> list.sort(string_compare)
+  |> list.find_map(fn(id) {
+    case get_effective_store_credit_account_by_id(store, id) {
+      Some(account) ->
+        case account.customer_id == owner_id {
+          True -> Ok(account)
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
 }
 
 pub fn list_effective_store_credit_accounts_for_customer(
@@ -10410,6 +10432,21 @@ pub fn list_effective_store_credit_account_transactions(
       other -> other
     }
   })
+}
+
+fn store_credit_account_owner_exists(store: Store, owner_id: String) -> Bool {
+  case string.starts_with(owner_id, "gid://shopify/CompanyLocation/") {
+    True ->
+      case get_effective_b2b_company_location_by_id(store, owner_id) {
+        Some(_) -> True
+        None -> False
+      }
+    False ->
+      case get_effective_customer_by_id(store, owner_id) {
+        Some(_) -> True
+        None -> False
+      }
+  }
 }
 
 pub fn upsert_base_customer_account_pages(
