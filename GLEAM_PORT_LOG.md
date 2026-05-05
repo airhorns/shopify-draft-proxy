@@ -31,10 +31,10 @@ Validation:
 - `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm parity:record fulfillment-order-lifecycle-local-staging`
 - `cd gleam && gleam test --target javascript -- fulfillment_order_cancel`
   (858 passed after parity refresh)
-- `cd gleam && gleam test --target javascript` (871 passed after merging
-  `origin/main@ae66202d`)
+- `cd gleam && gleam test --target javascript` (880 passed after merging
+  `origin/main@387c24d9`)
 - `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
-  (OTP 28, 862 passed after merging `origin/main@ae66202d`)
+  (OTP 28, 871 passed after merging `origin/main@387c24d9`)
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:capture:check`
 - `corepack pnpm gleam:format:check`
@@ -42,8 +42,8 @@ Validation:
   `scripts/parity-record.mts` unused catch-parameter warning)
 - `corepack pnpm typecheck`
 - `corepack pnpm build`
-- `corepack pnpm test` (123 files passed; 2313 passed after merging
-  `origin/main@ae66202d`)
+- `corepack pnpm test` (123 files passed; 2319 passed after merging
+  `origin/main@387c24d9`)
 - `git diff --check`
 
 ### Findings
@@ -67,6 +67,45 @@ Validation:
 - Shopify Admin 2026-04 introspection exposes generic `UserError` for the
   selected cancel error surface, while this ticket requires the documented
   code-shaped local values when clients select `code`.
+
+---
+
+## 2026-05-04 - Pass 200: HAR-574 product variant scalar validation
+
+Adds shared Shopify-like scalar validation for product variant mutation inputs
+and backs the bulk-create validation branches with a new live capture and
+strict parity scenario.
+
+| Module / fixture                                                                                                                                           | Change                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                                                                                                       | Adds shared variant validators for explicit-null/negative/too-large prices, too-large compare-at price, weight bounds/unit, inventory quantity bounds, SKU/barcode/option value length, and 2048 caps.           |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`                                                                                        | Covers bulk create/update, legacy single-variant create/update, productCreate/productSet rejection, oversized `variants:` input, cumulative product cap, failed logs, and no local variant staging on rejection. |
+| `scripts/capture-product-variant-scalar-validation-conformance.ts` / `scripts/conformance-capture-index.ts`                                                | Adds an aggregate-indexed live capture for `productVariantsBulkCreate` scalar validation against a disposable optioned product, with before/after product-state atomicity checks.                                |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-validation.json`                                           | Records explicit `price: null`, negative/too-large price, too-large compare-at price, invalid weight/quantity, text length, option length, and max input-size Shopify responses.                                 |
+| `config/parity-specs/products/productVariantsBulkCreate-validation.json` / `config/parity-requests/products/productVariantsBulkCreate-validation*.graphql` | Adds executable strict JSON parity for captured `userErrors.field`, `message`, and `code`, plus Shopify's top-level max-input-size error.                                                                        |
+| `docs/endpoints/products.md`                                                                                                                               | Documents the scalar validation boundary, captured omitted-price behavior, no-write rejection behavior, and new validation anchors.                                                                              |
+
+Validation:
+
+- `corepack pnpm conformance:capture -- --run product-variant-scalar-validations`
+- `cd gleam && gleam test --target javascript -- products_mutation_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+
+### Findings
+
+- Shopify 2025-01 accepts omitted `price` for `productVariantsBulkCreate` on
+  the conformance store, while explicit `price: null` returns `Price can't be
+blank` with code `INVALID`.
+- The max-input-size branch is a top-level GraphQL error. Its location depends
+  on the request document formatting, so the parity request mirrors the capture
+  document layout for strict comparison.
+
+### Risks / open items
+
+- Direct live evidence for legacy `productVariantCreate` and
+  `productVariantUpdate` remains unavailable on the captured 2025-01 schema, so
+  their scalar validation is covered by shared runtime tests plus the
+  bulk-create conformance oracle.
 
 ---
 

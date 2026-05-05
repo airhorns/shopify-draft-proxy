@@ -169,6 +169,10 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
   `.mjs` for `.mts`, `.cjs` for `.cts`). Do not import local modules with
   source extensions such as `.ts`, `.mts`, or `.cts`; `pnpm lint` enforces
   this with oxlint's `import/extensions` rule.
+- Do not add files to linter/formatter ignore lists just because formatting
+  changes test fixtures or parity requests. Format the files, then fix the
+  affected tests, captures, specs, or code so the formatted files remain
+  checked by the normal tooling.
 - In unattended or CI-like workspaces, prefer `corepack pnpm ...` for
   package scripts. Bare `pnpm` may not be on `PATH` even though the repo
   is configured for pnpm through Corepack.
