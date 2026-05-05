@@ -667,7 +667,7 @@ pub fn backup_region_update_uses_captured_shop_country_evidence_test() {
         request_path,
         backup_region_update_document(code),
         empty_vars(),
-      empty_upstream_context(),
+        empty_upstream_context(),
       )
     let body = json.to_string(outcome.data)
     assert string.contains(

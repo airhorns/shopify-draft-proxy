@@ -1179,7 +1179,6 @@ pub type UserError {
   UserError(field: List(String), code: Option(String), message: String)
 }
 
-
 type GiftCardPayload {
   GiftCardPayload(
     gift_card: Option(GiftCardRecord),

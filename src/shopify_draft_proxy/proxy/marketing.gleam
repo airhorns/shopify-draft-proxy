@@ -28,10 +28,10 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, LogDraft, MutationOutcome, respond_to_query,
 }
-import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{

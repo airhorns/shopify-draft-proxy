@@ -31,11 +31,11 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, find_argument, read_optional_string,
   respond_to_query, single_root_log_draft,
 }
-import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
 import shopify_draft_proxy/proxy/store_properties
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser.{
   parse_search_query_term, search_query_term_value,
   strip_search_query_value_quotes,
