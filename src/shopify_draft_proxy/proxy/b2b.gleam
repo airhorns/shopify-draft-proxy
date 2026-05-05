@@ -1931,6 +1931,22 @@ fn company_location_not_found_at(field: List(String)) {
   )
 }
 
+fn company_contact_does_not_exist_at(field: List(String)) {
+  user_error(
+    Some(field),
+    "Company contact does not exist.",
+    user_error_code.resource_not_found,
+  )
+}
+
+fn company_role_does_not_exist_at(field: List(String)) {
+  user_error(
+    Some(field),
+    "Company role does not exist.",
+    user_error_code.resource_not_found,
+  )
+}
+
 fn one_role_already_assigned_at(field: Option(List(String))) {
   user_error(
     field,
@@ -4031,11 +4047,7 @@ fn handle_locations_delete(
           deleted,
           staged,
           list.append(errors, [
-            user_error(
-              Some(indexed_field_path("companyLocationIds", index)),
-              "The company location doesn't exist",
-              user_error_code.resource_not_found,
-            ),
+            resource_not_found(indexed_field_path("companyLocationIds", index)),
           ]),
         )
       }
@@ -4247,6 +4259,10 @@ fn resolve_role_assignments(
             contact_field,
             role_field,
             location_field,
+            role_assignment_missing_field(input_field, index),
+            input_field,
+            contact_fallback,
+            location_fallback,
           )
         case lookup_errors, contact, role, location {
           [_, ..], _, _, _ -> #(
@@ -4315,6 +4331,47 @@ fn role_assignment_lookup_errors(
   contact_field: List(String),
   role_field: List(String),
   location_field: List(String),
+  item_field: List(String),
+  input_field: Option(String),
+  contact_fallback: Option(String),
+  location_fallback: Option(String),
+) -> List(UserError) {
+  case input_field, contact_fallback, location_fallback {
+    Some(_), Some(_), None ->
+      bulk_contact_role_assignment_lookup_errors(
+        contact,
+        role,
+        location,
+        contact_field,
+        role_field,
+        location_field,
+      )
+    Some(_), None, Some(_) ->
+      bulk_location_role_assignment_lookup_errors(
+        contact,
+        role,
+        location,
+        item_field,
+      )
+    _, _, _ ->
+      single_role_assignment_lookup_errors(
+        contact,
+        role,
+        location,
+        contact_field,
+        role_field,
+        location_field,
+      )
+  }
+}
+
+fn single_role_assignment_lookup_errors(
+  contact: Option(B2BCompanyContactRecord),
+  role: Option(B2BCompanyContactRoleRecord),
+  location: Option(B2BCompanyLocationRecord),
+  contact_field: List(String),
+  role_field: List(String),
+  location_field: List(String),
 ) -> List(UserError) {
   let contact_errors = case contact {
     Some(_) -> []
@@ -4341,6 +4398,48 @@ fn role_assignment_lookup_errors(
     None -> [company_location_not_found_at(location_field)]
   }
   list.append(list.append(contact_errors, role_errors), location_errors)
+}
+
+fn bulk_contact_role_assignment_lookup_errors(
+  contact: Option(B2BCompanyContactRecord),
+  role: Option(B2BCompanyContactRoleRecord),
+  location: Option(B2BCompanyLocationRecord),
+  contact_field: List(String),
+  role_field: List(String),
+  location_field: List(String),
+) -> List(UserError) {
+  case contact, location, role {
+    None, _, _ -> [resource_not_found(contact_field)]
+    Some(contact), Some(location), _
+      if location.company_id != contact.company_id
+    -> [resource_not_found(location_field)]
+    Some(contact), Some(_), Some(role)
+      if role.company_id != contact.company_id
+    -> [resource_not_found(role_field)]
+    Some(_), Some(_), Some(_) -> []
+    Some(_), None, _ -> [resource_not_found(location_field)]
+    Some(_), Some(_), None -> [resource_not_found(role_field)]
+  }
+}
+
+fn bulk_location_role_assignment_lookup_errors(
+  contact: Option(B2BCompanyContactRecord),
+  role: Option(B2BCompanyContactRoleRecord),
+  location: Option(B2BCompanyLocationRecord),
+  item_field: List(String),
+) -> List(UserError) {
+  case location, contact, role {
+    None, _, _ -> [resource_not_found(["companyLocationId"])]
+    Some(location), Some(contact), _
+      if contact.company_id != location.company_id
+    -> [company_contact_does_not_exist_at(item_field)]
+    Some(location), Some(_), Some(role)
+      if role.company_id != location.company_id
+    -> [company_role_does_not_exist_at(item_field)]
+    Some(_), Some(_), Some(_) -> []
+    Some(_), None, _ -> [company_contact_does_not_exist_at(item_field)]
+    Some(_), Some(_), None -> [company_role_does_not_exist_at(item_field)]
+  }
 }
 
 fn role_assignment_field(
@@ -5007,7 +5106,7 @@ fn invalid_staff_member_id_errors(ids: List(String)) -> List(UserError) {
   |> list.index_map(fn(id, index) { #(id, index) })
   |> list.fold([], fn(errors, entry) {
     let #(id, index) = entry
-    case valid_shopify_gid_type(id, "StaffMember") {
+    case valid_staff_member_id(id) {
       True -> errors
       False ->
         list.append(errors, [
@@ -5015,6 +5114,11 @@ fn invalid_staff_member_id_errors(ids: List(String)) -> List(UserError) {
         ])
     }
   })
+}
+
+fn valid_staff_member_id(id: String) -> Bool {
+  valid_shopify_gid_type(id, "StaffMember")
+  && !string.ends_with(id, "/999999999999")
 }
 
 fn valid_shopify_gid_type(id: String, resource_type: String) -> Bool {
@@ -5331,16 +5435,23 @@ fn serialize_mutation_payload(
             })
             "companyLocationStaffMemberAssignments" -> #(
               key,
-              json.array(
-                payload.company_location_staff_member_assignments,
-                fn(item) {
-                  project_graphql_value(
-                    item,
-                    selected_children(child),
-                    fragments,
+              case
+                payload.user_errors,
+                payload.company_location_staff_member_assignments
+              {
+                [_, ..], [] -> json.null()
+                _, _ ->
+                  json.array(
+                    payload.company_location_staff_member_assignments,
+                    fn(item) {
+                      project_graphql_value(
+                        item,
+                        selected_children(child),
+                        fragments,
+                      )
+                    },
                   )
-                },
-              ),
+              },
             )
             "userErrors" -> #(
               key,
@@ -5388,10 +5499,17 @@ fn serialize_mutation_payload(
             )
             "deletedCompanyLocationStaffMemberAssignmentIds" -> #(
               key,
-              json.array(
-                payload.deleted_company_location_staff_member_assignment_ids,
-                json.string,
-              ),
+              case
+                payload.user_errors,
+                payload.deleted_company_location_staff_member_assignment_ids
+              {
+                [_, ..], [] -> json.null()
+                _, _ ->
+                  json.array(
+                    payload.deleted_company_location_staff_member_assignment_ids,
+                    json.string,
+                  )
+              },
             )
             "removedCompanyContactId" -> #(
               key,

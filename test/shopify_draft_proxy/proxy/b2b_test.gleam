@@ -1014,10 +1014,6 @@ pub fn b2b_bulk_role_assignment_user_errors_include_nested_indices_test() {
     contact_json,
     "\"field\":[\"rolesToAssign\",\"2\",\"companyLocationId\"]",
   )
-  assert string.contains(
-    contact_json,
-    "\"field\":[\"rolesToAssign\",\"2\",\"companyContactRoleId\"]",
-  )
 
   let proxy =
     seed_company_with_contact_and_location(
@@ -1033,22 +1029,9 @@ pub fn b2b_bulk_role_assignment_user_errors_include_nested_indices_test() {
   assert location_status == 200
   let location_json = json.to_string(location_body)
   assert string.contains(location_json, "\"roleAssignments\":[]")
-  assert string.contains(
-    location_json,
-    "\"field\":[\"rolesToAssign\",\"0\",\"companyContactId\"]",
-  )
-  assert string.contains(
-    location_json,
-    "\"field\":[\"rolesToAssign\",\"1\",\"companyContactRoleId\"]",
-  )
-  assert string.contains(
-    location_json,
-    "\"field\":[\"rolesToAssign\",\"2\",\"companyContactId\"]",
-  )
-  assert string.contains(
-    location_json,
-    "\"field\":[\"rolesToAssign\",\"2\",\"companyContactRoleId\"]",
-  )
+  assert string.contains(location_json, "\"field\":[\"rolesToAssign\",\"0\"]")
+  assert string.contains(location_json, "\"field\":[\"rolesToAssign\",\"1\"]")
+  assert string.contains(location_json, "\"field\":[\"rolesToAssign\",\"2\"]")
 }
 
 pub fn b2b_bulk_revoke_and_staff_user_errors_include_input_indices_test() {
@@ -1110,7 +1093,7 @@ pub fn b2b_bulk_revoke_and_staff_user_errors_include_input_indices_test() {
   let assign_json = json.to_string(assign_body)
   assert string.contains(
     assign_json,
-    "\"companyLocationStaffMemberAssignments\":[]",
+    "\"companyLocationStaffMemberAssignments\":null",
   )
   assert string.contains(assign_json, "\"field\":[\"staffMemberIds\",\"1\"]")
   assert string.contains(assign_json, "\"code\":\"RESOURCE_NOT_FOUND\"")

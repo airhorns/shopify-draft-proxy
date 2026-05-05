@@ -138,10 +138,13 @@ string-indexed list paths. Bulk company/contact/location deletes, role
 assignment/revoke roots, and location staff assignment/removal roots report
 failed entries at paths such as `["companyContactIds", "1"]` or
 `["rolesToAssign", "0", "companyLocationId"]` while preserving top-level
-single-ID field paths on the single-resource mutation surfaces. Staff assignment
-still does not synthesize a broader staff catalog; the local guardrail rejects
-non-`StaffMember` GIDs at indexed `staffMemberIds` paths and otherwise stages the
-provided staff ID for downstream B2B reads.
+single-ID field paths on the single-resource mutation surfaces. The 2026-04
+capture records the Shopify quirk that `companyLocationAssignRoles` reports
+missing contact/role entries at the indexed list item path (for example
+`["rolesToAssign", "0"]`) rather than at a nested sub-field. Staff assignment
+still does not synthesize a broader staff catalog, but missing staff-member and
+staff-assignment IDs use Shopify's indexed user error paths and null payload
+shape for the failed list-valued fields.
 
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
