@@ -3,12 +3,12 @@
 /**
  * Live end-to-end smoke for the JavaScript/Node path.
  *
- * Boots an in-process Koa app (`createApp`) backed by the JS-target
+ * Boots an in-process Node HTTP app (`createApp`) backed by the JS-target
  * Gleam proxy in live-hybrid mode, stages 3 productCreate mutations
  * through it, asserts the staged IDs are synthetic and not yet visible
  * upstream, runs `/__meta/commit` to replay through real Shopify, then
  * cleans up the committed products. Mirrors
- * `gleam/elixir_smoke/test/live_hybrid_e2e_test.exs` — the two together
+ * `elixir_smoke/test/live_hybrid_e2e_test.exs` — the two together
  * are the cross-target proof that committable mutations behave the
  * same on Erlang and JavaScript.
  *
@@ -19,8 +19,7 @@ import 'dotenv/config';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 
-import { createApp } from '../src/app.js';
-import type { AppConfig } from '../src/config.js';
+import { createApp, type AppConfig } from '../js/src/index.js';
 
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';

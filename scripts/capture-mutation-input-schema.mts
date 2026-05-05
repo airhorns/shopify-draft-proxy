@@ -6,7 +6,7 @@
  *
  * Output: `config/admin-graphql-mutation-schema.json`. Regenerated whenever
  * the targeted API version changes — checked in so the proxy carries it on
- * every target without runtime IO. The `gleam/scripts/sync-mutation-schema.sh`
+ * every target without runtime IO. The `scripts/sync-mutation-schema.sh`
  * companion script mirrors this JSON into a Gleam source module.
  *
  * Strategy:

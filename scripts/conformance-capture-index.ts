@@ -910,7 +910,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}root-operation-introspection.json`,
-      'config/operation-registry.json updates when intentionally edited',
+      'src/shopify_draft_proxy/proxy/operation_registry_data.gleam updates when intentionally edited',
     ],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],

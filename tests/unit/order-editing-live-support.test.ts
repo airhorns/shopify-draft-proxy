@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
+import { listOperationRegistryEntries } from '../../scripts/support/operation-registry.js';
+
 type OperationRegistryEntry = {
   name: string;
   domain: string;
@@ -14,9 +16,7 @@ type OperationRegistryEntry = {
 describe('order editing live support registry/docs', () => {
   it('promotes the first four order-edit roots to covered once captured missing-id GraphQL validation branches land and keeps the order-edit notes anchored to that evidence', () => {
     const repoRoot = resolve(import.meta.dirname, '../..');
-    const registry = JSON.parse(
-      readFileSync(resolve(repoRoot, 'config/operation-registry.json'), 'utf8'),
-    ) as OperationRegistryEntry[];
+    const registry = listOperationRegistryEntries() as OperationRegistryEntry[];
     const weirdNotes = readFileSync(resolve(repoRoot, 'docs/hard-and-weird-notes.md'), 'utf8');
 
     expect(registry).toContainEqual(
@@ -25,7 +25,7 @@ describe('order editing live support registry/docs', () => {
         domain: 'orders',
         execution: 'stage-locally',
         implemented: true,
-        runtimeTests: ['tests/integration/order-edit-flow.test.ts'],
+        runtimeTests: ['test/parity_test.gleam'],
       }),
     );
 
@@ -35,7 +35,7 @@ describe('order editing live support registry/docs', () => {
         domain: 'orders',
         execution: 'stage-locally',
         implemented: true,
-        runtimeTests: ['tests/integration/order-edit-flow.test.ts'],
+        runtimeTests: ['test/parity_test.gleam'],
       }),
     );
 
@@ -45,7 +45,7 @@ describe('order editing live support registry/docs', () => {
         domain: 'orders',
         execution: 'stage-locally',
         implemented: true,
-        runtimeTests: ['tests/integration/order-edit-flow.test.ts'],
+        runtimeTests: ['test/parity_test.gleam'],
       }),
     );
 
@@ -55,7 +55,7 @@ describe('order editing live support registry/docs', () => {
         domain: 'orders',
         execution: 'stage-locally',
         implemented: true,
-        runtimeTests: ['tests/integration/order-edit-flow.test.ts'],
+        runtimeTests: ['test/parity_test.gleam'],
       }),
     );
 
