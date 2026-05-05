@@ -631,7 +631,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'read_translations', 'write_translations', 'read_locales', 'write_locales'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}localization-disable-clears-translations.json`,
+      `${CAPTURE_ROOT}localization-shop-locale-primary-guards.json`,
       'config/parity-specs/localization/localization-disable-clears-translations.json',
+      'config/parity-specs/localization/localization-shop-locale-primary-guards.json',
     ],
     cleanupBehavior:
       'Enables the French shop locale, registers one product-title translation, disables the locale, and leaves the locale/translation state cleaned up.',
