@@ -840,6 +840,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-activate-deactivate-lifecycle',
+    scriptPath: 'scripts/capture-location-activate-deactivate-lifecycle-conformance.mts',
+    purpose:
+      'locationActivate/locationDeactivate version-gated idempotency directive behavior across 2025-10 and 2026-04.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-activate-deactivate-lifecycle.json`,
+      'config/parity-specs/store-properties/location-activate-deactivate-lifecycle.json',
+    ],
+    cleanupBehavior:
+      'Creates one disposable non-online-fulfilling location, toggles it across optional/required directive API versions, then deactivates and deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'shop-policies',
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',
@@ -1409,12 +1424,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'customers',
     captureId: 'customer-consent',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-customer-consent-conformance.ts',
     purpose: 'Email/SMS marketing consent update behavior.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-email-marketing-consent-update-parity.json`,
       `${CAPTURE_ROOT}customer-sms-marketing-consent-update-parity.json`,
+      'config/parity-specs/customers/customerEmailMarketingConsentUpdate-disallowed-states-parity.json',
+      'config/parity-specs/customers/customerSmsMarketingConsentUpdate-disallowed-states-parity.json',
     ],
     cleanupBehavior: 'Creates and deletes disposable customers for consent transitions.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

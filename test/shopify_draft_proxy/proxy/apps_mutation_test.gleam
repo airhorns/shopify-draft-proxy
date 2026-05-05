@@ -16,10 +16,10 @@ import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type AppInstallationRecord, type AppRecord, type Money, AccessScopeRecord,
-  AppInstallationRecord, AppRecord, AppSubscriptionLineItemPlan,
-  AppSubscriptionLineItemRecord, AppSubscriptionRecord, AppUsagePricing,
-  DelegatedAccessTokenRecord, Money,
+  type AppInstallationRecord, type AppRecord, type AppSubscriptionRecord,
+  type Money, AccessScopeRecord, AppInstallationRecord, AppRecord,
+  AppSubscriptionLineItemPlan, AppSubscriptionLineItemRecord,
+  AppSubscriptionRecord, AppUsagePricing, DelegatedAccessTokenRecord, Money,
 }
 
 // ----------- Helpers -----------
@@ -86,6 +86,26 @@ fn seeded_with_installation() -> store.Store {
   let a = app("gid://shopify/App/100", "shopify-draft-proxy", "key-100")
   let i = installation("gid://shopify/AppInstallation/100", a.id)
   store.upsert_base_app_installation(store.new(), i, a)
+}
+
+fn subscription(id: String, status: String) -> AppSubscriptionRecord {
+  AppSubscriptionRecord(
+    id: id,
+    name: "Pro",
+    status: status,
+    is_test: False,
+    trial_days: None,
+    current_period_end: None,
+    created_at: "2024-12-01T00:00:00Z",
+    line_item_ids: [],
+  )
+}
+
+fn seeded_with_subscription(status: String) -> store.Store {
+  let s = seeded_with_installation()
+  let sub = subscription("gid://shopify/AppSubscription/9", status)
+  let #(_, s) = store.stage_app_subscription(s, sub)
+  s
 }
 
 // ----------- is_app_mutation_root -----------
@@ -305,25 +325,84 @@ pub fn subscription_create_with_usage_line_item_test() {
 
 pub fn subscription_cancel_flips_status_test() {
   let s = seeded_with_installation()
-  let sub =
-    AppSubscriptionRecord(
-      id: "gid://shopify/AppSubscription/9",
-      name: "Pro",
-      status: "ACTIVE",
-      is_test: False,
-      trial_days: None,
-      current_period_end: None,
-      created_at: "2024-12-01T00:00:00Z",
-      line_item_ids: [],
-    )
+  let sub = subscription("gid://shopify/AppSubscription/9", "ACTIVE")
   let #(_, s) = store.stage_app_subscription(s, sub)
-  let body =
-    run_mutation(
+  let assert Some(install) = store.get_current_app_installation(s)
+  let #(_, s) =
+    store.stage_app_installation(
+      s,
+      AppInstallationRecord(..install, active_subscription_ids: [sub.id]),
+    )
+  let outcome =
+    run_mutation_outcome(
       s,
       "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\") { appSubscription { id status } userErrors { field message } } }",
     )
+  let body = json.to_string(outcome.data)
   assert body
     == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":{\"id\":\"gid://shopify/AppSubscription/9\",\"status\":\"CANCELLED\"},\"userErrors\":[]}}}"
+  let assert Some(updated_install) =
+    store.get_current_app_installation(outcome.store)
+  assert updated_install.active_subscription_ids == []
+}
+
+pub fn subscription_cancel_accepts_pending_and_accepted_test() {
+  let pending_body =
+    run_mutation(
+      seeded_with_subscription("PENDING"),
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\") { appSubscription { id status } userErrors { field message } } }",
+    )
+  assert pending_body
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":{\"id\":\"gid://shopify/AppSubscription/9\",\"status\":\"CANCELLED\"},\"userErrors\":[]}}}"
+
+  let accepted_body =
+    run_mutation(
+      seeded_with_subscription("ACCEPTED"),
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\") { appSubscription { id status } userErrors { field message } } }",
+    )
+  assert accepted_body
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":{\"id\":\"gid://shopify/AppSubscription/9\",\"status\":\"CANCELLED\"},\"userErrors\":[]}}}"
+}
+
+pub fn subscription_cancel_rejects_repeat_cancel_test() {
+  let first =
+    run_mutation_outcome(
+      seeded_with_subscription("ACTIVE"),
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\") { appSubscription { id status } userErrors { field message } } }",
+    )
+  let second =
+    run_mutation(
+      first.store,
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\") { appSubscription { id status } userErrors { field message } } }",
+    )
+  assert second
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot transition status via :cancel from :cancelled\"}]}}}"
+}
+
+pub fn subscription_cancel_rejects_non_cancellable_statuses_test() {
+  let expired_body =
+    run_mutation(
+      seeded_with_subscription("EXPIRED"),
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\") { appSubscription { id status } userErrors { field message } } }",
+    )
+  assert expired_body
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot transition status via :cancel from :expired\"}]}}}"
+
+  let declined_body =
+    run_mutation(
+      seeded_with_subscription("DECLINED"),
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\") { appSubscription { id status } userErrors { field message } } }",
+    )
+  assert declined_body
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot transition status via :cancel from :declined\"}]}}}"
+
+  let frozen_body =
+    run_mutation(
+      seeded_with_subscription("FROZEN"),
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\") { appSubscription { id status } userErrors { field message } } }",
+    )
+  assert frozen_body
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot transition status via :cancel from :frozen\"}]}}}"
 }
 
 pub fn subscription_cancel_unknown_id_emits_user_error_test() {
@@ -333,7 +412,7 @@ pub fn subscription_cancel_unknown_id_emits_user_error_test() {
       "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/missing\") { appSubscription { id } userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Subscription not found\",\"code\":null}]}}}"
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Couldn't find RecurringApplicationCharge\",\"code\":null}]}}}"
 }
 
 // ----------- appSubscriptionLineItemUpdate -----------

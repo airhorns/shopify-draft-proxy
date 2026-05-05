@@ -1973,17 +1973,31 @@ fn handle_mutation_fields(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
-  case first_customer_merge_missing_argument_error(fields, variables) {
-    Some(error_json) ->
+  case
+    first_disallowed_marketing_consent_update_state_error(
+      fields,
+      variables,
+      document,
+    )
+  {
+    Some(#(root_name, error_json, include_null_data)) -> {
+      let entries = case include_null_data {
+        True -> [
+          #("errors", json.array([error_json], fn(x) { x })),
+          #("data", json.object([#(root_name, json.null())])),
+        ]
+        False -> [#("errors", json.array([error_json], fn(x) { x }))]
+      }
       MutationOutcome(
-        data: json.object([#("errors", json.array([error_json], fn(x) { x }))]),
+        data: json.object(entries),
         store: store,
         identity: identity,
         staged_resource_ids: [],
         log_drafts: [],
       )
+    }
     None ->
-      case first_invalid_tax_exemption_error(fields, variables) {
+      case first_customer_merge_missing_argument_error(fields, variables) {
         Some(error_json) ->
           MutationOutcome(
             data: json.object([
@@ -1995,18 +2009,202 @@ fn handle_mutation_fields(
             log_drafts: [],
           )
         None ->
-          handle_validated_mutation_fields(
-            store,
-            identity,
-            request_path,
-            document,
-            fields,
-            fragments,
+          case first_invalid_tax_exemption_error(fields, variables) {
+            Some(error_json) ->
+              MutationOutcome(
+                data: json.object([
+                  #("errors", json.array([error_json], fn(x) { x })),
+                ]),
+                store: store,
+                identity: identity,
+                staged_resource_ids: [],
+              )
+            None ->
+              handle_validated_mutation_fields(
+                store,
+                identity,
+                request_path,
+                document,
+                fields,
+                fragments,
+                variables,
+                upstream,
+              )
+          }
+      }
+  }
+}
+
+fn first_disallowed_marketing_consent_update_state_error(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  document: String,
+) -> Option(#(String, Json, Bool)) {
+  case fields {
+    [] -> None
+    [field, ..rest] ->
+      case field {
+        Field(name: name, ..) as selected_field ->
+          case marketing_consent_input_key(name.value) {
+            Some(consent_key) -> {
+              let args = graphql_helpers.field_args(selected_field, variables)
+              let input =
+                graphql_helpers.read_arg_object(args, "input")
+                |> option.unwrap(dict.new())
+              let consent = read_nested_object(input, consent_key)
+              case read_obj_string(consent, "marketingState") {
+                Some(value) ->
+                  case is_allowed_marketing_consent_update_state(value) {
+                    True ->
+                      first_disallowed_marketing_consent_update_state_error(
+                        rest,
+                        variables,
+                        document,
+                      )
+                    False -> {
+                      let #(error_json, include_null_data) =
+                        marketing_consent_update_state_error(
+                          name.value,
+                          consent_key,
+                          value,
+                          input,
+                          selected_field,
+                          document,
+                        )
+                      Some(#(name.value, error_json, include_null_data))
+                    }
+                  }
+                None ->
+                  first_disallowed_marketing_consent_update_state_error(
+                    rest,
+                    variables,
+                    document,
+                  )
+              }
+            }
+            None ->
+              first_disallowed_marketing_consent_update_state_error(
+                rest,
+                variables,
+                document,
+              )
+          }
+        _ ->
+          first_disallowed_marketing_consent_update_state_error(
+            rest,
             variables,
-            upstream,
+            document,
           )
       }
   }
+}
+
+fn marketing_consent_input_key(root_name: String) -> Option(String) {
+  case root_name {
+    "customerEmailMarketingConsentUpdate" -> Some("emailMarketingConsent")
+    "customerSmsMarketingConsentUpdate" -> Some("smsMarketingConsent")
+    _ -> None
+  }
+}
+
+fn is_allowed_marketing_consent_update_state(state: String) -> Bool {
+  case state {
+    "SUBSCRIBED" | "UNSUBSCRIBED" | "PENDING" -> True
+    _ -> False
+  }
+}
+
+fn marketing_consent_update_state_error(
+  root_name: String,
+  consent_key: String,
+  state: String,
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> #(Json, Bool) {
+  case root_name, state {
+    "customerSmsMarketingConsentUpdate", "INVALID" -> #(
+      invalid_sms_marketing_state_variable_error(
+        consent_key,
+        state,
+        input,
+        field,
+        document,
+      ),
+      False,
+    )
+    _, _ -> #(
+      json.object([
+        #(
+          "message",
+          json.string(
+            "Cannot specify " <> state <> " as a marketing state input",
+          ),
+        ),
+        #("locations", graphql_helpers.field_locations_json(field, document)),
+        #("extensions", json.object([#("code", json.string("INVALID"))])),
+        #("path", json.array([json.string(root_name)], fn(x) { x })),
+      ]),
+      True,
+    )
+  }
+}
+
+fn invalid_sms_marketing_state_variable_error(
+  consent_key: String,
+  state: String,
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> Json {
+  let input_type = "CustomerSmsMarketingConsentUpdateInput"
+  let allowed_values =
+    "NOT_SUBSCRIBED, PENDING, SUBSCRIBED, UNSUBSCRIBED, REDACTED"
+  let explanation =
+    "Expected \"" <> state <> "\" to be one of: " <> allowed_values
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Variable $input of type "
+        <> input_type
+        <> "! was provided invalid value for "
+        <> consent_key
+        <> ".marketingState ("
+        <> explanation
+        <> ")",
+      ),
+    ),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("INVALID_VARIABLE")),
+        #(
+          "value",
+          root_field.resolved_value_to_json(root_field.ObjectVal(input)),
+        ),
+        #(
+          "problems",
+          json.array(
+            [
+              json.object([
+                #(
+                  "path",
+                  json.array(
+                    [json.string(consent_key), json.string("marketingState")],
+                    fn(x) { x },
+                  ),
+                ),
+                #("explanation", json.string(explanation)),
+              ]),
+            ],
+            fn(x) { x },
+          ),
+        ),
+      ]),
+    ),
+  ])
 }
 
 fn first_customer_merge_missing_argument_error(
