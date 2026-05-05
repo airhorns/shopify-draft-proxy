@@ -636,6 +636,10 @@ pub type MarketLocalizationRecord {
   )
 }
 
+pub type MarketLocalizableContentRecord {
+  MarketLocalizableContentRecord(key: String, value: String, digest: String)
+}
+
 // ---------------------------------------------------------------------------
 // Metafields domain
 // ---------------------------------------------------------------------------
@@ -653,6 +657,7 @@ pub type ProductMetafieldRecord {
     created_at: Option(String),
     updated_at: Option(String),
     owner_type: Option(String),
+    market_localizable_content: List(MarketLocalizableContentRecord),
   )
 }
 
