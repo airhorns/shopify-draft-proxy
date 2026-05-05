@@ -111,15 +111,6 @@ Internal pieces:
 ```gleam
 pub fn is_<x>_mutation_root(name: String) -> Bool { ... }
 
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-  )
-}
-
 pub type UserError {
   UserError(field: List(String), message: String)
   // add `code: Option(String)` if the domain emits typed user errors
@@ -128,16 +119,50 @@ pub type UserError {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
+  _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, <Domain>Error) { ... }
+) -> mutation_helpers.MutationOutcome {
+  case root_field.get_root_fields(document) {
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
+    Ok(fields) -> { ... }
+  }
+}
 ```
 
+`MutationOutcome` is the shared type from `proxy/mutation_helpers.gleam`:
+
+```gleam
+pub type MutationOutcome {
+  MutationOutcome(
+    data: Json,
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
+  )
+}
+```
+
+Domains do not return `Result(MutationOutcome, <Domain>Error)` — the
+phantom error wrapper was removed. The only structurally-failing branch
+is "document failed to re-parse," handled by
+`mutation_helpers.parse_failed_outcome`.
+
 For each mutation root, write a per-root handler returning a
-`MutationFieldResult { key, payload, staged_resource_ids, top_level_errors }`.
-The `process_mutation` fold accumulates these into either a `{"data": ...}`
-or `{"errors": [...]}` envelope.
+`MutationFieldResult { key, payload, staged_resource_ids, top_level_errors,
+log_drafts }`. The `process_mutation` fold accumulates these into either a
+`{"data": ...}` or `{"errors": [...]}` envelope and returns the collected
+`log_drafts` to the dispatcher; do **not** call
+`store.record_mutation_log_entry` from inside the domain. The dispatcher
+calls `mutation_helpers.record_log_drafts(...)` once after the handler
+returns, threading the synthetic-identity registry through the entry id /
+timestamp mints.
+
+A few domains take an additional `upstream_query.UpstreamContext` parameter
+(read-before-write merges, app origin lookups, etc.). The dispatch table
+in `draft_proxy.gleam` adapts each domain's `process_mutation` signature to
+the unified `MutationHandler` closure shape — see Step 5.
 
 Use `mutation_helpers.validate_required_field_arguments` for AST-level
 required-arg validation. Use the resolved-arg readers for execution.
@@ -154,29 +179,45 @@ When in doubt, **read the TS handler** — `makeSyntheticGid` vs
 
 ## Step 5 — Dispatcher wiring
 
-Edit `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`:
+Edit `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`. There is no
+per-domain enum variant anymore; the dispatcher is a flat table keyed by
+root-field name (or predicate) that hands back a `QueryHandler` or
+`MutationHandler` closure.
 
 1. Import the new module.
-2. Add `<Domain>Domain` variant to the local `Domain` type.
-3. Add capability arm in `capability_to_query_domain`:
+2. Add an arm to `local_query_handler` for fixed-name root fields, or a
+   tuple to its `first_matching_handler([...])` fallback for
+   predicate-driven dispatch (e.g. `is_<x>_query_root(name)`):
    ```gleam
-   <Domain> -> Ok(<Domain>Domain)
+   #(<domain>.is_<x>_query_root(name), <domain>.handle_query_request),
    ```
-   And the same in `capability_to_mutation_domain` if it mutates.
-4. Add legacy fallback:
-   ```gleam
-   case <domain>.is_<x>_query_root(name) {
-     True -> Ok(<Domain>Domain)
-     False -> Error(Nil)
-   }
-   ```
-5. Add dispatch arm in `route_query` / `route_mutation` calling
-   `<domain>.process(...)` / `<domain>.process_mutation(...)`.
+3. If the domain mutates, write a `<domain>_mutation_handler` adapter
+   closure that pulls `proxy.store`, `proxy.synthetic_identity`, and (if
+   applicable) the `UpstreamContext` out of the inputs and forwards them
+   to `<domain>.process_mutation`. Then add a fixed-name arm or a
+   predicate tuple in `local_mutation_handler` returning that adapter.
+4. Most domains do not need a custom dispatch arm in `route_query` /
+   `route_mutation` — the shared path invokes the closure returned by
+   `query_handler_for` / `mutation_handler_for`.
 
-The capability variant comes from
-`shopify_draft_proxy/proxy/operation_registry.{type CapabilityDomain}`.
-If your domain isn't already a variant, add it there (and update
-`parse_domain` for the JSON kebab-case mapping).
+The handler closure types defined in `draft_proxy.gleam` are:
+
+```gleam
+type QueryHandler =
+  fn(DraftProxy, Request, ParsedOperation, String, String,
+     Dict(String, root_field.ResolvedValue))
+  -> #(Response, DraftProxy)
+
+type MutationHandler =
+  fn(DraftProxy, String, String, Dict(String, root_field.ResolvedValue),
+     upstream_query.UpstreamContext)
+  -> mutation_helpers.MutationOutcome
+```
+
+If your domain's `handle_query_request` is just a `process(...)` wrapper
+returning a Shopify-shaped error envelope, use
+`mutation_helpers.respond_to_query` rather than building the
+`#(Response, DraftProxy)` tuple by hand.
 
 ## Step 6 — Tests
 
