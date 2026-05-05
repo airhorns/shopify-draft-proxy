@@ -1,0 +1,69 @@
+{
+  "scenarioId": "online-store/content-required-fields",
+  "operationNames": ["blogCreate", "pageCreate", "articleCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-content-required-fields.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-content-required-fields-blog-create.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-558 captures required-title behavior for online-store content creates. Shopify rejects omitted required `title` values for pageCreate/blogCreate/articleCreate at GraphQL validation time; those top-level error interactions are retained in the live fixture as schema evidence. Executable parity targets compare the blank-string branches because they reach Shopify model validation and return title userErrors. The proxy also normalizes omitted titles to the same local BLANK userError to satisfy the ticket acceptance criteria without staging records.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate setup provides a usable article blog reference",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.userErrors"]
+      },
+      {
+        "name": "pageCreate blank title returns title BLANK userError",
+        "capturePath": "$.interactions[2].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-required-fields-page-create.graphql",
+          "variablesCapturePath": "$.interactions[2].request.variables"
+        },
+        "selectedPaths": ["$.page", "$.userErrors.0.field", "$.userErrors.0.message", "$.userErrors.0.code"]
+      },
+      {
+        "name": "articleCreate blank title returns title BLANK userError",
+        "capturePath": "$.interactions[4].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-required-fields-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[4].request.variables.article.title"
+              },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[4].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors.0.field", "$.userErrors.0.message", "$.userErrors.0.code"]
+      },
+      {
+        "name": "blogCreate blank title returns title userError",
+        "capturePath": "$.interactions[6].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-content-required-fields-blog-create.graphql",
+          "variablesCapturePath": "$.interactions[6].request.variables"
+        },
+        "selectedPaths": ["$.blog", "$.userErrors.0.field", "$.userErrors.0.message"]
+      }
+    ]
+  }
+}

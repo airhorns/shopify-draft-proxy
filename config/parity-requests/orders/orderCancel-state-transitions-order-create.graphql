@@ -1,0 +1,12 @@
+mutation OrderCancelStateTransitionsOrderCreate($order: OrderCreateOrderInput!) {
+  orderCreate(order: $order) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
