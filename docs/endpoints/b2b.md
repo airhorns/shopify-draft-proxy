@@ -99,6 +99,16 @@ defaults the created contact locale and derives the contact customer payload
 from the resolved local `Customer` record instead of synthesizing an arbitrary
 customer shape.
 
+Empty-object B2B write inputs short-circuit before local staging. The
+2026-04 `b2b-no-input-validation` parity capture records the public Admin
+payloads for the empty-object branches: `companyContactCreate`,
+`companyContactUpdate`, and `companyLocationUpdate` return root-specific
+`NO_INPUT` userErrors with a null field, while `companyUpdate` returns
+`INVALID` at `input` with Shopify's "At least one attribute to change must be
+present" message. The same capture records null-only probes showing the public
+schema does not treat explicit null keys as a uniform NO_INPUT branch, so the
+runtime null-only guardrail remains covered by the focused local test.
+
 HAR-446 captured a fidelity trap in the company-create path: when
 `companyCreate` creates both a main contact and a default company location,
 Shopify automatically assigns that contact the `Ordering only` role for that
@@ -145,6 +155,22 @@ missing contact/role entries at the indexed list item path (for example
 still does not synthesize a broader staff catalog, but missing staff-member and
 staff-assignment IDs use Shopify's indexed user error paths and null payload
 shape for the failed list-valued fields.
+
+HAR-756 extends the bulk role-assignment surfaces to match Shopify's
+partial-success behavior while preserving those indexed field paths.
+`companyContactAssignRoles` and `companyLocationAssignRoles` validate every
+`rolesToAssign` entry, stage each successful assignment, return successful
+`roleAssignments` in original input order minus failed entries, and report
+indexed `userErrors` for failures. `companyContactRevokeRoles` and
+`companyLocationRevokeRoles` likewise validate every requested assignment ID,
+revoke each valid parent-scoped assignment once, return
+`revokedRoleAssignmentIds` in input order minus failed entries, and keep
+per-index `RESOURCE_NOT_FOUND` errors for invalid IDs. The local runtime also
+echoes the resolved parent contact/location in these payloads when selected, as
+required by the Business Customers contract; the public 2026-04 Admin schema
+used for conformance does not expose those parent payload fields, so live
+parity covers public partial-success fields while focused runtime tests cover
+parent echo selections.
 
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
@@ -245,6 +271,10 @@ conformance-backed local modeling.
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
 - Location/address management parity scenario:
   `config/parity-specs/b2b/b2b-location-address-management.json`
+- Empty input validation capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json`
+- Empty input validation parity scenario:
+  `config/parity-specs/b2b/b2b-no-input-validation.json`
 - Lifecycle runtime coverage:
 - Root inventory:
   `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

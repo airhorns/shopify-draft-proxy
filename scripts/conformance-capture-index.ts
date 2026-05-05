@@ -251,6 +251,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Shopify retains company order history after cancellation, so the order-history company delete may return a cleanup userError in the fixture.',
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-no-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-no-input-validation-conformance.mts',
+    purpose:
+      'B2B empty-object input validation for company/contact/location update roots and company contact create, plus readback proving the validation branches are no-ops.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-no-input-validation.json`,
+      'config/parity-specs/b2b/b2b-no-input-validation.json',
+      'config/parity-requests/b2b/b2b-no-input-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company with a contact and location, records validation failures and unchanged readback, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The capture also records null-only probes showing the public schema does not treat null-only keys as a uniform NO_INPUT branch.',
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
@@ -2665,6 +2684,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates two disposable gift cards for success/generated-code validation and deactivates them during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
+    captureId: 'gift-card-create-initial-value-limit',
+    scriptPath: 'scripts/capture-gift-card-create-initial-value-limit-conformance.ts',
+    purpose:
+      'Gift-card create initialValue validation at the configured issue limit, one cent over the issue limit, and a well-over-limit value.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-create-initial-value-limit.json`,
+      'config/parity-specs/gift-cards/gift-card-create-initial-value-limit.json',
+      'config/parity-requests/gift-cards/gift-card-create-initial-value-limit.graphql',
+    ],
+    cleanupBehavior:
+      'Reads giftCardConfiguration.issueLimit, creates one boundary-success disposable gift card, deactivates any created gift cards during cleanup, and expects over-limit branches to create no gift cards.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
