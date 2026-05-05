@@ -1,0 +1,10 @@
+mutation LocationDeleteStateAndScope($locationId: ID!) {
+  locationDelete(locationId: $locationId) {
+    deletedLocationId
+    locationDeleteUserErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,21 @@
+mutation B2BExternalIdValidationCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      externalId
+      locations(first: 5) {
+        nodes {
+          id
+          name
+          externalId
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

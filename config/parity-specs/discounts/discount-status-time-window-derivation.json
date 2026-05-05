@@ -1,0 +1,99 @@
+{
+  "scenarioId": "discount-status-time-window-derivation",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "codeDiscountNode",
+    "discountNode",
+    "discountNodes",
+    "discountNodesCount"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "search-filter-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-status-time-window-derivation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-status-time-window-derivation-create.graphql",
+    "variablesCapturePath": "$.requests.create.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify parity for deriving DiscountCodeBasic status from startsAt/endsAt. The fixture uses stable past/future/bracketing dates so Shopify wall-clock time and the proxy synthetic clock agree on SCHEDULED, EXPIRED, and ACTIVE.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "code-basic-create-derived-statuses",
+        "capturePath": "$.create.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.scheduled.codeDiscountNode.codeDiscount.__typename",
+          "$.scheduled.codeDiscountNode.codeDiscount.title",
+          "$.scheduled.codeDiscountNode.codeDiscount.status",
+          "$.scheduled.codeDiscountNode.codeDiscount.startsAt",
+          "$.scheduled.codeDiscountNode.codeDiscount.endsAt",
+          "$.scheduled.userErrors",
+          "$.expired.codeDiscountNode.codeDiscount.__typename",
+          "$.expired.codeDiscountNode.codeDiscount.title",
+          "$.expired.codeDiscountNode.codeDiscount.status",
+          "$.expired.codeDiscountNode.codeDiscount.startsAt",
+          "$.expired.codeDiscountNode.codeDiscount.endsAt",
+          "$.expired.userErrors",
+          "$.active.codeDiscountNode.codeDiscount.__typename",
+          "$.active.codeDiscountNode.codeDiscount.title",
+          "$.active.codeDiscountNode.codeDiscount.status",
+          "$.active.codeDiscountNode.codeDiscount.startsAt",
+          "$.active.codeDiscountNode.codeDiscount.endsAt",
+          "$.active.userErrors"
+        ]
+      },
+      {
+        "name": "code-basic-read-and-status-filters",
+        "capturePath": "$.read.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-status-time-window-derivation-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "scheduledId": {
+              "fromPrimaryProxyPath": "$.data.scheduled.codeDiscountNode.id"
+            },
+            "expiredId": {
+              "fromPrimaryProxyPath": "$.data.expired.codeDiscountNode.id"
+            },
+            "activeId": {
+              "fromPrimaryProxyPath": "$.data.active.codeDiscountNode.id"
+            },
+            "scheduledQuery": {
+              "fromCapturePath": "$.requests.read.variables.scheduledQuery"
+            },
+            "expiredQuery": {
+              "fromCapturePath": "$.requests.read.variables.expiredQuery"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.scheduledNode.codeDiscount.__typename",
+          "$.scheduledNode.codeDiscount.title",
+          "$.scheduledNode.codeDiscount.status",
+          "$.scheduledNode.codeDiscount.startsAt",
+          "$.scheduledNode.codeDiscount.endsAt",
+          "$.expiredNode.codeDiscount.__typename",
+          "$.expiredNode.codeDiscount.title",
+          "$.expiredNode.codeDiscount.status",
+          "$.expiredNode.codeDiscount.startsAt",
+          "$.expiredNode.codeDiscount.endsAt",
+          "$.activeNode.discount.__typename",
+          "$.activeNode.discount.title",
+          "$.activeNode.discount.status",
+          "$.activeNode.discount.startsAt",
+          "$.activeNode.discount.endsAt",
+          "$.scheduledDiscountNodes.nodes",
+          "$.expiredDiscountNodesCount"
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+mutation AppUsageRecordCreateCapOverLimit($id: ID!) {
+  appUsageRecordCreate(
+    subscriptionLineItemId: $id
+    price: { amount: "3.00", currencyCode: USD }
+    description: "second"
+    idempotencyKey: "usage-key-cap-2"
+  ) {
+    appUsageRecord {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

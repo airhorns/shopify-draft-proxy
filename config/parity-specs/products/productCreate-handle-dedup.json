@@ -1,0 +1,134 @@
+{
+  "scenarioId": "product-handle-dedup",
+  "operationNames": ["productCreate", "productDuplicate", "collectionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-handle-dedup-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
+    "variablesCapturePath": "$.operations.productCreateFirst.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-579 live parity for generated handle de-duplication. Shopify keeps the original generated handle when free, then strips any trailing numeric suffix and probes base-1, base-2, base-3 for productCreate, generated productDuplicate copy handles, and collectionCreate. The scenario uses supported local mutations only; no upstream cassette calls are required.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-first",
+        "capturePath": "$.operations.productCreateFirst.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"]
+      },
+      {
+        "name": "product-create-second",
+        "capturePath": "$.operations.productCreateSecond.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.productCreateSecond.request.variables"
+        }
+      },
+      {
+        "name": "product-create-third",
+        "capturePath": "$.operations.productCreateThird.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.productCreateThird.request.variables"
+        }
+      },
+      {
+        "name": "product-create-fourth",
+        "capturePath": "$.operations.productCreateFourth.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.productCreateFourth.request.variables"
+        }
+      },
+      {
+        "name": "product-create-copy-first",
+        "capturePath": "$.operations.productCreateCopyFirst.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.productCreateCopyFirst.request.variables"
+        }
+      },
+      {
+        "name": "product-create-copy-second",
+        "capturePath": "$.operations.productCreateCopySecond.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productCreate.product.handle", "$.productCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.productCreateCopySecond.request.variables"
+        }
+      },
+      {
+        "name": "product-duplicate-copy",
+        "capturePath": "$.operations.productDuplicateCopy.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.productDuplicate.newProduct.handle", "$.productDuplicate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productDuplicate-handle-dedup.graphql",
+          "variables": {
+            "productId": {
+              "fromPrimaryProxyPath": "$.data.productCreate.product.id"
+            },
+            "newTitle": {
+              "fromCapturePath": "$.operations.productDuplicateCopy.request.variables.newTitle"
+            }
+          }
+        }
+      },
+      {
+        "name": "collection-create-first",
+        "capturePath": "$.operations.collectionCreateFirst.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.collectionCreate.collection.handle", "$.collectionCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.collectionCreateFirst.request.variables"
+        }
+      },
+      {
+        "name": "collection-create-second",
+        "capturePath": "$.operations.collectionCreateSecond.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.collectionCreate.collection.handle", "$.collectionCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.collectionCreateSecond.request.variables"
+        }
+      },
+      {
+        "name": "collection-create-third",
+        "capturePath": "$.operations.collectionCreateThird.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.collectionCreate.collection.handle", "$.collectionCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.collectionCreateThird.request.variables"
+        }
+      },
+      {
+        "name": "collection-create-fourth",
+        "capturePath": "$.operations.collectionCreateFourth.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.collectionCreate.collection.handle", "$.collectionCreate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-handle-dedup.graphql",
+          "variablesCapturePath": "$.operations.collectionCreateFourth.request.variables"
+        }
+      }
+    ]
+  }
+}

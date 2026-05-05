@@ -1,0 +1,17 @@
+mutation AppUsageRecordCreateLongIdempotencyKey($id: ID!, $key: String) {
+  appUsageRecordCreate(
+    subscriptionLineItemId: $id
+    price: { amount: "1.00", currencyCode: USD }
+    description: "too long"
+    idempotencyKey: $key
+  ) {
+    appUsageRecord {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -183,6 +183,56 @@ const cartTransformCreateDocument = `#graphql
   }
 `;
 
+const cartTransformCreateByIdDocument = `#graphql
+  mutation FunctionCartTransformByIdProbe(
+    $functionId: String!
+    $blockOnFailure: Boolean
+    $metafields: [MetafieldInput!]
+  ) {
+    cartTransformCreate(
+      functionId: $functionId
+      blockOnFailure: $blockOnFailure
+      metafields: $metafields
+    ) {
+      cartTransform {
+        id
+        functionId
+        blockOnFailure
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const cartTransformCreateBothIdentifiersDocument = `#graphql
+  mutation FunctionCartTransformBothIdentifiersProbe(
+    $functionId: String!
+    $functionHandle: String!
+    $blockOnFailure: Boolean
+  ) {
+    cartTransformCreate(
+      functionId: $functionId
+      functionHandle: $functionHandle
+      blockOnFailure: $blockOnFailure
+    ) {
+      cartTransform {
+        id
+        functionId
+        blockOnFailure
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const taxAppConfigureDocument = `#graphql
   mutation FunctionTaxAppAuthorityProbe($ready: Boolean!) {
     taxAppConfigure(ready: $ready) {
@@ -325,6 +375,15 @@ const mutationAuthorityProbes = {
     functionHandle: readString(validationFunction['handle']),
     blockOnFailure: false,
   }),
+  wrongApiTypeCartTransformWithValidationFunctionId: await capture(cartTransformCreateByIdDocument, {
+    functionId: validationFunctionId,
+    blockOnFailure: false,
+  }),
+  cartTransformBothIdentifiersProbe: await capture(cartTransformCreateBothIdentifiersDocument, {
+    functionId: cartFunctionId,
+    functionHandle: readString(cartFunction['handle']),
+    blockOnFailure: false,
+  }),
   validationUnknownFunctionReferenceProbe: await capture(validationCreateDocument, {
     validation: {
       functionHandle: 'har-416-unowned-validation-function',
@@ -376,12 +435,12 @@ const setupAndDuplicateProbes = {
       title: 'HAR-416 validation duplicate follow-up',
     },
   }),
-  cartTransformCreateSetup: await capture(cartTransformCreateDocument, {
-    functionHandle: readString(cartFunction['handle']),
+  cartTransformCreateSetup: await capture(cartTransformCreateByIdDocument, {
+    functionId: cartFunctionId,
     blockOnFailure: false,
   }),
-  duplicateCartTransformConstraintProbe: await capture(cartTransformCreateDocument, {
-    functionHandle: readString(cartFunction['handle']),
+  duplicateCartTransformConstraintProbe: await capture(cartTransformCreateByIdDocument, {
+    functionId: cartFunctionId,
     blockOnFailure: false,
   }),
 };

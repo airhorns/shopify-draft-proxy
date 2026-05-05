@@ -1,0 +1,155 @@
+{
+  "scenarioId": "collection-create-and-add-products-parity",
+  "operationNames": ["collectionCreate", "collectionAddProducts", "collectionRemoveProducts"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "custom-vs-smart-collection-guards",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/collection-create-and-add-products-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-create.graphql",
+    "variablesCapturePath": "$.longTitle.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-594 executable parity for collectionCreate validation, enum coercion, smart collection add/remove guards, and productsCount read-after-add behavior. The live 2025-01 capture found reserved-looking titles such as Frontpage are accepted by Admin GraphQL, so this spec preserves the observed allowed behavior instead of adding a local rejection.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.collectionCreate.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "Shopify and the local parity harness allocate collection identifiers independently."
+      },
+      {
+        "path": "$.collectionAddProducts.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "The add-products mutation is issued against the locally staged custom collection id."
+      },
+      {
+        "path": "$.collection.id",
+        "matcher": "shopify-gid:Collection",
+        "reason": "The downstream read targets the locally staged custom collection id."
+      }
+    ],
+    "targets": [
+      {
+        "name": "long-title-user-error",
+        "capturePath": "$.longTitle.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "reserved-like-title-live-behavior",
+        "capturePath": "$.reservedLike.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-create.graphql",
+          "variablesCapturePath": "$.reservedLike.variables"
+        },
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.collectionCreate.userErrors"]
+      },
+      {
+        "name": "invalid-sort-order-coercion",
+        "capturePath": "$.invalidSort.response.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-create.graphql",
+          "variablesCapturePath": "$.invalidSort.variables"
+        },
+        "proxyPath": "$.errors"
+      },
+      {
+        "name": "smart-create",
+        "capturePath": "$.smartCreate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-create.graphql",
+          "variablesCapturePath": "$.smartCreate.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "smart-add-products-user-error",
+        "capturePath": "$.smartAdd.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-add.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "smart-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.seedProduct.id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "smart-remove-products-user-error",
+        "capturePath": "$.smartRemove.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-remove.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "smart-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.seedProduct.id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "custom-create",
+        "capturePath": "$.customCreate.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-create.graphql",
+          "variablesCapturePath": "$.customCreate.variables"
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "custom-add-products",
+        "capturePath": "$.customAdd.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-add.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "custom-create",
+              "path": "$.data.collectionCreate.collection.id"
+            },
+            "productIds": [
+              {
+                "fromCapturePath": "$.seedProduct.id"
+              }
+            ]
+          }
+        },
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "custom-products-count-read",
+        "capturePath": "$.customRead.response.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/collectionCreate-and-add-products-count-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "custom-create",
+              "path": "$.data.collectionCreate.collection.id"
+            }
+          }
+        },
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

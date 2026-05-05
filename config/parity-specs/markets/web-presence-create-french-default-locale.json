@@ -1,0 +1,31 @@
+{
+  "scenarioId": "web-presence-create-french-default-locale",
+  "operationNames": ["webPresenceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "market-web-presence-validation", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[6].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "fr-ca-default-locale-is-preserved-from-input",
+        "capturePath": "$.cases[6].variables.input.defaultLocale",
+        "proxyPath": "$.data.webPresenceCreate.webPresence.defaultLocale.locale"
+      },
+      {
+        "name": "fr-ca-default-locale-has-no-user-errors",
+        "capturePath": "$.cases[6].response.payload.data.webPresenceCreate.userErrors",
+        "proxyPath": "$.data.webPresenceCreate.userErrors"
+      }
+    ]
+  },
+  "notes": "HAR-611 coverage for webPresenceCreate accepting BCP47 defaultLocale fr-CA with subfolderSuffix fr and no userErrors. The live capture records Shopify accepting the request without userErrors; this target asserts the ticket acceptance that the proxy preserves the submitted BCP47 defaultLocale in its local staged response."
+}

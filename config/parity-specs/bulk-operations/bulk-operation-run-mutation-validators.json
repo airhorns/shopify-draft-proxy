@@ -1,0 +1,74 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-validators",
+  "operationNames": ["bulkOperationRunMutation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-guardrails"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-mutation-validators.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+    "variablesCapturePath": "$.validations.parserError.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "parser-error-user-errors",
+        "capturePath": "$.validations.parserError.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "expectedDifferences": [
+          {
+            "path": "$[0].message",
+            "matcher": "regex:^Failed to parse the mutation - ",
+            "reason": "Shopify's parser message includes parser-engine-specific detail; parity requires the Shopify error prefix and code/field shape."
+          }
+        ]
+      },
+      {
+        "name": "parser-error-bulk-operation-null",
+        "capturePath": "$.validations.parserError.response.data.bulkOperationRunMutation.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation"
+      },
+      {
+        "name": "query-instead-of-mutation-user-errors",
+        "capturePath": "$.validations.queryInsteadOfMutation.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.queryInsteadOfMutation.variables"
+        }
+      },
+      {
+        "name": "multiple-top-level-mutations-user-errors",
+        "capturePath": "$.validations.multipleTopLevelMutations.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.multipleTopLevelMutations.variables"
+        }
+      },
+      {
+        "name": "disallowed-mutation-name-user-errors",
+        "capturePath": "$.validations.disallowedMutationName.response.data.bulkOperationRunMutation.userErrors",
+        "proxyPath": "$.data.bulkOperationRunMutation.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.disallowedMutationName.variables"
+        }
+      },
+      {
+        "name": "disallowed-mutation-name-bulk-operation-null",
+        "capturePath": "$.validations.disallowedMutationName.response.data.bulkOperationRunMutation.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunMutation.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-mutation-validators.graphql",
+          "variablesCapturePath": "$.validations.disallowedMutationName.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-736 captured Shopify Admin GraphQL 2026-04 validation-only bulkOperationRunMutation branches for parser errors, query documents, multiple top-level mutation fields, and a valid-but-disallowed inner mutation root. These paths return userErrors without staging or returning a BulkOperation."
+}

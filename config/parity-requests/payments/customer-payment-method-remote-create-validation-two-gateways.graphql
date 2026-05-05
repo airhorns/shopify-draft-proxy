@@ -1,0 +1,15 @@
+mutation CustomerPaymentMethodRemoteCreateTwoGateways {
+  customerPaymentMethodRemoteCreate(
+    customerId: "gid://shopify/Customer/1"
+    remoteReference: { paypalPaymentMethod: {}, stripePaymentMethod: {} }
+  ) {
+    customerPaymentMethod {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

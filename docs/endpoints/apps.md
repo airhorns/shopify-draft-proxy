@@ -48,12 +48,21 @@ implementors because Shopify's captured Node implementor inventory does not list
 
 Current modeled behavior:
 
-- `appPurchaseOneTimeCreate` stages a pending one-time purchase and returns a synthetic local confirmation URL.
+- `appPurchaseOneTimeCreate` stages a pending one-time purchase and returns a synthetic local confirmation URL. Local validation rejects missing/blank `returnUrl`, blank trimmed `name`, prices below the local 0.50 minimum, and `price.currencyCode` values that do not match the effective shop billing currency (defaulting to `USD` when no shop record has been hydrated).
 - `appSubscriptionCreate` stages a pending subscription, usage/recurring line-item pricing details, trial days, and a synthetic local confirmation URL.
 - `appSubscriptionCancel` stages cancellation only for `PENDING`, `ACCEPTED`, and `ACTIVE` subscriptions. `CANCELLED`, `DECLINED`, `EXPIRED`, `FROZEN`, and other non-cancellable statuses return an `id` userError shaped like Shopify's invalid transition payload without mutating local state. Unknown subscription IDs return an `id` userError with a record-not-found message and no error code.
-- `appSubscriptionLineItemUpdate` and `appSubscriptionTrialExtend` mutate staged subscription state and return userErrors for unknown local IDs.
-- `appUsageRecordCreate` stages usage records under staged usage line items and exposes them through `AppSubscriptionLineItem.usageRecords`.
-- `appRevokeAccessScopes` removes locally granted scopes from the current app installation and returns per-scope errors for requested scopes that are not locally granted.
+- `appSubscriptionLineItemUpdate` validates the subscription line-item GID shape before lookup, only mutates usage-pricing line items, rejects capped-amount currency mismatches, and requires the requested capped amount to be greater than the existing usage cap before staging the new amount. Recurring-pricing line items, malformed IDs, unknown local IDs, currency mismatches, and non-increasing caps return userErrors without mutating local state.
+- `appSubscriptionTrialExtend` validates Shopify's `days` range (`1..1000`), rejects unknown IDs with `SUBSCRIPTION_NOT_FOUND`, rejects non-`ACTIVE` subscriptions with `SUBSCRIPTION_NOT_ACTIVE`, rejects expired active trials with `TRIAL_NOT_ACTIVE`, and only mutates `trialDays` for active subscriptions still inside their trial window.
+- `appUsageRecordCreate` stages usage records only for usage-pricing line items. It rejects recurring line items, over-255-character idempotency keys, currency mismatches against the line item's capped amount, and charges whose proposed cumulative `balanceUsed` would exceed `cappedAmount`. Successful creates increment `AppUsagePricing.balanceUsed`, expose the staged record through `AppSubscriptionLineItem.usageRecords`, and reuse the prior staged record when the same idempotency key is repeated for the same line item.
+- `appRevokeAccessScopes` removes locally granted optional scopes from the
+  current app installation. Validation failures do not partially revoke any
+  scope: catalog-unknown handles return `UNKNOWN_SCOPES`, catalog-known but
+  non-granted handles return `CANNOT_REVOKE_UNDECLARED_SCOPES`, requested app
+  scopes return `CANNOT_REVOKE_REQUIRED_SCOPES`, and read scopes implied by a
+  granted write scope return `CANNOT_REVOKE_IMPLIED_SCOPES`. Missing local app
+  context is surfaced as `MISSING_SOURCE_APP`, a current installation whose app
+  record cannot be resolved as `APPLICATION_CANNOT_BE_FOUND`, and an app record
+  without an installed current installation as `APP_NOT_INSTALLED`.
 - `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
 - `delegateAccessTokenCreate` accepts the current singular `delegateAccessScope` input, returns the selected scope through the payload's `accessScopes` list, and stores only a SHA-256 hash plus redacted preview in meta-visible state. The older local fixture shape using `input.accessScopes` remains tolerated for compatibility but is not the documented Admin API input shape; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current `delegateAccessScope` input.
 - `delegateAccessTokenDestroy` matches the raw token against the stored hash, marks it destroyed locally, and returns `ACCESS_TOKEN_NOT_FOUND` when repeated or unknown.
@@ -81,6 +90,16 @@ Live success-path captures for billing approval, uninstall, app grant revocation
 
 HAR-631 attempted a live `appSubscriptionCreate`/`appSubscriptionCancel` transition capture against the current conformance store on 2026-05-05. Shopify returned `Custom apps cannot use the Billing API`, so repeat-cancel and forced-status transition coverage remains executable local-runtime evidence rather than live billing mutation evidence for this app credential.
 
+HAR-646 sampled `appPurchaseOneTimeCreate` validation against the same conformance store on 2026-05-05. The current custom app credential still returns `Custom apps cannot use the Billing API` before name/price/currency service validation, so those billing validation branches are enforced by `config/parity-specs/apps/app-purchase-one-time-create-validation.json` and focused Gleam tests. Missing and blank `returnUrl` were observed as Shopify GraphQL coercion errors; the local proxy preserves missing `returnUrl` as a coercion error through the full request path and covers blank `returnUrl` in the supported mutation handler.
+
+HAR-672 live probes on 2026-05-05 confirmed the public Admin schema only exposes
+the `scopes` argument for `appRevokeAccessScopes` on both 2025-01 and 2026-04.
+Safe error probes against `harry-test-heelo.myshopify.com` confirmed
+`UNKNOWN_SCOPES` for invalid handles and `CANNOT_REVOKE_REQUIRED_SCOPES` for
+the conformance app's declared scopes. The public credential could not exercise
+the internal source-app/id resolver branches directly, so those branches are
+covered by executable local runtime tests and the HAR-672 local parity fixture.
+
 ## Historical and developer notes
 
 ### Captured read evidence
@@ -100,6 +119,10 @@ The capture records:
 - `tests/unit/app-billing-conformance-fixture.test.ts`
 - `config/parity-specs/apps/app-billing-access-local-staging.json`, including
   app-domain generic Node read targets
+- `config/parity-specs/apps/app-purchase-one-time-create-validation.json`
+- `config/parity-specs/apps/app-revoke-access-scopes-error-codes.json`
+- `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
+- `config/parity-specs/apps/app-subscription-trial-extend-validation.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

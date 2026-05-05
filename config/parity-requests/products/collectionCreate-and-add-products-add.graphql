@@ -1,0 +1,18 @@
+mutation HAR594CollectionAddProducts($id: ID!, $productIds: [ID!]!) {
+  collectionAddProducts(id: $id, productIds: $productIds) {
+    collection {
+      id
+      products(first: 5) {
+        nodes {
+          id
+          title
+          handle
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

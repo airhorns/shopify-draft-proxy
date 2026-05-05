@@ -1,0 +1,4711 @@
+{
+  "capturedAt": "2026-05-05T15:53:56.915Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "HAR-685 metaobjectCreate/metaobjectUpdate field value validation matrix for scalar, measurement, reference, rating, URL/color/date/time, text max, and list field types.",
+  "seed": {
+    "runId": "1777996425390",
+    "targetType": "codex_har685_validation_target_1777996425390",
+    "matrixType": "codex_har685_validation_1777996425390",
+    "matrixHandle": "codex-har685-validation-1777996425390",
+    "definitionId": "gid://shopify/MetaobjectDefinition/17863213362"
+  },
+  "coveredTypes": [
+    {
+      "name": "number-integer-max",
+      "key": "number_integer",
+      "type": "number_integer"
+    },
+    {
+      "name": "number-decimal-invalid",
+      "key": "number_decimal",
+      "type": "number_decimal"
+    },
+    {
+      "name": "boolean-coercion",
+      "key": "boolean",
+      "type": "boolean",
+      "note": "Shopify 2026-04 coerces this scalar value instead of returning INVALID_VALUE."
+    },
+    {
+      "name": "date-invalid",
+      "key": "date",
+      "type": "date"
+    },
+    {
+      "name": "date-time-invalid",
+      "key": "date_time",
+      "type": "date_time"
+    },
+    {
+      "name": "dimension-invalid",
+      "key": "dimension",
+      "type": "dimension"
+    },
+    {
+      "name": "volume-invalid",
+      "key": "volume",
+      "type": "volume"
+    },
+    {
+      "name": "weight-invalid",
+      "key": "weight",
+      "type": "weight"
+    },
+    {
+      "name": "rating-scale-max",
+      "key": "rating",
+      "type": "rating"
+    },
+    {
+      "name": "color-invalid",
+      "key": "color",
+      "type": "color"
+    },
+    {
+      "name": "url-invalid",
+      "key": "url",
+      "type": "url"
+    },
+    {
+      "name": "product-reference-invalid",
+      "key": "product_reference",
+      "type": "product_reference"
+    },
+    {
+      "name": "variant-reference-invalid",
+      "key": "variant_reference",
+      "type": "variant_reference"
+    },
+    {
+      "name": "collection-reference-invalid",
+      "key": "collection_reference",
+      "type": "collection_reference"
+    },
+    {
+      "name": "customer-reference-invalid",
+      "key": "customer_reference",
+      "type": "customer_reference"
+    },
+    {
+      "name": "company-reference-invalid",
+      "key": "company_reference",
+      "type": "company_reference"
+    },
+    {
+      "name": "metaobject-reference-invalid",
+      "key": "metaobject_reference",
+      "type": "metaobject_reference"
+    },
+    {
+      "name": "single-line-text-max",
+      "key": "single_line_text_field",
+      "type": "single_line_text_field"
+    },
+    {
+      "name": "list-number-integer-max",
+      "key": "list_number_integer",
+      "type": "list.number_integer"
+    },
+    {
+      "name": "list-number-decimal-invalid",
+      "key": "list_number_decimal",
+      "type": "list.number_decimal"
+    },
+    {
+      "name": "list-date-invalid",
+      "key": "list_date",
+      "type": "list.date"
+    },
+    {
+      "name": "list-date-time-invalid",
+      "key": "list_date_time",
+      "type": "list.date_time"
+    },
+    {
+      "name": "list-dimension-invalid",
+      "key": "list_dimension",
+      "type": "list.dimension"
+    },
+    {
+      "name": "list-volume-invalid",
+      "key": "list_volume",
+      "type": "list.volume"
+    },
+    {
+      "name": "list-weight-invalid",
+      "key": "list_weight",
+      "type": "list.weight"
+    },
+    {
+      "name": "list-rating-scale-max",
+      "key": "list_rating",
+      "type": "list.rating"
+    },
+    {
+      "name": "list-color-invalid",
+      "key": "list_color",
+      "type": "list.color"
+    },
+    {
+      "name": "list-url-invalid",
+      "key": "list_url",
+      "type": "list.url"
+    },
+    {
+      "name": "list-product-reference-invalid",
+      "key": "list_product_reference",
+      "type": "list.product_reference"
+    },
+    {
+      "name": "list-variant-reference-invalid",
+      "key": "list_variant_reference",
+      "type": "list.variant_reference"
+    },
+    {
+      "name": "list-collection-reference-invalid",
+      "key": "list_collection_reference",
+      "type": "list.collection_reference"
+    },
+    {
+      "name": "list-customer-reference-invalid",
+      "key": "list_customer_reference",
+      "type": "list.customer_reference"
+    },
+    {
+      "name": "list-company-reference-invalid",
+      "key": "list_company_reference",
+      "type": "list.company_reference"
+    },
+    {
+      "name": "list-metaobject-reference-invalid",
+      "key": "list_metaobject_reference",
+      "type": "list.metaobject_reference"
+    }
+  ],
+  "targetDefinitionCreate": {
+    "name": "target-definition-create",
+    "request": {
+      "query": "fragment MetaobjectFieldValidationMatrixDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n  createdAt\n  updatedAt\n}\n\nmutation MetaobjectFieldValidationMatrixDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      ...MetaobjectFieldValidationMatrixDefinitionFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "codex_har685_validation_target_1777996425390",
+          "name": "HAR-685 Field Validation Target 1777996425390",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": false
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17863180594",
+            "type": "codex_har685_validation_target_1777996425390",
+            "name": "HAR-685 Field Validation Target 1777996425390",
+            "description": null,
+            "displayNameKey": "title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 0,
+            "standardTemplate": null,
+            "createdAt": "2026-05-05T15:53:45Z",
+            "updatedAt": "2026-05-05T15:53:45Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "definitionCreate": {
+    "name": "definition-create",
+    "request": {
+      "query": "fragment MetaobjectFieldValidationMatrixDefinitionFields on MetaobjectDefinition {\n  id\n  type\n  name\n  description\n  displayNameKey\n  access {\n    admin\n    storefront\n  }\n  capabilities {\n    publishable {\n      enabled\n    }\n    translatable {\n      enabled\n    }\n    renderable {\n      enabled\n    }\n    onlineStore {\n      enabled\n    }\n  }\n  fieldDefinitions {\n    key\n    name\n    description\n    required\n    type {\n      name\n      category\n    }\n    validations {\n      name\n      value\n    }\n  }\n  hasThumbnailField\n  metaobjectsCount\n  standardTemplate {\n    type\n    name\n  }\n  createdAt\n  updatedAt\n}\n\nmutation MetaobjectFieldValidationMatrixDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      ...MetaobjectFieldValidationMatrixDefinitionFields\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "codex_har685_validation_1777996425390",
+          "name": "HAR-685 Field Validation 1777996425390",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "type": "single_line_text_field",
+              "required": false
+            },
+            {
+              "key": "number_integer",
+              "name": "number_integer",
+              "type": "number_integer",
+              "required": false,
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "5"
+                }
+              ]
+            },
+            {
+              "key": "number_decimal",
+              "name": "number_decimal",
+              "type": "number_decimal",
+              "required": false
+            },
+            {
+              "key": "boolean",
+              "name": "boolean",
+              "type": "boolean",
+              "required": false
+            },
+            {
+              "key": "date",
+              "name": "date",
+              "type": "date",
+              "required": false
+            },
+            {
+              "key": "date_time",
+              "name": "date_time",
+              "type": "date_time",
+              "required": false
+            },
+            {
+              "key": "dimension",
+              "name": "dimension",
+              "type": "dimension",
+              "required": false
+            },
+            {
+              "key": "volume",
+              "name": "volume",
+              "type": "volume",
+              "required": false
+            },
+            {
+              "key": "weight",
+              "name": "weight",
+              "type": "weight",
+              "required": false
+            },
+            {
+              "key": "rating",
+              "name": "rating",
+              "type": "rating",
+              "required": false,
+              "validations": [
+                {
+                  "name": "scale_min",
+                  "value": "1.0"
+                },
+                {
+                  "name": "scale_max",
+                  "value": "5.0"
+                }
+              ]
+            },
+            {
+              "key": "color",
+              "name": "color",
+              "type": "color",
+              "required": false
+            },
+            {
+              "key": "url",
+              "name": "url",
+              "type": "url",
+              "required": false
+            },
+            {
+              "key": "product_reference",
+              "name": "product_reference",
+              "type": "product_reference",
+              "required": false
+            },
+            {
+              "key": "variant_reference",
+              "name": "variant_reference",
+              "type": "variant_reference",
+              "required": false
+            },
+            {
+              "key": "collection_reference",
+              "name": "collection_reference",
+              "type": "collection_reference",
+              "required": false
+            },
+            {
+              "key": "customer_reference",
+              "name": "customer_reference",
+              "type": "customer_reference",
+              "required": false
+            },
+            {
+              "key": "company_reference",
+              "name": "company_reference",
+              "type": "company_reference",
+              "required": false
+            },
+            {
+              "key": "metaobject_reference",
+              "name": "metaobject_reference",
+              "type": "metaobject_reference",
+              "required": false,
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": "gid://shopify/MetaobjectDefinition/17863180594"
+                }
+              ]
+            },
+            {
+              "key": "single_line_text_field",
+              "name": "single_line_text_field",
+              "type": "single_line_text_field",
+              "required": false,
+              "validations": [
+                {
+                  "name": "max",
+                  "value": "3"
+                }
+              ]
+            },
+            {
+              "key": "list_number_integer",
+              "name": "list.number_integer",
+              "type": "list.number_integer",
+              "required": false
+            },
+            {
+              "key": "list_number_decimal",
+              "name": "list.number_decimal",
+              "type": "list.number_decimal",
+              "required": false
+            },
+            {
+              "key": "list_date",
+              "name": "list.date",
+              "type": "list.date",
+              "required": false
+            },
+            {
+              "key": "list_date_time",
+              "name": "list.date_time",
+              "type": "list.date_time",
+              "required": false
+            },
+            {
+              "key": "list_dimension",
+              "name": "list.dimension",
+              "type": "list.dimension",
+              "required": false
+            },
+            {
+              "key": "list_volume",
+              "name": "list.volume",
+              "type": "list.volume",
+              "required": false
+            },
+            {
+              "key": "list_weight",
+              "name": "list.weight",
+              "type": "list.weight",
+              "required": false
+            },
+            {
+              "key": "list_rating",
+              "name": "list.rating",
+              "type": "list.rating",
+              "required": false,
+              "validations": [
+                {
+                  "name": "scale_min",
+                  "value": "1.0"
+                },
+                {
+                  "name": "scale_max",
+                  "value": "5.0"
+                }
+              ]
+            },
+            {
+              "key": "list_color",
+              "name": "list.color",
+              "type": "list.color",
+              "required": false
+            },
+            {
+              "key": "list_url",
+              "name": "list.url",
+              "type": "list.url",
+              "required": false
+            },
+            {
+              "key": "list_product_reference",
+              "name": "list.product_reference",
+              "type": "list.product_reference",
+              "required": false
+            },
+            {
+              "key": "list_variant_reference",
+              "name": "list.variant_reference",
+              "type": "list.variant_reference",
+              "required": false
+            },
+            {
+              "key": "list_collection_reference",
+              "name": "list.collection_reference",
+              "type": "list.collection_reference",
+              "required": false
+            },
+            {
+              "key": "list_customer_reference",
+              "name": "list.customer_reference",
+              "type": "list.customer_reference",
+              "required": false
+            },
+            {
+              "key": "list_company_reference",
+              "name": "list.company_reference",
+              "type": "list.company_reference",
+              "required": false
+            },
+            {
+              "key": "list_metaobject_reference",
+              "name": "list.metaobject_reference",
+              "type": "list.metaobject_reference",
+              "required": false,
+              "validations": [
+                {
+                  "name": "metaobject_definition_id",
+                  "value": "gid://shopify/MetaobjectDefinition/17863180594"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17863213362",
+            "type": "codex_har685_validation_1777996425390",
+            "name": "HAR-685 Field Validation 1777996425390",
+            "description": null,
+            "displayNameKey": "title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              },
+              {
+                "key": "number_integer",
+                "name": "number_integer",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "number_integer",
+                  "category": "NUMBER"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "5"
+                  }
+                ]
+              },
+              {
+                "key": "number_decimal",
+                "name": "number_decimal",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "number_decimal",
+                  "category": "NUMBER"
+                },
+                "validations": []
+              },
+              {
+                "key": "boolean",
+                "name": "boolean",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "boolean",
+                  "category": "TRUE_FALSE"
+                },
+                "validations": []
+              },
+              {
+                "key": "date",
+                "name": "date",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "date",
+                  "category": "DATE_TIME"
+                },
+                "validations": []
+              },
+              {
+                "key": "date_time",
+                "name": "date_time",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "date_time",
+                  "category": "DATE_TIME"
+                },
+                "validations": []
+              },
+              {
+                "key": "dimension",
+                "name": "dimension",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "dimension",
+                  "category": "MEASUREMENT"
+                },
+                "validations": []
+              },
+              {
+                "key": "volume",
+                "name": "volume",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "volume",
+                  "category": "MEASUREMENT"
+                },
+                "validations": []
+              },
+              {
+                "key": "weight",
+                "name": "weight",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "weight",
+                  "category": "MEASUREMENT"
+                },
+                "validations": []
+              },
+              {
+                "key": "rating",
+                "name": "rating",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "rating",
+                  "category": "RATING"
+                },
+                "validations": [
+                  {
+                    "name": "scale_min",
+                    "value": "1.0"
+                  },
+                  {
+                    "name": "scale_max",
+                    "value": "5.0"
+                  }
+                ]
+              },
+              {
+                "key": "color",
+                "name": "color",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "color",
+                  "category": "COLOR"
+                },
+                "validations": []
+              },
+              {
+                "key": "url",
+                "name": "url",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "url",
+                  "category": "URL"
+                },
+                "validations": []
+              },
+              {
+                "key": "product_reference",
+                "name": "product_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "product_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "variant_reference",
+                "name": "variant_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "variant_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "collection_reference",
+                "name": "collection_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "collection_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "customer_reference",
+                "name": "customer_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "customer_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "company_reference",
+                "name": "company_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "company_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "metaobject_reference",
+                "name": "metaobject_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "metaobject_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": [
+                  {
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/17863180594"
+                  }
+                ]
+              },
+              {
+                "key": "single_line_text_field",
+                "name": "single_line_text_field",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": [
+                  {
+                    "name": "max",
+                    "value": "3"
+                  }
+                ]
+              },
+              {
+                "key": "list_number_integer",
+                "name": "list.number_integer",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.number_integer",
+                  "category": "NUMBER"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_number_decimal",
+                "name": "list.number_decimal",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.number_decimal",
+                  "category": "NUMBER"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_date",
+                "name": "list.date",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.date",
+                  "category": "DATE_TIME"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_date_time",
+                "name": "list.date_time",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.date_time",
+                  "category": "DATE_TIME"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_dimension",
+                "name": "list.dimension",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.dimension",
+                  "category": "MEASUREMENT"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_volume",
+                "name": "list.volume",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.volume",
+                  "category": "MEASUREMENT"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_weight",
+                "name": "list.weight",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.weight",
+                  "category": "MEASUREMENT"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_rating",
+                "name": "list.rating",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.rating",
+                  "category": "RATING"
+                },
+                "validations": [
+                  {
+                    "name": "scale_min",
+                    "value": "1.0"
+                  },
+                  {
+                    "name": "scale_max",
+                    "value": "5.0"
+                  }
+                ]
+              },
+              {
+                "key": "list_color",
+                "name": "list.color",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.color",
+                  "category": "COLOR"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_url",
+                "name": "list.url",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.url",
+                  "category": "URL"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_product_reference",
+                "name": "list.product_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.product_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_variant_reference",
+                "name": "list.variant_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.variant_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_collection_reference",
+                "name": "list.collection_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.collection_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_customer_reference",
+                "name": "list.customer_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.customer_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_company_reference",
+                "name": "list.company_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.company_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": []
+              },
+              {
+                "key": "list_metaobject_reference",
+                "name": "list.metaobject_reference",
+                "description": null,
+                "required": false,
+                "type": {
+                  "name": "list.metaobject_reference",
+                  "category": "REFERENCE"
+                },
+                "validations": [
+                  {
+                    "name": "metaobject_definition_id",
+                    "value": "gid://shopify/MetaobjectDefinition/17863180594"
+                  }
+                ]
+              }
+            ],
+            "hasThumbnailField": true,
+            "metaobjectsCount": 0,
+            "standardTemplate": null,
+            "createdAt": "2026-05-05T15:53:45Z",
+            "updatedAt": "2026-05-05T15:53:45Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setupMetaobjectCreate": {
+    "name": "setup-metaobject-create",
+    "request": {
+      "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "metaobject": {
+          "type": "codex_har685_validation_1777996425390",
+          "handle": "codex-har685-validation-1777996425390",
+          "fields": [
+            {
+              "key": "title",
+              "value": "HAR-685 1777996425390"
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectCreate": {
+          "metaobject": {
+            "id": "gid://shopify/Metaobject/188098806066",
+            "handle": "codex-har685-validation-1777996425390",
+            "type": "codex_har685_validation_1777996425390",
+            "displayName": "HAR-685 1777996425390",
+            "updatedAt": "2026-05-05T15:53:46Z",
+            "fields": [
+              {
+                "key": "title",
+                "type": "single_line_text_field",
+                "value": "HAR-685 1777996425390",
+                "jsonValue": "HAR-685 1777996425390"
+              },
+              {
+                "key": "number_integer",
+                "type": "number_integer",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "number_decimal",
+                "type": "number_decimal",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "boolean",
+                "type": "boolean",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "date",
+                "type": "date",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "date_time",
+                "type": "date_time",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "dimension",
+                "type": "dimension",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "volume",
+                "type": "volume",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "weight",
+                "type": "weight",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "rating",
+                "type": "rating",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "color",
+                "type": "color",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "url",
+                "type": "url",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "product_reference",
+                "type": "product_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "variant_reference",
+                "type": "variant_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "collection_reference",
+                "type": "collection_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "customer_reference",
+                "type": "customer_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "company_reference",
+                "type": "company_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "metaobject_reference",
+                "type": "metaobject_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "single_line_text_field",
+                "type": "single_line_text_field",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_number_integer",
+                "type": "list.number_integer",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_number_decimal",
+                "type": "list.number_decimal",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_date",
+                "type": "list.date",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_date_time",
+                "type": "list.date_time",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_dimension",
+                "type": "list.dimension",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_volume",
+                "type": "list.volume",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_weight",
+                "type": "list.weight",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_rating",
+                "type": "list.rating",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_color",
+                "type": "list.color",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_url",
+                "type": "list.url",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_product_reference",
+                "type": "list.product_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_variant_reference",
+                "type": "list.variant_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_collection_reference",
+                "type": "list.collection_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_customer_reference",
+                "type": "list.customer_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_company_reference",
+                "type": "list.company_reference",
+                "value": null,
+                "jsonValue": null
+              },
+              {
+                "key": "list_metaobject_reference",
+                "type": "list.metaobject_reference",
+                "value": null,
+                "jsonValue": null
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidCreateCases": {
+    "number-integer-max": {
+      "name": "create-number-integer-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-number-integer-max",
+            "fields": [
+              {
+                "key": "number_integer",
+                "value": "10"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value has a maximum of 5.",
+                "code": "INVALID_VALUE",
+                "elementKey": "number_integer",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "number-decimal-invalid": {
+      "name": "create-number-decimal-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-number-decimal-invalid",
+            "fields": [
+              {
+                "key": "number_decimal",
+                "value": "hello"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a decimal.",
+                "code": "INVALID_VALUE",
+                "elementKey": "number_decimal",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1992,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "boolean-coercion": {
+      "name": "create-boolean-coercion",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-boolean-coercion",
+            "fields": [
+              {
+                "key": "boolean",
+                "value": "hello"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": {
+              "id": "gid://shopify/Metaobject/188098904370",
+              "handle": "codex-har685-validation-1777996425390-boolean-coercion",
+              "type": "codex_har685_validation_1777996425390",
+              "displayName": "Codex Har685 Validation 1777996425390 Boolean Coercion",
+              "updatedAt": "2026-05-05T15:53:47Z",
+              "fields": [
+                {
+                  "key": "title",
+                  "type": "single_line_text_field",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "number_integer",
+                  "type": "number_integer",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "number_decimal",
+                  "type": "number_decimal",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "boolean",
+                  "type": "boolean",
+                  "value": "true",
+                  "jsonValue": true
+                },
+                {
+                  "key": "date",
+                  "type": "date",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "date_time",
+                  "type": "date_time",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "dimension",
+                  "type": "dimension",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "volume",
+                  "type": "volume",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "weight",
+                  "type": "weight",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "rating",
+                  "type": "rating",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "color",
+                  "type": "color",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "url",
+                  "type": "url",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "product_reference",
+                  "type": "product_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "variant_reference",
+                  "type": "variant_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "collection_reference",
+                  "type": "collection_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "customer_reference",
+                  "type": "customer_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "company_reference",
+                  "type": "company_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "metaobject_reference",
+                  "type": "metaobject_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "single_line_text_field",
+                  "type": "single_line_text_field",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_number_integer",
+                  "type": "list.number_integer",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_number_decimal",
+                  "type": "list.number_decimal",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_date",
+                  "type": "list.date",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_date_time",
+                  "type": "list.date_time",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_dimension",
+                  "type": "list.dimension",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_volume",
+                  "type": "list.volume",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_weight",
+                  "type": "list.weight",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_rating",
+                  "type": "list.rating",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_color",
+                  "type": "list.color",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_url",
+                  "type": "list.url",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_product_reference",
+                  "type": "list.product_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_variant_reference",
+                  "type": "list.variant_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_collection_reference",
+                  "type": "list.collection_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_customer_reference",
+                  "type": "list.customer_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_company_reference",
+                  "type": "list.company_reference",
+                  "value": null,
+                  "jsonValue": null
+                },
+                {
+                  "key": "list_metaobject_reference",
+                  "type": "list.metaobject_reference",
+                  "value": null,
+                  "jsonValue": null
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "date-invalid": {
+      "name": "create-date-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-date-invalid",
+            "fields": [
+              {
+                "key": "date",
+                "value": "2024-99-01"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be in YYYY-MM-DD format.",
+                "code": "INVALID_VALUE",
+                "elementKey": "date",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "date-time-invalid": {
+      "name": "create-date-time-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-date-time-invalid",
+            "fields": [
+              {
+                "key": "date_time",
+                "value": "not-a-date-time"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00",
+                "code": "INVALID_VALUE",
+                "elementKey": "date_time",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "dimension-invalid": {
+      "name": "create-dimension-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-dimension-invalid",
+            "fields": [
+              {
+                "key": "dimension",
+                "value": "{\"value\":\"not-a-number\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "dimension",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "volume-invalid": {
+      "name": "create-volume-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-volume-invalid",
+            "fields": [
+              {
+                "key": "volume",
+                "value": "{\"value\":\"not-a-number\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "volume",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "weight-invalid": {
+      "name": "create-weight-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-weight-invalid",
+            "fields": [
+              {
+                "key": "weight",
+                "value": "{\"value\":\"not-a-number\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "weight",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "rating-scale-max": {
+      "name": "create-rating-scale-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-rating-scale-max",
+            "fields": [
+              {
+                "key": "rating",
+                "value": "{\"value\":\"10\",\"scale_min\":\"1.0\",\"scale_max\":\"5.0\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value has a maximum of 5.0.",
+                "code": "INVALID_VALUE",
+                "elementKey": "rating",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "color-invalid": {
+      "name": "create-color-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-color-invalid",
+            "fields": [
+              {
+                "key": "color",
+                "value": "red"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a hex color code.",
+                "code": "INVALID_VALUE",
+                "elementKey": "color",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "url-invalid": {
+      "name": "create-url-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-url-invalid",
+            "fields": [
+              {
+                "key": "url",
+                "value": "hello"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'",
+                "code": "INVALID_VALUE",
+                "elementKey": "url",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "product-reference-invalid": {
+      "name": "create-product-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-product-reference-invalid",
+            "fields": [
+              {
+                "key": "product_reference",
+                "value": "gid://shopify/Metaobject/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid product reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "product_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "variant-reference-invalid": {
+      "name": "create-variant-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-variant-reference-invalid",
+            "fields": [
+              {
+                "key": "variant_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid product variant reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "variant_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collection-reference-invalid": {
+      "name": "create-collection-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-collection-reference-invalid",
+            "fields": [
+              {
+                "key": "collection_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid collection reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "collection_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "customer-reference-invalid": {
+      "name": "create-customer-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-customer-reference-invalid",
+            "fields": [
+              {
+                "key": "customer_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid customer reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "customer_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "company-reference-invalid": {
+      "name": "create-company-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-company-reference-invalid",
+            "fields": [
+              {
+                "key": "company_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid company reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "company_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "metaobject-reference-invalid": {
+      "name": "create-metaobject-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-metaobject-reference-invalid",
+            "fields": [
+              {
+                "key": "metaobject_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value require that you select a metaobject.",
+                "code": "INVALID_VALUE",
+                "elementKey": "metaobject_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "single-line-text-max": {
+      "name": "create-single-line-text-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-single-line-text-max",
+            "fields": [
+              {
+                "key": "single_line_text_field",
+                "value": "abcd"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value has a maximum length of 3.",
+                "code": "INVALID_VALUE",
+                "elementKey": "single_line_text_field",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-number-integer-max": {
+      "name": "create-list-number-integer-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-number-integer-max",
+            "fields": [
+              {
+                "key": "list_number_integer",
+                "value": "[\"hello\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be an integer.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_number_integer",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-number-decimal-invalid": {
+      "name": "create-list-number-decimal-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-number-decimal-invalid",
+            "fields": [
+              {
+                "key": "list_number_decimal",
+                "value": "[\"hello\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a decimal.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_number_decimal",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-date-invalid": {
+      "name": "create-list-date-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-date-invalid",
+            "fields": [
+              {
+                "key": "list_date",
+                "value": "[\"2024-99-01\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be in YYYY-MM-DD format.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_date",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-date-time-invalid": {
+      "name": "create-list-date-time-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-date-time-invalid",
+            "fields": [
+              {
+                "key": "list_date_time",
+                "value": "[\"not-a-date-time\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_date_time",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-dimension-invalid": {
+      "name": "create-list-dimension-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-dimension-invalid",
+            "fields": [
+              {
+                "key": "list_dimension",
+                "value": "[{\"value\":\"not-a-number\"}]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_dimension",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-volume-invalid": {
+      "name": "create-list-volume-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-volume-invalid",
+            "fields": [
+              {
+                "key": "list_volume",
+                "value": "[{\"value\":\"not-a-number\"}]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_volume",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-weight-invalid": {
+      "name": "create-list-weight-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-weight-invalid",
+            "fields": [
+              {
+                "key": "list_weight",
+                "value": "[{\"value\":\"not-a-number\"}]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_weight",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-rating-scale-max": {
+      "name": "create-list-rating-scale-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-rating-scale-max",
+            "fields": [
+              {
+                "key": "list_rating",
+                "value": "[{\"value\":\"10\",\"scale_min\":\"1.0\",\"scale_max\":\"5.0\"}]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value has a maximum of 5.0.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_rating",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-color-invalid": {
+      "name": "create-list-color-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-color-invalid",
+            "fields": [
+              {
+                "key": "list_color",
+                "value": "[\"red\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a hex color code.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_color",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-url-invalid": {
+      "name": "create-list-url-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-url-invalid",
+            "fields": [
+              {
+                "key": "list_url",
+                "value": "[\"hello\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_url",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-product-reference-invalid": {
+      "name": "create-list-product-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-product-reference-invalid",
+            "fields": [
+              {
+                "key": "list_product_reference",
+                "value": "[\"gid://shopify/Metaobject/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid product reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_product_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-variant-reference-invalid": {
+      "name": "create-list-variant-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-variant-reference-invalid",
+            "fields": [
+              {
+                "key": "list_variant_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid product variant reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_variant_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-collection-reference-invalid": {
+      "name": "create-list-collection-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-collection-reference-invalid",
+            "fields": [
+              {
+                "key": "list_collection_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid collection reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_collection_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-customer-reference-invalid": {
+      "name": "create-list-customer-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-customer-reference-invalid",
+            "fields": [
+              {
+                "key": "list_customer_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid customer reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_customer_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-company-reference-invalid": {
+      "name": "create-list-company-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-company-reference-invalid",
+            "fields": [
+              {
+                "key": "list_company_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid company reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_company_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-metaobject-reference-invalid": {
+      "name": "create-list-metaobject-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixCreate($metaobject: MetaobjectCreateInput!) {\n  metaobjectCreate(metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "metaobject": {
+            "type": "codex_har685_validation_1777996425390",
+            "handle": "codex-har685-validation-1777996425390-list-metaobject-reference-invalid",
+            "fields": [
+              {
+                "key": "list_metaobject_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectCreate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value require that you select a metaobject.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_metaobject_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "invalidUpdateCases": {
+    "number-integer-max": {
+      "name": "update-number-integer-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "number_integer",
+                "value": "10"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value has a maximum of 5.",
+                "code": "INVALID_VALUE",
+                "elementKey": "number_integer",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "number-decimal-invalid": {
+      "name": "update-number-decimal-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "number_decimal",
+                "value": "hello"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a decimal.",
+                "code": "INVALID_VALUE",
+                "elementKey": "number_decimal",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "boolean-coercion": {
+      "name": "update-boolean-coercion",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "boolean",
+                "value": "hello"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be true or false.",
+                "code": "INVALID_VALUE",
+                "elementKey": "boolean",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "date-invalid": {
+      "name": "update-date-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "date",
+                "value": "2024-99-01"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be in YYYY-MM-DD format.",
+                "code": "INVALID_VALUE",
+                "elementKey": "date",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "date-time-invalid": {
+      "name": "update-date-time-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "date_time",
+                "value": "not-a-date-time"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00",
+                "code": "INVALID_VALUE",
+                "elementKey": "date_time",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "dimension-invalid": {
+      "name": "update-dimension-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "dimension",
+                "value": "{\"value\":\"not-a-number\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "dimension",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "volume-invalid": {
+      "name": "update-volume-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "volume",
+                "value": "{\"value\":\"not-a-number\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "volume",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "weight-invalid": {
+      "name": "update-weight-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "weight",
+                "value": "{\"value\":\"not-a-number\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "weight",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "rating-scale-max": {
+      "name": "update-rating-scale-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "rating",
+                "value": "{\"value\":\"10\",\"scale_min\":\"1.0\",\"scale_max\":\"5.0\"}"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value has a maximum of 5.0.",
+                "code": "INVALID_VALUE",
+                "elementKey": "rating",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "color-invalid": {
+      "name": "update-color-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "color",
+                "value": "red"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a hex color code.",
+                "code": "INVALID_VALUE",
+                "elementKey": "color",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "url-invalid": {
+      "name": "update-url-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "url",
+                "value": "hello"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'",
+                "code": "INVALID_VALUE",
+                "elementKey": "url",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "product-reference-invalid": {
+      "name": "update-product-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "product_reference",
+                "value": "gid://shopify/Metaobject/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid product reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "product_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "variant-reference-invalid": {
+      "name": "update-variant-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "variant_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid product variant reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "variant_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "collection-reference-invalid": {
+      "name": "update-collection-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "collection_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid collection reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "collection_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "customer-reference-invalid": {
+      "name": "update-customer-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "customer_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid customer reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "customer_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "company-reference-invalid": {
+      "name": "update-company-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "company_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid company reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "company_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "metaobject-reference-invalid": {
+      "name": "update-metaobject-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "metaobject_reference",
+                "value": "gid://shopify/Product/1"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value require that you select a metaobject.",
+                "code": "INVALID_VALUE",
+                "elementKey": "metaobject_reference",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "single-line-text-max": {
+      "name": "update-single-line-text-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "single_line_text_field",
+                "value": "abcd"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value has a maximum length of 3.",
+                "code": "INVALID_VALUE",
+                "elementKey": "single_line_text_field",
+                "elementIndex": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-number-integer-max": {
+      "name": "update-list-number-integer-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_number_integer",
+                "value": "[\"hello\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be an integer.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_number_integer",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-number-decimal-invalid": {
+      "name": "update-list-number-decimal-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_number_decimal",
+                "value": "[\"hello\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a decimal.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_number_decimal",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-date-invalid": {
+      "name": "update-list-date-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_date",
+                "value": "[\"2024-99-01\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be in YYYY-MM-DD format.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_date",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-date-time-invalid": {
+      "name": "update-list-date-time-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_date_time",
+                "value": "[\"not-a-date-time\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be in “YYYY-MM-DDTHH:MM:SS” format. For example: 2022-06-01T15:30:00",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_date_time",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-dimension-invalid": {
+      "name": "update-list-dimension-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_dimension",
+                "value": "[{\"value\":\"not-a-number\"}]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_dimension",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-volume-invalid": {
+      "name": "update-list-volume-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_volume",
+                "value": "[{\"value\":\"not-a-number\"}]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_volume",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-weight-invalid": {
+      "name": "update-list-weight-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_weight",
+                "value": "[{\"value\":\"not-a-number\"}]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must contain unit and value.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_weight",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-rating-scale-max": {
+      "name": "update-list-rating-scale-max",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_rating",
+                "value": "[{\"value\":\"10\",\"scale_min\":\"1.0\",\"scale_max\":\"5.0\"}]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value has a maximum of 5.0.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_rating",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-color-invalid": {
+      "name": "update-list-color-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_color",
+                "value": "[\"red\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a hex color code.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_color",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-url-invalid": {
+      "name": "update-list-url-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_url",
+                "value": "[\"hello\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value cannot have an empty scheme (protocol), must include one of the following URL schemes: [\"http\", \"https\", \"mailto\", \"sms\", \"tel\"].'",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_url",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-product-reference-invalid": {
+      "name": "update-list-product-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_product_reference",
+                "value": "[\"gid://shopify/Metaobject/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid product reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_product_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-variant-reference-invalid": {
+      "name": "update-list-variant-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_variant_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid product variant reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_variant_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-collection-reference-invalid": {
+      "name": "update-list-collection-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_collection_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid collection reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_collection_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-customer-reference-invalid": {
+      "name": "update-list-customer-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_customer_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid customer reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_customer_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-company-reference-invalid": {
+      "name": "update-list-company-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_company_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value must be a valid company reference.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_company_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "list-metaobject-reference-invalid": {
+      "name": "update-list-metaobject-reference-invalid",
+      "request": {
+        "query": "mutation MetaobjectFieldValidationMatrixUpdate($id: ID!, $metaobject: MetaobjectUpdateInput!) {\n  metaobjectUpdate(id: $id, metaobject: $metaobject) {\n    metaobject {\n      id\n      handle\n      type\n      displayName\n      updatedAt\n      fields {\n        key\n        type\n        value\n        jsonValue\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066",
+          "metaobject": {
+            "fields": [
+              {
+                "key": "list_metaobject_reference",
+                "value": "[\"gid://shopify/Product/1\"]"
+              }
+            ]
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectUpdate": {
+            "metaobject": null,
+            "userErrors": [
+              {
+                "field": ["metaobject", "fields", "0"],
+                "message": "Value require that you select a metaobject.",
+                "code": "INVALID_VALUE",
+                "elementKey": "list_metaobject_reference",
+                "elementIndex": 0
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectFieldValidationMatrixDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098806066"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188098806066",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectFieldValidationMatrixDelete($id: ID!) {\n    metaobjectDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Metaobject/188098904370"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDelete": {
+            "deletedId": "gid://shopify/Metaobject/188098904370",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectFieldValidationMatrixDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17863213362"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17863213362",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation MetaobjectFieldValidationMatrixDefinitionDelete($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17863180594"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17863180594",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "MetaobjectDefinitionHydrateByType",
+      "variables": {
+        "type": "codex_har685_validation_1777996425390"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinitionByType": null
+          }
+        }
+      }
+    }
+  ]
+}
