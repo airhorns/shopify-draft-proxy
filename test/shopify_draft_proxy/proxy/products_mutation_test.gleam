@@ -4,6 +4,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/draft_proxy.{type Request}
 import shopify_draft_proxy/proxy/proxy_state.{
   Config, PassthroughUnsupportedMutations, Request, Response, Snapshot,
@@ -907,6 +908,67 @@ pub fn product_create_and_set_normalize_tags_like_shopify_test() {
   assert set_status == 200
   assert json.to_string(set_body)
     == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"tags\":[\"blue\",\"Red\"]},\"userErrors\":[]}}}"
+}
+
+pub fn product_set_variable_log_replays_product_set_input_type_test() {
+  let query =
+    "
+mutation HAR548ProductSetCommitReplay($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+      title
+      handle
+      status
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
+"
+  let body =
+    json.to_string(
+      json.object([
+        #("query", json.string(query)),
+        #(
+          "variables",
+          json.object([
+            #(
+              "input",
+              json.object([
+                #("title", json.string("Variable ProductSet")),
+                #("vendor", json.string("Hermes")),
+                #("status", json.string("DRAFT")),
+                #("tags", json.array(["har-548", "commit-replay"], json.string)),
+              ]),
+            ),
+            #("synchronous", json.bool(True)),
+          ]),
+        ),
+      ]),
+    )
+
+  let #(Response(status: status, body: response_body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request_body(body))
+
+  assert status == 200
+  assert json.to_string(response_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Variable ProductSet\",\"handle\":\"variable-productset\",\"status\":\"DRAFT\"},\"userErrors\":[]}}}"
+
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productSet")
+  assert entry.path == "/admin/api/2025-01/graphql.json"
+  assert string.contains(entry.query, "$input: ProductSetInput!")
+
+  let replay_body = commit.build_replay_body(entry)
+  assert string.contains(replay_body, "$input: ProductSetInput!")
+  assert string.contains(replay_body, "\"title\":\"Variable ProductSet\"")
+  assert string.contains(replay_body, "\"vendor\":\"Hermes\"")
+  assert string.contains(replay_body, "\"status\":\"DRAFT\"")
+  assert string.contains(replay_body, "\"synchronous\":true")
 }
 
 pub fn product_create_stages_product_default_variant_and_inventory_test() {

@@ -7333,13 +7333,10 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(
-                  store.Staged,
-                  "Gleam staged productOptionsCreate locally.",
-                )
+                False -> #(store.Staged, "Staged productOptionsCreate locally.")
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productOptionsCreate locally with userErrors before staging.",
+                  "Rejected productOptionsCreate locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7373,10 +7370,10 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Gleam staged productCreate locally.")
+                False -> #(store.Staged, "Staged productCreate locally.")
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productCreate locally with userErrors before staging.",
+                  "Rejected productCreate locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7420,13 +7417,10 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(
-                  store.Staged,
-                  "Gleam staged productOptionUpdate locally.",
-                )
+                False -> #(store.Staged, "Staged productOptionUpdate locally.")
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productOptionUpdate locally with userErrors before staging.",
+                  "Rejected productOptionUpdate locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7457,13 +7451,10 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(
-                  store.Staged,
-                  "Gleam staged productOptionsDelete locally.",
-                )
+                False -> #(store.Staged, "Staged productOptionsDelete locally.")
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productOptionsDelete locally with userErrors before staging.",
+                  "Rejected productOptionsDelete locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7500,7 +7491,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productOptionsReorder locally."),
+                  Some("Staged productOptionsReorder locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -7529,7 +7520,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productChangeStatus locally."),
+                  Some("Staged productChangeStatus locally."),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -7570,7 +7561,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productDelete locally."),
+                  Some("Staged productDelete locally."),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -7604,10 +7595,10 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Gleam staged productUpdate locally.")
+                False -> #(store.Staged, "Staged productUpdate locally.")
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productUpdate locally with userErrors before staging.",
+                  "Rejected productUpdate locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7657,7 +7648,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productDuplicate locally."),
+                  Some("Staged productDuplicate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -7679,10 +7670,10 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Gleam staged productSet locally.")
+                False -> #(store.Staged, "Staged productSet locally.")
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productSet locally with userErrors before staging.",
+                  "Rejected productSet locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7726,13 +7717,10 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(
-                  store.Staged,
-                  "Gleam staged productVariantCreate locally.",
-                )
+                False -> #(store.Staged, "Staged productVariantCreate locally.")
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productVariantCreate locally with userErrors before staging.",
+                  "Rejected productVariantCreate locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7763,13 +7751,10 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(
-                  store.Staged,
-                  "Gleam staged productVariantUpdate locally.",
-                )
+                False -> #(store.Staged, "Staged productVariantUpdate locally.")
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productVariantUpdate locally with userErrors before staging.",
+                  "Rejected productVariantUpdate locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7806,7 +7791,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productVariantDelete locally."),
+                  Some("Staged productVariantDelete locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -7830,11 +7815,11 @@ fn handle_mutation_fields(
               let #(entry_status, note) = case result.staging_failed {
                 False -> #(
                   store.Staged,
-                  "Gleam staged productVariantsBulkCreate locally.",
+                  "Staged productVariantsBulkCreate locally.",
                 )
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productVariantsBulkCreate locally with userErrors before staging.",
+                  "Rejected productVariantsBulkCreate locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7877,11 +7862,11 @@ fn handle_mutation_fields(
               let #(entry_status, note) = case result.staging_failed {
                 False -> #(
                   store.Staged,
-                  "Gleam staged productVariantsBulkUpdate locally.",
+                  "Staged productVariantsBulkUpdate locally.",
                 )
                 True -> #(
                   store.Failed,
-                  "Gleam rejected productVariantsBulkUpdate locally with userErrors before staging.",
+                  "Rejected productVariantsBulkUpdate locally with userErrors before staging.",
                 )
               }
               let draft =
@@ -7918,7 +7903,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productVariantsBulkDelete locally."),
+                  Some("Staged productVariantsBulkDelete locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -7945,7 +7930,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productVariantsBulkReorder locally."),
+                  Some("Staged productVariantsBulkReorder locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -7973,7 +7958,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryAdjustQuantities locally."),
+                  Some("Staged inventoryAdjustQuantities locally."),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -8013,7 +7998,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryActivate locally."),
+                  Some("Staged inventoryActivate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8040,7 +8025,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryDeactivate locally."),
+                  Some("Staged inventoryDeactivate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8067,7 +8052,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryBulkToggleActivation locally."),
+                  Some("Staged inventoryBulkToggleActivation locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8094,7 +8079,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryItemUpdate locally."),
+                  Some("Staged inventoryItemUpdate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8122,7 +8107,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventorySetQuantities locally."),
+                  Some("Staged inventorySetQuantities locally."),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -8162,7 +8147,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryMoveQuantities locally."),
+                  Some("Staged inventoryMoveQuantities locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8189,7 +8174,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged collectionAddProducts locally."),
+                  Some("Staged collectionAddProducts locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8216,7 +8201,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged collectionAddProductsV2 locally."),
+                  Some("Staged collectionAddProductsV2 locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8243,7 +8228,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged collectionCreate locally."),
+                  Some("Staged collectionCreate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8270,7 +8255,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged collectionRemoveProducts locally."),
+                  Some("Staged collectionRemoveProducts locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8297,7 +8282,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged collectionReorderProducts locally."),
+                  Some("Staged collectionReorderProducts locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8324,7 +8309,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged collectionUpdate locally."),
+                  Some("Staged collectionUpdate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8351,7 +8336,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged collectionDelete locally."),
+                  Some("Staged collectionDelete locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8379,7 +8364,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productPublish locally."),
+                  Some("Staged productPublish locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8407,7 +8392,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productUnpublish locally."),
+                  Some("Staged productUnpublish locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8435,7 +8420,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged " <> name.value <> " locally."),
+                  Some("Staged " <> name.value <> " locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8463,7 +8448,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged " <> name.value <> " locally."),
+                  Some("Staged " <> name.value <> " locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8490,7 +8475,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productFeedCreate locally."),
+                  Some("Staged productFeedCreate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8517,7 +8502,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productFeedDelete locally."),
+                  Some("Staged productFeedDelete locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8544,7 +8529,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productFullSync locally."),
+                  Some("Staged productFullSync locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8572,9 +8557,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some(
-                    "Gleam staged captured Product bundle guardrails locally.",
-                  ),
+                  Some("Staged captured Product bundle guardrails locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8602,7 +8585,7 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some(
-                    "Gleam staged captured combinedListingUpdate guardrails locally.",
+                    "Staged captured combinedListingUpdate guardrails locally.",
                   ),
                 )
               #(
@@ -8631,7 +8614,7 @@ fn handle_mutation_fields(
                   "products",
                   "stage-locally",
                   Some(
-                    "Gleam staged captured ProductVariant relationship guardrails locally.",
+                    "Staged captured ProductVariant relationship guardrails locally.",
                   ),
                 )
               #(
@@ -8664,7 +8647,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged " <> name.value <> " locally."),
+                  Some("Staged " <> name.value <> " locally."),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -8704,7 +8687,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged ProductVariant media membership locally."),
+                  Some("Staged ProductVariant media membership locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8731,9 +8714,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some(
-                    "Gleam staged bulkProductResourceFeedbackCreate locally.",
-                  ),
+                  Some("Staged bulkProductResourceFeedbackCreate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8761,7 +8742,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged " <> name.value <> " locally."),
+                  Some("Staged " <> name.value <> " locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8788,7 +8769,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryShipmentSetTracking locally."),
+                  Some("Staged inventoryShipmentSetTracking locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8815,7 +8796,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryShipmentMarkInTransit locally."),
+                  Some("Staged inventoryShipmentMarkInTransit locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8842,7 +8823,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryShipmentAddItems locally."),
+                  Some("Staged inventoryShipmentAddItems locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8869,7 +8850,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryShipmentRemoveItems locally."),
+                  Some("Staged inventoryShipmentRemoveItems locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8896,7 +8877,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryShipmentReceive locally."),
+                  Some("Staged inventoryShipmentReceive locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8923,9 +8904,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some(
-                    "Gleam staged inventoryShipmentUpdateItemQuantities locally.",
-                  ),
+                  Some("Staged inventoryShipmentUpdateItemQuantities locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8952,7 +8931,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged inventoryShipmentDelete locally."),
+                  Some("Staged inventoryShipmentDelete locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8988,7 +8967,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged " <> name.value <> " locally."),
+                  Some("Staged " <> name.value <> " locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -9015,7 +8994,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged shopResourceFeedbackCreate locally."),
+                  Some("Staged shopResourceFeedbackCreate locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -9049,7 +9028,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged " <> name.value <> " locally."),
+                  Some("Staged " <> name.value <> " locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -9080,7 +9059,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged " <> name.value <> " locally."),
+                  Some("Staged " <> name.value <> " locally."),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -9108,7 +9087,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged tagsAdd locally."),
+                  Some("Staged tagsAdd locally."),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -9149,7 +9128,7 @@ fn handle_mutation_fields(
                   store.Staged,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged tagsRemove locally."),
+                  Some("Staged tagsRemove locally."),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
