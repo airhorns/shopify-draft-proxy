@@ -415,33 +415,24 @@ fn reset_response() -> Response {
 }
 
 fn not_found_response() -> Response {
-  Response(
-    status: 404,
-    body: json.object([
-      #(
-        "errors",
-        json.array(
-          [json.object([#("message", json.string("Not found"))])],
-          fn(x) { x },
-        ),
-      ),
-    ]),
-    headers: [],
-  )
+  error_response(404, "Not found")
 }
 
 fn method_not_allowed_response() -> Response {
+  error_response(405, "Method not allowed")
+}
+
+/// Build a Shopify-style `{"errors": [...]}` envelope from a list of
+/// already-built error JSON objects.
+fn error_envelope(errors: List(Json)) -> Json {
+  json.object([#("errors", json.preprocessed_array(errors))])
+}
+
+/// Single-message error response with the given HTTP status.
+fn error_response(status: Int, message: String) -> Response {
   Response(
-    status: 405,
-    body: json.object([
-      #(
-        "errors",
-        json.array(
-          [json.object([#("message", json.string("Method not allowed"))])],
-          fn(x) { x },
-        ),
-      ),
-    ]),
+    status: status,
+    body: error_envelope([json.object([#("message", json.string(message))])]),
     headers: [],
   )
 }
@@ -572,7 +563,7 @@ fn record_proxied_mutation(
     mutation_helpers.LogDraft(
       operation_name: cap.operation_name,
       root_fields: parsed.root_fields,
-      primary_root_field: list.first(parsed.root_fields) |> result_to_option,
+      primary_root_field: list.first(parsed.root_fields) |> option.from_result,
       domain: domain,
       execution: execution,
       query: Some(body.query),
@@ -602,7 +593,7 @@ fn passthrough_capability_strings(
 ) -> #(String, String) {
   let candidates =
     list.append(list.map(parsed.root_fields, Some), case parsed.name {
-      Some(name) -> [Some(name)]
+      Some(_) -> [parsed.name]
       None -> []
     })
   case
@@ -620,13 +611,6 @@ fn passthrough_capability_strings(
       operation_registry.domain_to_string(cap.domain),
       operation_registry.execution_to_string(cap.execution),
     )
-  }
-}
-
-fn result_to_option(r: Result(a, b)) -> Option(a) {
-  case r {
-    Ok(value) -> Some(value)
-    Error(_) -> None
   }
 }
 
@@ -723,11 +707,7 @@ fn route_mutation(
 }
 
 fn schema_validation_error_response(errors: List(Json)) -> Response {
-  Response(
-    status: 200,
-    body: json.object([#("errors", json.preprocessed_array(errors))]),
-    headers: [],
-  )
+  Response(status: 200, body: error_envelope(errors), headers: [])
 }
 
 fn schema_validation_errors(
@@ -2143,18 +2123,7 @@ fn resolved_value_decoder() -> decode.Decoder(root_field.ResolvedValue) {
 }
 
 fn bad_request(message: String) -> Response {
-  Response(
-    status: 400,
-    body: json.object([
-      #(
-        "errors",
-        json.array([json.object([#("message", json.string(message))])], fn(x) {
-          x
-        }),
-      ),
-    ]),
-    headers: [],
-  )
+  error_response(400, message)
 }
 
 /// Render a port number for the cli/server adapter. Currently unused
