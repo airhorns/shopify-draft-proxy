@@ -18,7 +18,7 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-771 parity slice for the captured 2026-04 customerEmailMarketingConsentUpdate branch where a customer has no default email contact method. The no-email mutation is a no-op with empty userErrors and does not synthesize defaultEmailAddress. A present-email control in the same spec confirms the normal consent update path still stages defaultEmailAddress marketing fields.",
+  "notes": "HAR-771 parity slice over the preexisting 2026-04 customerEmailMarketingConsentUpdate capture. No new live interaction was recorded for this spec: the referenced fixture already contains a phone-only customer precondition, the missing-email validation matrix response, and the present-email mutation control. The no-email mutation is a no-op with empty userErrors and does not synthesize defaultEmailAddress; the present-email control confirms the normal consent update path still stages defaultEmailAddress marketing fields.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

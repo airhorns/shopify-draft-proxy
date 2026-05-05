@@ -18,7 +18,7 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-771 parity slice for the captured 2026-04 customerSmsMarketingConsentUpdate branch where a customer has no default phone contact method. The mutation returns the captured INVALID userError and does not synthesize defaultPhoneNumber. A present-phone control in the same spec confirms the normal consent update path still stages defaultPhoneNumber marketing fields.",
+  "notes": "HAR-771 parity slice over the preexisting 2026-04 customerSmsMarketingConsentUpdate capture. No new live interaction was recorded for this spec: the referenced fixture already contains an email-only customer precondition, the missing-phone validation matrix response, and the present-phone mutation control. The mutation returns the captured INVALID userError and does not synthesize defaultPhoneNumber; the present-phone control confirms the normal consent update path still stages defaultPhoneNumber marketing fields.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
