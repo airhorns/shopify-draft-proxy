@@ -1430,6 +1430,48 @@ fn update_discount_after_top_level_validation(
   input: Dict(String, root_field.ResolvedValue),
   key: String,
 ) -> MutationResult {
+  let early_user_errors =
+    validate_context_customer_selection_conflict(input_name, input)
+  case early_user_errors {
+    [_, ..] ->
+      MutationResult(
+        key: key,
+        payload: payload_json(root, field, fragments, None, early_user_errors),
+        store: store,
+        identity: identity,
+        staged_resource_ids: [],
+        top_level_errors: [],
+      )
+    [] ->
+      update_discount_existing_record(
+        store,
+        identity,
+        root,
+        field,
+        fragments,
+        owner_kind,
+        target_discount_type,
+        input_name,
+        id,
+        input,
+        key,
+      )
+  }
+}
+
+fn update_discount_existing_record(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root: String,
+  field: Selection,
+  fragments: FragmentMap,
+  owner_kind: String,
+  target_discount_type: String,
+  input_name: String,
+  id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> MutationResult {
   let existing = store.get_effective_discount_by_id(store, id)
   case existing {
     None ->
