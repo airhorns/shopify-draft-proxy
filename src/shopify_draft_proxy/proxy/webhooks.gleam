@@ -707,7 +707,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-  _upstream: UpstreamContext,
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   process_mutation_with_api_client(
     store,
@@ -715,7 +715,7 @@ pub fn process_mutation(
     request_path,
     document,
     variables,
-    None,
+    app_identity.read_requesting_api_client_id(upstream.headers),
   )
 }
 
