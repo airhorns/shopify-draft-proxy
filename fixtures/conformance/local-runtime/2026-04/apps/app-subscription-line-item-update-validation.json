@@ -20,7 +20,7 @@
               "appSubscription": {
                 "id": "gid://shopify/AppSubscription/expected",
                 "name": "Local plan",
-                "status": "PENDING",
+                "status": "ACTIVE",
                 "test": true,
                 "trialDays": 7,
                 "lineItems": [
