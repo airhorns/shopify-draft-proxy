@@ -40,10 +40,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type CatalogRecord, type MarketRecord,
   type PriceListRecord, type ProductMetafieldRecord, type ProductRecord,
-  type ProductVariantRecord, type WebPresenceRecord, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CatalogRecord, MarketRecord, PriceListRecord, ProductMetafieldRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  type ProductVariantRecord, type ShopDomainRecord, type WebPresenceRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, CatalogRecord, MarketRecord, PriceListRecord,
+  ProductMetafieldRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
   ProductVariantSelectedOptionRecord, WebPresenceRecord,
 }
 
@@ -2124,7 +2124,7 @@ fn handle_web_presence_create(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  let errors = web_presence_create_errors(input)
+  let errors = web_presence_create_errors(store, input)
   case errors {
     [] -> {
       let #(id, next_identity) =
@@ -2177,21 +2177,41 @@ fn handle_web_presence_update(
     Some(id_value) ->
       case store.get_effective_web_presence_by_id(store, id_value) {
         Some(_) -> {
-          let data = web_presence_data(store, id_value, input)
-          let record = WebPresenceRecord(id: id_value, cursor: None, data: data)
-          let #(_, next_store) = store.upsert_staged_web_presence(store, record)
-          mutation_result(
-            key,
-            field,
-            fragments,
-            "webPresenceUpdate",
-            "webPresence",
-            data,
-            [],
-            next_store,
-            identity,
-            [id_value],
-          )
+          let errors = web_presence_create_errors(store, input)
+          case errors {
+            [] -> {
+              let data = web_presence_data(store, id_value, input)
+              let record =
+                WebPresenceRecord(id: id_value, cursor: None, data: data)
+              let #(_, next_store) =
+                store.upsert_staged_web_presence(store, record)
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "webPresenceUpdate",
+                "webPresence",
+                data,
+                [],
+                next_store,
+                identity,
+                [id_value],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "webPresenceUpdate",
+                "webPresence",
+                CapturedNull,
+                errors,
+                store,
+                identity,
+                [],
+              )
+          }
         }
         None ->
           web_presence_not_found_result(
@@ -2455,18 +2475,23 @@ fn web_presence_delete_not_found_result(
 }
 
 fn web_presence_create_errors(
+  store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
   let domain_errors = case
     graphql_helpers.read_arg_string_nonempty(input, "domainId")
   {
-    Some(_) -> [
-      user_error(
-        ["input", "domainId"],
-        "Domain does not exist",
-        "DOMAIN_NOT_FOUND",
-      ),
-    ]
+    Some(domain_id) ->
+      case web_presence_domain_for_id(store, domain_id) {
+        Some(_) -> []
+        None -> [
+          user_error(
+            ["input", "domainId"],
+            "Domain does not exist",
+            "DOMAIN_NOT_FOUND",
+          ),
+        ]
+      }
     None -> []
   }
   let locale_errors = case
@@ -2500,22 +2525,38 @@ fn web_presence_data(
     read_arg_string_array(input, "alternateLocales") |> option.unwrap([])
   let suffix =
     graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
+  let domain =
+    web_presence_domain_for_input(
+      store,
+      graphql_helpers.read_arg_string_nonempty(input, "domainId"),
+    )
+  let has_alternate_locales = !list.is_empty(alternate_locales)
+  let locales = [default_locale, ..alternate_locales]
   CapturedObject([
     #("__typename", CapturedString("MarketWebPresence")),
     #("id", CapturedString(id)),
     #("subfolderSuffix", optional_captured_string(suffix)),
-    #("domain", CapturedNull),
+    #("domain", optional_web_presence_domain(domain)),
     #(
       "rootUrls",
-      CapturedArray([
-        CapturedObject([
-          #("locale", CapturedString(default_locale)),
-          #(
-            "url",
-            CapturedString(web_presence_root_url(store, default_locale, suffix)),
-          ),
-        ]),
-      ]),
+      CapturedArray(
+        list.map(locales, fn(locale) {
+          CapturedObject([
+            #("locale", CapturedString(locale)),
+            #(
+              "url",
+              CapturedString(web_presence_root_url(
+                store,
+                locale,
+                default_locale,
+                suffix,
+                domain,
+                has_alternate_locales,
+              )),
+            ),
+          ])
+        }),
+      ),
     ),
     #("defaultLocale", locale_payload(default_locale, True)),
     #(
@@ -2537,31 +2578,165 @@ fn web_presence_data(
 fn web_presence_root_url(
   store: Store,
   locale: String,
+  default_locale: String,
+  suffix: Option(String),
+  domain: Option(ShopDomainRecord),
+  has_alternate_locales: Bool,
+) -> String {
+  let base_url = case domain {
+    Some(domain) -> web_presence_domain_base_url(domain)
+    None -> shop_primary_web_presence_base_url(store) |> option.unwrap("")
+  }
+  case domain {
+    Some(_) -> localized_root_url(base_url, locale, default_locale)
+    None ->
+      case shop_primary_web_presence_base_url(store) {
+        Some(base_url) ->
+          documented_subfolder_root_url(
+            base_url,
+            locale,
+            default_locale,
+            suffix,
+          )
+        None ->
+          case has_alternate_locales {
+            True ->
+              documented_subfolder_root_url(
+                captured_web_presence_base_url(store) |> option.unwrap(""),
+                locale,
+                default_locale,
+                suffix,
+              )
+            False ->
+              legacy_captured_subfolder_root_url(
+                captured_web_presence_base_url(store) |> option.unwrap(""),
+                locale,
+                suffix,
+              )
+          }
+      }
+  }
+}
+
+fn web_presence_domain_for_input(
+  store: Store,
+  domain_id: Option(String),
+) -> Option(ShopDomainRecord) {
+  case domain_id {
+    Some(id) -> web_presence_domain_for_id(store, id)
+    None -> None
+  }
+}
+
+fn web_presence_domain_for_id(
+  store: Store,
+  domain_id: String,
+) -> Option(ShopDomainRecord) {
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      case shop.primary_domain.id == domain_id {
+        True -> Some(shop.primary_domain)
+        False -> None
+      }
+    None -> None
+  }
+}
+
+fn optional_web_presence_domain(
+  domain: Option(ShopDomainRecord),
+) -> CapturedJsonValue {
+  case domain {
+    Some(domain) ->
+      CapturedObject([
+        #("__typename", CapturedString("Domain")),
+        #("id", CapturedString(domain.id)),
+        #("host", CapturedString(domain.host)),
+        #("url", CapturedString(domain.url)),
+        #("sslEnabled", CapturedBool(domain.ssl_enabled)),
+      ])
+    None -> CapturedNull
+  }
+}
+
+fn localized_root_url(
+  base_url: String,
+  locale: String,
+  default_locale: String,
+) -> String {
+  case locale == default_locale {
+    True -> base_url <> "/"
+    False -> base_url <> "/" <> locale <> "/"
+  }
+}
+
+fn documented_subfolder_root_url(
+  base_url: String,
+  locale: String,
+  default_locale: String,
   suffix: Option(String),
 ) -> String {
-  let base_url = store_web_presence_base_url(store)
+  case suffix {
+    Some(s) ->
+      case locale == default_locale {
+        True -> base_url <> "/" <> s <> "/"
+        False -> base_url <> "/" <> s <> "/" <> locale <> "/"
+      }
+    None -> localized_root_url(base_url, locale, default_locale)
+  }
+}
+
+fn legacy_captured_subfolder_root_url(
+  base_url: String,
+  locale: String,
+  suffix: Option(String),
+) -> String {
   case suffix {
     Some(s) -> base_url <> "/" <> locale <> "-" <> s <> "/"
     None -> base_url <> "/"
   }
 }
 
-fn store_web_presence_base_url(store: Store) -> String {
+fn shop_primary_web_presence_base_url(store: Store) -> Option(String) {
+  case store.get_effective_shop(store) {
+    Some(shop) -> Some(web_presence_domain_base_url(shop.primary_domain))
+    None -> None
+  }
+}
+
+fn captured_web_presence_base_url(store: Store) -> Option(String) {
   case list.first(store.list_effective_web_presences(store)) {
     Ok(record) ->
       case captured_field(record.data, "domain") {
-        Some(domain) ->
-          case captured_string_field(domain, "url") {
-            Some(url) -> url
-            None ->
-              case captured_string_field(domain, "host") {
-                Some(host) -> "https://" <> host
-                None -> "https://harry-test-heelo.myshopify.com"
-              }
-          }
-        None -> "https://harry-test-heelo.myshopify.com"
+        Some(domain) -> captured_domain_base_url(domain)
+        None -> None
       }
-    Error(_) -> "https://harry-test-heelo.myshopify.com"
+    Error(_) -> None
+  }
+}
+
+fn captured_domain_base_url(domain: CapturedJsonValue) -> Option(String) {
+  case captured_string_field(domain, "url") {
+    Some(url) -> Some(trim_trailing_slash(url))
+    None ->
+      case captured_string_field(domain, "host") {
+        Some(host) -> Some("https://" <> host)
+        None -> None
+      }
+  }
+}
+
+fn web_presence_domain_base_url(domain: ShopDomainRecord) -> String {
+  let raw = case domain.url == "" {
+    True -> "https://" <> domain.host
+    False -> domain.url
+  }
+  trim_trailing_slash(raw)
+}
+
+fn trim_trailing_slash(value: String) -> String {
+  case string.ends_with(value, "/") {
+    True -> string.drop_end(value, 1)
+    False -> value
   }
 }
 

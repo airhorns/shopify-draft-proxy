@@ -1,0 +1,34 @@
+{
+  "scenarioId": "web-presence-root-urls-multi-locale",
+  "operationNames": ["webPresenceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "market-web-presence-root-urls", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[5].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "web-presence-root-urls-multi-locale-create",
+        "capturePath": "$.har613Expected.webPresenceCreateMultiLocaleRootUrls.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.webPresence.id",
+            "matcher": "shopify-gid:MarketWebPresence",
+            "reason": "The local proxy creates a deterministic synthetic MarketWebPresence id while the capture stores Shopify's disposable live id."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-613 coverage for a staged subfolder web presence with defaultLocale en, alternateLocales fr/de, and subfolderSuffix intl. The live capture script enables and restores fr/de locales so Shopify accepts the scenario; this spec asserts the documented HAR-613 rootUrls contract while the raw live response remains in cases[5] for audit evidence."
+}
