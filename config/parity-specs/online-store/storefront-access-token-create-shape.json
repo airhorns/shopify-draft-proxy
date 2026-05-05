@@ -1,0 +1,35 @@
+{
+  "scenarioId": "storefront-access-token-create-shape",
+  "operationNames": ["storefrontAccessTokenCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "credential-return-on-create"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/storefront-access-token-local-staging.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/storefront-access-token-create-shape.graphql",
+    "variablesCapturePath": "$.primary.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "storefront-token-create-shape",
+        "capturePath": "$.expected.createShape.response.data.storefrontAccessTokenCreate",
+        "proxyPath": "$.data.storefrontAccessTokenCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.storefrontAccessToken.accessToken",
+            "matcher": "storefront-access-token",
+            "reason": "The proxy returns a deterministic unique shpat_ synthetic token on create while local-runtime evidence keeps the secret-shaped field redacted."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-584 executable local-runtime shape coverage for storefrontAccessTokenCreate. Live write evidence remains blocked by the current conformance credential's ACCESS_DENIED response for storefrontAccessTokenCreate, so this spec reuses the HAR-452 local-runtime fixture with live safe-read evidence and strictly checks non-empty storefront scopes plus shop.id while matching the create-only token with a shpat_ token matcher."
+}

@@ -1,0 +1,33 @@
+mutation FulfillmentOrderMoveValidationSubmitRequest(
+  $id: ID!
+  $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]
+  $message: String
+  $notifyCustomer: Boolean
+) {
+  fulfillmentOrderSubmitFulfillmentRequest(
+    id: $id
+    fulfillmentOrderLineItems: $fulfillmentOrderLineItems
+    message: $message
+    notifyCustomer: $notifyCustomer
+  ) {
+    originalFulfillmentOrder {
+      id
+      status
+      requestStatus
+    }
+    submittedFulfillmentOrder {
+      id
+      status
+      requestStatus
+    }
+    unsubmittedFulfillmentOrder {
+      id
+      status
+      requestStatus
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

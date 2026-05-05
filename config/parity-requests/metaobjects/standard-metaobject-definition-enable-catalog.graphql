@@ -1,0 +1,60 @@
+fragment StandardMetaobjectDefinitionEnableFields on MetaobjectDefinition {
+  id
+  type
+  name
+  description
+  displayNameKey
+  access {
+    admin
+    storefront
+  }
+  capabilities {
+    publishable {
+      enabled
+    }
+    translatable {
+      enabled
+    }
+    renderable {
+      enabled
+    }
+    onlineStore {
+      enabled
+    }
+  }
+  fieldDefinitions {
+    key
+    name
+    description
+    required
+    type {
+      name
+      category
+    }
+    validations {
+      name
+      value
+    }
+  }
+  hasThumbnailField
+  metaobjectsCount
+  standardTemplate {
+    type
+    name
+  }
+}
+
+mutation StandardMetaobjectDefinitionEnableCatalog($type: String!) {
+  standardMetaobjectDefinitionEnable(type: $type) {
+    metaobjectDefinition {
+      ...StandardMetaobjectDefinitionEnableFields
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

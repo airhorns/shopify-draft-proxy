@@ -5,7 +5,9 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy.{type Request}
-import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
+import shopify_draft_proxy/proxy/proxy_state.{
+  Config, PassthroughUnsupportedMutations, Request, Response, Snapshot,
+}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
@@ -272,6 +274,53 @@ pub fn product_options_delete_restores_default_option_state_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_user_error_shape_validation_branches_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { productCreate(product: { title: \\\"\\\" }) { product { id } userErrors { field message code } } }",
+      ),
+    )
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+
+  let #(Response(status: options_status, body: options_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { productOptionsDelete(productId: \\\"gid://shopify/Product/missing\\\", options: [\\\"gid://shopify/ProductOption/missing\\\"]) { deletedOptionsIds product { id } userErrors { field message code } } }",
+      ),
+    )
+  assert options_status == 200
+  assert json.to_string(options_body)
+    == "{\"data\":{\"productOptionsDelete\":{\"deletedOptionsIds\":[],\"product\":null,\"userErrors\":[{\"field\":[\"productId\"],\"message\":\"Product does not exist\",\"code\":\"PRODUCT_DOES_NOT_EXIST\"}]}}}"
+
+  let #(Response(status: collection_status, body: collection_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { collectionCreate(input: { title: \\\"\\\" }) { collection { id } userErrors { field message code } } }",
+      ),
+    )
+  assert collection_status == 200
+  assert json.to_string(collection_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+
+  let #(Response(status: activate_status, body: activate_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/missing\\\", locationId: \\\"gid://shopify/Location/missing\\\") { inventoryLevel { id } userErrors { field message code } } }",
+      ),
+    )
+  assert activate_status == 200
+  assert json.to_string(activate_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":null,\"userErrors\":[{\"field\":[\"inventoryItemId\"],\"message\":\"Inventory item does not exist\",\"code\":\"INVALID_INVENTORY_ITEM\"}]}}}"
 }
 
 pub fn product_options_reorder_reorders_variants_test() {
@@ -779,22 +828,65 @@ pub fn product_update_blank_title_returns_existing_product_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
   let query =
-    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", title: \\\"\\\" }) { product { id title handle } userErrors { field message } } }"
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", title: \\\"\\\" }) { product { id title handle } userErrors { field message code } } }"
 
   let #(Response(status: status, body: body, ..), next_proxy) =
     draft_proxy.process_request(proxy, graphql_request(query))
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"handle\":\"optioned-board\"},\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\"}]}}}"
-  assert store.get_log(next_proxy.store)
-    |> list.length
-    == 1
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"handle\":\"optioned-board\"},\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productUpdate")
+  assert entry.status == store.Failed
+  assert entry.staged_resource_ids == []
+}
+
+pub fn product_update_rejects_product_scalar_validation_errors_test() {
+  let long_vendor = string.repeat("v", times: 256)
+  let vendor_query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", vendor: \\\""
+    <> long_vendor
+    <> "\\\" }) { product { id title vendor } userErrors { field message code } } }"
+  let proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: default_option_store())
+  let #(Response(status: vendor_status, body: vendor_body, ..), vendor_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(vendor_query))
+  assert vendor_status == 200
+  assert json.to_string(vendor_body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"vendor\":null},\"userErrors\":[{\"field\":[\"vendor\"],\"message\":\"Vendor is too long (maximum is 255 characters)\",\"code\":null}]}}}"
+  let assert [vendor_entry] = store.get_log(vendor_proxy.store)
+  assert vendor_entry.operation_name == Some("productUpdate")
+  assert vendor_entry.status == store.Failed
+  assert vendor_entry.staged_resource_ids == []
+
+  let long_description = string.repeat("x", times: 524_288)
+  let description_query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", descriptionHtml: \\\""
+    <> long_description
+    <> "\\\" }) { product { id title descriptionHtml } userErrors { field message code } } }"
+  let description_proxy =
+    proxy_state.DraftProxy(..draft_proxy.new(), store: default_option_store())
+  let #(
+    Response(status: description_status, body: description_body, ..),
+    description_next_proxy,
+  ) =
+    draft_proxy.process_request(
+      description_proxy,
+      graphql_request(description_query),
+    )
+  assert description_status == 200
+  assert json.to_string(description_body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\",\"descriptionHtml\":\"\"},\"userErrors\":[{\"field\":[\"bodyHtml\"],\"message\":\"Body (HTML) is too big (maximum is 512 KB)\",\"code\":null}]}}}"
+  let assert [description_entry] = store.get_log(description_next_proxy.store)
+  assert description_entry.operation_name == Some("productUpdate")
+  assert description_entry.status == store.Failed
+  assert description_entry.staged_resource_ids == []
 }
 
 pub fn product_create_and_set_normalize_tags_like_shopify_test() {
   let create_query =
-    "mutation { productCreate(product: { title: \\\"Created Board\\\", status: DRAFT, tags: [\\\"Red\\\", \\\"blue\\\", \\\"red\\\"] }) { product { id tags } userErrors { field message } } }"
+    "mutation { productCreate(product: { title: \\\"Created Board\\\", vendor: \\\"Hermes\\\", status: DRAFT, tags: [\\\"Red\\\", \\\"blue\\\", \\\"red\\\"] }) { product { id tags } userErrors { field message } } }"
   let #(Response(status: create_status, body: create_body, ..), _) =
     draft_proxy.process_request(
       draft_proxy.new(),
@@ -805,7 +897,7 @@ pub fn product_create_and_set_normalize_tags_like_shopify_test() {
     == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"tags\":[\"blue\",\"Red\"]},\"userErrors\":[]}}}"
 
   let set_query =
-    "mutation { productSet(input: { title: \\\"Set Board\\\", status: DRAFT, tags: [\\\"Red\\\", \\\"blue\\\", \\\"red\\\"] }, synchronous: true) { product { id tags } userErrors { field message } } }"
+    "mutation { productSet(input: { title: \\\"Set Board\\\", vendor: \\\"Hermes\\\", status: DRAFT, tags: [\\\"Red\\\", \\\"blue\\\", \\\"red\\\"] }, synchronous: true) { product { id tags } userErrors { field message } } }"
   let #(Response(status: set_status, body: set_body, ..), _) =
     draft_proxy.process_request(draft_proxy.new(), graphql_request(set_query))
   assert set_status == 200
@@ -838,6 +930,28 @@ pub fn product_create_stages_product_default_variant_and_inventory_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_create_defaults_missing_vendor_from_shop_origin_test() {
+  let proxy =
+    draft_proxy.with_config(Config(
+      read_mode: Snapshot,
+      unsupported_mutation_mode: PassthroughUnsupportedMutations,
+      port: 4000,
+      shopify_admin_origin: "https://acme.myshopify.com",
+      snapshot_path: None,
+    ))
+  let query =
+    "mutation { productCreate(product: { title: \\\"Origin Vendor\\\" }) { product { id title vendor } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Origin Vendor\",\"vendor\":\"acme\"},\"userErrors\":[]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store.Staged
 }
 
 pub fn product_variant_mutations_recompute_product_derived_fields_test() {
@@ -1043,21 +1157,40 @@ pub fn explicit_product_handle_collisions_return_user_errors_test() {
 
 pub fn product_create_validation_branches_return_user_errors_test() {
   let blank_query =
-    "mutation { productCreate(product: { title: \\\"\\\" }) { product { id title handle } userErrors { field message } } }"
+    "mutation { productCreate(product: { title: \\\"\\\", vendor: \\\"Hermes\\\" }) { product { id title handle } userErrors { field message code } } }"
   let #(Response(status: blank_status, body: blank_body, ..), blank_proxy) =
     draft_proxy.process_request(draft_proxy.new(), graphql_request(blank_query))
   assert blank_status == 200
   assert json.to_string(blank_body)
-    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\"}]}}}"
-  assert store.get_log(blank_proxy.store)
-    |> list.length
-    == 1
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+  let assert [blank_entry] = store.get_log(blank_proxy.store)
+  assert blank_entry.operation_name == Some("productCreate")
+  assert blank_entry.status == store.Failed
+  assert blank_entry.staged_resource_ids == []
+
+  let missing_title_query =
+    "mutation { productCreate(product: { vendor: \\\"Hermes\\\" }) { product { id title handle } userErrors { field message code } } }"
+  let #(
+    Response(status: missing_title_status, body: missing_title_body, ..),
+    missing_title_proxy,
+  ) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(missing_title_query),
+    )
+  assert missing_title_status == 200
+  assert json.to_string(missing_title_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+  let assert [missing_title_entry] = store.get_log(missing_title_proxy.store)
+  assert missing_title_entry.operation_name == Some("productCreate")
+  assert missing_title_entry.status == store.Failed
+  assert missing_title_entry.staged_resource_ids == []
 
   let long_handle = string.repeat("a", times: 260)
   let handle_query =
-    "mutation { productCreate(product: { title: \\\"Too Long\\\", handle: \\\""
+    "mutation { productCreate(product: { title: \\\"Too Long\\\", vendor: \\\"Hermes\\\", handle: \\\""
     <> long_handle
-    <> "\\\" }) { product { id title handle } userErrors { field message } } }"
+    <> "\\\" }) { product { id title handle } userErrors { field message code } } }"
   let #(Response(status: handle_status, body: handle_body, ..), handle_proxy) =
     draft_proxy.process_request(
       draft_proxy.new(),
@@ -1065,13 +1198,74 @@ pub fn product_create_validation_branches_return_user_errors_test() {
     )
   assert handle_status == 200
   assert json.to_string(handle_body)
-    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\"}]}}}"
-  assert store.get_log(handle_proxy.store)
-    |> list.length
-    == 1
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\",\"code\":null}]}}}"
+  let assert [handle_entry] = store.get_log(handle_proxy.store)
+  assert handle_entry.operation_name == Some("productCreate")
+  assert handle_entry.status == store.Failed
+  assert handle_entry.staged_resource_ids == []
+
+  let long_vendor = string.repeat("v", times: 256)
+  let vendor_query =
+    "mutation { productCreate(product: { title: \\\"Too Long Vendor\\\", vendor: \\\""
+    <> long_vendor
+    <> "\\\" }) { product { id title vendor } userErrors { field message code } } }"
+  let #(Response(status: vendor_status, body: vendor_body, ..), vendor_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(vendor_query),
+    )
+  assert vendor_status == 200
+  assert json.to_string(vendor_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"vendor\"],\"message\":\"Vendor is too long (maximum is 255 characters)\",\"code\":null}]}}}"
+  let assert [vendor_entry] = store.get_log(vendor_proxy.store)
+  assert vendor_entry.operation_name == Some("productCreate")
+  assert vendor_entry.status == store.Failed
+  assert vendor_entry.staged_resource_ids == []
+
+  let long_product_type = string.repeat("p", times: 256)
+  let product_type_query =
+    "mutation { productCreate(product: { title: \\\"Too Long Type\\\", vendor: \\\"Hermes\\\", productType: \\\""
+    <> long_product_type
+    <> "\\\" }) { product { id title productType } userErrors { field message code } } }"
+  let #(
+    Response(status: product_type_status, body: product_type_body, ..),
+    product_type_proxy,
+  ) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(product_type_query),
+    )
+  assert product_type_status == 200
+  assert json.to_string(product_type_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"productType\"],\"message\":\"Product type is too long (maximum is 255 characters)\",\"code\":null},{\"field\":[\"customProductType\"],\"message\":\"Custom product type is too long (maximum is 255 characters)\",\"code\":null}]}}}"
+  let assert [product_type_entry] = store.get_log(product_type_proxy.store)
+  assert product_type_entry.operation_name == Some("productCreate")
+  assert product_type_entry.status == store.Failed
+  assert product_type_entry.staged_resource_ids == []
+
+  let long_description = string.repeat("x", times: 524_288)
+  let description_query =
+    "mutation { productCreate(product: { title: \\\"Too Big Body\\\", vendor: \\\"Hermes\\\", descriptionHtml: \\\""
+    <> long_description
+    <> "\\\" }) { product { id title descriptionHtml } userErrors { field message code } } }"
+  let #(
+    Response(status: description_status, body: description_body, ..),
+    description_proxy,
+  ) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(description_query),
+    )
+  assert description_status == 200
+  assert json.to_string(description_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"bodyHtml\"],\"message\":\"Body (HTML) is too big (maximum is 512 KB)\",\"code\":null}]}}}"
+  let assert [description_entry] = store.get_log(description_proxy.store)
+  assert description_entry.operation_name == Some("productCreate")
+  assert description_entry.status == store.Failed
+  assert description_entry.staged_resource_ids == []
 
   let variant_query =
-    "mutation { productCreate(product: { title: \\\"Invalid Variant Slice\\\", variants: [{ price: \\\"-5\\\" }] }) { product { id } userErrors { field message code } } }"
+    "mutation { productCreate(product: { title: \\\"Invalid Variant Slice\\\", vendor: \\\"Hermes\\\", variants: [{ price: \\\"-5\\\" }] }) { product { id } userErrors { field message code } } }"
   let #(Response(status: variant_status, body: variant_body, ..), variant_proxy) =
     draft_proxy.process_request(
       draft_proxy.new(),
@@ -1312,7 +1506,7 @@ pub fn product_set_rejects_duplicate_variant_option_tuples_test() {
   // a payload Shopify will also reject. See
   // config/parity-specs/products/productSet-duplicate-variants.json.
   let query =
-    "mutation { productSet(input: { title: \\\"Duplicate Variant Probe\\\", status: DRAFT, productOptions: [{ name: \\\"Size\\\", position: 1, values: [{ name: \\\"S\\\" }, { name: \\\"M\\\" }] }, { name: \\\"Color\\\", position: 2, values: [{ name: \\\"Red\\\" }, { name: \\\"Blue\\\" }] }], variants: [{ optionValues: [{ optionName: \\\"Size\\\", name: \\\"S\\\" }, { optionName: \\\"Color\\\", name: \\\"Red\\\" }] }, { optionValues: [{ optionName: \\\"Size\\\", name: \\\"M\\\" }, { optionName: \\\"Color\\\", name: \\\"Blue\\\" }] }, { optionValues: [{ optionName: \\\"Size\\\", name: \\\"S\\\" }, { optionName: \\\"Color\\\", name: \\\"Red\\\" }] }] }, synchronous: true) { product { id } userErrors { field message } } }"
+    "mutation { productSet(input: { title: \\\"Duplicate Variant Probe\\\", vendor: \\\"Hermes\\\", status: DRAFT, productOptions: [{ name: \\\"Size\\\", position: 1, values: [{ name: \\\"S\\\" }, { name: \\\"M\\\" }] }, { name: \\\"Color\\\", position: 2, values: [{ name: \\\"Red\\\" }, { name: \\\"Blue\\\" }] }], variants: [{ optionValues: [{ optionName: \\\"Size\\\", name: \\\"S\\\" }, { optionName: \\\"Color\\\", name: \\\"Red\\\" }] }, { optionValues: [{ optionName: \\\"Size\\\", name: \\\"M\\\" }, { optionName: \\\"Color\\\", name: \\\"Blue\\\" }] }, { optionValues: [{ optionName: \\\"Size\\\", name: \\\"S\\\" }, { optionName: \\\"Color\\\", name: \\\"Red\\\" }] }] }, synchronous: true) { product { id } userErrors { field message } } }"
   let #(Response(status: status, body: body, ..), next_proxy) =
     draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
   assert status == 200
@@ -1326,7 +1520,7 @@ pub fn product_set_rejects_duplicate_variant_option_tuples_test() {
 
 pub fn product_set_requires_variants_when_updating_options_test() {
   let query =
-    "mutation { productSet(input: { title: \\\"Options Only\\\", status: DRAFT, productOptions: [{ name: \\\"Color\\\", position: 1, values: [{ name: \\\"Red\\\" }, { name: \\\"Blue\\\" }] }, { name: \\\"Size\\\", position: 2, values: [{ name: \\\"Small\\\" }, { name: \\\"Large\\\" }] }] }, synchronous: true) { product { id } userErrors { field message } } }"
+    "mutation { productSet(input: { title: \\\"Options Only\\\", vendor: \\\"Hermes\\\", status: DRAFT, productOptions: [{ name: \\\"Color\\\", position: 1, values: [{ name: \\\"Red\\\" }, { name: \\\"Blue\\\" }] }, { name: \\\"Size\\\", position: 2, values: [{ name: \\\"Small\\\" }, { name: \\\"Large\\\" }] }] }, synchronous: true) { product { id } userErrors { field message } } }"
   let #(Response(status: status, body: body, ..), next_proxy) =
     draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
   assert status == 200
@@ -1336,6 +1530,34 @@ pub fn product_set_requires_variants_when_updating_options_test() {
   assert entry.operation_name == Some("productSet")
   assert entry.status == store.Failed
   assert entry.staged_resource_ids == []
+}
+
+pub fn product_set_rejects_product_scalar_validation_errors_test() {
+  let long_custom_product_type = string.repeat("c", times: 256)
+  let custom_product_type_query =
+    "mutation { productSet(input: { title: \\\"Too Long Custom Type\\\", vendor: \\\"Hermes\\\", customProductType: \\\""
+    <> long_custom_product_type
+    <> "\\\" }, synchronous: true) { product { id title vendor } userErrors { field message code } } }"
+  let #(
+    Response(
+      status: custom_product_type_status,
+      body: custom_product_type_body,
+      ..,
+    ),
+    custom_product_type_proxy,
+  ) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(custom_product_type_query),
+    )
+  assert custom_product_type_status == 200
+  assert json.to_string(custom_product_type_body)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"customProductType\"],\"message\":\"Custom product type is too long (maximum is 255 characters)\",\"code\":null}]}}}"
+  let assert [custom_product_type_entry] =
+    store.get_log(custom_product_type_proxy.store)
+  assert custom_product_type_entry.operation_name == Some("productSet")
+  assert custom_product_type_entry.status == store.Failed
+  assert custom_product_type_entry.staged_resource_ids == []
 }
 
 pub fn product_set_shape_validator_rejects_collection_limits_test() {
@@ -1495,12 +1717,26 @@ pub fn product_create_accepts_legacy_input_argument_shape_test() {
   // `["title"], "Title can't be blank"` userError when callers used the
   // legacy `input:` keyword.
   let query =
-    "mutation { productCreate(input: { title: \\\"Legacy Shape\\\", status: DRAFT }) { product { id title status } userErrors { field message } } }"
+    "mutation { productCreate(input: { title: \\\"Legacy Shape\\\", vendor: \\\"Hermes\\\", status: DRAFT }) { product { id title status vendor } userErrors { field message } } }"
   let #(Response(status: status, body: body, ..), _) =
     draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Legacy Shape\",\"status\":\"DRAFT\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"title\":\"Legacy Shape\",\"status\":\"DRAFT\",\"vendor\":\"Hermes\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_create_legacy_input_validation_uses_input_field_path_test() {
+  let query =
+    "mutation { productCreate(input: { title: \\\"\\\", vendor: \\\"Hermes\\\" }) { product { id title } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\"}]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productCreate")
+  assert entry.status == store.Failed
+  assert entry.staged_resource_ids == []
 }
 
 pub fn product_create_missing_input_argument_top_level_error_test() {
@@ -1702,7 +1938,7 @@ pub fn product_variant_create_and_update_reject_invalid_scalars_test() {
 
 pub fn product_set_rejects_invalid_variant_scalars_test() {
   let query =
-    "mutation { productSet(input: { title: \\\"Scalar Validation Probe\\\", productOptions: [{ name: \\\"Title\\\", position: 1, values: [{ name: \\\"Default Title\\\" }] }], variants: [{ price: \\\"-5\\\", optionValues: [{ optionName: \\\"Title\\\", name: \\\"Default Title\\\" }] }] }, synchronous: true) { product { id } userErrors { field message code } } }"
+    "mutation { productSet(input: { title: \\\"Scalar Validation Probe\\\", vendor: \\\"Hermes\\\", productOptions: [{ name: \\\"Title\\\", position: 1, values: [{ name: \\\"Default Title\\\" }] }], variants: [{ price: \\\"-5\\\", optionValues: [{ optionName: \\\"Title\\\", name: \\\"Default Title\\\" }] }] }, synchronous: true) { product { id } userErrors { field message code } } }"
 
   let #(Response(status: status, body: body, ..), next_proxy) =
     draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
@@ -2101,6 +2337,7 @@ fn metafield_store() -> store.Store {
       created_at: None,
       updated_at: None,
       owner_type: Some("PRODUCT"),
+      market_localizable_content: [],
     ),
     ProductMetafieldRecord(
       id: "gid://shopify/Metafield/origin",
@@ -2114,6 +2351,7 @@ fn metafield_store() -> store.Store {
       created_at: None,
       updated_at: None,
       owner_type: Some("PRODUCT"),
+      market_localizable_content: [],
     ),
   ])
 }

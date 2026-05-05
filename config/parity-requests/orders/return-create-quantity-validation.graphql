@@ -1,0 +1,20 @@
+mutation ReturnCreateQuantityValidation($returnInput: ReturnInput!) {
+  returnCreate(returnInput: $returnInput) {
+    return {
+      id
+      status
+      totalQuantity
+      returnLineItems(first: 5) {
+        nodes {
+          id
+          quantity
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

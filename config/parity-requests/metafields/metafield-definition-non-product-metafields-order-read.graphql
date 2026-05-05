@@ -1,0 +1,21 @@
+query MetafieldDefinitionNonProductOrderMetafieldsRead($id: ID!, $namespace: String!, $key: String!) {
+  order(id: $id) {
+    id
+    metafield(namespace: $namespace, key: $key) {
+      id
+      namespace
+      key
+      type
+      value
+    }
+    metafields(first: 5, namespace: $namespace) {
+      nodes {
+        id
+        namespace
+        key
+        type
+        value
+      }
+    }
+  }
+}

@@ -62,12 +62,14 @@ describe('Node HTTP adapter', () => {
         PORT: '43196',
         SHOPIFY_ADMIN_ORIGIN: 'https://example.myshopify.com',
         SHOPIFY_DRAFT_PROXY_READ_MODE: 'snapshot',
+        SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE: 'reject',
         SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH: '/tmp/snapshot.json',
       }),
     ).toEqual({
       port: 43196,
       shopifyAdminOrigin: 'https://example.myshopify.com',
       readMode: 'snapshot',
+      unsupportedMutationMode: 'reject',
       snapshotPath: '/tmp/snapshot.json',
     });
   });
@@ -85,7 +87,7 @@ describe('Node HTTP adapter', () => {
       await expect(jsonRequest(origin, '/__meta/config')).resolves.toMatchObject({
         status: 200,
         body: {
-          runtime: { readMode: 'snapshot' },
+          runtime: { readMode: 'snapshot', unsupportedMutationMode: 'passthrough' },
           proxy: { port: 0, shopifyAdminOrigin: 'https://shopify.com' },
           snapshot: { enabled: false, path: null },
         },

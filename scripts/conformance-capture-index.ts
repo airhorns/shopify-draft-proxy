@@ -251,6 +251,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-user-error-shapes',
+    scriptPath: 'scripts/capture-product-user-error-shape-conformance.ts',
+    purpose:
+      'Product-domain userError field/message/code validation branches for blank titles, unknown product ids, and unknown inventory item ids.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-user-error-shape-parity.json`,
+      'config/parity-specs/products/userError-shape-parity.json',
+      'config/parity-requests/products/productUserErrorShape-*.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify objects should be created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-with-options',
     scriptPath: 'scripts/capture-product-create-with-options-conformance.mts',
     purpose:
@@ -809,6 +824,49 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-non-product-owner-types',
+    scriptPath: 'scripts/capture-metafield-definition-non-product-owner-types-conformance.mts',
+    purpose:
+      'Non-product metafieldDefinitionCreate/update/delete lifecycle for CUSTOMER, ORDER, and COMPANY owner types.',
+    requiredAuthScopes: [
+      'read_customers',
+      'write_customers',
+      'read_orders',
+      'write_orders',
+      'read_companies',
+      'write_companies',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-non-product-owner-types.json`,
+      'config/parity-specs/metafields/metafield-definition-non-product-owner-types.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable metafield definitions for CUSTOMER, ORDER, and COMPANY owner types, deletes the CUSTOMER definition during the scenario, and deletes remaining definitions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
+    captureId: 'metafield-definition-non-product-metafields',
+    scriptPath: 'scripts/capture-metafield-definition-non-product-metafields-conformance.mts',
+    purpose: 'Definition-backed metafieldsSet and owner-scoped reads for CUSTOMER, ORDER, and COMPANY owner types.',
+    requiredAuthScopes: [
+      'read_customers',
+      'write_customers',
+      'read_orders',
+      'write_orders',
+      'read_companies',
+      'write_companies',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-non-product-metafields.json`,
+      'config/parity-specs/metafields/metafield-definition-non-product-metafields.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable CUSTOMER, ORDER, and COMPANY owners plus matching metafield definitions; deletes definitions, customer, and company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'custom-data-field-types',
     scriptPath: 'scripts/capture-custom-data-field-type-conformance.ts',
     purpose: 'Metafield and metaobject custom-data field type value/jsonValue set-and-read matrix.',
@@ -867,6 +925,42 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-delete-cascade',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-delete-cascade-conformance.ts',
+    purpose:
+      'Metaobject definition delete cascade with two associated entries plus immediate downstream definition, id, handle, and type-catalog reads.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-definition-delete-cascade.json`,
+      'config/parity-specs/metaobjects/metaobject-definition-delete-cascade.json',
+      'config/parity-requests/metaobjects/metaobject-definition-delete-cascade-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable definition and two rows, deletes the definition during the scenario, then best-effort deletes any remaining rows/definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'standard-metaobject-definition-enable-catalog',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-standard-metaobject-template-catalog-conformance.ts',
+    purpose:
+      'Standard metaobject definition template catalog, successful enablement, unknown-template RECORD_NOT_FOUND, idempotent duplicate enable, and read-after-enable behavior.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}standard-metaobject-templates.json`,
+      `${CAPTURE_ROOT}standard-metaobject-definition-enable-catalog.json`,
+      'src/shopify_draft_proxy/proxy/metaobject_standard_templates_data.gleam',
+      'config/parity-specs/metaobjects/standard-metaobject-definition-enable-catalog.json',
+      'config/parity-requests/metaobjects/standard-metaobject-definition-enable-*.graphql',
+    ],
+    cleanupBehavior:
+      'Temporarily enables standard definitions on the disposable shop, captures their payloads, and deletes every created definition after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-field-validation-matrix',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-field-validation-matrix-conformance.ts',
@@ -880,6 +974,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable metaobject definition and setup entry; rejected branches create no rows except captured scalar coercion branches, which are deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-upsert-recovery-and-prefixes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-upsert-recovery-and-prefixes-conformance.ts',
+    purpose:
+      'metaobjectUpsert create, exact-match no-op, conflicting handle prefix, missing required value prefix, and cold handle hydration.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-upsert-recovery-and-prefixes.json`,
+      'config/parity-specs/metaobjects/metaobject-upsert-recovery-and-prefixes.json',
+      'config/parity-requests/metaobjects/metaobject-upsert-recovery-and-prefixes.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and several disposable rows; deletes rows and definition during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1244,6 +1355,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable segment for update validation, deletes it during cleanup, and avoids thousands of live segment-limit setup writes by using local parity-runner setup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
+    captureId: 'segments-user-errors-shape',
+    scriptPath: 'scripts/capture-segments-user-errors-shape-conformance.ts',
+    purpose:
+      'segmentCreate/segmentUpdate/segmentDelete default UserError shape plus customerSegmentMembersQueryCreate typed userError code and field shape.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segments-user-errors-shape.json`,
+      'config/parity-specs/segments/segments-user-errors-shape.json',
+      'config/parity-requests/segments/segments-user-errors-shape-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment for the segmentUpdate id-only validation branch and deletes it during cleanup; all other captured branches are validation-only.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1967,6 +2094,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'orders',
+    captureId: 'order-mark-as-paid-state-and-money',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-mark-as-paid-state-and-money-conformance.ts',
+    purpose: 'orderMarkAsPaid invalid state validation and MoneyBag presentment-money shape.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderMarkAsPaid-state-and-money.json`,
+      'config/parity-specs/orders/orderMarkAsPaid-state-and-money.json',
+      'config/parity-requests/orders/orderMarkAsPaid-state-and-money.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable unpaid, paid, and multi-currency orders; marks the unpaid orders paid; then records best-effort orderCancel cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
     captureId: 'return-reverse-logistics',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-return-reverse-logistics-conformance.mts',
@@ -1990,6 +2133,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [`${CAPTURE_ROOT}fulfillment-order-lifecycle.json`],
     cleanupBehavior: 'Cancels disposable order and records cleanup captures.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-move-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-move-validation-conformance.ts',
+    purpose:
+      'fulfillmentOrderMove validation for closed, manually progress-reported, submitted-request, happy full-move, and invalid-destination branches.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-move-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-move-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders and a temporary API fulfillment service; rejects the submitted request, cancels orders, and deletes the temporary fulfillment service during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -2176,6 +2336,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['webhook subscription management access for the installed app'],
     fixtureOutputs: [`${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`],
     cleanupBehavior: 'Creates one temporary SHOP_UPDATE webhook subscription and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-uri-whitespace',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-uri-whitespace.ts',
+    purpose: 'Webhook subscription URI whitespace validation branches for create.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-uri-whitespace.json`,
+      'config/parity-specs/webhooks/webhook-subscription-uri-whitespace.json',
+    ],
+    cleanupBehavior:
+      'Whitespace-only branch is validation-only; leading/trailing-whitespace HTTPS branch creates a temporary subscription and deletes it during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

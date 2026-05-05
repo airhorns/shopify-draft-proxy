@@ -1,0 +1,60 @@
+fragment MetaobjectUpsertRecoveryFields on Metaobject {
+  id
+  handle
+  type
+  displayName
+  updatedAt
+  capabilities {
+    publishable {
+      status
+    }
+    onlineStore {
+      templateSuffix
+    }
+  }
+  fields {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+  titleField: field(key: "title") {
+    key
+    type
+    value
+    jsonValue
+    definition {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+  }
+}
+
+mutation MetaobjectUpsertRecoveryAndPrefixes($handle: MetaobjectHandleInput!, $metaobject: MetaobjectUpsertInput!) {
+  metaobjectUpsert(handle: $handle, metaobject: $metaobject) {
+    metaobject {
+      ...MetaobjectUpsertRecoveryFields
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "scenarioId": "integration-delete-not-found-codes",
+  "operationNames": [
+    "webPixelDelete",
+    "scriptTagDelete",
+    "themeDelete",
+    "serverPixelDelete",
+    "mobilePlatformApplicationDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "side-effect-boundary", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/integration-delete-not-found-codes.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/integration-delete-not-found-codes.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "integration-delete-not-found-codes",
+        "capturePath": "$.expected.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "HAR-581 proves supported Online Store integration delete roots return Shopify-like NOT_FOUND userError codes for absent local targets without runtime Shopify writes. WebPixel, ScriptTag, and Theme compare domain-specific userError __typename values; ServerPixel has no ID argument in the Admin schema, so its absent-current-pixel branch is covered with the same NOT_FOUND code and id field path."
+}
