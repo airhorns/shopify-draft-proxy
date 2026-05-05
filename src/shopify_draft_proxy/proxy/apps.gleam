@@ -22,6 +22,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/order
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/crypto
@@ -887,6 +888,10 @@ pub type UserError {
   UserError(field: List(String), message: String, code: Option(String))
 }
 
+type DecimalAmount {
+  DecimalAmount(sign: Int, whole: String, fraction: String)
+}
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -1636,101 +1641,353 @@ fn handle_line_item_update(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let line_item_id = graphql_helpers.read_arg_string(args, "id")
-  let line_item = case line_item_id {
-    Some(id) -> store.get_effective_app_subscription_line_item_by_id(store, id)
-    None -> None
+  case line_item_id {
+    Some(id) -> {
+      case valid_app_subscription_line_item_gid(id) {
+        False ->
+          line_item_update_failed(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            UserError(
+              field: ["id"],
+              message: "Invalid app subscription line item id",
+              code: None,
+            ),
+          )
+        True ->
+          handle_valid_line_item_update(
+            key,
+            store,
+            identity,
+            origin,
+            field,
+            fragments,
+            args,
+            id,
+          )
+      }
+    }
+    None ->
+      line_item_update_failed(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+        UserError(
+          field: ["id"],
+          message: "Invalid app subscription line item id",
+          code: None,
+        ),
+      )
   }
+}
+
+fn handle_valid_line_item_update(
+  key: String,
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  origin: String,
+  field: Selection,
+  fragments: FragmentMap,
+  args: Dict(String, root_field.ResolvedValue),
+  line_item_id: String,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let line_item =
+    store.get_effective_app_subscription_line_item_by_id(
+      draft_store,
+      line_item_id,
+    )
   let subscription = case line_item {
     Some(li) ->
-      store.get_effective_app_subscription_by_id(store, li.subscription_id)
+      store.get_effective_app_subscription_by_id(
+        draft_store,
+        li.subscription_id,
+      )
     None -> None
   }
   case line_item, subscription {
     Some(li), Some(sub) -> {
       let capped = read_money_input(args, "cappedAmount")
-      let updated_pricing = case li.plan.pricing_details {
+      case li.plan.pricing_details {
         AppRecurringPricing(..) ->
-          // TS allows updating cappedAmount on a recurring line item by
-          // shallow-merging onto the existing pricing details. The Gleam
-          // model has no field for that on AppRecurringPricing, so we
-          // fall through and leave it unchanged. (Realistic shape is
-          // AppUsagePricing — that's what the TS shop emits.)
-          li.plan.pricing_details
+          line_item_update_failed(
+            key,
+            draft_store,
+            identity,
+            field,
+            fragments,
+            UserError(
+              field: ["cappedAmount"],
+              message: "Only usage-pricing line items support cappedAmount updates",
+              code: None,
+            ),
+          )
         AppUsagePricing(
+          capped_amount: current_capped,
           balance_used: balance,
           interval: interval,
           terms: terms,
-          ..,
         ) ->
-          AppUsagePricing(
-            capped_amount: capped,
-            balance_used: balance,
-            interval: interval,
-            terms: terms,
-          )
+          case capped.currency_code != current_capped.currency_code {
+            True ->
+              line_item_update_failed(
+                key,
+                draft_store,
+                identity,
+                field,
+                fragments,
+                UserError(
+                  field: ["cappedAmount"],
+                  message: "Capped amount currency mismatch. Expected "
+                    <> current_capped.currency_code,
+                  code: None,
+                ),
+              )
+            False ->
+              case
+                decimal_amount_greater_than(
+                  capped.amount,
+                  current_capped.amount,
+                )
+              {
+                False ->
+                  line_item_update_failed(
+                    key,
+                    draft_store,
+                    identity,
+                    field,
+                    fragments,
+                    UserError(
+                      field: ["cappedAmount"],
+                      message: "The capped amount must be greater than the existing capped amount",
+                      code: None,
+                    ),
+                  )
+                True -> {
+                  let updated_pricing =
+                    AppUsagePricing(
+                      capped_amount: capped,
+                      balance_used: balance,
+                      interval: interval,
+                      terms: terms,
+                    )
+                  let updated_line_item =
+                    AppSubscriptionLineItemRecord(
+                      ..li,
+                      plan: AppSubscriptionLineItemPlan(
+                        pricing_details: updated_pricing,
+                      ),
+                    )
+                  let #(_, store_after_li) =
+                    store.stage_app_subscription_line_item(
+                      draft_store,
+                      updated_line_item,
+                    )
+                  let payload =
+                    project_subscription_payload(
+                      store_after_li,
+                      Some(sub),
+                      Some(confirmation_url(
+                        origin,
+                        "RecurringApplicationCharge",
+                        sub.id,
+                      )),
+                      [],
+                      field,
+                      fragments,
+                    )
+                  let draft =
+                    make_log_draft(
+                      "appSubscriptionLineItemUpdate",
+                      [updated_line_item.id],
+                      store.Staged,
+                    )
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: payload,
+                      staged_resource_ids: [updated_line_item.id],
+                      log_drafts: [draft],
+                    ),
+                    store_after_li,
+                    identity,
+                  )
+                }
+              }
+          }
       }
-      let updated_line_item =
-        AppSubscriptionLineItemRecord(
-          ..li,
-          plan: AppSubscriptionLineItemPlan(pricing_details: updated_pricing),
-        )
-      let #(_, store_after_li) =
-        store.stage_app_subscription_line_item(store, updated_line_item)
-      let payload =
-        project_subscription_payload(
-          store_after_li,
-          Some(sub),
-          Some(confirmation_url(origin, "RecurringApplicationCharge", sub.id)),
-          [],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft(
-          "appSubscriptionLineItemUpdate",
-          [updated_line_item.id],
-          store.Staged,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [updated_line_item.id],
-          log_drafts: [draft],
-        ),
-        store_after_li,
+    }
+    _, _ ->
+      line_item_update_failed(
+        key,
+        draft_store,
         identity,
+        field,
+        fragments,
+        UserError(
+          field: ["id"],
+          message: "Subscription line item not found",
+          code: None,
+        ),
+      )
+  }
+}
+
+fn line_item_update_failed(
+  key: String,
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_error: UserError,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload =
+    project_subscription_payload(
+      draft_store,
+      None,
+      None,
+      [user_error],
+      field,
+      fragments,
+    )
+  let draft = make_log_draft("appSubscriptionLineItemUpdate", [], store.Failed)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: payload,
+      staged_resource_ids: [],
+      log_drafts: [draft],
+    ),
+    draft_store,
+    identity,
+  )
+}
+
+fn valid_app_subscription_line_item_gid(id: String) -> Bool {
+  let prefix = "gid://shopify/AppSubscriptionLineItem/"
+  case string.starts_with(id, prefix) {
+    False -> False
+    True -> {
+      let tail = string.drop_start(id, string.length(prefix))
+      let resource_id = case string.split_once(tail, "?") {
+        Ok(#(head, _)) -> head
+        Error(_) -> tail
+      }
+      string.length(resource_id) > 0 && !string.contains(resource_id, "/")
+    }
+  }
+}
+
+fn decimal_amount_greater_than(left: String, right: String) -> Bool {
+  case parse_decimal_amount(left), parse_decimal_amount(right) {
+    Some(left), Some(right) -> compare_decimal_amounts(left, right) == order.Gt
+    _, _ -> False
+  }
+}
+
+fn parse_decimal_amount(value: String) -> Option(DecimalAmount) {
+  let trimmed = string.trim(value)
+  let #(sign, unsigned) = case string.starts_with(trimmed, "-") {
+    True -> #(-1, string.drop_start(trimmed, 1))
+    False ->
+      case string.starts_with(trimmed, "+") {
+        True -> #(1, string.drop_start(trimmed, 1))
+        False -> #(1, trimmed)
+      }
+  }
+  let #(whole_raw, fraction) = case string.split_once(unsigned, ".") {
+    Ok(#(whole, fraction)) -> #(whole, fraction)
+    Error(_) -> #(unsigned, "")
+  }
+  let whole = case whole_raw {
+    "" -> "0"
+    _ -> whole_raw
+  }
+  case
+    string.length(unsigned) > 0
+    && all_decimal_digits(whole)
+    && all_decimal_digits(fraction)
+  {
+    True ->
+      Some(DecimalAmount(
+        sign: sign,
+        whole: normalize_decimal_whole(whole),
+        fraction: fraction,
+      ))
+    False -> None
+  }
+}
+
+fn all_decimal_digits(value: String) -> Bool {
+  list.all(string.to_graphemes(value), is_decimal_digit)
+}
+
+fn is_decimal_digit(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    _ -> False
+  }
+}
+
+fn normalize_decimal_whole(value: String) -> String {
+  do_normalize_decimal_whole(string.to_graphemes(value))
+}
+
+fn do_normalize_decimal_whole(graphemes: List(String)) -> String {
+  case graphemes {
+    ["0", ..rest] -> do_normalize_decimal_whole(rest)
+    [] -> "0"
+    _ -> string.join(graphemes, "")
+  }
+}
+
+fn compare_decimal_amounts(
+  left: DecimalAmount,
+  right: DecimalAmount,
+) -> order.Order {
+  case int.compare(left.sign, right.sign) {
+    order.Eq ->
+      case left.sign {
+        -1 -> invert_order(compare_unsigned_decimal_amounts(left, right))
+        _ -> compare_unsigned_decimal_amounts(left, right)
+      }
+    other -> other
+  }
+}
+
+fn compare_unsigned_decimal_amounts(
+  left: DecimalAmount,
+  right: DecimalAmount,
+) -> order.Order {
+  case int.compare(string.length(left.whole), string.length(right.whole)) {
+    order.Eq -> {
+      let scale =
+        int.max(string.length(left.fraction), string.length(right.fraction))
+      string.compare(
+        left.whole <> right_pad_fraction(left.fraction, scale),
+        right.whole <> right_pad_fraction(right.fraction, scale),
       )
     }
-    _, _ -> {
-      let payload =
-        project_subscription_payload(
-          store,
-          None,
-          None,
-          [
-            UserError(
-              field: ["id"],
-              message: "Subscription line item not found",
-              code: None,
-            ),
-          ],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft("appSubscriptionLineItemUpdate", [], store.Failed)
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [],
-          log_drafts: [draft],
-        ),
-        store,
-        identity,
-      )
-    }
+    other -> other
+  }
+}
+
+fn right_pad_fraction(value: String, scale: Int) -> String {
+  case string.length(value) >= scale {
+    True -> value
+    False -> right_pad_fraction(value <> "0", scale)
+  }
+}
+
+fn invert_order(value: order.Order) -> order.Order {
+  case value {
+    order.Lt -> order.Gt
+    order.Eq -> order.Eq
+    order.Gt -> order.Lt
   }
 }
 

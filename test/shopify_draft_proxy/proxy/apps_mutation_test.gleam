@@ -16,8 +16,9 @@ import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type AppInstallationRecord, type AppRecord, type AppSubscriptionRecord,
-  type Money, AccessScopeRecord, AppInstallationRecord, AppRecord,
+  type AppInstallationRecord, type AppRecord, type AppSubscriptionPricing,
+  type AppSubscriptionRecord, type Money, AccessScopeRecord,
+  AppInstallationRecord, AppRecord, AppRecurringPricing,
   AppSubscriptionLineItemPlan, AppSubscriptionLineItemRecord,
   AppSubscriptionRecord, AppUsagePricing, DelegatedAccessTokenRecord, Money,
 }
@@ -104,6 +105,34 @@ fn subscription(id: String, status: String) -> AppSubscriptionRecord {
 fn seeded_with_subscription(status: String) -> store.Store {
   let s = seeded_with_installation()
   let sub = subscription("gid://shopify/AppSubscription/9", status)
+  let #(_, s) = store.stage_app_subscription(s, sub)
+  s
+}
+
+fn seeded_with_line_item(
+  sub_id: String,
+  li_id: String,
+  pricing: AppSubscriptionPricing,
+) -> store.Store {
+  let s = seeded_with_installation()
+  let li =
+    AppSubscriptionLineItemRecord(
+      id: li_id,
+      subscription_id: sub_id,
+      plan: AppSubscriptionLineItemPlan(pricing_details: pricing),
+    )
+  let sub =
+    AppSubscriptionRecord(
+      id: sub_id,
+      name: "Usage",
+      status: "ACTIVE",
+      is_test: False,
+      trial_days: None,
+      current_period_end: None,
+      created_at: "2024-12-01T00:00:00Z",
+      line_item_ids: [li_id],
+    )
+  let #(_, s) = store.stage_app_subscription_line_item(s, li)
   let #(_, s) = store.stage_app_subscription(s, sub)
   s
 }
@@ -418,38 +447,26 @@ pub fn subscription_cancel_unknown_id_emits_user_error_test() {
 // ----------- appSubscriptionLineItemUpdate -----------
 
 pub fn line_item_update_caps_usage_amount_test() {
-  let s = seeded_with_installation()
   let sub_id = "gid://shopify/AppSubscription/30"
   let li_id = "gid://shopify/AppSubscriptionLineItem/30?v=1&index=1"
-  let li =
-    AppSubscriptionLineItemRecord(
-      id: li_id,
-      subscription_id: sub_id,
-      plan: AppSubscriptionLineItemPlan(pricing_details: AppUsagePricing(
+  let s =
+    seeded_with_line_item(
+      sub_id,
+      li_id,
+      AppUsagePricing(
         capped_amount: money("50.00", "USD"),
         balance_used: money("0.00", "USD"),
         interval: "ANNUAL",
         terms: Some("per row"),
-      )),
+      ),
     )
-  let sub =
-    AppSubscriptionRecord(
-      id: sub_id,
-      name: "Usage",
-      status: "ACTIVE",
-      is_test: False,
-      trial_days: None,
-      current_period_end: None,
-      created_at: "2024-12-01T00:00:00Z",
-      line_item_ids: [li_id],
-    )
-  let #(_, s) = store.stage_app_subscription_line_item(s, li)
-  let #(_, s) = store.stage_app_subscription(s, sub)
   let document =
     "mutation { appSubscriptionLineItemUpdate(id: \""
     <> li_id
-    <> "\", cappedAmount: { amount: \"200.00\", currencyCode: USD }) { appSubscription { id } userErrors { field message } } }"
+    <> "\", cappedAmount: { amount: \"200.00\", currencyCode: USD }) { confirmationUrl appSubscription { id lineItems { id plan { pricingDetails { __typename ... on AppUsagePricing { cappedAmount { amount currencyCode } } } } } } userErrors { field message } } }"
   let outcome = run_mutation_outcome(s, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appSubscriptionLineItemUpdate\":{\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/30/RecurringApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"appSubscription\":{\"id\":\"gid://shopify/AppSubscription/30\",\"lineItems\":[{\"id\":\"gid://shopify/AppSubscriptionLineItem/30?v=1&index=1\",\"plan\":{\"pricingDetails\":{\"__typename\":\"AppUsagePricing\",\"cappedAmount\":{\"amount\":\"200.00\",\"currencyCode\":\"USD\"}}}}]},\"userErrors\":[]}}}"
   let assert Some(updated) =
     store.get_effective_app_subscription_line_item_by_id(outcome.store, li_id)
   case updated.plan.pricing_details {
@@ -460,6 +477,16 @@ pub fn line_item_update_caps_usage_amount_test() {
   }
 }
 
+pub fn line_item_update_malformed_gid_emits_user_error_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { appSubscriptionLineItemUpdate(id: \"not-a-gid\", cappedAmount: { amount: \"5.00\", currencyCode: USD }) { appSubscription { id } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appSubscriptionLineItemUpdate\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Invalid app subscription line item id\",\"code\":null}]}}}"
+}
+
 pub fn line_item_update_unknown_id_emits_user_error_test() {
   let body =
     run_mutation(
@@ -468,6 +495,98 @@ pub fn line_item_update_unknown_id_emits_user_error_test() {
     )
   assert body
     == "{\"data\":{\"appSubscriptionLineItemUpdate\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Subscription line item not found\",\"code\":null}]}}}"
+}
+
+pub fn line_item_update_recurring_line_item_emits_user_error_test() {
+  let sub_id = "gid://shopify/AppSubscription/31"
+  let li_id = "gid://shopify/AppSubscriptionLineItem/31?v=1&index=1"
+  let s =
+    seeded_with_line_item(
+      sub_id,
+      li_id,
+      AppRecurringPricing(
+        price: money("10.00", "USD"),
+        interval: "EVERY_30_DAYS",
+        plan_handle: None,
+      ),
+    )
+  let document =
+    "mutation { appSubscriptionLineItemUpdate(id: \""
+    <> li_id
+    <> "\", cappedAmount: { amount: \"20.00\", currencyCode: USD }) { appSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(s, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appSubscriptionLineItemUpdate\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"cappedAmount\"],\"message\":\"Only usage-pricing line items support cappedAmount updates\"}]}}}"
+  let assert Some(unchanged) =
+    store.get_effective_app_subscription_line_item_by_id(outcome.store, li_id)
+  case unchanged.plan.pricing_details {
+    AppRecurringPricing(..) -> Nil
+    _ -> panic as "expected recurring pricing to remain unchanged"
+  }
+}
+
+pub fn line_item_update_currency_mismatch_emits_user_error_test() {
+  let sub_id = "gid://shopify/AppSubscription/32"
+  let li_id = "gid://shopify/AppSubscriptionLineItem/32?v=1&index=1"
+  let s =
+    seeded_with_line_item(
+      sub_id,
+      li_id,
+      AppUsagePricing(
+        capped_amount: money("50.00", "USD"),
+        balance_used: money("0.00", "USD"),
+        interval: "ANNUAL",
+        terms: Some("per row"),
+      ),
+    )
+  let document =
+    "mutation { appSubscriptionLineItemUpdate(id: \""
+    <> li_id
+    <> "\", cappedAmount: { amount: \"100.00\", currencyCode: EUR }) { appSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(s, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appSubscriptionLineItemUpdate\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"cappedAmount\"],\"message\":\"Capped amount currency mismatch. Expected USD\"}]}}}"
+  let assert Some(unchanged) =
+    store.get_effective_app_subscription_line_item_by_id(outcome.store, li_id)
+  case unchanged.plan.pricing_details {
+    AppUsagePricing(capped_amount: capped, ..) -> {
+      assert capped.amount == "50.00"
+      assert capped.currency_code == "USD"
+    }
+    _ -> panic as "expected usage pricing"
+  }
+}
+
+pub fn line_item_update_non_increasing_amount_emits_user_error_test() {
+  let sub_id = "gid://shopify/AppSubscription/33"
+  let li_id = "gid://shopify/AppSubscriptionLineItem/33?v=1&index=1"
+  let s =
+    seeded_with_line_item(
+      sub_id,
+      li_id,
+      AppUsagePricing(
+        capped_amount: money("50.00", "USD"),
+        balance_used: money("0.00", "USD"),
+        interval: "ANNUAL",
+        terms: Some("per row"),
+      ),
+    )
+  let document =
+    "mutation { appSubscriptionLineItemUpdate(id: \""
+    <> li_id
+    <> "\", cappedAmount: { amount: \"3.00\", currencyCode: USD }) { appSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(s, document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appSubscriptionLineItemUpdate\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"cappedAmount\"],\"message\":\"The capped amount must be greater than the existing capped amount\"}]}}}"
+  let assert Some(unchanged) =
+    store.get_effective_app_subscription_line_item_by_id(outcome.store, li_id)
+  case unchanged.plan.pricing_details {
+    AppUsagePricing(capped_amount: capped, ..) -> {
+      assert capped.amount == "50.00"
+      assert capped.currency_code == "USD"
+    }
+    _ -> panic as "expected usage pricing"
+  }
 }
 
 // ----------- appSubscriptionTrialExtend -----------
