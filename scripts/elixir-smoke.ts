@@ -22,7 +22,7 @@ function run(command: string, args: string[]): never {
 }
 
 if (hasCommand('escript') && hasCommand('mix')) {
-  run('sh', ['-lc', 'cd gleam && gleam export erlang-shipment && cd elixir_smoke && mix test']);
+  run('sh', ['-lc', 'gleam export erlang-shipment && cd elixir_smoke && mix test']);
 }
 
 if (!hasCommand('docker')) {
@@ -35,13 +35,12 @@ if (!hasCommand('docker')) {
 const image = 'ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine';
 const uid = process.getuid?.() ?? 1000;
 const gid = process.getgid?.() ?? 1000;
-const cleanupTargets = ['gleam/build', 'gleam/elixir_smoke/_build', 'gleam/elixir_smoke/deps'].filter((path) =>
+const cleanupTargets = ['build', 'elixir_smoke/_build', 'elixir_smoke/deps'].filter((path) =>
   existsSync(resolve(repoRoot, path)),
 );
-const chownTargets = ['gleam/build', 'gleam/elixir_smoke/_build', 'gleam/elixir_smoke/deps'];
+const chownTargets = ['build', 'elixir_smoke/_build', 'elixir_smoke/deps'];
 const command =
   'apk add --no-cache elixir >/dev/null' +
-  ' && cd gleam' +
   ' && gleam export erlang-shipment' +
   ' && cd elixir_smoke' +
   `; mix test; status=$?; chown -R ${uid}:${gid} ${chownTargets.join(' ')} 2>/dev/null || true; exit $status`;

@@ -33,12 +33,8 @@ import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..');
-const gleamProjectRoot = resolve(repoRoot, 'gleam');
-const compiledEntrypoint = resolve(
-  gleamProjectRoot,
-  'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy.mjs',
-);
-const shimEntrypoint = resolve(gleamProjectRoot, 'js/src/index.ts');
+const compiledEntrypoint = resolve(repoRoot, 'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy.mjs');
+const shimEntrypoint = resolve(repoRoot, 'js/src/index.ts');
 
 type RecordedCall = {
   operationName: string;
@@ -292,7 +288,7 @@ async function ensureGleamBuild(): Promise<void> {
   // stale shim records 0 upstreamCalls without warning.
   log('[parity-record] gleam JS build...');
   execFileSync('gleam', ['build', '--target', 'javascript'], {
-    cwd: gleamProjectRoot,
+    cwd: repoRoot,
     stdio: 'inherit',
   });
   if (!existsSync(compiledEntrypoint)) {
