@@ -264,7 +264,7 @@ pub fn validation_create_missing_function_emits_user_error_test() {
       "mutation { validationCreate(validation: { title: \"No function\" }) { validation { id } userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Either function_id or function_handle must be provided.\",\"code\":\"MISSING_FUNCTION_IDENTIFIER\"}]}}}"
+    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"functionHandle\"],\"message\":\"Either function_id or function_handle must be provided.\",\"code\":\"MISSING_FUNCTION_IDENTIFIER\"}]}}}"
 }
 
 pub fn validation_create_multiple_function_identifiers_emits_user_error_test() {
@@ -274,7 +274,7 @@ pub fn validation_create_multiple_function_identifiers_emits_user_error_test() {
       "mutation { validationCreate(validation: { functionId: \"gid://shopify/ShopifyFunction/one\", functionHandle: \"two\" }) { validation { id } userErrors { field message code } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Only one of function_id or function_handle can be provided, not both.\",\"code\":\"MULTIPLE_FUNCTION_IDENTIFIERS\"}]}}}"
+    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\"],\"message\":\"Only one of function_id or function_handle can be provided, not both.\",\"code\":\"MULTIPLE_FUNCTION_IDENTIFIERS\"}]}}}"
   assert store.list_effective_validations(outcome.store) == []
   assert store.list_effective_shopify_functions(outcome.store) == []
 }
@@ -286,7 +286,7 @@ pub fn validation_create_unknown_function_emits_function_not_found_test() {
       "mutation { validationCreate(validation: { functionId: \"gid://shopify/ShopifyFunction/missing\" }) { validation { id } userErrors { field message code } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Function gid://shopify/ShopifyFunction/missing not found. Ensure that it is released in the current app (347082227713), and that the app is installed.\",\"code\":\"FUNCTION_NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"functionId\"],\"message\":\"Extension not found.\",\"code\":\"NOT_FOUND\"}]}}}"
   assert store.list_effective_validations(outcome.store) == []
   assert store.list_effective_shopify_functions(outcome.store) == []
 }
@@ -300,7 +300,7 @@ pub fn validation_create_rejects_non_validation_function_test() {
       "mutation { validationCreate(validation: { functionId: \"gid://shopify/ShopifyFunction/cart\" }) { validation { id } userErrors { field message code } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
+    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"functionId\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
   assert store.list_effective_validations(outcome.store) == []
 }
 

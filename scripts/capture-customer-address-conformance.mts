@@ -204,6 +204,31 @@ const downstreamReadQuery = `#graphql
   }
 `;
 
+const addressesOnlyReadQuery = `#graphql
+  query CustomerAddressUpdateIdMismatchRead($id: ID!) {
+    customer(id: $id) {
+      id
+      email
+      addressesV2(first: 5) {
+        nodes {
+          id
+          address1
+          city
+          countryCodeV2
+          provinceCode
+          zip
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  }
+`;
+
 function summarizeAddressAttempt(result) {
   return {
     status: result.status,
@@ -522,6 +547,127 @@ async function main() {
       addressId: crossOwnerAddressId,
     });
 
+    const idMismatchEmail = `hermes-address-id-mismatch-${stamp}@example.com`;
+    const createIdMismatchCustomerVariables = {
+      input: {
+        email: idMismatchEmail,
+        firstName: 'Hermes',
+        lastName: 'AddressIdMismatch',
+      },
+    };
+    const createIdMismatchCustomer = await runGraphql(createCustomerMutation, createIdMismatchCustomerVariables);
+    assertNoTopLevelErrors(createIdMismatchCustomer, 'customerCreate for address id mismatch');
+    const idMismatchCustomerId = createIdMismatchCustomer.payload?.data?.customerCreate?.customer?.id;
+    if (typeof idMismatchCustomerId !== 'string' || !idMismatchCustomerId) {
+      throw new Error(
+        `id mismatch customerCreate did not return id: ${JSON.stringify(createIdMismatchCustomer.payload, null, 2)}`,
+      );
+    }
+    cleanupCustomerIds.add(idMismatchCustomerId);
+
+    const createIdMismatchFirstAddressVariables = {
+      customerId: idMismatchCustomerId,
+      address: {
+        address1: '9 Id Mismatch A1 St',
+        city: 'Ottawa',
+        countryCode: 'CA',
+        provinceCode: 'ON',
+        zip: 'K1A 0B1',
+      },
+      setAsDefault: false,
+    };
+    const createIdMismatchFirstAddress = await runGraphql(createAddressMutation, createIdMismatchFirstAddressVariables);
+    assertNoTopLevelErrors(createIdMismatchFirstAddress, 'customerAddressCreate id mismatch first');
+    const idMismatchFirstAddressId = createIdMismatchFirstAddress.payload?.data?.customerAddressCreate?.address?.id;
+    if (typeof idMismatchFirstAddressId !== 'string' || !idMismatchFirstAddressId) {
+      throw new Error(
+        `id mismatch first address did not return id: ${JSON.stringify(createIdMismatchFirstAddress.payload, null, 2)}`,
+      );
+    }
+
+    const createIdMismatchSecondAddressVariables = {
+      customerId: idMismatchCustomerId,
+      address: {
+        address1: '10 Id Mismatch A2 St',
+        city: 'Toronto',
+        countryCode: 'CA',
+        provinceCode: 'ON',
+        zip: 'M5H 2N2',
+      },
+      setAsDefault: false,
+    };
+    const createIdMismatchSecondAddress = await runGraphql(
+      createAddressMutation,
+      createIdMismatchSecondAddressVariables,
+    );
+    assertNoTopLevelErrors(createIdMismatchSecondAddress, 'customerAddressCreate id mismatch second');
+    const idMismatchSecondAddressId = createIdMismatchSecondAddress.payload?.data?.customerAddressCreate?.address?.id;
+    if (typeof idMismatchSecondAddressId !== 'string' || !idMismatchSecondAddressId) {
+      throw new Error(
+        `id mismatch second address did not return id: ${JSON.stringify(
+          createIdMismatchSecondAddress.payload,
+          null,
+          2,
+        )}`,
+      );
+    }
+
+    const mismatchedNestedIdUpdateVariables = {
+      customerId: idMismatchCustomerId,
+      addressId: idMismatchFirstAddressId,
+      address: {
+        id: idMismatchSecondAddressId,
+        address1: '999 Bryant',
+      },
+      setAsDefault: false,
+    };
+    const mismatchedNestedIdUpdate = await runGraphql(updateAddressMutation, mismatchedNestedIdUpdateVariables);
+    assertHttpOk(mismatchedNestedIdUpdate, 'customerAddressUpdate mismatched nested address id');
+
+    const idMismatchReadVariables = {
+      id: idMismatchCustomerId,
+    };
+    const idMismatchReadAfterReject = await runGraphql(addressesOnlyReadQuery, idMismatchReadVariables);
+    assertNoTopLevelErrors(idMismatchReadAfterReject, 'customerAddressUpdate id mismatch read after reject');
+
+    const omittedNestedIdUpdateVariables = {
+      customerId: idMismatchCustomerId,
+      addressId: idMismatchFirstAddressId,
+      address: {
+        address1: 'Omitted Nested Id',
+      },
+      setAsDefault: false,
+    };
+    const omittedNestedIdUpdate = await runGraphql(updateAddressMutation, omittedNestedIdUpdateVariables);
+    assertNoTopLevelErrors(omittedNestedIdUpdate, 'customerAddressUpdate omitted nested address id');
+
+    const nullNestedIdUpdateVariables = {
+      customerId: idMismatchCustomerId,
+      addressId: idMismatchFirstAddressId,
+      address: {
+        id: null,
+        address1: 'Null Nested Id',
+      },
+      setAsDefault: false,
+    };
+    const nullNestedIdUpdate = await runGraphql(updateAddressMutation, nullNestedIdUpdateVariables);
+    assertNoTopLevelErrors(nullNestedIdUpdate, 'customerAddressUpdate null nested address id');
+
+    const matchingNestedIdUpdateVariables = {
+      customerId: idMismatchCustomerId,
+      addressId: idMismatchFirstAddressId,
+      address: {
+        id: idMismatchFirstAddressId,
+        address1: 'Matching Nested Id',
+      },
+      setAsDefault: false,
+    };
+    const matchingNestedIdUpdate = await runGraphql(updateAddressMutation, matchingNestedIdUpdateVariables);
+    assertNoTopLevelErrors(matchingNestedIdUpdate, 'customerAddressUpdate matching nested address id');
+
+    const idMismatchFinalRead = await runGraphql(addressesOnlyReadQuery, idMismatchReadVariables);
+    assertNoTopLevelErrors(idMismatchFinalRead, 'customerAddressUpdate id mismatch final read');
+
     const customerSetValidAddressesVariables = {
       identifier: { id: validationCustomerId },
       input: {
@@ -739,6 +885,44 @@ async function main() {
           },
           ...summarizeAddressAttempt(crossCustomerDelete),
         },
+        idMismatchBranches: {
+          createCustomer: {
+            variables: createIdMismatchCustomerVariables,
+            response: createIdMismatchCustomer.payload,
+          },
+          createFirstAddress: {
+            variables: createIdMismatchFirstAddressVariables,
+            response: createIdMismatchFirstAddress.payload,
+          },
+          createSecondAddress: {
+            variables: createIdMismatchSecondAddressVariables,
+            response: createIdMismatchSecondAddress.payload,
+          },
+          mismatchedNestedIdUpdate: {
+            variables: mismatchedNestedIdUpdateVariables,
+            ...summarizeAddressAttempt(mismatchedNestedIdUpdate),
+          },
+          readAfterReject: {
+            variables: idMismatchReadVariables,
+            response: idMismatchReadAfterReject.payload,
+          },
+          omittedNestedIdUpdate: {
+            variables: omittedNestedIdUpdateVariables,
+            response: omittedNestedIdUpdate.payload,
+          },
+          nullNestedIdUpdate: {
+            variables: nullNestedIdUpdateVariables,
+            response: nullNestedIdUpdate.payload,
+          },
+          matchingNestedIdUpdate: {
+            variables: matchingNestedIdUpdateVariables,
+            response: matchingNestedIdUpdate.payload,
+          },
+          finalRead: {
+            variables: idMismatchReadVariables,
+            response: idMismatchFinalRead.payload,
+          },
+        },
         customerSetValidAddresses: {
           variables: customerSetValidAddressesVariables,
           ...summarizeAddressAttempt(customerSetValidAddresses),
@@ -749,6 +933,7 @@ async function main() {
         },
         maximumAddressProbe,
       },
+      upstreamCalls: [],
     };
 
     const outputPath = path.join(outputDir, 'customer-address-lifecycle.json');

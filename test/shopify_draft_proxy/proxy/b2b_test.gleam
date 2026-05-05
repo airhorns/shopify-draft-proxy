@@ -1602,6 +1602,162 @@ pub fn b2b_location_delete_cascades_contact_role_assignments_test() {
   assert string.contains(read_json, "\"roleAssignments\":{\"nodes\":[]}")
 }
 
+pub fn b2b_contact_delete_cascades_location_role_assignments_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyContact: { email: \"buyer@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { contacts(first: 5) { nodes { id roleAssignments(first: 5) { nodes { id companyLocation { id } } } } } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert string.contains(
+    create_json,
+    "\"id\":\"gid://shopify/CompanyContactRoleAssignment/7?shopify-draft-proxy=synthetic\"",
+  )
+
+  let contact_id =
+    "gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactDelete(companyContactId: \""
+        <> contact_id
+        <> "\") { deletedCompanyContactId userErrors { field message code } } }",
+    )
+  assert delete_status == 200
+  assert string.contains(json.to_string(delete_body), "\"userErrors\":[]")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { id roleAssignments(first: 5) { nodes { id companyContact { id } } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"roleAssignments\":{\"nodes\":[]}")
+  assert !string.contains(read_json, contact_id)
+  assert !string.contains(
+    read_json,
+    "gid://shopify/CompanyContactRoleAssignment/7?shopify-draft-proxy=synthetic",
+  )
+}
+
+pub fn b2b_contacts_delete_cascades_location_role_assignments_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyContact: { email: \"buyer@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: location_status, body: location_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Branch\" }) { companyLocation { id } userErrors { field message code } } }",
+    )
+  assert location_status == 200
+  assert string.contains(json.to_string(location_body), "\"userErrors\":[]")
+
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactAssignRole(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", companyContactRoleId: \"gid://shopify/CompanyContactRole/3?shopify-draft-proxy=synthetic\", companyLocationId: \"gid://shopify/CompanyLocation/9?shopify-draft-proxy=synthetic\") { companyContactRoleAssignment { id companyContact { id } companyLocation { id } } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"userErrors\":[]")
+  assert string.contains(
+    assign_json,
+    "\"id\":\"gid://shopify/CompanyContactRoleAssignment/11?shopify-draft-proxy=synthetic\"",
+  )
+
+  let contact_id =
+    "gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactsDelete(companyContactIds: [\""
+        <> contact_id
+        <> "\"]) { deletedCompanyContactIds userErrors { field message code } } }",
+    )
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(delete_json, "\"userErrors\":[]")
+  assert string.contains(delete_json, contact_id)
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { l1: companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { roleAssignments(first: 5) { nodes { id companyContact { id } } } } l2: companyLocation(id: \"gid://shopify/CompanyLocation/9?shopify-draft-proxy=synthetic\") { roleAssignments(first: 5) { nodes { id companyContact { id } } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"l1\":{\"roleAssignments\":{\"nodes\":[]}}",
+  )
+  assert string.contains(
+    read_json,
+    "\"l2\":{\"roleAssignments\":{\"nodes\":[]}}",
+  )
+  assert !string.contains(read_json, contact_id)
+  assert !string.contains(
+    read_json,
+    "gid://shopify/CompanyContactRoleAssignment/7?shopify-draft-proxy=synthetic",
+  )
+  assert !string.contains(
+    read_json,
+    "gid://shopify/CompanyContactRoleAssignment/11?shopify-draft-proxy=synthetic",
+  )
+}
+
+pub fn b2b_contact_remove_from_company_cascades_location_role_assignments_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"Acme\" }, companyContact: { email: \"buyer@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { contacts(first: 5) { nodes { id roleAssignments(first: 5) { nodes { id companyLocation { id } } } } } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert string.contains(
+    create_json,
+    "\"id\":\"gid://shopify/CompanyContactRoleAssignment/7?shopify-draft-proxy=synthetic\"",
+  )
+
+  let contact_id =
+    "gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic"
+  let #(Response(status: remove_status, body: remove_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactRemoveFromCompany(companyContactId: \""
+        <> contact_id
+        <> "\") { removedCompanyContactId userErrors { field message code } } }",
+    )
+  assert remove_status == 200
+  let remove_json = json.to_string(remove_body)
+  assert string.contains(remove_json, "\"userErrors\":[]")
+  assert string.contains(
+    remove_json,
+    "\"removedCompanyContactId\":\"" <> contact_id,
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { id roleAssignments(first: 5) { nodes { id companyContact { id } } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"roleAssignments\":{\"nodes\":[]}")
+  assert !string.contains(read_json, contact_id)
+  assert !string.contains(
+    read_json,
+    "gid://shopify/CompanyContactRoleAssignment/7?shopify-draft-proxy=synthetic",
+  )
+}
+
 pub fn b2b_bulk_delete_user_errors_include_input_indices_test() {
   let proxy =
     seed_company_with_contact_and_location(
@@ -2522,6 +2678,180 @@ pub fn b2b_contact_assign_role_rejects_missing_and_cross_company_resources_test(
     missing_role_json,
     "The company contact role doesn't exist.",
   )
+}
+
+pub fn b2b_contact_revoke_role_rejects_wrong_contact_assignment_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"HAR 762 One\" }, companyContact: { email: \"one762@example.com\" }, companyLocation: { name: \"One HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert first_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"HAR 762 Two\" }, companyContact: { email: \"two762@example.com\" }, companyLocation: { name: \"Two HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert second_status == 200
+  assert string.contains(json.to_string(second_body), "\"userErrors\":[]")
+
+  let foreign_assignment_id =
+    "gid://shopify/CompanyContactRoleAssignment/15?shopify-draft-proxy=synthetic"
+  let #(Response(status: revoke_status, body: revoke_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactRevokeRole(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", companyContactRoleAssignmentId: \""
+        <> foreign_assignment_id
+        <> "\") { revokedCompanyContactRoleAssignmentId userErrors { field message code } } }",
+    )
+  assert revoke_status == 200
+  let revoke_json = json.to_string(revoke_body)
+  assert string.contains(
+    revoke_json,
+    "\"revokedCompanyContactRoleAssignmentId\":null",
+  )
+  assert string.contains(
+    revoke_json,
+    "\"field\":[\"companyContactRoleAssignmentId\"]",
+  )
+  assert string.contains(revoke_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+  assert string.contains(revoke_json, "The role assignment doesn't exist.")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyContact(id: \"gid://shopify/CompanyContact/13?shopify-draft-proxy=synthetic\") { roleAssignments(first: 5) { nodes { id } } } companyLocation(id: \"gid://shopify/CompanyLocation/12?shopify-draft-proxy=synthetic\") { roleAssignments(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, foreign_assignment_id)
+}
+
+pub fn b2b_contact_revoke_roles_validates_ids_or_revoke_all_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"HAR 762 Empty\" }, companyContact: { email: \"empty762@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let #(Response(status: revoke_status, body: revoke_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactRevokeRoles(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", roleAssignmentIds: [], revokeAll: false) { revokedRoleAssignmentIds userErrors { field message code } } }",
+    )
+  assert revoke_status == 200
+  let revoke_json = json.to_string(revoke_body)
+  assert string.contains(revoke_json, "\"revokedRoleAssignmentIds\":null")
+  assert string.contains(revoke_json, "\"field\":null")
+  assert string.contains(revoke_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyContact(id: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\") { roleAssignments(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "gid://shopify/CompanyContactRoleAssignment/7?shopify-draft-proxy=synthetic",
+  )
+}
+
+pub fn b2b_contact_revoke_roles_keeps_partial_success_scoped_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"HAR 762 Partial One\" }, companyContact: { email: \"partial-one762@example.com\" }, companyLocation: { name: \"One HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert first_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"HAR 762 Partial Two\" }, companyContact: { email: \"partial-two762@example.com\" }, companyLocation: { name: \"Two HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert second_status == 200
+  assert string.contains(json.to_string(second_body), "\"userErrors\":[]")
+
+  let valid_assignment_id =
+    "gid://shopify/CompanyContactRoleAssignment/7?shopify-draft-proxy=synthetic"
+  let foreign_assignment_id =
+    "gid://shopify/CompanyContactRoleAssignment/15?shopify-draft-proxy=synthetic"
+  let #(Response(status: revoke_status, body: revoke_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactRevokeRoles(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", roleAssignmentIds: [\""
+        <> valid_assignment_id
+        <> "\", \""
+        <> foreign_assignment_id
+        <> "\"]) { revokedRoleAssignmentIds userErrors { field message code } } }",
+    )
+  assert revoke_status == 200
+  let revoke_json = json.to_string(revoke_body)
+  assert string.contains(
+    revoke_json,
+    "\"revokedRoleAssignmentIds\":[\"" <> valid_assignment_id <> "\"]",
+  )
+  assert string.contains(revoke_json, "\"field\":[\"roleAssignmentIds\",\"1\"]")
+  assert string.contains(revoke_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+  assert string.contains(revoke_json, "Resource requested does not exist.")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { first: companyContact(id: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\") { roleAssignments(first: 5) { nodes { id } } } second: companyContact(id: \"gid://shopify/CompanyContact/13?shopify-draft-proxy=synthetic\") { roleAssignments(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert !string.contains(read_json, valid_assignment_id)
+  assert string.contains(read_json, foreign_assignment_id)
+}
+
+pub fn b2b_location_revoke_roles_rejects_wrong_location_assignment_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"HAR 762 L1\" }, companyContact: { email: \"l1-762@example.com\" }, companyLocation: { name: \"L1\" } }) { company { id } userErrors { code } } }",
+    )
+  assert first_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"HAR 762 L2\" }, companyContact: { email: \"l2-762@example.com\" }, companyLocation: { name: \"L2\" } }) { company { id } userErrors { code } } }",
+    )
+  assert second_status == 200
+  assert string.contains(json.to_string(second_body), "\"userErrors\":[]")
+
+  let foreign_assignment_id =
+    "gid://shopify/CompanyContactRoleAssignment/15?shopify-draft-proxy=synthetic"
+  let #(Response(status: revoke_status, body: revoke_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationRevokeRoles(companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", rolesToRevoke: [\""
+        <> foreign_assignment_id
+        <> "\"]) { revokedRoleAssignmentIds userErrors { field message code } } }",
+    )
+  assert revoke_status == 200
+  let revoke_json = json.to_string(revoke_body)
+  assert string.contains(revoke_json, "\"revokedRoleAssignmentIds\":[]")
+  assert string.contains(revoke_json, "\"field\":[\"rolesToRevoke\",\"0\"]")
+  assert string.contains(revoke_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyContact(id: \"gid://shopify/CompanyContact/13?shopify-draft-proxy=synthetic\") { roleAssignments(first: 5) { nodes { id } } } companyLocation(id: \"gid://shopify/CompanyLocation/12?shopify-draft-proxy=synthetic\") { roleAssignments(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, foreign_assignment_id)
 }
 
 pub fn b2b_contact_assign_roles_persists_partial_success_and_parent_test() {

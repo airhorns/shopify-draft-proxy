@@ -48,6 +48,8 @@ import shopify_draft_proxy/state/types.{
   ShopifyFunctionAppRecord, ShopifyFunctionRecord,
 }
 
+const discount_function_app_id: String = "347082227713"
+
 pub type DiscountsError {
   ParseFailed(root_field.RootFieldError)
 }
@@ -1274,6 +1276,10 @@ fn create_discount_after_top_level_validation(
       discount_type,
       upstream,
     )
+  let store = case discount_type {
+    "app" -> maybe_hydrate_shopify_function(store, input, upstream)
+    _ -> store
+  }
   let user_errors =
     validate_discount_input(
       store,
@@ -1413,6 +1419,48 @@ fn update_discount(
 }
 
 fn update_discount_after_top_level_validation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root: String,
+  field: Selection,
+  fragments: FragmentMap,
+  owner_kind: String,
+  target_discount_type: String,
+  input_name: String,
+  id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> MutationResult {
+  let early_user_errors =
+    validate_context_customer_selection_conflict(input_name, input)
+  case early_user_errors {
+    [_, ..] ->
+      MutationResult(
+        key: key,
+        payload: payload_json(root, field, fragments, None, early_user_errors),
+        store: store,
+        identity: identity,
+        staged_resource_ids: [],
+        top_level_errors: [],
+      )
+    [] ->
+      update_discount_existing_record(
+        store,
+        identity,
+        root,
+        field,
+        fragments,
+        owner_kind,
+        target_discount_type,
+        input_name,
+        id,
+        input,
+        key,
+      )
+  }
+}
+
+fn update_discount_existing_record(
   store: Store,
   identity: SyntheticIdentityRegistry,
   root: String,
@@ -2718,11 +2766,157 @@ fn validate_discount_input(
       ])
     False -> errors
   }
-  case input_name {
+  let errors = case input_name {
     "basicCodeDiscount" ->
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
   }
+  case errors {
+    [_, ..] -> errors
+    [] ->
+      list.append(
+        errors,
+        validate_app_discount_function_input(
+          store,
+          input_name,
+          input,
+          discount_type,
+        ),
+      )
+  }
+}
+
+fn validate_app_discount_function_input(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+) -> List(SourceValue) {
+  case discount_type {
+    "app" -> {
+      let function_id = read_string(input, "functionId")
+      let function_handle = read_string(input, "functionHandle")
+      case function_id, function_handle {
+        None, None -> [
+          app_discount_missing_function_identifier_error(input_name),
+        ]
+        Some(_), Some(_) -> [
+          app_discount_multiple_function_identifiers_error(input_name),
+        ]
+        Some(value), None ->
+          validate_app_discount_function_reference(
+            store,
+            input_name,
+            "functionId",
+            value,
+          )
+        None, Some(value) ->
+          validate_app_discount_function_reference(
+            store,
+            input_name,
+            "functionHandle",
+            value,
+          )
+      }
+    }
+    _ -> []
+  }
+}
+
+fn validate_app_discount_function_reference(
+  store: Store,
+  input_name: String,
+  field_name: String,
+  value: String,
+) -> List(SourceValue) {
+  case find_shopify_function(store, value) {
+    None -> [
+      app_discount_function_not_found_error(input_name, field_name, value),
+    ]
+    Some(record) ->
+      case app_discount_function_api_supported(record) {
+        True -> []
+        False -> [
+          app_discount_function_does_not_implement_error(input_name, field_name),
+        ]
+      }
+  }
+}
+
+fn app_discount_missing_function_identifier_error(
+  input_name: String,
+) -> SourceValue {
+  user_error(
+    [input_name, "functionHandle"],
+    "Function id can't be blank.",
+    "MISSING_FUNCTION_IDENTIFIER",
+  )
+}
+
+fn app_discount_multiple_function_identifiers_error(
+  input_name: String,
+) -> SourceValue {
+  user_error(
+    [input_name],
+    "Only one of functionId or functionHandle is allowed.",
+    "MULTIPLE_FUNCTION_IDENTIFIERS",
+  )
+}
+
+fn app_discount_function_not_found_error(
+  input_name: String,
+  field_name: String,
+  value: String,
+) -> SourceValue {
+  user_error(
+    [input_name, field_name],
+    "Function "
+      <> value
+      <> " not found. Ensure that it is released in the current app ("
+      <> discount_function_app_id
+      <> "), and that the app is installed.",
+    "INVALID",
+  )
+}
+
+fn app_discount_function_does_not_implement_error(
+  input_name: String,
+  field_name: String,
+) -> SourceValue {
+  user_error_with_code(
+    [input_name, field_name],
+    "Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].",
+    None,
+  )
+}
+
+fn app_discount_function_api_supported(record: ShopifyFunctionRecord) -> Bool {
+  case record.api_type {
+    None -> True
+    Some(api_type) ->
+      list.contains(
+        [
+          "DISCOUNT",
+          "PRODUCT_DISCOUNT",
+          "PRODUCT_DISCOUNTS",
+          "ORDER_DISCOUNT",
+          "ORDER_DISCOUNTS",
+          "SHIPPING_DISCOUNT",
+          "SHIPPING_DISCOUNTS",
+          "PURCHASE_PRODUCT_DISCOUNT_RUN",
+          "PURCHASE_ORDER_DISCOUNT_RUN",
+          "PURCHASE_SHIPPING_DISCOUNT_RUN",
+        ],
+        normalize_function_api_type(api_type),
+      )
+  }
+}
+
+fn normalize_function_api_type(api_type: String) -> String {
+  api_type
+  |> string.uppercase
+  |> string.replace("-", "_")
+  |> string.replace(".", "_")
 }
 
 fn validate_context_customer_selection_conflict(
@@ -3647,11 +3841,12 @@ fn json_to_code_pair(
 }
 
 /// Pattern 2: hydrate a `ShopifyFunctionRecord` from upstream when the
-/// caller supplies an app-discount `functionHandle`/`functionId` and the
-/// local store does not already know about that function. Used at
-/// app-discount-create time so `appDiscountType.appKey` / `title` /
-/// `description` project the real function metadata instead of falling
-/// back to the discount input title.
+/// caller supplies exactly one app-discount `functionHandle`/`functionId`
+/// and the local store does not already know about that function. Used at
+/// app-discount-create time so validation can distinguish an unknown
+/// function from a known non-discount Function and so `appDiscountType.appKey`
+/// / `title` / `description` project the real function metadata instead of
+/// falling back to the discount input title.
 ///
 /// Cassette miss / Snapshot mode / malformed response is silently
 /// tolerated — the existing local-only behavior takes over (input title
@@ -3662,18 +3857,18 @@ fn maybe_hydrate_shopify_function(
   input: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> Store {
-  let reference =
-    read_string(input, "functionId")
-    |> option.or(read_string(input, "functionHandle"))
-  case reference {
-    None -> store
-    Some(reference) ->
+  let function_id = read_string(input, "functionId")
+  let function_handle = read_string(input, "functionHandle")
+  case function_id, function_handle {
+    None, None -> store
+    Some(_), Some(_) -> store
+    Some(reference), None | None, Some(reference) ->
       case find_shopify_function(store, reference) {
         Some(_) -> store
         None -> {
           let query =
             "query ShopifyFunctionByHandle($handle: String!) {
-  shopifyFunctions(first: 1, apiType: \"discount\", handle: $handle) {
+  shopifyFunctions(first: 1, handle: $handle) {
     nodes {
       id
       title

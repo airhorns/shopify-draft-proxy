@@ -5139,84 +5139,105 @@ fn handle_customer_address_update(
     graphql_helpers.read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
   case customer_id, address_id {
     Some(cid), Some(aid) ->
-      case store.get_effective_customer_by_id(store, cid) {
-        Some(customer) ->
-          case store.get_effective_customer_address_by_id(store, aid) {
-            Some(existing) ->
-              case existing.customer_id == customer.id {
-                True -> {
-                  case
-                    validate_address_input(address_input, Some(existing), [
-                      "address",
-                    ])
-                  {
-                    [_, ..] as errors -> {
-                      let payload =
-                        address_payload_json(
-                          store,
-                          "CustomerAddressUpdatePayload",
-                          None,
-                          None,
-                          errors,
-                          field,
-                          fragments,
-                        )
-                      #(
-                        MutationFieldResult(
-                          get_field_response_key(field),
-                          payload,
-                          [],
-                          "customerAddressUpdate",
-                        ),
+      case address_input_id_mismatches(address_input, aid) {
+        True ->
+          address_id_mismatch_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "CustomerAddressUpdatePayload",
+            "customerAddressUpdate",
+          )
+        False ->
+          case store.get_effective_customer_by_id(store, cid) {
+            Some(customer) ->
+              case store.get_effective_customer_address_by_id(store, aid) {
+                Some(existing) ->
+                  case existing.customer_id == customer.id {
+                    True -> {
+                      case
+                        validate_address_input(address_input, Some(existing), [
+                          "address",
+                        ])
+                      {
+                        [_, ..] as errors -> {
+                          let payload =
+                            address_payload_json(
+                              store,
+                              "CustomerAddressUpdatePayload",
+                              None,
+                              None,
+                              errors,
+                              field,
+                              fragments,
+                            )
+                          #(
+                            MutationFieldResult(
+                              get_field_response_key(field),
+                              payload,
+                              [],
+                              "customerAddressUpdate",
+                            ),
+                            store,
+                            identity,
+                          )
+                        }
+                        [] -> {
+                          let updated = merge_address(existing, address_input)
+                          let #(_, store_after_address) =
+                            store.stage_upsert_customer_address(store, updated)
+                          let next_store = case set_default {
+                            True -> {
+                              let #(_, s) =
+                                store.stage_update_customer(
+                                  store_after_address,
+                                  CustomerRecord(
+                                    ..customer,
+                                    default_address: Some(address_to_default(
+                                      updated,
+                                    )),
+                                  ),
+                                )
+                              s
+                            }
+                            False -> store_after_address
+                          }
+                          let payload =
+                            address_payload_json(
+                              next_store,
+                              "CustomerAddressUpdatePayload",
+                              Some(updated),
+                              None,
+                              [],
+                              field,
+                              fragments,
+                            )
+                          #(
+                            MutationFieldResult(
+                              get_field_response_key(field),
+                              payload,
+                              [updated.id],
+                              "customerAddressUpdate",
+                            ),
+                            next_store,
+                            identity,
+                          )
+                        }
+                      }
+                    }
+                    False ->
+                      address_ownership_result(
                         store,
                         identity,
+                        field,
+                        fragments,
+                        "CustomerAddressUpdatePayload",
+                        "customerAddressUpdate",
                       )
-                    }
-                    [] -> {
-                      let updated = merge_address(existing, address_input)
-                      let #(_, store_after_address) =
-                        store.stage_upsert_customer_address(store, updated)
-                      let next_store = case set_default {
-                        True -> {
-                          let #(_, s) =
-                            store.stage_update_customer(
-                              store_after_address,
-                              CustomerRecord(
-                                ..customer,
-                                default_address: Some(address_to_default(
-                                  updated,
-                                )),
-                              ),
-                            )
-                          s
-                        }
-                        False -> store_after_address
-                      }
-                      let payload =
-                        address_payload_json(
-                          next_store,
-                          "CustomerAddressUpdatePayload",
-                          Some(updated),
-                          None,
-                          [],
-                          field,
-                          fragments,
-                        )
-                      #(
-                        MutationFieldResult(
-                          get_field_response_key(field),
-                          payload,
-                          [updated.id],
-                          "customerAddressUpdate",
-                        ),
-                        next_store,
-                        identity,
-                      )
-                    }
                   }
-                }
-                False ->
-                  address_ownership_result(
+                None ->
+                  address_unknown_result(
                     store,
                     identity,
                     field,
@@ -5226,7 +5247,7 @@ fn handle_customer_address_update(
                   )
               }
             None ->
-              address_unknown_result(
+              address_customer_missing_result(
                 store,
                 identity,
                 field,
@@ -5235,15 +5256,6 @@ fn handle_customer_address_update(
                 "customerAddressUpdate",
               )
           }
-        None ->
-          address_customer_missing_result(
-            store,
-            identity,
-            field,
-            fragments,
-            "CustomerAddressUpdatePayload",
-            "customerAddressUpdate",
-          )
       }
     _, _ ->
       address_unknown_result(
@@ -5254,6 +5266,18 @@ fn handle_customer_address_update(
         "CustomerAddressUpdatePayload",
         "customerAddressUpdate",
       )
+  }
+}
+
+fn address_input_id_mismatches(
+  address_input: Dict(String, root_field.ResolvedValue),
+  address_id: String,
+) -> Bool {
+  case dict.get(address_input, "id") {
+    Error(_) -> False
+    Ok(root_field.StringVal(nested_id)) -> nested_id != address_id
+    Ok(root_field.IntVal(nested_id)) -> int.to_string(nested_id) != address_id
+    Ok(_) -> True
   }
 }
 
@@ -7238,6 +7262,37 @@ fn address_ownership_result(store, identity, field, fragments, typename, root) {
       None,
       None,
       [UserError(["addressId"], "Address does not exist", None)],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(get_field_response_key(field), payload, [], root),
+    store,
+    identity,
+  )
+}
+
+fn address_id_mismatch_result(
+  store,
+  identity,
+  field,
+  fragments,
+  typename,
+  root,
+) {
+  let payload =
+    address_payload_json(
+      store,
+      typename,
+      None,
+      None,
+      [
+        UserError(
+          ["addressId"],
+          "The id of the address does not match the id in the input",
+          None,
+        ),
+      ],
       field,
       fragments,
     )

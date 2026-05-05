@@ -146,6 +146,49 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-revoke-role-scope-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-revoke-role-scope-conformance.mts',
+    purpose:
+      'B2B contact/location revoke-role parent lookup, wrong-scope assignment validation, empty-id precondition, and partial-success semantics.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-revoke-role-scope-preconditions.json`,
+      'config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json',
+      'config/parity-requests/b2b/b2b-revoke-role-scope-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company with a secondary contact and extra locations, assigns contact/location roles, records revoke validation branches, and deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin 2026-04 returns RESOURCE_NOT_FOUND for wrong-scope contact revoke assignment IDs and a null field/null revokedRoleAssignmentIds payload for empty roleAssignmentIds with revokeAll false.',
+  },
+  {
+    domain: 'b2b',
+    captureId: 'b2b-contact-removal-role-assignment-cascade',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-removal-role-assignment-cascade-conformance.mts',
+    purpose:
+      'B2B contact delete, bulk contact delete, and remove-from-company cascades that scrub location-side role assignments for the removed contact.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}contact-delete-cleans-role-assignments.json`,
+      `${CAPTURE_ROOT}contacts-delete-cleans-role-assignments.json`,
+      `${CAPTURE_ROOT}contact-remove-from-company-cleans-role-assignments.json`,
+      'config/parity-specs/b2b/contact_delete_cleans_role_assignments.json',
+      'config/parity-specs/b2b/contacts_delete_cleans_role_assignments.json',
+      'config/parity-specs/b2b/contact_remove_from_company_cleans_role_assignments.json',
+      'config/parity-requests/b2b/contact-role-cascade-*.graphql',
+      'config/parity-requests/b2b/contact-delete-cleans-role-assignments.graphql',
+      'config/parity-requests/b2b/contacts-delete-cleans-role-assignments.graphql',
+      'config/parity-requests/b2b/contact-remove-from-company-cleans-role-assignments.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable B2B companies with an automatic main-location role assignment and an explicit second-location assignment; removes the contact through each supported path and deletes each company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-string-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-string-validation-conformance.mts',
@@ -2106,6 +2149,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-app-function-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-app-function-validation-conformance.ts',
+    purpose: 'App-discount functionId/functionHandle missing, multiple, unknown, and wrong-API validation guardrails.',
+    requiredAuthScopes: [
+      'read_discounts',
+      'write_discounts',
+      'shopifyFunctions read access',
+      'released non-discount Shopify Function in the installed conformance app for wrong-API validation',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-app-function-validation.json`,
+      'config/parity-specs/discounts/discount-app-function-validation.json',
+      'config/parity-requests/discounts/discount-app-function-validation.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-context-customer-selection-conflict',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-context-customer-selection-conflict-conformance.ts',
@@ -2266,6 +2329,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Captures missing-delete userErrors only; no live resources are created. The local lifecycle leg is cassette-backed because the current unattended shop lacks released cart-transform/validation Function handles.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
+    captureId: 'functions-validation-create-error-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-validation-create-error-shape-conformance.ts',
+    purpose:
+      'validationCreate unknown Function id, wrong Function API, missing Function identifier, and multiple Function identifier userError shapes.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for validationCreate userError capture',
+      'released conformance-cart-transform Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-validation-create-error-shape.json`,
+      'config/parity-specs/functions/functions-validation-create-error-shape.json',
+    ],
+    cleanupBehavior:
+      'Captures validationCreate userErrors only; all branches return validation null and no live resources are created.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -3015,9 +3098,13 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     domain: 'customers',
     captureId: 'customer-addresses',
     scriptPath: 'scripts/capture-customer-address-conformance.mts',
-    purpose: 'Customer address lifecycle, normalization, defaulting, and validation.',
+    purpose: 'Customer address lifecycle, normalization, defaulting, id matching, and validation.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
-    fixtureOutputs: [`${CAPTURE_ROOT}customer-address-*.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-address-*.json`,
+      'config/parity-specs/customers/customer_address_update_id_mismatch.json',
+      'config/parity-requests/customers/customer-address-update-id-mismatch-read.graphql',
+    ],
     cleanupBehavior: 'Creates disposable customers/addresses and deletes the customers.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },

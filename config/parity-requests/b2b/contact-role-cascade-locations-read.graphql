@@ -1,0 +1,42 @@
+query ContactCascadeLocationsRead($mainLocationId: ID!, $extraLocationId: ID!) {
+  mainLocation: companyLocation(id: $mainLocationId) {
+    id
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyContact {
+          id
+          title
+        }
+        role {
+          id
+          name
+        }
+        companyLocation {
+          id
+          name
+        }
+      }
+    }
+  }
+  extraLocation: companyLocation(id: $extraLocationId) {
+    id
+    roleAssignments(first: 5) {
+      nodes {
+        id
+        companyContact {
+          id
+          title
+        }
+        role {
+          id
+          name
+        }
+        companyLocation {
+          id
+          name
+        }
+      }
+    }
+  }
+}

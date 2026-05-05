@@ -1,0 +1,28 @@
+{
+  "scenarioId": "functions-validation-create-error-shape",
+  "operationNames": ["validationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "side-effect-boundary", "functions-validation-create"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-create-error-shape.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-validation-create-error-shape.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.validationCreateErrorShape.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-error-shapes",
+        "capturePath": "$.validationCreateErrorShape.response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  },
+  "notes": "Live Shopify evidence for validationCreate userError shape branches: unknown Function id, wrong API type by Function id, missing Function identifier, and multiple Function identifiers. The scenario compares validation null payloads and userErrors strictly with no expected differences; the cassette only serves the proxy's ShopifyFunction hydration reads and does not seed local runtime state."
+}
