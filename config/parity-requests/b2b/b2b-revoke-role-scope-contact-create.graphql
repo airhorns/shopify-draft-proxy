@@ -1,0 +1,15 @@
+mutation B2BRevokeRoleScopeContactCreate($companyId: ID!, $input: CompanyContactInput!) {
+  companyContactCreate(companyId: $companyId, input: $input) {
+    companyContact {
+      id
+      company {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

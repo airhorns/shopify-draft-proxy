@@ -1,0 +1,75 @@
+mutation DiscountAppFunctionValidation(
+  $missingCode: DiscountCodeAppInput!
+  $multipleCode: DiscountCodeAppInput!
+  $unknownIdCode: DiscountCodeAppInput!
+  $wrongApiCode: DiscountCodeAppInput!
+  $missingAutomatic: DiscountAutomaticAppInput!
+  $unknownHandleAutomatic: DiscountAutomaticAppInput!
+) {
+  missingCode: discountCodeAppCreate(codeAppDiscount: $missingCode) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  multipleCode: discountCodeAppCreate(codeAppDiscount: $multipleCode) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  unknownIdCode: discountCodeAppCreate(codeAppDiscount: $unknownIdCode) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  wrongApiCode: discountCodeAppCreate(codeAppDiscount: $wrongApiCode) {
+    codeAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  missingAutomatic: discountAutomaticAppCreate(automaticAppDiscount: $missingAutomatic) {
+    automaticAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  unknownHandleAutomatic: discountAutomaticAppCreate(automaticAppDiscount: $unknownHandleAutomatic) {
+    automaticAppDiscount {
+      discountId
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
