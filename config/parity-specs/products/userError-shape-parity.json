@@ -1,0 +1,78 @@
+{
+  "scenarioId": "product-user-error-shape-parity",
+  "operationNames": [
+    "productCreate",
+    "productOptionsCreate",
+    "productOptionsDelete",
+    "productVariantsBulkReorder",
+    "collectionCreate",
+    "inventoryActivate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-user-error-shape-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productUserErrorShape-productCreate.graphql",
+    "variablesCapturePath": "$.captures.productCreateBlank.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-blank-title-user-errors",
+        "capturePath": "$.captures.productCreateBlank.result.payload.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "product-options-create-unknown-product-user-errors",
+        "capturePath": "$.captures.productOptionsCreateUnknown.result.payload.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUserErrorShape-productOptionsCreate.graphql",
+          "variablesCapturePath": "$.captures.productOptionsCreateUnknown.variables"
+        }
+      },
+      {
+        "name": "product-options-delete-unknown-product-user-errors",
+        "capturePath": "$.captures.productOptionsDeleteUnknown.result.payload.data.productOptionsDelete.userErrors",
+        "proxyPath": "$.data.productOptionsDelete.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUserErrorShape-productOptionsDelete.graphql",
+          "variablesCapturePath": "$.captures.productOptionsDeleteUnknown.variables"
+        }
+      },
+      {
+        "name": "product-variants-bulk-reorder-unknown-product-user-errors",
+        "capturePath": "$.captures.productVariantsBulkReorderUnknown.result.payload.data.productVariantsBulkReorder.userErrors",
+        "proxyPath": "$.data.productVariantsBulkReorder.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUserErrorShape-productVariantsBulkReorder.graphql",
+          "variablesCapturePath": "$.captures.productVariantsBulkReorderUnknown.variables"
+        }
+      },
+      {
+        "name": "collection-create-blank-title-user-errors",
+        "capturePath": "$.captures.collectionCreateBlank.result.payload.data.collectionCreate.userErrors",
+        "proxyPath": "$.data.collectionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUserErrorShape-collectionCreate.graphql",
+          "variablesCapturePath": "$.captures.collectionCreateBlank.variables"
+        }
+      },
+      {
+        "name": "inventory-activate-unknown-item-user-error-field",
+        "capturePath": "$.captures.inventoryActivateUnknownItem.result.payload.data.inventoryActivate.userErrors.0.field",
+        "proxyPath": "$.data.inventoryActivate.userErrors.0.field",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productUserErrorShape-inventoryActivate.graphql",
+          "variablesCapturePath": "$.captures.inventoryActivateUnknownItem.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-586 umbrella userError shape parity. Public Admin GraphQL 2025-01 exposes `code` on typed product option and bulk reorder userError objects, but productCreate, collectionCreate, and inventoryActivate still expose the generic UserError type, so those strict targets compare public fields while runtime tests cover local code projection when the proxy query asks for it. inventoryActivate's live message names the selected shop location, so the umbrella target compares the stable field path and leaves local code/message projection to focused runtime coverage."
+}
