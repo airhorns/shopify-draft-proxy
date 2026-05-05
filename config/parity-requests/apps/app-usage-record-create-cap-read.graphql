@@ -1,0 +1,31 @@
+query AppUsageRecordCreateCapRead {
+  currentAppInstallation {
+    allSubscriptions(first: 5) {
+      nodes {
+        lineItems {
+          plan {
+            pricingDetails {
+              __typename
+              ... on AppUsagePricing {
+                balanceUsed {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+          usageRecords {
+            nodes {
+              id
+              description
+              price {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

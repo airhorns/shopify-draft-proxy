@@ -11,13 +11,15 @@ import gleam/dict
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
+import gleam/string
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type AppInstallationRecord, type AppRecord, type AppSubscriptionRecord,
-  type Money, AccessScopeRecord, AppInstallationRecord, AppRecord,
+  type AppInstallationRecord, type AppRecord, type AppSubscriptionLineItemPlan,
+  type AppSubscriptionRecord, type Money, AccessScopeRecord,
+  AppInstallationRecord, AppRecord, AppRecurringPricing,
   AppSubscriptionLineItemPlan, AppSubscriptionLineItemRecord,
   AppSubscriptionRecord, AppUsagePricing, DelegatedAccessTokenRecord, Money,
 }
@@ -82,6 +84,11 @@ fn run_mutation(store_in: store.Store, document: String) -> String {
   json.to_string(run_mutation_outcome(store_in, document).data)
 }
 
+fn run_query(store_in: store.Store, query: String) -> String {
+  let assert Ok(data) = apps.handle_app_query(store_in, query, dict.new())
+  json.to_string(data)
+}
+
 fn seeded_with_installation() -> store.Store {
   let a = app("gid://shopify/App/100", "shopify-draft-proxy", "key-100")
   let i = installation("gid://shopify/AppInstallation/100", a.id)
@@ -106,6 +113,60 @@ fn seeded_with_subscription(status: String) -> store.Store {
   let sub = subscription("gid://shopify/AppSubscription/9", status)
   let #(_, s) = store.stage_app_subscription(s, sub)
   s
+}
+
+fn seeded_billing_line_item(
+  pricing: AppSubscriptionLineItemPlan,
+) -> #(store.Store, String) {
+  let app_record =
+    app("gid://shopify/App/200", "shopify-draft-proxy", "key-200")
+  let sub_id = "gid://shopify/AppSubscription/200"
+  let li_id = "gid://shopify/AppSubscriptionLineItem/200?v=1&index=1"
+  let installation_record =
+    AppInstallationRecord(
+      ..installation("gid://shopify/AppInstallation/200", app_record.id),
+      active_subscription_ids: [sub_id],
+      all_subscription_ids: [sub_id],
+    )
+  let s =
+    store.upsert_base_app_installation(
+      store.new(),
+      installation_record,
+      app_record,
+    )
+  let sub =
+    AppSubscriptionRecord(
+      id: sub_id,
+      name: "Usage",
+      status: "ACTIVE",
+      is_test: False,
+      trial_days: None,
+      current_period_end: None,
+      created_at: "2024-12-01T00:00:00Z",
+      line_item_ids: [li_id],
+    )
+  let li =
+    AppSubscriptionLineItemRecord(
+      id: li_id,
+      subscription_id: sub_id,
+      plan: pricing,
+    )
+  let #(_, s) = store.stage_app_subscription_line_item(s, li)
+  let #(_, s) = store.stage_app_subscription(s, sub)
+  #(s, li_id)
+}
+
+fn usage_line_item_plan(
+  capped_amount: String,
+  balance_used: String,
+  currency_code: String,
+) -> AppSubscriptionLineItemPlan {
+  AppSubscriptionLineItemPlan(pricing_details: AppUsagePricing(
+    capped_amount: money(capped_amount, currency_code),
+    balance_used: money(balance_used, currency_code),
+    interval: "ANNUAL",
+    terms: None,
+  ))
 }
 
 // ----------- is_app_mutation_root -----------
@@ -531,6 +592,118 @@ pub fn usage_record_create_attaches_to_line_item_test() {
       outcome.store,
       "gid://shopify/AppUsageRecord/1",
     )
+}
+
+pub fn usage_record_create_caps_balance_and_reuses_idempotency_key_test() {
+  let #(s, li_id) =
+    seeded_billing_line_item(usage_line_item_plan("5.00", "0.00", "USD"))
+  let first_document =
+    "mutation { appUsageRecordCreate(subscriptionLineItemId: \""
+    <> li_id
+    <> "\", description: \"first\", price: { amount: \"3.00\", currencyCode: USD }, idempotencyKey: \"usage-key-1\") { appUsageRecord { id description price { amount currencyCode } subscriptionLineItem { id plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } } } } userErrors { field message } } }"
+  let first = run_mutation_outcome(s, first_document)
+  assert json.to_string(first.data)
+    == "{\"data\":{\"appUsageRecordCreate\":{\"appUsageRecord\":{\"id\":\"gid://shopify/AppUsageRecord/1\",\"description\":\"first\",\"price\":{\"amount\":\"3.00\",\"currencyCode\":\"USD\"},\"subscriptionLineItem\":{\"id\":\"gid://shopify/AppSubscriptionLineItem/200?v=1&index=1\",\"plan\":{\"pricingDetails\":{\"__typename\":\"AppUsagePricing\",\"balanceUsed\":{\"amount\":\"3.00\",\"currencyCode\":\"USD\"}}}}},\"userErrors\":[]}}}"
+  let assert Some(after_first) =
+    store.get_effective_app_subscription_line_item_by_id(first.store, li_id)
+  case after_first.plan.pricing_details {
+    AppUsagePricing(balance_used: balance, ..) -> {
+      assert balance.amount == "3.00"
+      assert balance.currency_code == "USD"
+    }
+    _ -> panic as "expected usage pricing"
+  }
+
+  let over_cap_document =
+    "mutation { appUsageRecordCreate(subscriptionLineItemId: \""
+    <> li_id
+    <> "\", description: \"second\", price: { amount: \"3.00\", currencyCode: USD }, idempotencyKey: \"usage-key-2\") { appUsageRecord { id } userErrors { field message } } }"
+  let over_cap =
+    apps.process_mutation(
+      first.store,
+      first.identity,
+      "/admin/api/2025-01/graphql.json",
+      "https://shopify.example",
+      over_cap_document,
+      dict.new(),
+    )
+  assert json.to_string(over_cap.data)
+    == "{\"data\":{\"appUsageRecordCreate\":{\"appUsageRecord\":null,\"userErrors\":[{\"field\":[],\"message\":\"Total price exceeds balance remaining\"}]}}}"
+
+  let duplicate_document =
+    "mutation { appUsageRecordCreate(subscriptionLineItemId: \""
+    <> li_id
+    <> "\", description: \"first again\", price: { amount: \"3.00\", currencyCode: USD }, idempotencyKey: \"usage-key-1\") { appUsageRecord { id description price { amount currencyCode } } userErrors { field message } } }"
+  let duplicate =
+    apps.process_mutation(
+      over_cap.store,
+      over_cap.identity,
+      "/admin/api/2025-01/graphql.json",
+      "https://shopify.example",
+      duplicate_document,
+      dict.new(),
+    )
+  assert json.to_string(duplicate.data)
+    == "{\"data\":{\"appUsageRecordCreate\":{\"appUsageRecord\":{\"id\":\"gid://shopify/AppUsageRecord/1\",\"description\":\"first\",\"price\":{\"amount\":\"3.00\",\"currencyCode\":\"USD\"}},\"userErrors\":[]}}}"
+
+  let readback =
+    run_query(
+      duplicate.store,
+      "{ currentAppInstallation { activeSubscriptions { lineItems { plan { pricingDetails { __typename ... on AppUsagePricing { balanceUsed { amount currencyCode } } } } usageRecords { nodes { id description price { amount currencyCode } } } } } } }",
+    )
+  assert readback
+    == "{\"currentAppInstallation\":{\"activeSubscriptions\":[{\"lineItems\":[{\"plan\":{\"pricingDetails\":{\"__typename\":\"AppUsagePricing\",\"balanceUsed\":{\"amount\":\"3.00\",\"currencyCode\":\"USD\"}}},\"usageRecords\":{\"nodes\":[{\"id\":\"gid://shopify/AppUsageRecord/1\",\"description\":\"first\",\"price\":{\"amount\":\"3.00\",\"currencyCode\":\"USD\"}}]}}]}]}}"
+}
+
+pub fn usage_record_create_rejects_non_usage_line_item_test() {
+  let #(s, li_id) =
+    seeded_billing_line_item(
+      AppSubscriptionLineItemPlan(pricing_details: AppRecurringPricing(
+        price: money("9.99", "USD"),
+        interval: "EVERY_30_DAYS",
+        plan_handle: None,
+      )),
+    )
+  let body =
+    run_mutation(
+      s,
+      "mutation { appUsageRecordCreate(subscriptionLineItemId: \""
+        <> li_id
+        <> "\", description: \"recurring\", price: { amount: \"1.00\", currencyCode: USD }) { appUsageRecord { id } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"appUsageRecordCreate\":{\"appUsageRecord\":null,\"userErrors\":[{\"field\":[\"subscriptionLineItemId\"],\"message\":\"Subscription line item must use usage pricing\"}]}}}"
+}
+
+pub fn usage_record_create_rejects_long_idempotency_key_test() {
+  let #(s, li_id) =
+    seeded_billing_line_item(usage_line_item_plan("5.00", "0.00", "USD"))
+  let long_key = string.repeat("x", times: 256)
+  let body =
+    run_mutation(
+      s,
+      "mutation { appUsageRecordCreate(subscriptionLineItemId: \""
+        <> li_id
+        <> "\", description: \"too long\", price: { amount: \"1.00\", currencyCode: USD }, idempotencyKey: \""
+        <> long_key
+        <> "\") { appUsageRecord { id } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appUsageRecordCreate\":{\"appUsageRecord\":null,\"userErrors\":[{\"field\":[\"idempotencyKey\"],\"message\":\"Idempotency key must be at most 255 characters\",\"code\":null}]}}}"
+}
+
+pub fn usage_record_create_rejects_currency_mismatch_test() {
+  let #(s, li_id) =
+    seeded_billing_line_item(usage_line_item_plan("5.00", "0.00", "USD"))
+  let body =
+    run_mutation(
+      s,
+      "mutation { appUsageRecordCreate(subscriptionLineItemId: \""
+        <> li_id
+        <> "\", description: \"wrong currency\", price: { amount: \"1.00\", currencyCode: CAD }) { appUsageRecord { id } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"appUsageRecordCreate\":{\"appUsageRecord\":null,\"userErrors\":[{\"field\":[\"price\",\"currencyCode\"],\"message\":\"Currency code must match capped amount currency\"}]}}}"
 }
 
 pub fn usage_record_create_unknown_line_item_emits_user_error_test() {
