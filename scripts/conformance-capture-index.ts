@@ -142,6 +142,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-billing-same-as-shipping-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-billing-same-as-shipping-conformance.mts',
+    purpose:
+      'B2B billingSameAsShipping/billingAddress mutual-exclusion and taxExempt null validation for company location create/update inputs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-billing-same-as-shipping-validation.json`,
+      'config/parity-specs/b2b/b2b-billing-same-as-shipping-validation.json',
+      'config/parity-requests/b2b/b2b-billing-same-as-shipping-company-create.graphql',
+      'config/parity-requests/b2b/b2b-billing-same-as-shipping-location-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup company for direct companyLocationCreate/companyLocationUpdate validation, then deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-location-address-management',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-location-address-management-conformance.mts',
@@ -1089,6 +1107,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'marketing',
+    captureId: 'marketing-engagement-currency-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-engagement-currency-validation-conformance.mts',
+    purpose: 'Marketing engagement adSpend/sales currency mismatch and engagement-vs-activity currency validation.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [`${CAPTURE_ROOT}marketing-engagement-currency-validation.json`],
+    cleanupBehavior:
+      'Creates one disposable USD-budget external marketing activity, captures currency validation branches, then deletes the activity.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'segments',
     captureId: 'segments',
     scriptPath: 'scripts/capture-segment-conformance.mts',
@@ -1306,6 +1336,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable non-online-fulfilling location, toggles it across optional/required directive API versions, then deactivates and deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
+    captureId: 'location-delete-state-and-scope',
+    scriptPath: 'scripts/capture-location-delete-state-and-scope-conformance.mts',
+    purpose:
+      'locationDelete guard parity for active, inventory, primary, and fulfillment-service-managed Location state.',
+    requiredAuthScopes: ['read_locations', 'write_locations', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-delete-state-and-scope.json`,
+      'config/parity-specs/store-properties/location-delete-state-and-scope.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable merchant-managed locations, temporary products/inventory levels, and a fulfillment service, then cleans them up after guard capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

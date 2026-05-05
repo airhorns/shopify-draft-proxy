@@ -277,6 +277,192 @@ pub fn b2b_location_create_rejects_name_and_note_validation_test() {
   assert string.contains(location_json, "\"code\":\"TOO_LONG\"")
 }
 
+pub fn b2b_company_create_rejects_location_billing_and_tax_guardrails_test() {
+  let #(Response(status: conflict_status, body: conflict_body, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Billing Conflict\" }, companyLocation: { name: \"HQ\", billingSameAsShipping: true, shippingAddress: { address1: \"Ship\" }, billingAddress: { address1: \"Bill\" } } }) { company { id } userErrors { field message code } } }",
+    )
+  assert conflict_status == 200
+  let conflict_json = json.to_string(conflict_body)
+  assert string.contains(conflict_json, "\"company\":null")
+  assert string.contains(
+    conflict_json,
+    "\"field\":[\"input\",\"companyLocation\",\"billingAddress\"]",
+  )
+  assert string.contains(conflict_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companies(first: 5) { nodes { id } } companiesCount { count } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"nodes\":[]")
+  assert string.contains(read_json, "\"count\":0")
+
+  let #(Response(status: missing_status, body: missing_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Missing Billing\" }, companyLocation: { name: \"HQ\", billingSameAsShipping: false } }) { company { id } userErrors { field message code } } }",
+    )
+  assert missing_status == 200
+  let missing_json = json.to_string(missing_body)
+  assert string.contains(missing_json, "\"company\":null")
+  assert string.contains(
+    missing_json,
+    "\"field\":[\"input\",\"companyLocation\",\"billingAddress\"]",
+  )
+  assert string.contains(missing_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: tax_status, body: tax_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Null Tax\" }, companyLocation: { name: \"HQ\", taxExempt: null } }) { company { id } userErrors { field message code } } }",
+    )
+  assert tax_status == 200
+  let tax_json = json.to_string(tax_body)
+  assert string.contains(tax_json, "\"company\":null")
+  assert string.contains(
+    tax_json,
+    "\"field\":[\"input\",\"companyLocation\",\"taxExempt\"]",
+  )
+  assert string.contains(tax_json, "\"code\":\"INVALID_INPUT\"")
+}
+
+pub fn b2b_location_create_rejects_billing_and_tax_guardrails_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Draft\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: conflict_status, body: conflict_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Conflict\", billingSameAsShipping: true, shippingAddress: { address1: \"Ship\" }, billingAddress: { address1: \"Bill\" } }) { companyLocation { id } userErrors { field message code } } }",
+    )
+  assert conflict_status == 200
+  let conflict_json = json.to_string(conflict_body)
+  assert string.contains(conflict_json, "\"companyLocation\":null")
+  assert string.contains(
+    conflict_json,
+    "\"field\":[\"input\",\"billingAddress\"]",
+  )
+  assert string.contains(conflict_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: missing_status, body: missing_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Missing Billing\", billingSameAsShipping: false }) { companyLocation { id } userErrors { field message code } } }",
+    )
+  assert missing_status == 200
+  let missing_json = json.to_string(missing_body)
+  assert string.contains(missing_json, "\"companyLocation\":null")
+  assert string.contains(
+    missing_json,
+    "\"field\":[\"input\",\"billingAddress\"]",
+  )
+  assert string.contains(missing_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: tax_status, body: tax_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Null Tax\", taxExempt: null }) { companyLocation { id } userErrors { field message code } } }",
+    )
+  assert tax_status == 200
+  let tax_json = json.to_string(tax_body)
+  assert string.contains(tax_json, "\"companyLocation\":null")
+  assert string.contains(tax_json, "\"field\":[\"input\",\"taxExempt\"]")
+  assert string.contains(tax_json, "\"code\":\"INVALID_INPUT\"")
+
+  let read_query =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { locations(first: 5) { nodes { id name } } locationsCount: locations(first: 5) { nodes { id } } } companiesCount { count } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read_query)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"nodes\":[{\"id\":\"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\",\"name\":\"HQ\"}]",
+  )
+  assert !string.contains(read_json, "Conflict")
+  assert !string.contains(read_json, "Missing Billing")
+  assert !string.contains(read_json, "Null Tax")
+}
+
+pub fn b2b_location_update_rejects_billing_and_tax_guardrails_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Draft\" }, companyLocation: { name: \"HQ\" } }) { company { id locations(first: 5) { nodes { id name } } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: conflict_status, body: conflict_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \""
+        <> location_id
+        <> "\", input: { name: \"Conflict\", billingSameAsShipping: true, billingAddress: { address1: \"Bill\" } }) { companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert conflict_status == 200
+  let conflict_json = json.to_string(conflict_body)
+  assert string.contains(conflict_json, "\"companyLocation\":null")
+  assert string.contains(
+    conflict_json,
+    "\"field\":[\"input\",\"billingAddress\"]",
+  )
+  assert string.contains(conflict_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: missing_status, body: missing_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \""
+        <> location_id
+        <> "\", input: { name: \"Missing Billing\", billingSameAsShipping: false }) { companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert missing_status == 200
+  let missing_json = json.to_string(missing_body)
+  assert string.contains(missing_json, "\"companyLocation\":null")
+  assert string.contains(
+    missing_json,
+    "\"field\":[\"input\",\"billingAddress\"]",
+  )
+  assert string.contains(missing_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: tax_status, body: tax_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \""
+        <> location_id
+        <> "\", input: { name: \"Null Tax\", taxExempt: null }) { companyLocation { id name } userErrors { field message code } } }",
+    )
+  assert tax_status == 200
+  let tax_json = json.to_string(tax_body)
+  assert string.contains(tax_json, "\"companyLocation\":null")
+  assert string.contains(tax_json, "\"field\":[\"input\",\"taxExempt\"]")
+  assert string.contains(tax_json, "\"code\":\"INVALID_INPUT\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \""
+        <> location_id
+        <> "\") { id name billingAddress { address1 } taxSettings { taxExempt } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"name\":\"HQ\"")
+  assert !string.contains(read_json, "Conflict")
+  assert !string.contains(read_json, "Missing Billing")
+  assert !string.contains(read_json, "Null Tax")
+}
+
 pub fn b2b_location_create_uses_shipping_address1_name_fallback_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(

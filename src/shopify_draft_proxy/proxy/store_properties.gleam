@@ -103,7 +103,7 @@ const shop_baseline_hydrate_query: String = "query StorePropertiesShopBaselineHy
 
 const location_hydrate_operation: String = "StorePropertiesLocationHydrate"
 
-const location_hydrate_query: String = "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"
+const location_hydrate_query: String = "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService isPrimary shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }"
 
 pub type StorePropertiesError {
   ParseFailed(root_field.RootFieldError)
@@ -2572,12 +2572,8 @@ fn stage_location_delete(
       let store = hydrate_location_if_missing(store, upstream, id)
       case store.get_effective_store_property_location_by_id(store, id) {
         Some(record) ->
-          case
-            store_property_bool_field(record, "isActive") |> option.unwrap(True)
-          {
-            True ->
-              active_location_delete_result(store, identity, field, fragments)
-            False -> {
+          case location_delete_guard_errors(record) {
+            [] -> {
               let next_store =
                 store.delete_staged_store_property_location(store, id)
               let payload_source =
@@ -2598,6 +2594,14 @@ fn stage_location_delete(
                 should_log: True,
               )
             }
+            errors ->
+              location_delete_error_result(
+                store,
+                identity,
+                field,
+                fragments,
+                errors,
+              )
           }
         None ->
           location_user_error_result(
@@ -2782,38 +2786,17 @@ fn compare_admin_api_versions(version: #(Int, Int), minimum: #(Int, Int)) {
   year > minimum_year || { year == minimum_year && month >= minimum_month }
 }
 
-fn active_location_delete_result(
+fn location_delete_error_result(
   store: Store,
   identity: SyntheticIdentityRegistry,
   field: Selection,
   fragments: FragmentMap,
+  errors: List(SourceValue),
 ) -> GenericMutationResult {
   let payload_source =
     src_object([
       #("deletedLocationId", SrcNull),
-      #(
-        "locationDeleteUserErrors",
-        SrcList([
-          src_object([
-            #("field", SrcList([SrcString("locationId")])),
-            #(
-              "message",
-              SrcString("The location cannot be deleted while it is active."),
-            ),
-            #("code", SrcString("LOCATION_IS_ACTIVE")),
-          ]),
-          src_object([
-            #("field", SrcList([SrcString("locationId")])),
-            #(
-              "message",
-              SrcString(
-                "The location cannot be deleted while it has inventory.",
-              ),
-            ),
-            #("code", SrcString("LOCATION_HAS_INVENTORY")),
-          ]),
-        ]),
-      ),
+      #("locationDeleteUserErrors", SrcList(errors)),
     ])
   GenericMutationResult(
     payload: project_graphql_value(
@@ -2827,6 +2810,234 @@ fn active_location_delete_result(
     top_level_errors: [],
     should_log: False,
   )
+}
+
+fn location_delete_guard_errors(
+  record: StorePropertyRecord,
+) -> List(SourceValue) {
+  case location_is_merchant_managed(record) {
+    False -> [
+      location_delete_error("Location not found.", "LOCATION_NOT_FOUND"),
+    ]
+    True -> {
+      let errors =
+        []
+        |> append_location_delete_error(
+          location_bool_field(record, "isActive", False),
+          "The location cannot be deleted while it is active.",
+          "LOCATION_IS_ACTIVE",
+        )
+        |> append_location_delete_error(
+          location_has_stocked_inventory(record),
+          "The location cannot be deleted while it has inventory.",
+          "LOCATION_HAS_INVENTORY",
+        )
+        |> append_location_delete_error(
+          location_has_pending_orders(record),
+          "The location cannot be deleted while it has pending orders.",
+          "LOCATION_HAS_PENDING_ORDERS",
+        )
+        |> append_location_delete_error(
+          location_has_active_retail_subscription(record),
+          "The location cannot be deleted while it has an active retail subscription.",
+          "LOCATION_HAS_ACTIVE_RETAIL_SUBSCRIPTION",
+        )
+        |> append_primary_location_delete_error(record)
+      case
+        errors,
+        store_property_bool_field(record, "deletable") |> option.unwrap(True)
+      {
+        [], False -> [
+          location_delete_error(
+            "Location cannot be deleted.",
+            "LOCATION_NOT_DELETABLE",
+          ),
+        ]
+        _, _ -> errors
+      }
+    }
+  }
+}
+
+fn append_primary_location_delete_error(
+  errors: List(SourceValue),
+  record: StorePropertyRecord,
+) -> List(SourceValue) {
+  case errors, location_is_primary(record) {
+    [], True ->
+      list.append(errors, [
+        location_delete_error(
+          "The primary location cannot be deleted.",
+          "LOCATION_IS_PRIMARY",
+        ),
+      ])
+    _, _ -> errors
+  }
+}
+
+fn append_location_delete_error(
+  errors: List(SourceValue),
+  condition: Bool,
+  message: String,
+  code: String,
+) -> List(SourceValue) {
+  case condition {
+    True -> list.append(errors, [location_delete_error(message, code)])
+    False -> errors
+  }
+}
+
+fn location_delete_error(message: String, code: String) -> SourceValue {
+  location_error_source("locationId", message, code)
+}
+
+fn location_is_merchant_managed(record: StorePropertyRecord) -> Bool {
+  case
+    first_location_bool_field(record, ["merchantManaged", "merchant_managed"])
+  {
+    Some(value) -> value
+    None ->
+      !location_bool_field(record, "isFulfillmentService", False)
+      && case dict.get(record.data, "fulfillmentService") {
+        Ok(StorePropertyObject(_)) -> False
+        _ -> True
+      }
+  }
+}
+
+fn location_is_primary(record: StorePropertyRecord) -> Bool {
+  first_location_bool_field(record, [
+    "isPrimary",
+    "primary",
+    "isPrimaryLocation",
+  ])
+  |> option.unwrap(False)
+}
+
+fn location_has_pending_orders(record: StorePropertyRecord) -> Bool {
+  first_location_bool_field(record, [
+    "hasPendingOrders",
+    "hasUnfulfilledOrders",
+    "hasPendingFulfillmentOrders",
+  ])
+  |> option.unwrap(False)
+  || location_inventory_levels_have_quantity(record, "committed")
+}
+
+fn location_has_active_retail_subscription(
+  record: StorePropertyRecord,
+) -> Bool {
+  first_location_bool_field(record, [
+    "hasActiveRetailSubscription",
+    "hasActiveRetailSubscriptions",
+    "activeRetailSubscription",
+  ])
+  |> option.unwrap(False)
+}
+
+fn location_has_stocked_inventory(record: StorePropertyRecord) -> Bool {
+  first_location_bool_field(record, ["hasActiveInventory", "hasInventory"])
+  |> option.unwrap(False)
+  || location_inventory_levels_have_stock(record)
+}
+
+fn first_location_bool_field(
+  record: StorePropertyRecord,
+  keys: List(String),
+) -> Option(Bool) {
+  case keys {
+    [] -> None
+    [key, ..rest] ->
+      case store_property_bool_field(record, key) {
+        Some(value) -> Some(value)
+        None -> first_location_bool_field(record, rest)
+      }
+  }
+}
+
+fn location_inventory_levels_have_stock(record: StorePropertyRecord) -> Bool {
+  location_inventory_quantity_values(record)
+  |> list.any(fn(quantity) {
+    quantity.name != "committed" && quantity.quantity > 0
+  })
+}
+
+fn location_inventory_levels_have_quantity(
+  record: StorePropertyRecord,
+  quantity_name: String,
+) -> Bool {
+  location_inventory_quantity_values(record)
+  |> list.any(fn(quantity) {
+    quantity.name == quantity_name && quantity.quantity > 0
+  })
+}
+
+type LocationInventoryQuantity {
+  LocationInventoryQuantity(name: String, quantity: Int)
+}
+
+fn location_inventory_quantity_values(
+  record: StorePropertyRecord,
+) -> List(LocationInventoryQuantity) {
+  case dict.get(record.data, "inventoryLevels") {
+    Ok(StorePropertyObject(connection)) ->
+      store_property_object_list_field(connection, "nodes")
+      |> list.flat_map(inventory_level_quantity_values)
+    _ -> []
+  }
+}
+
+fn inventory_level_quantity_values(
+  level: Dict(String, StorePropertyValue),
+) -> List(LocationInventoryQuantity) {
+  store_property_object_list_field(level, "quantities")
+  |> list.filter_map(fn(quantity) {
+    case
+      store_property_string_field(quantity, "name"),
+      store_property_int_field(quantity, "quantity")
+    {
+      Some(name), Some(amount) ->
+        Ok(LocationInventoryQuantity(name: name, quantity: amount))
+      _, _ -> Error(Nil)
+    }
+  })
+}
+
+fn store_property_object_list_field(
+  data: Dict(String, StorePropertyValue),
+  key: String,
+) -> List(Dict(String, StorePropertyValue)) {
+  case dict.get(data, key) {
+    Ok(StorePropertyList(values)) ->
+      values
+      |> list.filter_map(fn(value) {
+        case value {
+          StorePropertyObject(value) -> Ok(value)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn store_property_string_field(
+  data: Dict(String, StorePropertyValue),
+  key: String,
+) -> Option(String) {
+  case dict.get(data, key) {
+    Ok(StorePropertyString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn store_property_int_field(
+  data: Dict(String, StorePropertyValue),
+  key: String,
+) -> Option(Int) {
+  case dict.get(data, key) {
+    Ok(StorePropertyInt(value)) -> Some(value)
+    _ -> None
+  }
 }
 
 fn location_user_error_result(

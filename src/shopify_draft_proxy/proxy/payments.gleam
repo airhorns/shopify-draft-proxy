@@ -46,11 +46,11 @@ import shopify_draft_proxy/state/types.{
   type Money, type OrderRecord, type PaymentCustomizationMetafieldRecord,
   type PaymentCustomizationRecord, type PaymentScheduleRecord,
   type PaymentTermsRecord, type PaymentTermsTemplateRecord,
-  type ShopifyFunctionRecord, CapturedBool, CapturedNull, CapturedObject,
-  CapturedString, CustomerPaymentMethodInstrumentRecord,
-  CustomerPaymentMethodRecord, CustomerPaymentMethodUpdateUrlRecord,
-  CustomerRecord, DraftOrderRecord, Money, OrderRecord,
-  PaymentCustomizationMetafieldRecord, PaymentCustomizationRecord,
+  type ShopifyFunctionRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  CustomerPaymentMethodInstrumentRecord, CustomerPaymentMethodRecord,
+  CustomerPaymentMethodUpdateUrlRecord, CustomerRecord, DraftOrderRecord, Money,
+  OrderRecord, PaymentCustomizationMetafieldRecord, PaymentCustomizationRecord,
   PaymentReminderSendRecord, PaymentScheduleRecord, PaymentTermsRecord,
   PaymentTermsTemplateRecord,
 }
@@ -58,6 +58,14 @@ import shopify_draft_proxy/state/types.{
 const customization_app_id: String = "347082227713"
 
 const duplication_prefix: String = "shopify-draft-proxy:customer-payment-method-duplication:"
+
+const payment_terms_creation_unsuccessful_code: String = "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+
+const payment_terms_update_unsuccessful_code: String = "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+
+const payment_terms_delete_unsuccessful_code: String = "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
+
+const multiple_payment_schedules_message: String = "Cannot create payment terms with multiple schedules."
 
 pub type PaymentsError {
   ParseFailed(root_field.RootFieldError)
@@ -2925,48 +2933,113 @@ fn maybe_hydrate_payment_terms_owner(
   owner_id: String,
   upstream: UpstreamContext,
 ) -> Store {
-  case
-    is_shopify_gid(Some(owner_id), "DraftOrder"),
-    store.payment_terms_owner_exists(store, owner_id)
-  {
-    True, False -> {
-      // Pattern 2: paymentTermsCreate needs the upstream draft-order
-      // reference to exist before staging local payment terms. Snapshot
-      // or no-cassette mode preserves Shopify-like REFERENCE_DOES_NOT_EXIST.
-      let variables = json.object([#("id", json.string(owner_id))])
-      case
-        upstream_query.fetch_sync(
-          upstream.origin,
-          upstream.transport,
-          upstream.headers,
-          "PaymentTermsOwnerHydrate",
-          payment_terms_owner_hydrate_query(),
-          variables,
-        )
-      {
-        Ok(value) ->
-          case payment_terms_owner_exists_in_response(value) {
-            True -> store.register_payment_terms_owner(store, owner_id)
-            False -> store
+  case payment_terms_owner_resource_type(owner_id) {
+    Some(resource_type) -> {
+      case payment_terms_owner_available(store, owner_id) {
+        True -> store
+        False -> {
+          // Pattern 2: paymentTermsCreate needs the upstream order/draft-order
+          // reference to exist before staging local payment terms. Snapshot or
+          // no-cassette mode preserves Shopify-like local "does not exist" errors.
+          let variables = json.object([#("id", json.string(owner_id))])
+          case
+            upstream_query.fetch_sync(
+              upstream.origin,
+              upstream.transport,
+              upstream.headers,
+              "PaymentTermsOwnerHydrate",
+              payment_terms_owner_hydrate_query(resource_type),
+              variables,
+            )
+          {
+            Ok(value) ->
+              case payment_terms_owner_from_response(value, resource_type) {
+                Some(owner) ->
+                  hydrate_payment_terms_owner(
+                    store,
+                    owner_id,
+                    resource_type,
+                    owner,
+                  )
+                None -> store
+              }
+            Error(_) -> store
           }
-        Error(_) -> store
+        }
       }
     }
-    _, _ -> store
+    _ -> store
   }
 }
 
-fn payment_terms_owner_hydrate_query() -> String {
-  "query PaymentTermsOwnerHydrate($id: ID!) {\n"
-  <> "  draftOrder(id: $id) { id paymentTerms { id } }\n"
-  <> "}\n"
+fn payment_terms_owner_resource_type(owner_id: String) -> Option(String) {
+  case
+    is_shopify_gid(Some(owner_id), "Order"),
+    is_shopify_gid(Some(owner_id), "DraftOrder")
+  {
+    True, _ -> Some("Order")
+    _, True -> Some("DraftOrder")
+    _, _ -> None
+  }
 }
 
-fn payment_terms_owner_exists_in_response(value: commit.JsonValue) -> Bool {
+fn payment_terms_owner_available(store: Store, owner_id: String) -> Bool {
+  case payment_terms_owner_resource_type(owner_id) {
+    Some("Order") ->
+      store.payment_terms_owner_exists(store, owner_id)
+      || option.is_some(store.get_order_by_id(store, owner_id))
+    Some("DraftOrder") ->
+      store.payment_terms_owner_exists(store, owner_id)
+      || option.is_some(store.get_draft_order_by_id(store, owner_id))
+    _ -> False
+  }
+}
+
+fn payment_terms_owner_hydrate_query(resource_type: String) -> String {
+  case resource_type {
+    "Order" ->
+      "query PaymentTermsOwnerHydrate($id: ID!) {\n"
+      <> "  order(id: $id) { id paymentTerms { id } totalOutstandingSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } presentmentMoney { amount currencyCode } } }\n"
+      <> "}\n"
+    _ ->
+      "query PaymentTermsOwnerHydrate($id: ID!) {\n"
+      <> "  draftOrder(id: $id) { id paymentTerms { id } subtotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } }\n"
+      <> "}\n"
+  }
+}
+
+fn payment_terms_owner_from_response(
+  value: commit.JsonValue,
+  resource_type: String,
+) -> Option(commit.JsonValue) {
+  let field_name = case resource_type {
+    "Order" -> "order"
+    _ -> "draftOrder"
+  }
   json_get(value, "data")
-  |> option.then(fn(data) { json_get(data, "draftOrder") })
+  |> option.then(fn(data) { json_get(data, field_name) })
   |> non_null_json
-  |> option.is_some
+}
+
+fn hydrate_payment_terms_owner(
+  store: Store,
+  owner_id: String,
+  resource_type: String,
+  owner: commit.JsonValue,
+) -> Store {
+  let id = json_get_string(owner, "id") |> option.unwrap(owner_id)
+  let owner_data = captured_json_from_commit(owner)
+  let with_owner = store.register_payment_terms_owner(store, id)
+  case resource_type {
+    "Order" ->
+      store.upsert_base_orders(with_owner, [
+        OrderRecord(id: id, cursor: None, data: owner_data),
+      ])
+    _ ->
+      store.upsert_base_draft_orders(with_owner, [
+        DraftOrderRecord(id: id, cursor: None, data: owner_data),
+      ])
+  }
 }
 
 fn hydrate_payment_schedule_context(
@@ -3184,25 +3257,8 @@ fn create_payment_terms(store, identity, field, fragments, variables) {
   let attrs =
     graphql_helpers.read_arg_object(args, "paymentTermsAttributes")
     |> option.unwrap(dict.new())
-  case
-    reference_id,
-    reference_id |> option.map(store.payment_terms_owner_exists(store, _))
-  {
-    Some(owner_id), Some(True) -> {
-      let #(record, next_identity) =
-        build_payment_terms(identity, owner_id, attrs, None)
-      payment_terms_result(
-        store.upsert_staged_payment_terms(store, record),
-        next_identity,
-        field,
-        fragments,
-        "paymentTermsCreate",
-        Some(record),
-        [],
-        [record.id],
-      )
-    }
-    _, _ ->
+  case has_multiple_payment_schedules(attrs) {
+    True ->
       payment_terms_result(
         store,
         identity,
@@ -3212,13 +3268,71 @@ fn create_payment_terms(store, identity, field, fragments, variables) {
         None,
         [
           payment_terms_error(
-            ["referenceId"],
-            "Reference does not exist",
-            "REFERENCE_DOES_NOT_EXIST",
+            ["base"],
+            multiple_payment_schedules_message,
+            payment_terms_creation_unsuccessful_code,
           ),
         ],
         [],
       )
+    False ->
+      case reference_id {
+        Some(owner_id) -> {
+          case payment_terms_owner_available(store, owner_id) {
+            True -> {
+              let amount =
+                payment_terms_owner_money(store, owner_id)
+                |> option.unwrap(default_payment_terms_money())
+              let #(record, next_identity) =
+                build_payment_terms(identity, owner_id, attrs, None, amount)
+              payment_terms_result(
+                store.upsert_staged_payment_terms(store, record),
+                next_identity,
+                field,
+                fragments,
+                "paymentTermsCreate",
+                Some(record),
+                [],
+                [record.id],
+              )
+            }
+            False ->
+              payment_terms_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "paymentTermsCreate",
+                None,
+                [
+                  payment_terms_error(
+                    ["referenceId"],
+                    "Reference does not exist",
+                    payment_terms_creation_unsuccessful_code,
+                  ),
+                ],
+                [],
+              )
+          }
+        }
+        _ ->
+          payment_terms_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "paymentTermsCreate",
+            None,
+            [
+              payment_terms_error(
+                ["referenceId"],
+                "Reference does not exist",
+                payment_terms_creation_unsuccessful_code,
+              ),
+            ],
+            [],
+          )
+      }
   }
 }
 
@@ -3233,28 +3347,72 @@ fn update_payment_terms(store, identity, field, fragments, variables) {
   let attrs =
     graphql_helpers.read_arg_object(input, "paymentTermsAttributes")
     |> option.unwrap(dict.new())
-  case id {
-    Some(payment_terms_id) ->
-      case store.get_effective_payment_terms_by_id(store, payment_terms_id) {
-        Some(current) -> {
-          let #(record, next_identity) =
-            build_payment_terms(
-              identity,
-              current.owner_id,
-              attrs,
-              Some(current.id),
-            )
-          payment_terms_result(
-            store.upsert_staged_payment_terms(store, record),
-            next_identity,
-            field,
-            fragments,
-            "paymentTermsUpdate",
-            Some(record),
-            [],
-            [record.id],
-          )
-        }
+  case has_multiple_payment_schedules(attrs) {
+    True ->
+      payment_terms_result(
+        store,
+        identity,
+        field,
+        fragments,
+        "paymentTermsUpdate",
+        None,
+        [
+          payment_terms_error(
+            ["base"],
+            multiple_payment_schedules_message,
+            payment_terms_update_unsuccessful_code,
+          ),
+        ],
+        [],
+      )
+    False ->
+      case id {
+        Some(payment_terms_id) ->
+          case
+            get_effective_payment_terms_by_input_id(store, payment_terms_id)
+          {
+            Some(current) -> {
+              let amount =
+                payment_terms_owner_money(store, current.owner_id)
+                |> option.or(payment_terms_record_money(current))
+                |> option.unwrap(default_payment_terms_money())
+              let #(record, next_identity) =
+                build_payment_terms(
+                  identity,
+                  current.owner_id,
+                  attrs,
+                  Some(current.id),
+                  amount,
+                )
+              payment_terms_result(
+                store.upsert_staged_payment_terms(store, record),
+                next_identity,
+                field,
+                fragments,
+                "paymentTermsUpdate",
+                Some(record),
+                [],
+                [record.id],
+              )
+            }
+            None ->
+              payment_terms_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "paymentTermsUpdate",
+                None,
+                [
+                  payment_terms_error(
+                    ["input", "paymentTermsId"],
+                    "Payment terms do not exist",
+                    payment_terms_update_unsuccessful_code,
+                  ),
+                ],
+                [],
+              )
+          }
         None ->
           payment_terms_result(
             store,
@@ -3267,29 +3425,12 @@ fn update_payment_terms(store, identity, field, fragments, variables) {
               payment_terms_error(
                 ["input", "paymentTermsId"],
                 "Payment terms do not exist",
-                "PAYMENT_TERMS_NOT_FOUND",
+                payment_terms_update_unsuccessful_code,
               ),
             ],
             [],
           )
       }
-    None ->
-      payment_terms_result(
-        store,
-        identity,
-        field,
-        fragments,
-        "paymentTermsUpdate",
-        None,
-        [
-          payment_terms_error(
-            ["input", "paymentTermsId"],
-            "Payment terms do not exist",
-            "PAYMENT_TERMS_NOT_FOUND",
-          ),
-        ],
-        [],
-      )
   }
 }
 
@@ -3303,22 +3444,24 @@ fn delete_payment_terms(store, identity, field, fragments, variables) {
   let id = read_string_field(input, "paymentTermsId")
   case id {
     Some(payment_terms_id) ->
-      case store.get_effective_payment_terms_by_id(store, payment_terms_id) {
-        Some(_) ->
+      case get_effective_payment_terms_by_input_id(store, payment_terms_id) {
+        Some(record) -> {
+          let deleted_id = payment_terms_gid_from_id(record.id)
           mutation_payload_result(
-            store.delete_staged_payment_terms(store, payment_terms_id),
+            store.delete_staged_payment_terms(store, record.id),
             identity,
             field,
             project_payload(field, fragments, [
-              #("deletedId", SrcString(payment_terms_id)),
+              #("deletedId", SrcString(deleted_id)),
               #("userErrors", user_errors_source([])),
             ]),
-            [payment_terms_id],
+            [record.id],
             "paymentTermsDelete",
             Some(
               "Staged payment terms deletion locally in the in-memory payment terms draft store.",
             ),
           )
+        }
         None ->
           mutation_payload_result(
             store,
@@ -3332,7 +3475,7 @@ fn delete_payment_terms(store, identity, field, fragments, variables) {
                   payment_terms_error(
                     ["input", "paymentTermsId"],
                     "Payment terms do not exist",
-                    "PAYMENT_TERMS_NOT_FOUND",
+                    payment_terms_delete_unsuccessful_code,
                   ),
                 ]),
               ),
@@ -3357,7 +3500,7 @@ fn delete_payment_terms(store, identity, field, fragments, variables) {
               payment_terms_error(
                 ["input", "paymentTermsId"],
                 "Payment terms do not exist",
-                "PAYMENT_TERMS_NOT_FOUND",
+                payment_terms_delete_unsuccessful_code,
               ),
             ]),
           ),
@@ -3376,6 +3519,7 @@ fn build_payment_terms(
   owner_id: String,
   attrs: Dict(String, root_field.ResolvedValue),
   existing_id: Option(String),
+  amount: Money,
 ) -> #(PaymentTermsRecord, SyntheticIdentityRegistry) {
   let #(id, identity_after_terms) = case existing_id {
     Some(value) -> #(value, identity)
@@ -3409,7 +3553,6 @@ fn build_payment_terms(
       Some(days), Some(issued) -> add_days(issued, days)
       _, _ -> None
     })
-  let amount = Money(amount: "18.5", currency_code: "CAD")
   #(
     PaymentTermsRecord(
       id: id,
@@ -3447,6 +3590,171 @@ fn first_schedule_attrs(
     Ok(root_field.ListVal([root_field.ObjectVal(first), ..])) -> first
     _ -> dict.new()
   }
+}
+
+fn has_multiple_payment_schedules(
+  attrs: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case dict.get(attrs, "paymentSchedules") {
+    Ok(root_field.ListVal([_, _, ..])) -> True
+    _ -> False
+  }
+}
+
+fn default_payment_terms_money() -> Money {
+  Money(amount: "0.0", currency_code: "CAD")
+}
+
+fn payment_terms_owner_money(store: Store, owner_id: String) -> Option(Money) {
+  case payment_terms_owner_resource_type(owner_id) {
+    Some("Order") ->
+      case store.get_order_by_id(store, owner_id) {
+        Some(record) ->
+          captured_money_from_fields(record.data, [
+            "totalOutstandingSet",
+            "currentTotalPriceSet",
+            "totalPriceSet",
+            "subtotalPriceSet",
+          ])
+        None -> None
+      }
+    Some("DraftOrder") ->
+      case store.get_draft_order_by_id(store, owner_id) {
+        Some(record) ->
+          captured_money_from_fields(record.data, [
+            "totalOutstandingSet",
+            "currentTotalPriceSet",
+            "totalPriceSet",
+            "subtotalPriceSet",
+          ])
+        None -> None
+      }
+    _ -> None
+  }
+}
+
+fn payment_terms_record_money(record: PaymentTermsRecord) -> Option(Money) {
+  case record.payment_schedules {
+    [schedule, ..] ->
+      schedule.amount
+      |> option.or(schedule.balance_due)
+      |> option.or(schedule.total_balance)
+    [] -> None
+  }
+}
+
+fn captured_money_from_fields(
+  data: CapturedJsonValue,
+  fields: List(String),
+) -> Option(Money) {
+  case fields {
+    [] -> None
+    [field, ..rest] ->
+      case
+        captured_object_field(data, field)
+        |> option.then(captured_money_from_money_bag)
+      {
+        Some(money) -> Some(money)
+        None -> captured_money_from_fields(data, rest)
+      }
+  }
+}
+
+fn captured_money_from_money_bag(value: CapturedJsonValue) -> Option(Money) {
+  case
+    captured_object_field(value, "presentmentMoney")
+    |> option.then(captured_money_value)
+  {
+    Some(money) -> Some(money)
+    None ->
+      captured_object_field(value, "shopMoney")
+      |> option.then(captured_money_value)
+  }
+}
+
+fn captured_money_value(value: CapturedJsonValue) -> Option(Money) {
+  case
+    captured_string_field(value, "amount"),
+    captured_string_field(value, "currencyCode")
+  {
+    Some(amount), Some(currency_code) ->
+      Some(Money(amount: amount, currency_code: currency_code))
+    _, _ -> None
+  }
+}
+
+fn captured_object_field(
+  value: CapturedJsonValue,
+  key: String,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedObject(fields) ->
+      list.find_map(fields, fn(pair) {
+        case pair {
+          #(name, child) if name == key -> Ok(child)
+          _ -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn captured_string_field(
+  value: CapturedJsonValue,
+  key: String,
+) -> Option(String) {
+  captured_object_field(value, key)
+  |> option.then(fn(child) {
+    case child {
+      CapturedString(value) -> Some(value)
+      _ -> None
+    }
+  })
+}
+
+fn captured_json_from_commit(value: commit.JsonValue) -> CapturedJsonValue {
+  case value {
+    commit.JsonNull -> CapturedNull
+    commit.JsonBool(value) -> CapturedBool(value)
+    commit.JsonInt(value) -> CapturedInt(value)
+    commit.JsonFloat(value) -> CapturedFloat(value)
+    commit.JsonString(value) -> CapturedString(value)
+    commit.JsonArray(items) ->
+      CapturedArray(list.map(items, captured_json_from_commit))
+    commit.JsonObject(fields) ->
+      CapturedObject(
+        list.map(fields, fn(pair) {
+          #(pair.0, captured_json_from_commit(pair.1))
+        }),
+      )
+  }
+}
+
+fn get_effective_payment_terms_by_input_id(
+  store: Store,
+  id: String,
+) -> Option(PaymentTermsRecord) {
+  payment_terms_lookup_ids(id)
+  |> list.find_map(fn(candidate) {
+    case store.get_effective_payment_terms_by_id(store, candidate) {
+      Some(record) -> Ok(record)
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn payment_terms_lookup_ids(id: String) -> List(String) {
+  let gid = payment_terms_gid_from_id(id)
+  case gid == id {
+    True -> [id]
+    False -> [id, gid]
+  }
+}
+
+fn payment_terms_gid_from_id(id: String) -> String {
+  "gid://shopify/PaymentTerms/" <> gid_tail(id)
 }
 
 fn find_payment_terms_template(
@@ -3636,35 +3944,6 @@ fn captured_present(value: CapturedJsonValue, name: String) -> Bool {
   case captured_object_field(value, name) {
     Some(CapturedNull) | None -> False
     Some(_) -> True
-  }
-}
-
-fn captured_object_field(
-  value: CapturedJsonValue,
-  name: String,
-) -> Option(CapturedJsonValue) {
-  case value {
-    CapturedObject(fields) ->
-      fields
-      |> list.find_map(fn(pair) {
-        let #(key, item) = pair
-        case key == name {
-          True -> Ok(item)
-          False -> Error(Nil)
-        }
-      })
-      |> option.from_result
-    _ -> None
-  }
-}
-
-fn captured_string_field(
-  value: CapturedJsonValue,
-  name: String,
-) -> Option(String) {
-  case captured_object_field(value, name) {
-    Some(CapturedString(value)) -> Some(value)
-    _ -> None
   }
 }
 
