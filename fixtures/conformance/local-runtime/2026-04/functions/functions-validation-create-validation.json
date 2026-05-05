@@ -3,7 +3,7 @@
   "capturedAt": "2026-05-05T17:45:00.000Z",
   "source": "local-runtime",
   "apiVersion": "2026-04",
-  "summary": "Executable local parity fixture for HAR-698 validationCreate defaults, active cap, Function eligibility, and metafield persistence.",
+  "summary": "Executable local parity fixture for HAR-698/HAR-777 validationCreate defaults, active cap, Function eligibility, and metafield persistence.",
   "primary": {
     "response": {
       "data": {
@@ -106,12 +106,147 @@
           },
           "userErrors": []
         },
+        "active11": {
+          "validation": {
+            "id": "gid://shopify/Validation/13",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 11"
+          },
+          "userErrors": []
+        },
+        "active12": {
+          "validation": {
+            "id": "gid://shopify/Validation/14",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 12"
+          },
+          "userErrors": []
+        },
+        "active13": {
+          "validation": {
+            "id": "gid://shopify/Validation/15",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 13"
+          },
+          "userErrors": []
+        },
+        "active14": {
+          "validation": {
+            "id": "gid://shopify/Validation/16",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 14"
+          },
+          "userErrors": []
+        },
+        "active15": {
+          "validation": {
+            "id": "gid://shopify/Validation/17",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 15"
+          },
+          "userErrors": []
+        },
+        "active16": {
+          "validation": {
+            "id": "gid://shopify/Validation/18",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 16"
+          },
+          "userErrors": []
+        },
+        "active17": {
+          "validation": {
+            "id": "gid://shopify/Validation/19",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 17"
+          },
+          "userErrors": []
+        },
+        "active18": {
+          "validation": {
+            "id": "gid://shopify/Validation/20",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 18"
+          },
+          "userErrors": []
+        },
+        "active19": {
+          "validation": {
+            "id": "gid://shopify/Validation/21",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 19"
+          },
+          "userErrors": []
+        },
+        "active20": {
+          "validation": {
+            "id": "gid://shopify/Validation/22",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 20"
+          },
+          "userErrors": []
+        },
+        "active21": {
+          "validation": {
+            "id": "gid://shopify/Validation/23",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 21"
+          },
+          "userErrors": []
+        },
+        "active22": {
+          "validation": {
+            "id": "gid://shopify/Validation/24",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 22"
+          },
+          "userErrors": []
+        },
+        "active23": {
+          "validation": {
+            "id": "gid://shopify/Validation/25",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 23"
+          },
+          "userErrors": []
+        },
+        "active24": {
+          "validation": {
+            "id": "gid://shopify/Validation/26",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 24"
+          },
+          "userErrors": []
+        },
+        "active25": {
+          "validation": {
+            "id": "gid://shopify/Validation/27",
+            "enable": true,
+            "blockOnFailure": false,
+            "title": "Active 25"
+          },
+          "userErrors": []
+        },
         "maxActive": {
           "validation": null,
           "userErrors": [
             {
-              "field": ["enable"],
-              "message": "Cannot have more than 10 active validation functions.",
+              "field": [],
+              "message": "Cannot have more than 25 active validation functions.",
               "code": "MAX_VALIDATIONS_ACTIVATED"
             }
           ]
@@ -128,7 +263,7 @@
         },
         "withMetafields": {
           "validation": {
-            "id": "gid://shopify/Validation/13",
+            "id": "gid://shopify/Validation/28",
             "enable": false,
             "blockOnFailure": false,
             "title": "With metafields",
@@ -231,6 +366,111 @@
             },
             {
               "id": "gid://shopify/Validation/13",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/14",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/15",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/16",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/17",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/18",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/19",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/20",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/21",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/22",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/23",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/24",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/25",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/26",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/27",
+              "enable": true,
+              "metafields": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/Validation/28",
               "enable": false,
               "metafields": {
                 "nodes": [

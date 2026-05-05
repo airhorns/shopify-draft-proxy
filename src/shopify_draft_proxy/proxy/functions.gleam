@@ -56,7 +56,7 @@ import shopify_draft_proxy/state/types.{
   ValidationMetafieldRecord, ValidationRecord,
 }
 
-const max_active_validations: Int = 10
+const max_active_validations: Int = 25
 
 const function_app_id: String = "347082227713"
 
@@ -1005,8 +1005,8 @@ fn function_already_registered_error(field_name: String) -> UserError {
 
 fn max_validations_activated_error() -> UserError {
   UserError(
-    field: ["enable"],
-    message: "Cannot have more than 10 active validation functions.",
+    field: [],
+    message: "Cannot have more than 25 active validation functions.",
     code: Some("MAX_VALIDATIONS_ACTIVATED"),
   )
 }
