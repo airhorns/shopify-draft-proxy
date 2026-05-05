@@ -165,13 +165,35 @@ pub fn web_pixel_update_and_delete_errors_use_web_pixel_user_error_test() {
     "mutation { webPixelUpdate(id: \"gid://shopify/WebPixel/missing\", webPixel: { settings: \"{}\" }) { webPixel { id } userErrors { __typename code field message } } }"
   let #(update_body, proxy) = run_graphql(proxy(), update_query)
   assert update_body
-    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":null,\"field\":[\"id\"],\"message\":\"Pixel does not exist\"}]}}}"
+    == "{\"data\":{\"webPixelUpdate\":{\"webPixel\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]}}}"
 
   let delete_query =
     "mutation { webPixelDelete(id: \"gid://shopify/WebPixel/missing\") { deletedWebPixelId userErrors { __typename code field message } } }"
   let #(delete_body, _) = run_graphql(proxy, delete_query)
   assert delete_body
-    == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":null,\"field\":[\"id\"],\"message\":\"Integration does not exist\"}]}}}"
+    == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]}}}"
+}
+
+pub fn online_store_integration_missing_ids_return_not_found_codes_test() {
+  let update_query =
+    "mutation { scriptTagUpdate(id: \"gid://shopify/ScriptTag/9999999999\", input: { src: \"https://example.test/a.js\" }) { scriptTag { id } userErrors { __typename code field message } } themeUpdate(id: \"gid://shopify/OnlineStoreTheme/9999999999\", input: { name: \"Missing\" }) { theme { id } userErrors { __typename code field message } } eventBridgeServerPixelUpdate(arn: \"arn:aws:events:us-east-1:123456789012:event-bus/missing\") { serverPixel { id } userErrors { code field message } } mobilePlatformApplicationUpdate(id: \"gid://shopify/MobilePlatformApplication/9999999999\", input: {}) { mobilePlatformApplication { __typename } userErrors { code field message } } }"
+  let #(update_body, proxy) = run_graphql(proxy(), update_query)
+  assert update_body
+    == "{\"data\":{\"scriptTagUpdate\":{\"scriptTag\":null,\"userErrors\":[{\"__typename\":\"ScriptTagUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Script tag not found\"}]},\"themeUpdate\":{\"theme\":null,\"userErrors\":[{\"__typename\":\"ThemeUserError\",\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Theme not found\"}]},\"eventBridgeServerPixelUpdate\":{\"serverPixel\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]},\"mobilePlatformApplicationUpdate\":{\"mobilePlatformApplication\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Mobile platform application not found\"}]}}}"
+
+  let delete_query =
+    "mutation { webPixelDelete(id: \"gid://shopify/WebPixel/9999999999\") { deletedWebPixelId userErrors { code field message } } scriptTagDelete(id: \"gid://shopify/ScriptTag/9999999999\") { deletedScriptTagId userErrors { code field message } } themeDelete(id: \"gid://shopify/OnlineStoreTheme/9999999999\") { deletedThemeId userErrors { code field message } } serverPixelDelete { deletedServerPixelId userErrors { code field message } } mobilePlatformApplicationDelete(id: \"gid://shopify/MobilePlatformApplication/9999999999\") { deletedMobilePlatformApplicationId userErrors { code field message } } }"
+  let #(delete_body, _) = run_graphql(proxy, delete_query)
+  assert delete_body
+    == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Pixel not found\"}]},\"scriptTagDelete\":{\"deletedScriptTagId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Script tag not found\"}]},\"themeDelete\":{\"deletedThemeId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Theme not found\"}]},\"serverPixelDelete\":{\"deletedServerPixelId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Server pixel not found\"}]},\"mobilePlatformApplicationDelete\":{\"deletedMobilePlatformApplicationId\":null,\"userErrors\":[{\"code\":\"NOT_FOUND\",\"field\":[\"id\"],\"message\":\"Mobile platform application not found\"}]}}}"
+}
+
+pub fn online_store_integration_malformed_ids_return_invalid_codes_test() {
+  let query =
+    "mutation { webPixelDelete(id: \"not-a-gid\") { deletedWebPixelId userErrors { __typename code field message } } themeUpdate(id: \"not-a-gid\", input: { name: \"Invalid\" }) { theme { id } userErrors { __typename code field message } } }"
+  let #(body, _) = run_graphql(proxy(), query)
+  assert body
+    == "{\"data\":{\"webPixelDelete\":{\"deletedWebPixelId\":null,\"userErrors\":[{\"__typename\":\"WebPixelUserError\",\"code\":\"INVALID\",\"field\":[\"id\"],\"message\":\"Invalid global id\"}]},\"themeUpdate\":{\"theme\":null,\"userErrors\":[{\"__typename\":\"ThemeUserError\",\"code\":\"INVALID\",\"field\":[\"id\"],\"message\":\"Invalid global id\"}]}}}"
 }
 
 pub fn web_pixel_state_omits_webhook_endpoint_address_test() {
