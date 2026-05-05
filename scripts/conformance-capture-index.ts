@@ -146,6 +146,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-revoke-role-scope-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-revoke-role-scope-conformance.mts',
+    purpose:
+      'B2B contact/location revoke-role parent lookup, wrong-scope assignment validation, empty-id precondition, and partial-success semantics.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-revoke-role-scope-preconditions.json`,
+      'config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json',
+      'config/parity-requests/b2b/b2b-revoke-role-scope-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company with a secondary contact and extra locations, assigns contact/location roles, records revoke validation branches, and deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin 2026-04 returns RESOURCE_NOT_FOUND for wrong-scope contact revoke assignment IDs and a null field/null revokedRoleAssignmentIds payload for empty roleAssignmentIds with revokeAll false.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-removal-role-assignment-cascade',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-removal-role-assignment-cascade-conformance.mts',
