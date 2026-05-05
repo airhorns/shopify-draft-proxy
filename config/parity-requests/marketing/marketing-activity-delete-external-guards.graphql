@@ -1,0 +1,31 @@
+mutation MarketingActivityDeleteExternalGuards($createAfterDeleteAllInput: MarketingActivityCreateExternalInput!) {
+  noArgsDelete: marketingActivityDeleteExternal {
+    deletedMarketingActivityId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  deleteAllExternal: marketingActivitiesDeleteAllExternal {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  createAfterDeleteAll: marketingActivityCreateExternal(input: $createAfterDeleteAllInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

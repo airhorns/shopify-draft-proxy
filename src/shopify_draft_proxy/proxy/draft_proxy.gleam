@@ -22,12 +22,17 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field}
+import shopify_draft_proxy/graphql/ast.{
+  type Location, type Selection, Field, FragmentDefinition, FragmentSpread,
+  InlineFragment, SelectionSet,
+}
+import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, type ParsedOperation, MutationOperation,
   QueryOperation,
 }
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/b2b
@@ -40,6 +45,7 @@ import shopify_draft_proxy/proxy/discounts
 import shopify_draft_proxy/proxy/events
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/gift_cards
+import shopify_draft_proxy/proxy/graphql_helpers.{type FragmentMap}
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/proxy/marketing
 import shopify_draft_proxy/proxy/markets
@@ -761,6 +767,7 @@ fn schema_validation_errors(
     Error(_) -> []
     Ok(fields) -> {
       let schema = mutation_schema_lookup.default_schema()
+      let fragments = graphql_helpers.get_document_fragments(query)
       let operation_path = case parsed.name {
         Some(name) -> "mutation " <> name
         None -> "mutation"
@@ -784,6 +791,12 @@ fn schema_validation_errors(
               operation_path,
               query,
             ))
+            |> list.append(payment_reminder_send_selection_errors(
+              field,
+              operation_path,
+              query,
+              fragments,
+            ))
             |> list.append(staged_upload_resource_enum_errors(
               name.value,
               variables,
@@ -792,6 +805,132 @@ fn schema_validation_errors(
           _ -> []
         }
       })
+    }
+  }
+}
+
+fn payment_reminder_send_selection_errors(
+  field: Selection,
+  operation_path: String,
+  source_body: String,
+  fragments: FragmentMap,
+) -> List(Json) {
+  case field {
+    Field(name: name, ..) if name.value == "paymentReminderSend" ->
+      collect_payload_field_selections(field, fragments)
+      |> list.filter_map(fn(selected) {
+        let #(field_name, loc) = selected
+        case payment_reminder_payload_field_allowed(field_name) {
+          True -> Error(Nil)
+          False ->
+            Ok(build_undefined_payment_reminder_payload_field_error(
+              field_name,
+              loc,
+              operation_path,
+              source_body,
+            ))
+        }
+      })
+    _ -> []
+  }
+}
+
+fn payment_reminder_payload_field_allowed(field_name: String) -> Bool {
+  field_name == "success"
+  || field_name == "userErrors"
+  || field_name == "__typename"
+}
+
+fn collect_payload_field_selections(
+  field: Selection,
+  fragments: FragmentMap,
+) -> List(#(String, Option(Location))) {
+  case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      collect_selection_field_names(selections, fragments)
+    _ -> []
+  }
+}
+
+fn collect_selection_field_names(
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> List(#(String, Option(Location))) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(name: name, loc: loc, ..) -> [#(name.value, loc)]
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        collect_selection_field_names(inner, fragments)
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) -> collect_selection_field_names(inner, fragments)
+          _ -> []
+        }
+    }
+  })
+}
+
+fn build_undefined_payment_reminder_payload_field_error(
+  field_name: String,
+  field_loc: Option(Location),
+  operation_path: String,
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Field '"
+        <> field_name
+        <> "' doesn't exist on type 'PaymentReminderSendPayload'",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, "paymentReminderSend", field_name],
+          json.string,
+        ),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("undefinedField")),
+          #("typeName", json.string("PaymentReminderSendPayload")),
+          #("fieldName", json.string(field_name)),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn locations_payload(
+  field_loc: Option(Location),
+  source_body: String,
+) -> Option(Json) {
+  case field_loc {
+    None -> None
+    Some(loc) -> {
+      let source = graphql_source.new(source_body)
+      let computed = graphql_location.get_location(source, position: loc.start)
+      Some(
+        json.preprocessed_array([
+          json.object([
+            #("line", json.int(computed.line)),
+            #("column", json.int(computed.column)),
+          ]),
+        ]),
+      )
     }
   }
 }

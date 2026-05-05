@@ -1326,6 +1326,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-activity-delete-external-guards',
+    scriptPath: 'scripts/capture-marketing-activity-delete-external-guards-conformance.mts',
+    purpose:
+      'External marketing activity delete selector validation and delete-all in-flight write rejection userErrors.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-activity-delete-external-guards.json`,
+      'config/parity-specs/marketing/marketing-activity-delete-external-guards.json',
+      'config/parity-requests/marketing/marketing-activity-delete-external-guards.graphql',
+    ],
+    cleanupBehavior:
+      'Waits for any prior delete-all job to stop blocking writes, captures a delete-all job and blocked follow-up create, records parent/native setup blockers, and deletes the disposable follow-up remote ID if it unexpectedly exists.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-engagement-currency-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-marketing-engagement-currency-validation-conformance.mts',
