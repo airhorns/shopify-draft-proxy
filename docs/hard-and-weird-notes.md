@@ -64,6 +64,27 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: B2B same-as-shipping exposes separate public address IDs in 2026-04
+
+HAR-623 captured B2B location/address management on Admin GraphQL 2026-04. A
+`companyLocationCreate` request with `billingSameAsShipping: true` and a
+shipping address returned both `billingAddress` and `shippingAddress`, but those
+two public `CompanyAddress` IDs were different. Deleting the captured
+shipping-side ID removed only `shippingAddress` on the downstream public read
+and left the billing-side public address visible. Earlier ticket/source notes
+described the internal same-as-shipping anchor as a shared address; the local
+runtime still keeps one shared local address ID so it can clear
+`billingSameAsShipping` and detach both sides when that shared anchor is deleted.
+
+Two nearby 2026-04 traps from the same capture:
+
+- `CompanyLocation.billingSameAsShipping` is not selectable in that public Admin
+  API schema, so the local flag invariant needs focused runtime coverage rather
+  than strict public read parity.
+- duplicate `companyLocationAssignAddress(addressTypes: [BILLING, BILLING])`
+  returns `addresses: null` and a single `INVALID_INPUT` userError with
+  `field: null` and message `Invalid input.`
+
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
 HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:
