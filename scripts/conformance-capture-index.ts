@@ -1250,6 +1250,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'collections',
+    captureId: 'collection-create-and-add-products-parity',
+    scriptPath: 'scripts/capture-collection-create-and-add-products-parity.ts',
+    purpose:
+      'collectionCreate validation, sortOrder enum coercion, smart collection add/remove guards, and custom collection productsCount read-after-add behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}collection-create-and-add-products-parity.json`,
+      'config/parity-specs/products/collectionCreate-and-add-products-parity.json',
+      'config/parity-requests/products/collectionCreate-and-add-products-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable reserved-like, smart, and custom collections and deletes every successful collectionCreate result during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'collections',
     captureId: 'collection-publications',
     scriptPath: 'scripts/capture-collection-mutation-conformance.mts',
     purpose: 'Collection publication behavior covered by the collection mutation harness when enabled.',

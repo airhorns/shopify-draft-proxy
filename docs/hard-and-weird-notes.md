@@ -2140,6 +2140,8 @@ Live evidence refreshed on this host:
 - custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
+- HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
+- The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
 
 ### 45a. Collection catalog filters should run over the effective collection graph
 
