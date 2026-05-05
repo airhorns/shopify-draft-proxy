@@ -1,0 +1,368 @@
+{
+  "scenarioId": "discount-app-function-validation",
+  "capturedAt": "2026-05-05T23:14:52.269Z",
+  "source": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "functionCatalog": {
+    "query": "#graphql\n  query DiscountAppFunctionValidationCatalog {\n    shopifyFunctions(first: 50) {\n      nodes {\n        id\n        title\n        handle\n        apiType\n        description\n        appKey\n        app {\n          id\n          title\n          handle\n          apiKey\n        }\n      }\n    }\n  }\n",
+    "variables": {},
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "shopifyFunctions": {
+            "nodes": [
+              {
+                "id": "019dc65a-306d-784c-a67e-269f27b6613f",
+                "title": "conformance-payment-customization",
+                "handle": "conformance-payment-customization",
+                "apiType": "payment_customization",
+                "description": "conformance-payment-customization",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-7061-a930-422cbd4a751f",
+                "title": "conformance-validation",
+                "handle": "conformance-validation",
+                "apiType": "cart_checkout_validation",
+                "description": "conformance-validation",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              },
+              {
+                "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                "title": "conformance-cart-transform",
+                "handle": "conformance-cart-transform",
+                "apiType": "cart_transform",
+                "description": "conformance-cart-transform",
+                "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                "app": {
+                  "id": "gid://shopify/App/347082227713",
+                  "title": "hermes-conformance-products",
+                  "handle": "hermes-conformance-products",
+                  "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                }
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 16,
+            "actualQueryCost": 3,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1997,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validation": {
+    "documentPath": "config/parity-requests/discounts/discount-app-function-validation.graphql",
+    "variables": {
+      "missingCode": {
+        "title": "HAR-783 Missing Code",
+        "code": "HAR783MISS1778022892033",
+        "startsAt": "2026-04-25T00:00:00Z"
+      },
+      "multipleCode": {
+        "title": "HAR-783 Multiple Code",
+        "code": "HAR783MULT1778022892033",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "functionId": "00000000-0000-0000-0000-000000000000",
+        "functionHandle": "conformance-cart-transform"
+      },
+      "unknownIdCode": {
+        "title": "HAR-783 Unknown Code",
+        "code": "HAR783UNK1778022892033",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "functionId": "00000000-0000-0000-0000-000000000000"
+      },
+      "wrongApiCode": {
+        "title": "HAR-783 Wrong API Code",
+        "code": "HAR783WRONG1778022892033",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "functionHandle": "conformance-cart-transform"
+      },
+      "missingAutomatic": {
+        "title": "HAR-783 Missing Auto",
+        "startsAt": "2026-04-25T00:00:00Z"
+      },
+      "unknownHandleAutomatic": {
+        "title": "HAR-783 Unknown Auto",
+        "startsAt": "2026-04-25T00:00:00Z",
+        "functionHandle": "har-783-uninstalled-handle"
+      }
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "missingCode": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "functionHandle"],
+                "message": "Function id can't be blank.",
+                "code": "MISSING_FUNCTION_IDENTIFIER",
+                "extraInfo": null
+              }
+            ]
+          },
+          "multipleCode": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount"],
+                "message": "Only one of functionId or functionHandle is allowed.",
+                "code": "MULTIPLE_FUNCTION_IDENTIFIERS",
+                "extraInfo": null
+              }
+            ]
+          },
+          "unknownIdCode": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "functionId"],
+                "message": "Function 00000000-0000-0000-0000-000000000000 not found. Ensure that it is released in the current app (347082227713), and that the app is installed.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          },
+          "wrongApiCode": {
+            "codeAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["codeAppDiscount", "functionHandle"],
+                "message": "Unexpected Function API. The provided function must implement one of the following extension targets: [product_discounts, order_discounts, shipping_discounts, discount].",
+                "code": null,
+                "extraInfo": null
+              }
+            ]
+          },
+          "missingAutomatic": {
+            "automaticAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["automaticAppDiscount", "functionHandle"],
+                "message": "Function id can't be blank.",
+                "code": "MISSING_FUNCTION_IDENTIFIER",
+                "extraInfo": null
+              }
+            ]
+          },
+          "unknownHandleAutomatic": {
+            "automaticAppDiscount": null,
+            "userErrors": [
+              {
+                "field": ["automaticAppDiscount", "functionHandle"],
+                "message": "Function har-783-uninstalled-handle not found. Ensure that it is released in the current app (347082227713), and that the app is installed.",
+                "code": "INVALID",
+                "extraInfo": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 60,
+            "actualQueryCost": 60,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1940,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShopifyFunctionByHandle",
+      "variables": {
+        "handle": "00000000-0000-0000-0000-000000000000"
+      },
+      "query": "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShopifyFunctionByHandle",
+      "variables": {
+        "handle": "conformance-cart-transform"
+      },
+      "query": "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "019dd44b-127f-724b-a49c-70fc98ff4d72",
+                  "title": "conformance-cart-transform",
+                  "handle": "conformance-cart-transform",
+                  "apiType": "cart_transform",
+                  "description": "conformance-cart-transform",
+                  "appKey": "0db6d7e08e4ba05ce97440df36c7ed33",
+                  "app": {
+                    "id": "gid://shopify/App/347082227713",
+                    "title": "hermes-conformance-products",
+                    "handle": "hermes-conformance-products",
+                    "apiKey": "0db6d7e08e4ba05ce97440df36c7ed33"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShopifyFunctionByHandle",
+      "variables": {
+        "handle": "har-783-uninstalled-handle"
+      },
+      "query": "query ShopifyFunctionByHandle($handle: String!) {\n  shopifyFunctions(first: 1, handle: $handle) {\n    nodes {\n      id\n      title\n      handle\n      apiType\n      description\n      appKey\n      app {\n        id\n        title\n        handle\n        apiKey\n      }\n    }\n  }\n}\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": []
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "HAR-783 validation-only capture. The conformance app has no released discount Function, but its released cart-transform Function proves the wrong-API branch without creating app discounts."
+}
