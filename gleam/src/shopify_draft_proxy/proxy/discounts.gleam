@@ -33,6 +33,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -1326,35 +1327,65 @@ fn set_status(
     Some(id) ->
       case store.get_effective_discount_by_id(store, id) {
         Some(record) -> {
-          let #(ends_at, next_identity) = case status {
-            "EXPIRED" -> {
-              let #(timestamp, next_identity) =
-                synthetic_identity.make_synthetic_timestamp(identity)
-              #(Some(timestamp), next_identity)
-            }
-            _ -> #(None, identity)
+          let user_errors = case status {
+            "ACTIVE" -> app_discount_activation_errors(store, record)
+            _ -> []
           }
-          let record =
-            DiscountRecord(
-              ..record,
-              status: status,
-              payload: update_payload_status(record.payload, status, ends_at),
-            )
-          let #(record, next_store) = store.stage_discount(store, record)
-          MutationResult(
-            key,
-            payload_json(root, field, fragments, Some(record), []),
-            next_store,
-            next_identity,
-            [record.id],
-            [],
-          )
+          case user_errors {
+            [_, ..] ->
+              MutationResult(
+                key,
+                payload_json(root, field, fragments, None, user_errors),
+                store,
+                identity,
+                [],
+                [],
+              )
+            [] -> {
+              let #(transition_timestamp, next_identity) = case status {
+                "ACTIVE" ->
+                  case record.status {
+                    "ACTIVE" -> #(None, identity)
+                    _ -> {
+                      let #(timestamp, next_identity) =
+                        synthetic_identity.make_synthetic_timestamp(identity)
+                      #(Some(timestamp), next_identity)
+                    }
+                  }
+                "EXPIRED" -> {
+                  let #(timestamp, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  #(Some(timestamp), next_identity)
+                }
+                _ -> #(None, identity)
+              }
+              let record =
+                DiscountRecord(
+                  ..record,
+                  status: status,
+                  payload: update_payload_status(
+                    record.payload,
+                    status,
+                    transition_timestamp,
+                  ),
+                )
+              let #(record, next_store) = store.stage_discount(store, record)
+              MutationResult(
+                key,
+                payload_json(root, field, fragments, Some(record), []),
+                next_store,
+                next_identity,
+                [record.id],
+                [],
+              )
+            }
+          }
         }
         None ->
           MutationResult(
             key,
             payload_json(root, field, fragments, None, [
-              user_error(["id"], "Discount does not exist", "NOT_FOUND"),
+              user_error(["id"], "Discount does not exist", "INVALID"),
             ]),
             store,
             identity,
@@ -1373,6 +1404,54 @@ fn set_status(
         [],
         [],
       )
+  }
+}
+
+fn app_discount_activation_errors(
+  store: Store,
+  record: DiscountRecord,
+) -> List(SourceValue) {
+  case record.discount_type {
+    "app" ->
+      case discount_app_function_reference(record) {
+        Some(reference) ->
+          case find_shopify_function(store, reference) {
+            Some(_) -> []
+            None -> activation_failed_user_errors()
+          }
+        None -> activation_failed_user_errors()
+      }
+    _ -> []
+  }
+}
+
+fn activation_failed_user_errors() -> List(SourceValue) {
+  [
+    user_error(["id"], "Discount could not be activated.", "INTERNAL_ERROR"),
+  ]
+}
+
+fn discount_app_function_reference(record: DiscountRecord) -> Option(String) {
+  case captured_to_source(record.payload) {
+    SrcObject(fields) -> {
+      let owner = case record.owner_kind {
+        "automatic" -> dict.get(fields, "automaticDiscount")
+        _ -> dict.get(fields, "codeDiscount")
+      }
+      case owner {
+        Ok(SrcObject(discount)) ->
+          case dict.get(discount, "appDiscountType") {
+            Ok(SrcObject(app_discount_type)) ->
+              case dict.get(app_discount_type, "functionId") {
+                Ok(SrcString(reference)) -> Some(reference)
+                _ -> None
+              }
+            _ -> None
+          }
+        _ -> None
+      }
+    }
+    _ -> None
   }
 }
 
@@ -3833,7 +3912,7 @@ fn find_shopify_function(
 fn update_payload_status(
   payload: CapturedJsonValue,
   status: String,
-  ends_at: Option(String),
+  transition_timestamp: Option(String),
 ) -> CapturedJsonValue {
   case captured_to_source(payload) {
     SrcObject(fields) -> {
@@ -3843,13 +3922,13 @@ fn update_payload_status(
           case dict.get(acc, key) {
             Ok(SrcObject(discount)) -> {
               let discount = dict.insert(discount, "status", SrcString(status))
-              let discount = case ends_at {
-                Some(value) -> dict.insert(discount, "endsAt", SrcString(value))
-                None ->
-                  case status {
-                    "ACTIVE" -> dict.insert(discount, "endsAt", SrcNull)
-                    _ -> discount
-                  }
+              let discount = case status, transition_timestamp {
+                "ACTIVE", Some(timestamp) ->
+                  activate_discount_dates(discount, timestamp)
+                "ACTIVE", None -> discount
+                "EXPIRED", Some(timestamp) ->
+                  expire_discount_dates(discount, timestamp)
+                _, _ -> discount
               }
               dict.insert(acc, key, SrcObject(discount))
             }
@@ -3859,6 +3938,67 @@ fn update_payload_status(
       source_to_captured(SrcObject(updated))
     }
     _ -> payload
+  }
+}
+
+fn activate_discount_dates(
+  discount: Dict(String, SourceValue),
+  timestamp: String,
+) -> Dict(String, SourceValue) {
+  let discount = case should_clear_ends_at(discount, timestamp) {
+    True -> dict.insert(discount, "endsAt", SrcNull)
+    False -> discount
+  }
+  case should_bump_starts_at(discount, timestamp) {
+    True -> dict.insert(discount, "startsAt", SrcString(timestamp))
+    False -> discount
+  }
+}
+
+fn expire_discount_dates(
+  discount: Dict(String, SourceValue),
+  timestamp: String,
+) -> Dict(String, SourceValue) {
+  let discount = dict.insert(discount, "endsAt", SrcString(timestamp))
+  case should_bump_starts_at(discount, timestamp) {
+    True -> dict.insert(discount, "startsAt", SrcString(timestamp))
+    False -> discount
+  }
+}
+
+fn should_clear_ends_at(
+  discount: Dict(String, SourceValue),
+  timestamp: String,
+) -> Bool {
+  case dict.get(discount, "endsAt") {
+    Ok(SrcString(value)) -> iso_timestamp_before(value, timestamp)
+    Ok(SrcNull) | Error(_) -> True
+    _ -> False
+  }
+}
+
+fn should_bump_starts_at(
+  discount: Dict(String, SourceValue),
+  timestamp: String,
+) -> Bool {
+  case dict.get(discount, "startsAt") {
+    Ok(SrcString(value)) -> iso_timestamp_after(value, timestamp)
+    Ok(SrcNull) | Error(_) -> True
+    _ -> False
+  }
+}
+
+fn iso_timestamp_before(value: String, timestamp: String) -> Bool {
+  case iso_timestamp.parse_iso(value), iso_timestamp.parse_iso(timestamp) {
+    Ok(value_ms), Ok(timestamp_ms) -> value_ms < timestamp_ms
+    _, _ -> False
+  }
+}
+
+fn iso_timestamp_after(value: String, timestamp: String) -> Bool {
+  case iso_timestamp.parse_iso(value), iso_timestamp.parse_iso(timestamp) {
+    Ok(value_ms), Ok(timestamp_ms) -> value_ms > timestamp_ms
+    _, _ -> False
   }
 }
 

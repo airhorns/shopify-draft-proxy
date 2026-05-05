@@ -42,9 +42,19 @@
         "reason": "Both Shopify and the proxy stamp deactivation with execution time; exact wall-clock value is intentionally not contractual."
       },
       {
+        "path": "$.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.startsAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy rewrites future local startsAt values to its deterministic synthetic-now timestamp during deactivation."
+      },
+      {
         "path": "$.discountAutomaticActivate.automaticDiscountNode.id",
         "matcher": "shopify-gid:DiscountAutomaticNode",
         "reason": "The activate mutation runs against the proxy-created synthetic automatic discount ID."
+      },
+      {
+        "path": "$.discountAutomaticActivate.automaticDiscountNode.automaticDiscount.startsAt",
+        "matcher": "iso-timestamp",
+        "reason": "The proxy rewrites stale local startsAt values to its deterministic synthetic-now timestamp during activation."
       },
       {
         "path": "$.discountAutomaticDelete.deletedAutomaticDiscountId",
