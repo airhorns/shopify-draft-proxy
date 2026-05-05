@@ -98,10 +98,10 @@ The local implementation intentionally covers pin/unpin for definitions already 
 
 Validation entry points:
 
-- `gleam/test/parity_test.gleam`
-- `gleam/test/parity_test.gleam`
-- `gleam/test/parity_test.gleam` for product-owned `metafieldsSet`, `metafieldDelete`, `metafieldsDelete`, CAS, and downstream read behavior
-- `gleam/test/parity_test.gleam` for collection-owned `metafieldsSet` / `metafieldsDelete` local staging
+- `test/parity_test.gleam`
+- `test/parity_test.gleam`
+- `test/parity_test.gleam` for product-owned `metafieldsSet`, `metafieldDelete`, `metafieldsDelete`, CAS, and downstream read behavior
+- `test/parity_test.gleam` for collection-owned `metafieldsSet` / `metafieldsDelete` local staging
 - `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
 - `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`
 - `config/parity-specs/products/metafieldsSet-*.json`

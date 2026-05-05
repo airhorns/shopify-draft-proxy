@@ -139,9 +139,9 @@ conformance-backed local modeling.
   `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
 - Contact/location assignment and tax settings parity scenario:
   `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json`
-- Runtime coverage: `gleam/test/parity_test.gleam`
+- Runtime coverage: `test/parity_test.gleam`
 - Lifecycle runtime coverage:
-  `gleam/test/parity_test.gleam`
+  `test/parity_test.gleam`
 - Root inventory:
   `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
 

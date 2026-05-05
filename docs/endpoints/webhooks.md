@@ -154,6 +154,6 @@ App configuration/TOML webhooks remain out of scope. Shopify's Admin GraphQL sub
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
 - `corepack pnpm typecheck`
-- `corepack pnpm vitest run gleam/test/parity_test.gleam`
-- `corepack pnpm vitest run gleam/test/parity_test.gleam`
-- `corepack pnpm vitest run gleam/test/parity_test.gleam`
+- `corepack pnpm vitest run test/parity_test.gleam`
+- `corepack pnpm vitest run test/parity_test.gleam`
+- `corepack pnpm vitest run test/parity_test.gleam`

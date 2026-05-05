@@ -115,7 +115,7 @@ The substrate is "done" when, on both the Erlang and JavaScript targets:
 - [ ] All three interop boundaries are green: `gleam test --target erlang`,
       `gleam test --target javascript`, the Node ESM smoke
       (`tests/integration/gleam-interop.test.ts`), and the Elixir mix smoke
-      (`gleam/elixir_smoke/`).
+      (`elixir_smoke/`).
 
 ### Per-domain acceptance criteria
 
@@ -127,7 +127,7 @@ A domain (e.g. `events`, `saved-searches`, `products`) is "ported" when:
       differences, same strict-JSON behaviour).
 - [x] The corresponding runtime tests have been ported to gleeunit and pass on
       both targets. The strict parity corpus is the cross-domain acceptance
-      gate, with domain-specific gleeunit coverage retained under `gleam/test`.
+      gate, with domain-specific gleeunit coverage retained under `test`.
 - [x] The final all-port cutover has removed the original TypeScript runtime
       after full strict parity evidence moved to the Gleam runner.
 - [ ] The interop smoke tests still pass — i.e. nothing in the Gleam port
@@ -143,8 +143,8 @@ The port is "complete" when:
 - [x] All endpoint groups currently registered in
       `config/operation-registry.json` with `implemented: true` are ported
       and their TypeScript implementations deleted.
-- [x] Root `src/` contains no proxy domain code; runtime authority lives under
-      `gleam/src/shopify_draft_proxy/`.
+- [x] Root `src/` contains no legacy TypeScript proxy domain code; runtime
+      authority lives under `src/shopify_draft_proxy/`.
 - [x] The Koa server is replaced by the Gleam-backed HTTP adapter, with no
       behavioural change to JavaScript consumers.
 - [ ] A real Elixir consumer can `mix deps.get` the Gleam package from Hex
@@ -195,7 +195,7 @@ relevant domain forces it. Do not pre-design.
   shape Gleam already abstracts (`gleam_http`). The exact client choice can
   be picked when the first live-hybrid domain is ported, not before.
 - **Search query parser.** The runtime parser lives in
-  `gleam/src/shopify_draft_proxy/search_query_parser.gleam`.
+  `src/shopify_draft_proxy/search_query_parser.gleam`.
 - **Zod equivalents.** `gleam/dynamic` decoders cover the same role; how
   much shared decoder infrastructure to extract is decided after the third
   domain is ported, not before.

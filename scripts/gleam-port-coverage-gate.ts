@@ -11,7 +11,7 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const workflowPath = path.join(repoRoot, '.github', 'workflows', 'ci.yml');
-const parityRunnerTestPath = path.join(repoRoot, 'gleam', 'test', 'parity_test.gleam');
+const parityRunnerTestPath = path.join(repoRoot, 'test', 'parity_test.gleam');
 const packageJsonPath = path.join(repoRoot, 'package.json');
 
 const requiredWorkflowCommands = [
@@ -115,7 +115,7 @@ function checkWorkflowAndPackageScripts(errors: string[]): void {
   const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf8')) as PackageJson;
   const scripts = packageJson.scripts ?? {};
   const requiredScripts = new Map<string, string[]>([
-    ['gleam:registry:check', ['gleam/scripts/sync-operation-registry.sh']],
+    ['gleam:registry:check', ['scripts/sync-operation-registry.sh']],
     ['gleam:port:coverage', ['./scripts/gleam-port-coverage-gate.ts']],
     ['conformance:capture:check', captureToolingChecks],
   ]);

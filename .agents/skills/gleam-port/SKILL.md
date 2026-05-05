@@ -1,6 +1,6 @@
 ---
 name: gleam-port
-description: Project-specific guidance for the in-progress Gleam port of `shopify-draft-proxy`. Load whenever the working directory is under `gleam/` or the task touches the port. Complements (does not replace) the generic `gleam` skill.
+description: Project-specific guidance for the in-progress Gleam port of `shopify-draft-proxy`. Load whenever the task touches the root Gleam project. Complements (does not replace) the generic `gleam` skill.
 ---
 
 # Gleam port (shopify-draft-proxy)
@@ -30,7 +30,7 @@ opaque types, pattern matching, OTP), use the `gleam` skill.
 ## Decision tree
 
 ```
-Working in gleam/?
+Working in the root Gleam project?
 ├─ Porting a new domain          → references/domain-port-template.md
 ├─ Modifying an existing domain  → read its module + that pass's log entry
 ├─ Hitting a "weird" error       → references/port-gotchas.md
@@ -46,7 +46,6 @@ Working in gleam/?
 JavaScript is the most expensive bug class to find later. Run both:
 
 ```sh
-cd gleam
 gleam test --target erlang
 gleam test --target javascript
 ```
@@ -172,17 +171,17 @@ exists.
 
 The TypeScript-side `config/operation-registry.json` is the source of truth
 while the port is in progress. The Gleam mirror lives in
-`gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam` and is
+`src/shopify_draft_proxy/proxy/operation_registry_data.gleam` and is
 generated deterministically:
 
 ```sh
-gleam/scripts/sync-operation-registry.sh
+scripts/sync-operation-registry.sh
 ```
 
 CI checks drift through `corepack pnpm conformance:check`, which runs:
 
 ```sh
-gleam/scripts/sync-operation-registry.sh --check
+scripts/sync-operation-registry.sh --check
 ```
 
 Capability lookup mirrors the TypeScript registry for every implemented match
@@ -236,7 +235,7 @@ There are **two patterns** for reaching upstream. Start with the
 simpler one and only escalate when it doesn't fit:
 
 1. **Force passthrough in LiveHybrid** (`force_passthrough_in_live_hybrid`
-   in `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`) — the
+   in `src/shopify_draft_proxy/proxy/draft_proxy.gleam`) — the
    dispatch layer forwards the GraphQL document verbatim to the
    upstream transport. Use this for read operations where the proxy
    has nothing local to add.
@@ -326,7 +325,7 @@ ordinary per-domain parity passes. When a final explicit cleanup phase deletes a
 domain from the TypeScript proxy, update both `config/parity-specs/<domain>/*.json`
 and `config/operation-registry.json` so runtime-test metadata points at the
 Gleam parity/direct tests that then own the behavior. Then run
-`gleam/scripts/sync-operation-registry.sh` so the vendored Gleam registry
+`scripts/sync-operation-registry.sh` so the vendored Gleam registry
 matches the JSON source.
 
 ### Functions parity note

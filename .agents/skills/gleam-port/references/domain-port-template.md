@@ -1,7 +1,7 @@
 # Domain port template
 
 Concrete checklist for porting one domain (e.g. `customers`, `localization`)
-from `src/proxy/<domain>.ts` to `gleam/src/shopify_draft_proxy/proxy/<domain>.gleam`.
+from `src/proxy/<domain>.ts` to `src/shopify_draft_proxy/proxy/<domain>.gleam`.
 Distilled from passes 11–20.
 
 A domain port is a **single pass**. Do not interleave with another domain.
@@ -12,7 +12,7 @@ Before starting, size the domain:
 
 ```sh
 wc -l src/proxy/<domain>.ts
-grep -c "^pub " gleam/src/shopify_draft_proxy/proxy/saved_searches.gleam   # rough comparable
+grep -c "^pub " src/shopify_draft_proxy/proxy/saved_searches.gleam   # rough comparable
 ```
 
 - ≤ 1.5K TS LOC: one pass.
@@ -24,7 +24,7 @@ grep -c "^pub " gleam/src/shopify_draft_proxy/proxy/saved_searches.gleam   # rou
 
 ## Step 1 — State types
 
-Edit `gleam/src/shopify_draft_proxy/state/types.gleam`. Add records mirroring
+Edit `src/shopify_draft_proxy/state/types.gleam`. Add records mirroring
 the TS shapes in `src/state/types.ts`. Rules:
 
 - Optional in TS → `Option(T)`.
@@ -42,7 +42,7 @@ the TS shapes in `src/state/types.ts`. Rules:
 
 ## Step 2 — Store slice
 
-Edit `gleam/src/shopify_draft_proxy/state/store.gleam`. Decide which shape:
+Edit `src/shopify_draft_proxy/state/store.gleam`. Decide which shape:
 
 | Shape                         | When to use                     | Example                                                                                                             |
 | ----------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -59,7 +59,7 @@ saved_searches are the simplest reference, gift cards is the canonical
 no-deletion variant).
 
 Tests for the store slice belong in
-`gleam/test/shopify_draft_proxy/state/store_test.gleam`.
+`test/shopify_draft_proxy/state/store_test.gleam`.
 
 ## Step 3 — Read path (`proxy/<domain>.gleam`)
 
@@ -154,7 +154,7 @@ When in doubt, **read the TS handler** — `makeSyntheticGid` vs
 
 ## Step 5 — Dispatcher wiring
 
-Edit `gleam/src/shopify_draft_proxy/proxy/draft_proxy.gleam`:
+Edit `src/shopify_draft_proxy/proxy/draft_proxy.gleam`:
 
 1. Import the new module.
 2. Add `<Domain>Domain` variant to the local `Domain` type.
@@ -181,7 +181,7 @@ If your domain isn't already a variant, add it there (and update
 ## Step 6 — Tests
 
 Two test files (read + mutation) under
-`gleam/test/shopify_draft_proxy/proxy/`. Every existing pair is a good
+`test/shopify_draft_proxy/proxy/`. Every existing pair is a good
 template; segments is the smallest current example.
 
 Test patterns to copy:
@@ -199,7 +199,6 @@ Test patterns to copy:
 ## Step 7 — Both targets, every change
 
 ```sh
-cd gleam
 gleam test --target erlang
 gleam test --target javascript
 ```

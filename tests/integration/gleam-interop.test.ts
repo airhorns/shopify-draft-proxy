@@ -7,11 +7,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
-const gleamProjectRoot = resolve(repoRoot, 'gleam');
-const compiledEntrypoint = resolve(
-  gleamProjectRoot,
-  'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy.mjs',
-);
+const compiledEntrypoint = resolve(repoRoot, 'build/dev/javascript/shopify_draft_proxy/shopify_draft_proxy.mjs');
 
 /**
  * Phase 0 interop smoke: ensures the Gleam port's JavaScript build artefacts
@@ -24,7 +20,7 @@ describe('gleam JS interop', () => {
   beforeAll(() => {
     if (!existsSync(compiledEntrypoint)) {
       execFileSync('gleam', ['build', '--target', 'javascript'], {
-        cwd: gleamProjectRoot,
+        cwd: repoRoot,
         stdio: 'inherit',
       });
     }
@@ -41,14 +37,14 @@ describe('public TS API', () => {
   beforeAll(() => {
     if (!existsSync(compiledEntrypoint)) {
       execFileSync('gleam', ['build', '--target', 'javascript'], {
-        cwd: gleamProjectRoot,
+        cwd: repoRoot,
         stdio: 'inherit',
       });
     }
   });
 
   it('exposes createDraftProxy and answers /__meta/health end-to-end', async () => {
-    const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
+    const shim = (await import(resolve(repoRoot, 'js/src/index.ts'))) as {
       createDraftProxy: (options: {
         readMode: string;
         port: number;
@@ -83,7 +79,7 @@ describe('public TS API', () => {
   });
 
   it('round-trips state via dumpState/restoreState with the documented schema', async () => {
-    const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
+    const shim = (await import(resolve(repoRoot, 'js/src/index.ts'))) as {
       createDraftProxy: (options: {
         readMode: string;
         port: number;
@@ -118,7 +114,7 @@ describe('public TS API', () => {
   });
 
   it('loads an existing normalized snapshot file when snapshotPath is configured', async () => {
-    const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {
+    const shim = (await import(resolve(repoRoot, 'js/src/index.ts'))) as {
       createDraftProxy: (config: {
         readMode: string;
         port: number;
@@ -183,9 +179,7 @@ describe('public TS API', () => {
     });
 
     try {
-      const { createDraftProxy, DRAFT_PROXY_STATE_DUMP_SCHEMA } = await import(
-        resolve(gleamProjectRoot, 'js/src/index.ts')
-      );
+      const { createDraftProxy, DRAFT_PROXY_STATE_DUMP_SCHEMA } = await import(resolve(repoRoot, 'js/src/index.ts'));
       const address = upstream.address();
       if (address === null || typeof address === 'string') {
         throw new Error('Expected local upstream server to listen on a TCP port.');

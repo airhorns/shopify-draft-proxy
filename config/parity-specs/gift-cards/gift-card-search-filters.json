@@ -13,8 +13,8 @@
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-lifecycle.json"
   ],
   "runtimeTestFiles": [
-    "gleam/test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
-    "gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
+    "test/shopify_draft_proxy/proxy/gift_cards_test.gleam",
+    "test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"
   ],
   "proxyRequest": {
     "documentPath": "config/parity-requests/gift-cards/gift-card-search-setup.graphql",

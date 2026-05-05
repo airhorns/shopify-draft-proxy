@@ -1,6 +1,6 @@
 // Pure spec-validation helpers for parity scenarios. The seed-based
 // runner that used to live alongside these functions has been retired
-// (cassette playback now drives parity from `gleam/test/parity/...`).
+// (cassette playback now drives parity from `test/parity/...`).
 // Only the spec-shape validators remain here, used by:
 //   - scripts/gleam-port-coverage-gate.ts
 //   - tests/unit/conformance-scenario-discovery.test.ts

@@ -71,11 +71,11 @@ Remaining gaps are intentional rather than silent support claims:
 
 ### Validation anchors
 
-- Shop reads: `gleam/test/parity_test.gleam`
-- Shop policy mutation flow: `gleam/test/parity_test.gleam`
-- Generic Node coverage for `ShopAddress` / `ShopPolicy`: `config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json` and `gleam/test/parity_test.gleam`
-- Location reads: `gleam/test/parity_test.gleam`
-- Fulfillment-service location linkage: `gleam/test/parity_test.gleam`
-- Business entity and Shopify Payments account reads: `gleam/test/parity_test.gleam`
-- Generic publishable slices: `gleam/test/parity_test.gleam`, `gleam/test/parity_test.gleam`
+- Shop reads: `test/parity_test.gleam`
+- Shop policy mutation flow: `test/parity_test.gleam`
+- Generic Node coverage for `ShopAddress` / `ShopPolicy`: `config/parity-specs/admin-platform/admin-platform-store-property-node-reads.json` and `test/parity_test.gleam`
+- Location reads: `test/parity_test.gleam`
+- Fulfillment-service location linkage: `test/parity_test.gleam`
+- Business entity and Shopify Payments account reads: `test/parity_test.gleam`
+- Generic publishable slices: `test/parity_test.gleam`, `test/parity_test.gleam`
 - Conformance fixtures and requests: `config/parity-specs/store-properties/shop*.json`, `config/parity-specs/store-properties/location*.json`, `config/parity-specs/store-properties/locations*.json`, `config/parity-specs/store-properties/business*.json`, `config/parity-specs/store-properties/publishable*.json`, and matching files under `config/parity-requests/store-properties/`

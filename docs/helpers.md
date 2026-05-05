@@ -2,7 +2,7 @@
 
 This document catalogs shared Gleam helper surfaces that future runtime work should reuse before adding resource-local utility functions. TypeScript helper modules from the retired runtime have been removed; remaining TypeScript under `scripts/` is conformance, capture, and repository tooling.
 
-## `gleam/src/shopify_draft_proxy/proxy/graphql_helpers.gleam`
+## `src/shopify_draft_proxy/proxy/graphql_helpers.gleam`
 
 Shared helpers for GraphQL Admin proxy serializers.
 
@@ -12,7 +12,7 @@ Shared helpers for GraphQL Admin proxy serializers.
 
 Use this module for pagination and connection envelopes. Resource-specific sorting, filtering, cursor derivation, and node projection should stay in the owning domain module and pass explicit decisions into these helpers.
 
-## `gleam/src/shopify_draft_proxy/proxy/metafields.gleam`
+## `src/shopify_draft_proxy/proxy/metafields.gleam`
 
 Shared helpers for owner-scoped metafield serializers and staging input handling.
 
@@ -22,7 +22,7 @@ Shared helpers for owner-scoped metafield serializers and staging input handling
 
 Use this module before adding product-, customer-, order-, or metaobject-local metafield helpers. Owner-specific validation, store placement, and captured Shopify quirks belong in the resource module that owns them.
 
-## `gleam/src/shopify_draft_proxy/proxy/metafield_values.gleam`
+## `src/shopify_draft_proxy/proxy/metafield_values.gleam`
 
 Shared custom-data value normalization helpers for metafields and metaobject fields.
 
@@ -32,13 +32,13 @@ Shared custom-data value normalization helpers for metafields and metaobject fie
 
 Use this module before adding resource-local custom-data parsers or serializers.
 
-## `gleam/src/shopify_draft_proxy/search_query_parser.gleam`
+## `src/shopify_draft_proxy/search_query_parser.gleam`
 
 Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversal, term-list guards, and primitive term matching.
 
 Endpoint modules should provide only the domain-specific positive term matcher and documented Shopify quirks. Do not add new resource-local query parsers or duplicated query-tree traversal helpers.
 
-## `gleam/src/shopify_draft_proxy/proxy/upstream_query.gleam`
+## `src/shopify_draft_proxy/proxy/upstream_query.gleam`
 
 Shared chokepoint for runtime reads that need upstream Shopify data.
 

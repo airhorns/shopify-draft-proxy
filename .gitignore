@@ -2,10 +2,11 @@
 node_modules/
 
 # Build output
+build/
 dist/
 *.tsbuildinfo
-gleam/build/
-gleam/elixir_smoke/_build
+elixir_smoke/_build/
+elixir_smoke/deps/
 
 # Local environment secrets (keep examples tracked)
 .env

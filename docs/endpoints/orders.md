@@ -182,17 +182,17 @@ Remaining gaps that should not be overclaimed:
 
 ### Validation anchors
 
-- Order reads: `gleam/test/parity_test.gleam`
-- Abandoned checkouts and abandonments: `gleam/test/parity_test.gleam`
-- Order lifecycle, payment, and customer changes: `gleam/test/parity_test.gleam`
-- Order payment transaction changes: `gleam/test/parity_test.gleam`
-- Order create/update flows: `gleam/test/parity_test.gleam`, `gleam/test/parity_test.gleam`
-- Payment terms reads: `gleam/test/parity_test.gleam`
-- Draft-order mutation family: `gleam/test/parity_test.gleam`
-- Fulfillments: `gleam/test/parity_test.gleam`, `gleam/test/parity_test.gleam`
+- Order reads: `test/parity_test.gleam`
+- Abandoned checkouts and abandonments: `test/parity_test.gleam`
+- Order lifecycle, payment, and customer changes: `test/parity_test.gleam`
+- Order payment transaction changes: `test/parity_test.gleam`
+- Order create/update flows: `test/parity_test.gleam`, `test/parity_test.gleam`
+- Payment terms reads: `test/parity_test.gleam`
+- Draft-order mutation family: `test/parity_test.gleam`
+- Fulfillments: `test/parity_test.gleam`, `test/parity_test.gleam`
 - Fulfillment-order lifecycle capture: `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-lifecycle.json`
-- Order editing: `gleam/test/parity_test.gleam`
-- Refunds and shipping-refund aggregates: `gleam/test/parity_test.gleam`
-- Returns: `gleam/test/parity_test.gleam`
+- Order editing: `test/parity_test.gleam`
+- Refunds and shipping-refund aggregates: `test/parity_test.gleam`
+- Returns: `test/parity_test.gleam`
 - Conformance fixtures and requests: `config/parity-specs/orders/order*.json`, `config/parity-specs/orders/draftOrder*.json`, `config/parity-specs/orders/draftOrders*.json`, `config/parity-specs/shipping-fulfillments/fulfillment*.json`, `config/parity-specs/orders/refund*.json`, and matching files under `config/parity-requests/orders/` or `config/parity-requests/shipping-fulfillments/`. For order editing, prefer the `orderEditExistingOrder-*` workflow specs plus the missing-id validation slices over single-root planned placeholders.
 - Residual draft-order helper capture: `corepack pnpm conformance:capture-draft-order-residual-helpers`

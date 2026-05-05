@@ -87,7 +87,7 @@ Local staged mutations:
 
 ### Validation anchors
 
-- Runtime behavior: `gleam/test/parity_test.gleam`
+- Runtime behavior: `test/parity_test.gleam`
 - Executable parity: `config/parity-specs/orders/return-lifecycle-local-staging.json`
 - HAR-370 executable parity:
   `config/parity-specs/orders/return-reverse-logistics-local-staging.json`,

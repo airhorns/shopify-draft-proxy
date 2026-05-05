@@ -3,7 +3,7 @@
 ## Overview
 
 `shopify-draft-proxy` is an embeddable Shopify Admin GraphQL draft proxy.
-The runtime is implemented in Gleam under `gleam/src/shopify_draft_proxy/`
+The runtime is implemented in Gleam under `src/shopify_draft_proxy/`
 and compiles to both Erlang/BEAM and JavaScript so it can be embedded in
 either ecosystem. The JavaScript target also exposes a Node `http` adapter over
 the Gleam core. It supports three read execution modes and two mutation
@@ -59,7 +59,7 @@ persist it.
 
 ## Primary modules (Gleam runtime)
 
-The runtime tree lives at `gleam/src/shopify_draft_proxy/`.
+The runtime tree lives at `src/shopify_draft_proxy/`.
 
 ### `proxy/draft_proxy.gleam`
 
@@ -72,7 +72,7 @@ The runtime tree lives at `gleam/src/shopify_draft_proxy/`.
   and falls through to `dispatch_passthrough` for unimplemented or
   force-passthrough roots in `LiveHybrid` mode
 
-### `gleam/js/src/app.ts`
+### `js/src/app.ts`
 
 - build a JavaScript-target Node `http` adapter over the Gleam-backed
   `DraftProxy` shim
@@ -118,7 +118,7 @@ variables)` returns a parsed `JsonValue` AST
 - vendored, pre-compiled mapping from operation name → capability
   (execution kind, dispatch metadata, type, etc.)
 - regenerated from `config/operation-registry.json` via
-  `gleam/scripts/sync-operation-registry.sh`
+  `scripts/sync-operation-registry.sh`
 
 ### `proxy/commit.gleam`
 
@@ -192,11 +192,12 @@ still TypeScript under `scripts/`:
   vendored Gleam operation registry in sync with
   `config/operation-registry.json`
 
-The legacy TypeScript proxy runtime under `src/` has been removed. Remaining
-TypeScript lives outside root `src/` and is limited to the JavaScript interop
-shim plus conformance, capture, registry, and report tooling.
+The legacy TypeScript proxy runtime has been removed. Root `src/` is now the
+Gleam runtime tree; remaining TypeScript lives outside root `src/` and is
+limited to the JavaScript interop shim plus conformance, capture, registry, and
+report tooling.
 
-### `gleam/test/parity/runner.gleam` + `gleam/test/parity_test.gleam`
+### `test/parity/runner.gleam` + `test/parity_test.gleam`
 
 Parity runner. Discovers every spec under `config/parity-specs/**` and
 runs each one through `draft_proxy.process_request` on both Erlang and
@@ -464,7 +465,7 @@ difference because clients cannot rely on their internal encoding.
 The cassette-playback model is detailed in `docs/parity-runner.md`.
 
 Spec / capture / registry JSON is decoded by typed Gleam decoders at
-the runner boundary (`gleam/test/parity/spec.gleam`) and by Zod
+the runner boundary (`test/parity/spec.gleam`) and by Zod
 schemas in the TypeScript build/recording scripts. Both decoders
 share `config/parity-specs/**` and `config/operation-registry.json`
 as the source of truth.

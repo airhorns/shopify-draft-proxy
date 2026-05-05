@@ -9,11 +9,60 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 200: HAR-486 root Gleam layout promotion
+
+Moves the promoted Gleam project out of the transitional `gleam/` directory and
+into the repository root so the final cutover layout matches the runtime
+authority documented for HAR-486. The root now owns `gleam.toml`, `manifest.toml`,
+`src/`, `test/`, `js/`, and `elixir_smoke/`; the old `gleam/` directory is
+removed.
+
+| Module / area                                    | Change                                                                                                  |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `src/` / `test/`                                 | Move the Gleam runtime and gleeunit coverage to root-level project paths.                               |
+| `js/` / `elixir_smoke/`                          | Move the JavaScript shim and Elixir smoke consumer to root-level package paths.                         |
+| `scripts/sync-*.sh`                              | Move generated-data sync scripts to `scripts/` and regenerate registry/schema Gleam mirrors.            |
+| `package.json` / tests / conformance tooling     | Repoint scripts, fixtures, registry evidence, and integration tests at the root Gleam project layout.   |
+| `AGENTS.md` / `.agents/skills/**` / `docs/**`    | Update agent guidance and runtime docs so new work targets the root Gleam project instead of `gleam/`. |
+
+Validation:
+
+- `corepack pnpm typecheck`
+- `corepack pnpm test` (8 files passed; 1452 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm conformance:check` (1434 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
+  (393/393 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage` (393 strict executable parity specs)
+- `corepack pnpm gleam:test:js` (855 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
+  (OTP 28, 846 passed)
+- `corepack pnpm build`
+- `corepack pnpm gleam:smoke:js` (5 passed)
+- `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
+- `git diff --check`
+
+### Findings
+
+- The root package can now run the Gleam build, JS shim build, parity runner,
+  and Elixir smoke without changing into a nested project directory.
+- Generated registry and mutation-schema mirrors remain deterministic after the
+  script move.
+
+### Risks / open items
+
+- Host Erlang is still OTP 25 in this workspace, so local Erlang validation
+  requires the established OTP 28 container fallback.
+
+---
+
 ## 2026-05-04 - Pass 199: HAR-486 final Gleam runtime cutover
 
 Promotes the Gleam implementation to the repository runtime authority and
 removes the legacy TypeScript proxy runtime. The root package now exports the
-Gleam-backed JavaScript shim under `gleam/js/dist`, launch scripts use the Node
+Gleam-backed JavaScript shim under `js/dist`, launch scripts use the Node
 HTTP adapter, and the root `src/` runtime tree is gone. Remaining TypeScript is
 tooling or interop code: conformance capture/report scripts, registry helpers,
 and the JavaScript shim.
@@ -43,7 +92,7 @@ Validation:
 - `corepack pnpm gleam:test:js` (855 passed)
 - `corepack pnpm gleam:test:erlang` failed on host OTP 25 with the known
   `gleam_json` OTP 27+ requirement
-- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
   (OTP 28, 846 passed)
 - `corepack pnpm gleam:smoke:js` first attempt timed out in one
   `/__meta/health` interop test after 5s; immediate rerun passed (5 passed)

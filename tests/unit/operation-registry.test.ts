@@ -43,7 +43,7 @@ describe('operation registry', () => {
 
   it('keeps the generated Gleam operation registry mirror in sync', () => {
     expect(() => {
-      execFileSync('bash', ['gleam/scripts/sync-operation-registry.sh', '--check'], {
+      execFileSync('bash', ['scripts/sync-operation-registry.sh', '--check'], {
         cwd: repoRoot,
         encoding: 'utf8',
       });

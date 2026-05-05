@@ -3,7 +3,7 @@ import { once } from 'node:events';
 import type { Server } from 'node:http';
 import { beforeAll, describe, expect, it } from 'vitest';
 
-import type { AppConfig, DraftProxyHttpApp } from '../../gleam/js/src/index.js';
+import type { AppConfig, DraftProxyHttpApp } from '../../js/src/index.js';
 
 let createGleamApp: (config: AppConfig) => DraftProxyHttpApp;
 
@@ -15,13 +15,13 @@ const config: AppConfig = {
 
 beforeAll(() => {
   execFileSync('gleam', ['build', '--target', 'javascript'], {
-    cwd: new URL('../../gleam', import.meta.url),
+    cwd: new URL('../..', import.meta.url),
     stdio: 'pipe',
   });
 });
 
 beforeAll(async () => {
-  ({ createApp: createGleamApp } = await import('../../gleam/js/src/index.js'));
+  ({ createApp: createGleamApp } = await import('../../js/src/index.js'));
 });
 
 async function withGleamServer<T>(run: (origin: string) => Promise<T>): Promise<T> {
