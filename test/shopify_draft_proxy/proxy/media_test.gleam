@@ -4,11 +4,13 @@
 
 import gleam/dict
 import gleam/json
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/media
-import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
+import shopify_draft_proxy/proxy/proxy_state.{DraftProxy, Request, Response}
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/types.{type FileRecord, FileRecord}
 
 fn run(query: String) -> String {
   let assert Ok(data) = media.handle_media_query(store.new(), query, dict.new())
@@ -18,6 +20,11 @@ fn run(query: String) -> String {
 fn registry_proxy() {
   draft_proxy.new()
   |> draft_proxy.with_default_registry
+}
+
+fn registry_proxy_with_files(files: List(FileRecord)) {
+  let proxy = registry_proxy()
+  DraftProxy(..proxy, store: store.upsert_staged_files(proxy.store, files))
 }
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
@@ -35,6 +42,42 @@ fn escape(value: String) -> String {
   value
   |> string.replace("\\", "\\\\")
   |> string.replace("\"", "\\\"")
+}
+
+fn ready_image() -> FileRecord {
+  FileRecord(
+    id: "gid://shopify/MediaImage/1",
+    alt: Some("Seed"),
+    content_type: Some("IMAGE"),
+    created_at: "2026-05-05T00:00:00.000Z",
+    file_status: "READY",
+    filename: Some("seed.jpg"),
+    original_source: "https://cdn.example.com/seed.jpg",
+    image_url: Some("https://cdn.example.com/seed.jpg"),
+    image_width: None,
+    image_height: None,
+    update_failure_acknowledged_at: None,
+  )
+}
+
+fn ready_video() -> FileRecord {
+  FileRecord(
+    id: "gid://shopify/Video/2",
+    alt: None,
+    content_type: Some("VIDEO"),
+    created_at: "2026-05-05T00:00:00.000Z",
+    file_status: "READY",
+    filename: Some("clip.mp4"),
+    original_source: "https://cdn.example.com/clip.mp4",
+    image_url: None,
+    image_width: None,
+    image_height: None,
+    update_failure_acknowledged_at: None,
+  )
+}
+
+fn processing_image() -> FileRecord {
+  FileRecord(..ready_image(), file_status: "PROCESSING")
 }
 
 pub fn is_media_query_root_test() {
@@ -119,4 +162,88 @@ pub fn file_delete_re_resolves_wrong_typed_gid_to_actual_file_type_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"fileDelete\":{\"deletedFileIds\":[\"gid://shopify/MediaImage/2\"],\"userErrors\":[]}}}"
+}
+
+pub fn file_update_rejects_non_ready_file_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([processing_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", alt: \"New alt\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Non-ready files cannot be updated.\",\"code\":\"NON_READY_STATE\"}]}}}"
+}
+
+pub fn file_update_rejects_video_original_source_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_video()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/Video/2\", originalSource: \"https://cdn.example.com/new.mp4\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"Updating the original source is not supported for this media type.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn file_update_rejects_video_filename_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_video()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/Video/2\", filename: \"clip-new.mp4\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"Updating the filename is only supported on images and generic files\",\"code\":\"UNSUPPORTED_MEDIA_TYPE_FOR_FILENAME_UPDATE\"}]}}}"
+}
+
+pub fn file_update_rejects_filename_extension_mismatch_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", filename: \"seed.png\" }]) { files { id fileStatus alt filename __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"The filename extension provided must match the original filename.\",\"code\":\"INVALID_FILENAME_EXTENSION\"}]}}}"
+}
+
+pub fn file_update_rejects_source_and_revert_version_conflict_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", originalSource: \"https://cdn.example.com/v2.jpg\", revertToVersionId: \"gid://shopify/FileVersion/9\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\"],\"message\":\"Specify either a source or revertToVersionId, not both.\",\"code\":\"CANNOT_SPECIFY_SOURCE_AND_VERSION_ID\"}]}}}"
+}
+
+pub fn file_update_rejects_mismatched_gid_type_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/Video/1\", alt: \"Wrong type\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\"],\"message\":\"File id [\\\"gid://shopify/Video/1\\\"] does not exist.\",\"code\":\"FILE_DOES_NOT_EXIST\"}]}}}"
+}
+
+pub fn file_update_preserves_ready_status_after_success_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy_with_files([ready_image()]),
+      "mutation { fileUpdate(files: [{ id: \"gid://shopify/MediaImage/1\", alt: \"Updated alt\" }]) { files { id fileStatus alt __typename } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"alt\":\"Updated alt\",\"__typename\":\"MediaImage\"}],\"userErrors\":[]}}}"
 }
