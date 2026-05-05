@@ -1,0 +1,17 @@
+mutation BackupRegionUpdateOmitted {
+  backupRegionUpdate {
+    backupRegion {
+      __typename
+      id
+      name
+      ... on MarketRegionCountry {
+        code
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

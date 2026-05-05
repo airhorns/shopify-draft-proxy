@@ -1,0 +1,35 @@
+mutation OrderCancelStateTransitions(
+  $orderId: ID!
+  $restock: Boolean!
+  $reason: OrderCancelReason!
+  $refund: Boolean
+  $refundMethod: OrderCancelRefundMethodInput
+  $staffNote: String
+) {
+  orderCancel(
+    orderId: $orderId
+    restock: $restock
+    reason: $reason
+    refund: $refund
+    refundMethod: $refundMethod
+    staffNote: $staffNote
+  ) {
+    order {
+      id
+    }
+    job {
+      id
+      done
+    }
+    orderCancelUserErrors {
+      field
+      message
+      code
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
