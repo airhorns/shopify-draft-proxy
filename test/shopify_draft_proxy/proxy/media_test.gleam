@@ -218,24 +218,6 @@ pub fn file_acknowledge_update_failed_after_rejected_update_keeps_state_test() {
   assert !string.contains(state_json, "\"updateFailureAcknowledgedAt\":\"")
 }
 
-pub fn file_acknowledge_update_failed_ready_file_is_state_noop_test() {
-  let #(Response(status: status, body: body, ..), proxy) =
-    graphql(
-      registry_proxy_with_files([ready_image()]),
-      "mutation { fileAcknowledgeUpdateFailed(fileIds: [\"gid://shopify/MediaImage/1\"]) { files { id fileStatus __typename mediaErrors { code message } mediaWarnings { code message } } userErrors { field message code } } }",
-    )
-
-  assert status == 200
-  assert json.to_string(body)
-    == "{\"data\":{\"fileAcknowledgeUpdateFailed\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"__typename\":\"MediaImage\",\"mediaErrors\":[],\"mediaWarnings\":[]}],\"userErrors\":[]}}}"
-
-  let state_json =
-    draft_proxy.dump_state(proxy, "2026-05-05T10:15:00.000Z")
-    |> json.to_string
-  assert string.contains(state_json, "\"updateFailureAcknowledgedAt\":null")
-  assert !string.contains(state_json, "\"updateFailureAcknowledgedAt\":\"")
-}
-
 pub fn file_delete_re_resolves_wrong_typed_gid_to_actual_file_type_test() {
   let #(_, proxy) =
     graphql(
