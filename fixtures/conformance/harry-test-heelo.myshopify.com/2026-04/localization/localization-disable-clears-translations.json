@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-29T02:05:05.337Z",
+  "capturedAt": "2026-05-05T01:23:48.505Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "rootAvailability": {
@@ -708,7 +708,7 @@
           "actualQueryCost": 17,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1981,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }
@@ -719,7 +719,7 @@
     "resourceId": "gid://shopify/Product/9801098789170",
     "locale": "fr",
     "titleDigest": "43a0ee61d168b8330a4e71f9f034be6513b1729f9190950ae11f30b2d048c142",
-    "translationValue": "Titre HAR-449 disable cleanup 1777428304302",
+    "translationValue": "Titre HAR-449 disable cleanup 1777944227439",
     "registerRequest": {
       "variables": {
         "resourceId": "gid://shopify/Product/9801098789170",
@@ -727,7 +727,7 @@
           {
             "locale": "fr",
             "key": "title",
-            "value": "Titre HAR-449 disable cleanup 1777428304302",
+            "value": "Titre HAR-449 disable cleanup 1777944227439",
             "translatableContentDigest": "43a0ee61d168b8330a4e71f9f034be6513b1729f9190950ae11f30b2d048c142"
           }
         ]
@@ -746,10 +746,10 @@
       "translations": [
         {
           "key": "title",
-          "value": "Titre HAR-449 disable cleanup 1777428304302",
+          "value": "Titre HAR-449 disable cleanup 1777944227439",
           "locale": "fr",
           "outdated": false,
-          "updatedAt": "2026-04-29T02:05:04Z",
+          "updatedAt": "2026-05-05T01:23:47Z",
           "market": null
         }
       ],
@@ -760,10 +760,10 @@
       "translations": [
         {
           "key": "title",
-          "value": "Titre HAR-449 disable cleanup 1777428304302",
+          "value": "Titre HAR-449 disable cleanup 1777944227439",
           "locale": "fr",
           "outdated": false,
-          "updatedAt": "2026-04-29T02:05:04Z",
+          "updatedAt": "2026-05-05T01:23:47Z",
           "market": null
         }
       ]
@@ -1476,7 +1476,7 @@
               "actualQueryCost": 17,
               "throttleStatus": {
                 "maximumAvailable": 2000,
-                "currentlyAvailable": 1981,
+                "currentlyAvailable": 1983,
                 "restoreRate": 100
               }
             }
