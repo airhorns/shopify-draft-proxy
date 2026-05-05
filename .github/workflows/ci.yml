@@ -16,6 +16,11 @@ jobs:
   gleam:
     name: Gleam
     runs-on: ubuntu-latest
+    env:
+      NODE_VERSION: '22'
+      OTP_VERSION: '28'
+      ELIXIR_VERSION: '1.18'
+      GLEAM_VERSION: '1.16.0'
 
     steps:
       - name: Checkout
@@ -24,7 +29,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
 
       - name: Enable Corepack
         run: corepack enable
@@ -32,9 +37,9 @@ jobs:
       - name: Setup BEAM (Erlang + Elixir + Gleam)
         uses: erlef/setup-beam@v1
         with:
-          otp-version: '28'
-          elixir-version: '1.18'
-          gleam-version: '1.16.0'
+          otp-version: ${{ env.OTP_VERSION }}
+          elixir-version: ${{ env.ELIXIR_VERSION }}
+          gleam-version: ${{ env.GLEAM_VERSION }}
 
       - name: Resolve pnpm store path
         shell: bash
@@ -44,9 +49,17 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.PNPM_STORE_PATH }}
-          key: ${{ runner.os }}-node-22-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-node-${{ env.NODE_VERSION }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
-            ${{ runner.os }}-node-22-pnpm-
+            ${{ runner.os }}-node-${{ env.NODE_VERSION }}-pnpm-
+
+      - name: Restore Gleam build cache
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ${{ runner.os }}-otp-${{ env.OTP_VERSION }}-gleam-${{ env.GLEAM_VERSION }}-build-${{ hashFiles('gleam.toml', 'manifest.toml', 'src/**/*.gleam', 'test/**/*.gleam') }}
+          restore-keys: |
+            ${{ runner.os }}-otp-${{ env.OTP_VERSION }}-gleam-${{ env.GLEAM_VERSION }}-build-
 
       - name: Install dependencies
         run: corepack pnpm install --frozen-lockfile

@@ -5063,6 +5063,44 @@ type BulkVariantUserError {
   )
 }
 
+type VariantValidationProblem {
+  VariantValidationProblem(
+    kind: String,
+    suffix: List(String),
+    bulk_suffix: List(String),
+    message: String,
+    bulk_code: Option(String),
+    product_code: Option(String),
+  )
+}
+
+type NumericRead {
+  NumericValue(Float)
+  NumericNotANumber
+  NumericMissing
+  NumericNull
+}
+
+type QuantityRead {
+  QuantityInt(Int)
+  QuantityFloat(Float)
+  QuantityNotANumber
+  QuantityMissing
+  QuantityNull
+}
+
+const max_product_variants = 2048
+
+const max_variant_price = 1.0e18
+
+const max_variant_weight = 2.0e9
+
+const min_inventory_quantity = -1_000_000_000
+
+const max_inventory_quantity = 1_000_000_000
+
+const max_variant_text_length = 255
+
 type InventoryTransferLineItemInput {
   InventoryTransferLineItemInput(
     inventory_item_id: Option(String),
@@ -6858,6 +6896,33 @@ fn missing_idempotency_key_error(field: Selection) -> Json {
   ])
 }
 
+fn max_input_size_exceeded_error(
+  root_name: String,
+  argument_name: String,
+  actual_size: Int,
+  field: Selection,
+  document: String,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "The input array size of "
+        <> int.to_string(actual_size)
+        <> " is greater than the maximum allowed of "
+        <> int.to_string(max_product_variants)
+        <> ".",
+      ),
+    ),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
+    #("path", json.array([root_name, argument_name], json.string)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("MAX_INPUT_SIZE_EXCEEDED"))]),
+    ),
+  ])
+}
+
 fn has_idempotency_key(
   field: Selection,
   variables: Dict(String, ResolvedValue),
@@ -7292,14 +7357,24 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store.Staged,
+                  "Gleam staged productVariantCreate locally.",
+                )
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productVariantCreate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productVariantCreate locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -7319,14 +7394,24 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store.Staged,
+                  "Gleam staged productVariantUpdate locally.",
+                )
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productVariantUpdate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productVariantUpdate locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -7369,26 +7454,46 @@ fn handle_mutation_fields(
                 handle_product_variants_bulk_create(
                   current_store,
                   current_identity,
+                  document,
                   field,
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store.Staged,
+                  "Gleam staged productVariantsBulkCreate locally.",
+                )
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productVariantsBulkCreate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productVariantsBulkCreate locally."),
+                  Some(note),
                 )
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                case result.top_level_errors {
+                  [] -> list.append(entries, [#(result.key, result.payload)])
+                  _ -> list.append(entries, result.top_level_error_data_entries)
+                },
+                list.append(errors, result.top_level_errors),
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                case result.top_level_errors {
+                  [] -> list.append(staged_ids, result.staged_resource_ids)
+                  _ -> staged_ids
+                },
+                case result.top_level_errors {
+                  [] -> list.append(drafts, [draft])
+                  _ -> drafts
+                },
               )
             }
             "productVariantsBulkUpdate" -> {
@@ -7396,18 +7501,29 @@ fn handle_mutation_fields(
                 handle_product_variants_bulk_update(
                   current_store,
                   current_identity,
+                  document,
                   field,
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store.Staged,
+                  "Gleam staged productVariantsBulkUpdate locally.",
+                )
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productVariantsBulkUpdate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productVariantsBulkUpdate locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8782,17 +8898,18 @@ fn handle_product_create(
         )
       mutation_error_result(key, store, identity, errors)
     }
-    Some(input) ->
-      case product_create_validation_error(input) {
-        Some(error) ->
+    Some(input) -> {
+      let user_errors = product_create_validation_errors(input)
+      case user_errors {
+        [_, ..] ->
           mutation_result(
             key,
-            product_create_payload(store, None, [error], field, fragments),
+            product_create_payload(store, None, user_errors, field, fragments),
             store,
             identity,
             [],
           )
-        None -> {
+        [] -> {
           let #(product, identity_after_product) =
             created_product_record(store, identity, input)
           let #(options, default_variant, final_identity, graph_ids) =
@@ -8831,6 +8948,7 @@ fn handle_product_create(
           )
         }
       }
+    }
   }
 }
 
@@ -9422,7 +9540,10 @@ fn product_set_validation_errors(
     product_set_product_field_errors(input, existing),
     list.append(
       product_set_requires_variants_for_options_errors(input),
-      product_set_duplicate_variant_errors(input),
+      list.append(
+        product_set_duplicate_variant_errors(input),
+        product_set_scalar_variant_errors(input),
+      ),
     ),
   )
 }
@@ -9642,6 +9763,26 @@ fn product_set_requires_variants_for_options_errors(
     ]
     _, _ -> []
   }
+}
+
+fn product_set_scalar_variant_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductOperationUserErrorRecord) {
+  read_object_list_field(input, "variants")
+  |> enumerate_items()
+  |> list.flat_map(fn(pair) {
+    let #(variant_input, index) = pair
+    variant_validation_problems(variant_input)
+    |> list.map(fn(problem) {
+      let VariantValidationProblem(suffix: suffix, message: message, ..) =
+        problem
+      ProductOperationUserErrorRecord(
+        field: Some(["input", "variants", int.to_string(index), ..suffix]),
+        message: message,
+        code: Some("INVALID_VARIANT"),
+      )
+    })
+  })
 }
 
 /// Detect input variants whose option-value tuples collide with an
@@ -15444,35 +15585,61 @@ fn handle_product_variant_create(
           let effective_variants =
             store.get_effective_variants_by_product_id(store, product_id)
           let defaults = list.first(effective_variants) |> option.from_result
-          let #(created_variant, identity_after_variant) =
-            make_created_variant_record(identity, product_id, input, defaults)
-          let next_variants = list.append(effective_variants, [created_variant])
-          let next_store =
-            store.replace_staged_variants_for_product(
-              store,
-              product_id,
-              next_variants,
-            )
-          let #(product, next_store, final_identity) =
-            sync_product_inventory_summary(
-              next_store,
-              identity_after_variant,
-              product_id,
-            )
-          mutation_result(
-            key,
-            product_variant_payload(
-              next_store,
-              product,
-              Some(created_variant),
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            final_identity,
-            variant_staged_ids(created_variant),
-          )
+          let user_errors =
+            validate_product_variant_scalar_input(input, ["input"])
+          case user_errors {
+            [] -> {
+              let #(created_variant, identity_after_variant) =
+                make_created_variant_record(
+                  identity,
+                  product_id,
+                  input,
+                  defaults,
+                )
+              let next_variants =
+                list.append(effective_variants, [created_variant])
+              let next_store =
+                store.replace_staged_variants_for_product(
+                  store,
+                  product_id,
+                  next_variants,
+                )
+              let #(product, next_store, final_identity) =
+                sync_product_inventory_summary(
+                  next_store,
+                  identity_after_variant,
+                  product_id,
+                )
+              mutation_result(
+                key,
+                product_variant_payload(
+                  next_store,
+                  product,
+                  Some(created_variant),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                final_identity,
+                variant_staged_ids(created_variant),
+              )
+            }
+            _ ->
+              mutation_rejected_result(
+                key,
+                product_variant_payload(
+                  store,
+                  None,
+                  None,
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+              )
+          }
         }
       }
     Some(_), None ->
@@ -15547,45 +15714,65 @@ fn handle_product_variant_update(
             [],
           )
         Some(existing_variant) -> {
-          let #(updated_variant, identity_after_variant) =
-            update_variant_record(identity, existing_variant, input)
-          let next_variants =
-            store.get_effective_variants_by_product_id(
-              store,
-              existing_variant.product_id,
-            )
-            |> list.map(fn(variant) {
-              case variant.id == variant_id {
-                True -> updated_variant
-                False -> variant
-              }
-            })
-          let next_store =
-            store.replace_staged_variants_for_product(
-              store,
-              existing_variant.product_id,
-              next_variants,
-            )
-          let #(product, next_store, final_identity) =
-            sync_product_inventory_summary(
-              next_store,
-              identity_after_variant,
-              existing_variant.product_id,
-            )
-          mutation_result(
-            key,
-            product_variant_payload(
-              next_store,
-              product,
-              Some(updated_variant),
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            final_identity,
-            variant_staged_ids(updated_variant),
-          )
+          let user_errors =
+            validate_product_variant_scalar_input(input, ["input"])
+          case user_errors {
+            [] -> {
+              let #(updated_variant, identity_after_variant) =
+                update_variant_record(identity, existing_variant, input)
+              let next_variants =
+                store.get_effective_variants_by_product_id(
+                  store,
+                  existing_variant.product_id,
+                )
+                |> list.map(fn(variant) {
+                  case variant.id == variant_id {
+                    True -> updated_variant
+                    False -> variant
+                  }
+                })
+              let next_store =
+                store.replace_staged_variants_for_product(
+                  store,
+                  existing_variant.product_id,
+                  next_variants,
+                )
+              let #(product, next_store, final_identity) =
+                sync_product_inventory_summary(
+                  next_store,
+                  identity_after_variant,
+                  existing_variant.product_id,
+                )
+              mutation_result(
+                key,
+                product_variant_payload(
+                  next_store,
+                  product,
+                  Some(updated_variant),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                final_identity,
+                variant_staged_ids(updated_variant),
+              )
+            }
+            _ ->
+              mutation_rejected_result(
+                key,
+                product_variant_payload(
+                  store,
+                  None,
+                  None,
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+              )
+          }
         }
       }
     Some(_), None ->
@@ -15683,12 +15870,47 @@ fn handle_product_variant_delete(
 fn handle_product_variants_bulk_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
+  let variant_inputs = read_arg_object_list(args, "variants")
+  case list.length(variant_inputs) > max_product_variants {
+    True ->
+      mutation_error_result(key, store, identity, [
+        max_input_size_exceeded_error(
+          "productVariantsBulkCreate",
+          "variants",
+          list.length(variant_inputs),
+          field,
+          document,
+        ),
+      ])
+    False ->
+      handle_product_variants_bulk_create_valid_size(
+        store,
+        identity,
+        key,
+        args,
+        variant_inputs,
+        field,
+        fragments,
+      )
+  }
+}
+
+fn handle_product_variants_bulk_create_valid_size(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  args: Dict(String, ResolvedValue),
+  variant_inputs: List(Dict(String, ResolvedValue)),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
   case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
@@ -15742,12 +15964,27 @@ fn handle_product_variants_bulk_create(
           let effective_options =
             store.get_effective_options_by_product_id(store, product_id)
           let defaults = list.first(effective_variants) |> option.from_result
-          let variant_inputs = read_arg_object_list(args, "variants")
+          let should_remove_standalone_variant =
+            !list.is_empty(variant_inputs)
+            && list.length(effective_variants) == 1
+            && {
+              graphql_helpers.read_arg_string(args, "strategy")
+              == Some("REMOVE_STANDALONE_VARIANT")
+              || product_has_standalone_default_variant(
+                effective_options,
+                effective_variants,
+              )
+            }
+          let retained_count = case should_remove_standalone_variant {
+            True -> 0
+            False -> list.length(effective_variants)
+          }
           let user_errors =
             validate_bulk_create_variant_batch(
               store,
               product_id,
               variant_inputs,
+              retained_count,
             )
           case user_errors {
             [] -> {
@@ -15758,17 +15995,6 @@ fn handle_product_variants_bulk_create(
                   variant_inputs,
                   defaults,
                 )
-              let should_remove_standalone_variant =
-                !list.is_empty(variant_inputs)
-                && list.length(effective_variants) == 1
-                && {
-                  graphql_helpers.read_arg_string(args, "strategy")
-                  == Some("REMOVE_STANDALONE_VARIANT")
-                  || product_has_standalone_default_variant(
-                    effective_options,
-                    effective_variants,
-                  )
-                }
               let retained_variants = case should_remove_standalone_variant {
                 True -> []
                 False -> effective_variants
@@ -15834,7 +16060,7 @@ fn handle_product_variants_bulk_create(
               )
             }
             _ ->
-              mutation_result(
+              mutation_rejected_result(
                 key,
                 product_variants_bulk_payload(
                   "ProductVariantsBulkCreatePayload",
@@ -15847,7 +16073,6 @@ fn handle_product_variants_bulk_create(
                 ),
                 store,
                 identity,
-                [],
               )
           }
         }
@@ -15858,12 +16083,47 @@ fn handle_product_variants_bulk_create(
 fn handle_product_variants_bulk_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
+  let updates = read_arg_object_list(args, "variants")
+  case list.length(updates) > max_product_variants {
+    True ->
+      mutation_error_result(key, store, identity, [
+        max_input_size_exceeded_error(
+          "productVariantsBulkUpdate",
+          "variants",
+          list.length(updates),
+          field,
+          document,
+        ),
+      ])
+    False ->
+      handle_product_variants_bulk_update_valid_size(
+        store,
+        identity,
+        key,
+        args,
+        updates,
+        field,
+        fragments,
+      )
+  }
+}
+
+fn handle_product_variants_bulk_update_valid_size(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  args: Dict(String, ResolvedValue),
+  updates: List(Dict(String, ResolvedValue)),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
   case graphql_helpers.read_arg_string(args, "productId") {
     None ->
       mutation_result(
@@ -15912,7 +16172,6 @@ fn handle_product_variants_bulk_update(
             [],
           )
         Some(_) -> {
-          let updates = read_arg_object_list(args, "variants")
           let effective_variants =
             store.get_effective_variants_by_product_id(store, product_id)
           let user_errors =
@@ -15968,7 +16227,7 @@ fn handle_product_variants_bulk_update(
                 [BulkVariantUserError(field: None, ..), ..] -> None
                 _ -> store.get_effective_product_by_id(store, product_id)
               }
-              mutation_result(
+              mutation_rejected_result(
                 key,
                 product_variants_bulk_payload(
                   "ProductVariantsBulkUpdatePayload",
@@ -15981,7 +16240,6 @@ fn handle_product_variants_bulk_update(
                 ),
                 store,
                 identity,
-                [],
               )
             }
           }
@@ -17037,6 +17295,17 @@ fn product_update_validation_error(
   }
 }
 
+fn product_create_validation_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  let product_errors = case product_create_validation_error(input) {
+    Some(error) -> [error]
+    None -> []
+  }
+
+  list.append(product_errors, product_create_variant_errors(input))
+}
+
 fn product_create_validation_error(
   input: Dict(String, ResolvedValue),
 ) -> Option(ProductUserError) {
@@ -17048,6 +17317,20 @@ fn product_create_validation_error(
       }
     None -> Some(ProductUserError(["title"], "Title can't be blank", None))
   }
+}
+
+fn product_create_variant_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  read_object_list_field(input, "variants")
+  |> enumerate_items()
+  |> list.flat_map(fn(pair) {
+    let #(variant_input, index) = pair
+    validate_product_variant_scalar_input(variant_input, [
+      "variants",
+      int.to_string(index),
+    ])
+  })
 }
 
 fn product_create_handle_validation_error(
@@ -23124,30 +23407,42 @@ fn validate_bulk_create_variant_batch(
   store: Store,
   product_id: String,
   inputs: List(Dict(String, ResolvedValue)),
+  retained_variant_count: Int,
 ) -> List(BulkVariantUserError) {
-  inputs
-  |> enumerate_items()
-  |> list.flat_map(fn(pair) {
-    let #(input, index) = pair
-    let #(selected_options, option_errors) =
-      validate_bulk_variant_option_input(
-        store,
-        product_id,
-        input,
-        index,
-        "create",
-      )
-    case option_errors {
-      [] ->
-        validate_bulk_create_inventory_quantities(
-          store,
-          input,
-          index,
-          selected_options,
-        )
-      _ -> option_errors
-    }
-  })
+  case retained_variant_count + list.length(inputs) > max_product_variants {
+    True -> [
+      BulkVariantUserError(
+        None,
+        "You can only have a maximum of "
+          <> int.to_string(max_product_variants)
+          <> " variants per product",
+        Some("LIMIT_EXCEEDED"),
+      ),
+    ]
+    False ->
+      inputs
+      |> enumerate_items()
+      |> list.flat_map(fn(pair) {
+        let #(input, index) = pair
+        let scalar_errors = validate_bulk_variant_scalar_input(input, index)
+        let #(selected_options, option_errors) =
+          validate_bulk_variant_option_input(
+            store,
+            product_id,
+            input,
+            index,
+            "create",
+          )
+        let inventory_errors =
+          validate_bulk_create_inventory_quantities(
+            store,
+            input,
+            index,
+            selected_options,
+          )
+        list.append(scalar_errors, list.append(option_errors, inventory_errors))
+      })
+  }
 }
 
 fn validate_bulk_update_variant_batch(
@@ -23200,25 +23495,501 @@ fn validate_bulk_update_variant_batch(
                     ),
                   ]
                   False ->
-                    case has_variant_option_input(input) {
-                      True -> {
-                        let #(_, errors) =
-                          validate_bulk_variant_option_input(
-                            store,
-                            product_id,
-                            input,
-                            index,
-                            "update",
-                          )
-                        errors
-                      }
-                      False -> []
-                    }
+                    list.append(
+                      validate_bulk_variant_scalar_input(input, index),
+                      case has_variant_option_input(input) {
+                        True -> {
+                          let #(_, errors) =
+                            validate_bulk_variant_option_input(
+                              store,
+                              product_id,
+                              input,
+                              index,
+                              "update",
+                            )
+                          errors
+                        }
+                        False -> []
+                      },
+                    )
                 }
             }
         }
       })
   }
+}
+
+fn validate_bulk_variant_scalar_input(
+  input: Dict(String, ResolvedValue),
+  variant_index: Int,
+) -> List(BulkVariantUserError) {
+  variant_validation_problems(input)
+  |> list.flat_map(fn(problem) {
+    bulk_variant_error_from_problem(problem, variant_index)
+  })
+}
+
+fn validate_product_variant_scalar_input(
+  input: Dict(String, ResolvedValue),
+  prefix: List(String),
+) -> List(ProductUserError) {
+  variant_validation_problems(input)
+  |> list.map(fn(problem) {
+    let VariantValidationProblem(
+      suffix: suffix,
+      message: message,
+      product_code: code,
+      ..,
+    ) = problem
+    ProductUserError(list.append(prefix, suffix), message, code)
+  })
+}
+
+fn bulk_variant_error_from_problem(
+  problem: VariantValidationProblem,
+  variant_index: Int,
+) -> List(BulkVariantUserError) {
+  let VariantValidationProblem(
+    kind: kind,
+    bulk_suffix: suffix,
+    message: message,
+    bulk_code: code,
+    ..,
+  ) = problem
+  let field = Some(["variants", int.to_string(variant_index), ..suffix])
+  let primary = BulkVariantUserError(field, message, code)
+  case kind {
+    "sku_too_long" -> [
+      primary,
+      BulkVariantUserError(
+        Some(["variants", int.to_string(variant_index)]),
+        "is too long (maximum is 255 characters)",
+        None,
+      ),
+    ]
+    _ -> [primary]
+  }
+}
+
+fn variant_validation_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  []
+  |> list.append(variant_price_problems(input))
+  |> list.append(variant_compare_at_price_problems(input))
+  |> list.append(variant_weight_problems(input))
+  |> list.append(variant_quantity_problems(input))
+  |> list.append(variant_text_length_problems(input))
+  |> list.append(variant_option_value_length_problems(input))
+}
+
+fn variant_price_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  case read_numeric_field(input, "price") {
+    NumericNull -> [
+      VariantValidationProblem(
+        "price_blank",
+        ["price"],
+        ["price"],
+        "Price can't be blank",
+        Some("INVALID"),
+        Some("INVALID"),
+      ),
+    ]
+    NumericValue(value) if value <. 0.0 -> [
+      VariantValidationProblem(
+        "price_negative",
+        ["price"],
+        ["price"],
+        "Price must be greater than or equal to 0",
+        Some("GREATER_THAN_OR_EQUAL_TO"),
+        Some("GREATER_THAN_OR_EQUAL_TO"),
+      ),
+    ]
+    NumericValue(value) if value >=. max_variant_price -> [
+      VariantValidationProblem(
+        "price_too_large",
+        ["price"],
+        ["price"],
+        "Price must be less than 1000000000000000000",
+        Some("INVALID_INPUT"),
+        Some("INVALID_INPUT"),
+      ),
+    ]
+    NumericNotANumber -> [
+      VariantValidationProblem(
+        "price_not_a_number",
+        ["price"],
+        ["price"],
+        "Price is not a number",
+        Some("NOT_A_NUMBER"),
+        Some("NOT_A_NUMBER"),
+      ),
+    ]
+    NumericMissing | NumericValue(_) -> []
+  }
+}
+
+fn variant_compare_at_price_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  case read_numeric_field(input, "compareAtPrice") {
+    NumericValue(value) if value >=. max_variant_price -> [
+      VariantValidationProblem(
+        "compare_at_price_too_large",
+        ["compareAtPrice"],
+        ["compareAtPrice"],
+        "must be less than 1000000000000000000",
+        Some("INVALID_INPUT"),
+        Some("INVALID_INPUT"),
+      ),
+    ]
+    NumericNotANumber -> [
+      VariantValidationProblem(
+        "compare_at_price_not_a_number",
+        ["compareAtPrice"],
+        ["compareAtPrice"],
+        "Compare at price is not a number",
+        Some("NOT_A_NUMBER"),
+        Some("NOT_A_NUMBER"),
+      ),
+    ]
+    NumericMissing | NumericNull | NumericValue(_) -> []
+  }
+}
+
+fn variant_weight_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  let top_level_errors =
+    variant_weight_value_problems(read_numeric_field(input, "weight"))
+    |> list.append(variant_top_level_weight_unit_problems(input))
+  case read_variant_weight_input(input) {
+    None -> top_level_errors
+    Some(weight) -> {
+      top_level_errors
+      |> list.append(
+        variant_weight_value_problems(read_numeric_field(weight, "value")),
+      )
+      |> list.append(variant_weight_unit_problems(weight))
+    }
+  }
+}
+
+fn variant_weight_value_problems(
+  read: NumericRead,
+) -> List(VariantValidationProblem) {
+  case read {
+    NumericValue(value) if value <. 0.0 -> [
+      VariantValidationProblem(
+        "weight_negative",
+        [],
+        [],
+        "Weight must be greater than or equal to 0",
+        Some("GREATER_THAN_OR_EQUAL_TO"),
+        Some("GREATER_THAN_OR_EQUAL_TO"),
+      ),
+    ]
+    NumericValue(value) if value >=. max_variant_weight -> [
+      VariantValidationProblem(
+        "weight_too_large",
+        [],
+        [],
+        "Weight must be less than 2000000000",
+        Some("INVALID_INPUT"),
+        Some("INVALID_INPUT"),
+      ),
+    ]
+    NumericNotANumber -> [
+      VariantValidationProblem(
+        "weight_not_a_number",
+        [],
+        [],
+        "Weight is not a number",
+        Some("NOT_A_NUMBER"),
+        Some("NOT_A_NUMBER"),
+      ),
+    ]
+    NumericMissing | NumericNull | NumericValue(_) -> []
+  }
+}
+
+fn variant_weight_unit_problems(
+  weight: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  case read_string_field(weight, "unit") {
+    Some(unit) ->
+      case valid_weight_unit(unit) {
+        True -> []
+        False -> [
+          VariantValidationProblem(
+            "weight_unit_invalid",
+            [],
+            [],
+            "Weight unit is not included in the list",
+            Some("INVALID_INPUT"),
+            Some("INVALID_INPUT"),
+          ),
+        ]
+      }
+    None -> []
+  }
+}
+
+fn variant_top_level_weight_unit_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  case read_string_field(input, "weightUnit") {
+    Some(unit) ->
+      case valid_weight_unit(unit) {
+        True -> []
+        False -> [
+          VariantValidationProblem(
+            "weight_unit_invalid",
+            [],
+            [],
+            "Weight unit is not included in the list",
+            Some("INVALID_INPUT"),
+            Some("INVALID_INPUT"),
+          ),
+        ]
+      }
+    None -> []
+  }
+}
+
+fn valid_weight_unit(unit: String) -> Bool {
+  case unit {
+    "KILOGRAMS" | "GRAMS" | "POUNDS" | "OUNCES" -> True
+    _ -> False
+  }
+}
+
+fn variant_quantity_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  let direct_errors = case read_quantity_field(input, "inventoryQuantity") {
+    QuantityInt(quantity) ->
+      variant_quantity_range_problems(quantity, ["inventoryQuantity"])
+    QuantityFloat(_) -> [
+      quantity_problem(
+        ["inventoryQuantity"],
+        "Inventory quantity must be an integer",
+      ),
+    ]
+    QuantityNotANumber -> [
+      quantity_problem(
+        ["inventoryQuantity"],
+        "Inventory quantity must be an integer",
+      ),
+    ]
+    QuantityMissing | QuantityNull -> []
+  }
+  list.append(direct_errors, inventory_quantity_list_problems(input))
+}
+
+fn inventory_quantity_list_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  read_object_list_field(input, "inventoryQuantities")
+  |> list.flat_map(fn(quantity_input) {
+    let path = ["inventoryQuantities"]
+    case read_quantity_field(quantity_input, "availableQuantity") {
+      QuantityInt(quantity) -> variant_quantity_range_problems(quantity, path)
+      QuantityFloat(_) -> [
+        quantity_problem(path, "Inventory quantity must be an integer"),
+      ]
+      QuantityNotANumber -> [
+        quantity_problem(path, "Inventory quantity must be an integer"),
+      ]
+      QuantityMissing | QuantityNull ->
+        case read_quantity_field(quantity_input, "quantity") {
+          QuantityInt(quantity) ->
+            variant_quantity_range_problems(quantity, path)
+          QuantityFloat(_) -> [
+            quantity_problem(path, "Inventory quantity must be an integer"),
+          ]
+          QuantityNotANumber -> [
+            quantity_problem(path, "Inventory quantity must be an integer"),
+          ]
+          QuantityMissing | QuantityNull -> []
+        }
+    }
+  })
+}
+
+fn variant_quantity_range_problems(
+  quantity: Int,
+  suffix: List(String),
+) -> List(VariantValidationProblem) {
+  case quantity < min_inventory_quantity {
+    True -> [
+      quantity_problem(
+        suffix,
+        "Inventory quantity must be greater than or equal to -1000000000",
+      ),
+    ]
+    False ->
+      case quantity > max_inventory_quantity {
+        True -> [
+          quantity_problem(
+            suffix,
+            "Inventory quantity must be less than or equal to 1000000000",
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn quantity_problem(
+  suffix: List(String),
+  message: String,
+) -> VariantValidationProblem {
+  VariantValidationProblem(
+    "inventory_quantity",
+    suffix,
+    case suffix {
+      ["inventoryQuantity"] -> suffix
+      _ -> ["inventoryQuantities"]
+    },
+    message,
+    Some("INVALID_INPUT"),
+    Some("INVALID_INPUT"),
+  )
+}
+
+fn variant_text_length_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  let sku_errors = case read_variant_sku(input, None) {
+    Some(sku) ->
+      case string.length(sku) > max_variant_text_length {
+        True -> [
+          VariantValidationProblem(
+            "sku_too_long",
+            ["sku"],
+            [],
+            "SKU is too long (maximum is 255 characters)",
+            Some("INVALID_INPUT"),
+            Some("INVALID_INPUT"),
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+  let barcode_errors = case read_string_field(input, "barcode") {
+    Some(barcode) ->
+      case string.length(barcode) > max_variant_text_length {
+        True -> [
+          VariantValidationProblem(
+            "barcode_too_long",
+            ["barcode"],
+            ["barcode"],
+            "Barcode is too long (maximum is 255 characters)",
+            Some("INVALID_INPUT"),
+            Some("INVALID_INPUT"),
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+  list.append(sku_errors, barcode_errors)
+}
+
+fn variant_option_value_length_problems(
+  input: Dict(String, ResolvedValue),
+) -> List(VariantValidationProblem) {
+  list.append(
+    option_value_length_problems(input, "optionValues", "name"),
+    option_value_length_problems(input, "selectedOptions", "value"),
+  )
+}
+
+fn option_value_length_problems(
+  input: Dict(String, ResolvedValue),
+  list_field: String,
+  value_field: String,
+) -> List(VariantValidationProblem) {
+  case dict.get(input, list_field) {
+    Ok(ListVal(values)) ->
+      values
+      |> enumerate_items()
+      |> list.filter_map(fn(pair) {
+        let #(value, index) = pair
+        case value {
+          ObjectVal(fields) ->
+            case read_string_field(fields, value_field) {
+              Some(name) ->
+                case string.length(name) > max_variant_text_length {
+                  True ->
+                    Ok(VariantValidationProblem(
+                      "option_value_too_long",
+                      [list_field, int.to_string(index), value_field],
+                      [list_field, int.to_string(index), value_field],
+                      "Option value name is too long",
+                      Some("INVALID_INPUT"),
+                      Some("INVALID_INPUT"),
+                    ))
+                  False -> Error(Nil)
+                }
+              _ -> Error(Nil)
+            }
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn read_numeric_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> NumericRead {
+  case dict.get(input, name) {
+    Error(_) -> NumericMissing
+    Ok(NullVal) -> NumericNull
+    Ok(IntVal(value)) -> NumericValue(int.to_float(value))
+    Ok(FloatVal(value)) -> NumericValue(value)
+    Ok(StringVal(value)) ->
+      case int.parse(value) {
+        Ok(parsed) -> NumericValue(int.to_float(parsed))
+        Error(_) ->
+          case float.parse(value) {
+            Ok(parsed) -> NumericValue(parsed)
+            Error(_) -> NumericNotANumber
+          }
+      }
+    _ -> NumericNotANumber
+  }
+}
+
+fn read_quantity_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> QuantityRead {
+  case dict.get(input, name) {
+    Error(_) -> QuantityMissing
+    Ok(NullVal) -> QuantityNull
+    Ok(IntVal(value)) -> QuantityInt(value)
+    Ok(FloatVal(value)) -> QuantityFloat(value)
+    Ok(StringVal(_)) -> QuantityNotANumber
+    _ -> QuantityNotANumber
+  }
+}
+
+fn read_variant_weight_input(
+  input: Dict(String, ResolvedValue),
+) -> Option(Dict(String, ResolvedValue)) {
+  use inventory_item <- option.then(read_object_field(input, "inventoryItem"))
+  use measurement <- option.then(read_object_field(
+    inventory_item,
+    "measurement",
+  ))
+  read_object_field(measurement, "weight")
 }
 
 fn validate_bulk_variant_option_input(
@@ -25018,10 +25789,6 @@ fn is_on_hand_component_quantity_name(name: String) -> Bool {
     _ -> False
   }
 }
-
-const max_inventory_quantity = 1_000_000_000
-
-const min_inventory_quantity = -1_000_000_000
 
 fn valid_inventory_set_quantity_name(name: String) -> Bool {
   case name {

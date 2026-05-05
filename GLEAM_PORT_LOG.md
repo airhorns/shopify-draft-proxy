@@ -16,11 +16,12 @@ Hardens the promoted root layout against stale CI cache artifacts from the old
 linting; the root `gleam:format` scripts now target only checked-in `src` and
 `test` Gleam source trees, and `.gitignore` documents the retired cache path.
 
-| Module / area          | Change                                                                                 |
-| ---------------------- | -------------------------------------------------------------------------------------- |
-| `package.json`         | Narrows `gleam:format` and `gleam:format:check` to `src test`.                         |
-| `.gitignore`           | Ignores the retired `gleam/build/` cache path that CI may still restore temporarily.    |
-| `docs/gleam-runtime.md` | Documents root-layout format commands that avoid generated or cached dependency trees. |
+| Module / area              | Change                                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------------- |
+| `package.json`             | Narrows `gleam:format` and `gleam:format:check` to `src test`.                         |
+| `.github/workflows/ci.yml` | Moves the Gleam build cache from retired `gleam/build` to root `build`.                |
+| `.gitignore`               | Ignores the retired `gleam/build/` cache path that CI may still restore temporarily.   |
+| `docs/gleam-runtime.md`    | Documents root-layout format commands that avoid generated or cached dependency trees. |
 
 Validation:
 
@@ -29,7 +30,7 @@ Validation:
   `./gleam/build/packages/**` dependency files.
 - Fixed stale-cache proof: created an ignored unformatted
   `gleam/build/packages/stale/src/stale.gleam`; `corepack pnpm
-  gleam:format:check` passed because it checks only `src test`; removed the
+gleam:format:check` passed because it checks only `src test`; removed the
   temporary `gleam/` tree afterward.
 - `corepack pnpm gleam:registry:check`
 - `corepack pnpm typecheck`
@@ -54,6 +55,8 @@ Validation:
 - Narrowing the format command is preferable to clearing CI caches because it
   keeps package dependency artifacts outside the project source validation
   boundary in both local and CI environments.
+- The CI build cache must follow the promoted root layout; otherwise restored
+  cache contents can recreate the retired `gleam/` tree before validation.
 
 ### Risks / open items
 
@@ -168,6 +171,45 @@ Validation:
 
 - Host Erlang is still OTP 25 in this workspace, so local Erlang validation
   requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 200: HAR-574 product variant scalar validation
+
+Adds shared Shopify-like scalar validation for product variant mutation inputs
+and backs the bulk-create validation branches with a new live capture and
+strict parity scenario.
+
+| Module / fixture                                                                                                                                           | Change                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                                                                                                       | Adds shared variant validators for explicit-null/negative/too-large prices, too-large compare-at price, weight bounds/unit, inventory quantity bounds, SKU/barcode/option value length, and 2048 caps.           |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`                                                                                        | Covers bulk create/update, legacy single-variant create/update, productCreate/productSet rejection, oversized `variants:` input, cumulative product cap, failed logs, and no local variant staging on rejection. |
+| `scripts/capture-product-variant-scalar-validation-conformance.ts` / `scripts/conformance-capture-index.ts`                                                | Adds an aggregate-indexed live capture for `productVariantsBulkCreate` scalar validation against a disposable optioned product, with before/after product-state atomicity checks.                                |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-validation.json`                                           | Records explicit `price: null`, negative/too-large price, too-large compare-at price, invalid weight/quantity, text length, option length, and max input-size Shopify responses.                                 |
+| `config/parity-specs/products/productVariantsBulkCreate-validation.json` / `config/parity-requests/products/productVariantsBulkCreate-validation*.graphql` | Adds executable strict JSON parity for captured `userErrors.field`, `message`, and `code`, plus Shopify's top-level max-input-size error.                                                                        |
+| `docs/endpoints/products.md`                                                                                                                               | Documents the scalar validation boundary, captured omitted-price behavior, no-write rejection behavior, and new validation anchors.                                                                              |
+
+Validation:
+
+- `corepack pnpm conformance:capture -- --run product-variant-scalar-validations`
+- `cd gleam && gleam test --target javascript -- products_mutation_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+
+### Findings
+
+- Shopify 2025-01 accepts omitted `price` for `productVariantsBulkCreate` on
+  the conformance store, while explicit `price: null` returns `Price can't be
+blank` with code `INVALID`.
+- The max-input-size branch is a top-level GraphQL error. Its location depends
+  on the request document formatting, so the parity request mirrors the capture
+  document layout for strict comparison.
+
+### Risks / open items
+
+- Direct live evidence for legacy `productVariantCreate` and
+  `productVariantUpdate` remains unavailable on the captured 2025-01 schema, so
+  their scalar validation is covered by shared runtime tests plus the
+  bulk-create conformance oracle.
 
 ---
 
