@@ -1167,11 +1167,7 @@ fn create_discount(
       )
     Some(input) -> {
       let top_level_errors =
-        validate_cart_line_combination_tag_top_level_errors(
-          input,
-          field,
-          document,
-        )
+        validate_discount_top_level_errors(input, field, document)
       case top_level_errors {
         [_, ..] ->
           MutationResult(
@@ -1320,11 +1316,7 @@ fn update_discount(
   case id, input {
     Some(id), Some(input) -> {
       let top_level_errors =
-        validate_cart_line_combination_tag_top_level_errors(
-          input,
-          field,
-          document,
-        )
+        validate_discount_top_level_errors(input, field, document)
       case top_level_errors {
         [_, ..] ->
           MutationResult(
@@ -3624,6 +3616,64 @@ fn nested_has_all(value: root_field.ResolvedValue, child: String) -> Bool {
         _ -> False
       }
     _ -> False
+  }
+}
+
+fn validate_discount_top_level_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> List(Json) {
+  list.append(
+    validate_customer_gets_value_type_top_level_errors(input, field, document),
+    validate_cart_line_combination_tag_top_level_errors(input, field, document),
+  )
+}
+
+fn validate_customer_gets_value_type_top_level_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> List(Json) {
+  case customer_gets_value_fields(input) {
+    Some(fields) ->
+      case customer_gets_value_type_count(fields) > 1 {
+        True -> [
+          json.object([
+            #(
+              "message",
+              json.string(
+                "A discount can only have one of percentage, discountOnQuantity or discountAmount.",
+              ),
+            ),
+            #("locations", field_locations_json(field, document)),
+            #(
+              "extensions",
+              json.object([#("code", json.string("BAD_REQUEST"))]),
+            ),
+            #("path", json.array([get_field_response_key(field)], json.string)),
+          ]),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn customer_gets_value_type_count(
+  fields: Dict(String, root_field.ResolvedValue),
+) -> Int {
+  let count = case dict.has_key(fields, "percentage") {
+    True -> 1
+    False -> 0
+  }
+  let count = case dict.has_key(fields, "discountAmount") {
+    True -> count + 1
+    False -> count
+  }
+  case dict.has_key(fields, "discountOnQuantity") {
+    True -> count + 1
+    False -> count
   }
 }
 

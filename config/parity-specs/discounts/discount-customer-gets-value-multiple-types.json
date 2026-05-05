@@ -1,0 +1,74 @@
+{
+  "scenarioId": "discount-customer-gets-value-multiple-types",
+  "operationNames": ["discountCodeBasicCreate", "discountCodeBasicUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "top-level-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-customer-gets-value-multiple-types.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-customer-gets-value-multiple-types-create.graphql",
+    "variablesCapturePath": "$.cases.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-782 captures Shopify Admin GraphQL 2026-04 rejecting customerGets.value inputs with multiple value branches as a top-level BadRequest-style GraphQL error rather than mutation-scoped DiscountUserError payloads.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-multiple-value-types-errors",
+        "capturePath": "$.cases.create.response.errors",
+        "proxyPath": "$.errors"
+      },
+      {
+        "name": "create-multiple-value-types-data",
+        "capturePath": "$.cases.create.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "setup-valid-create-user-errors",
+        "capturePath": "$.cases.setup.response.data.discountCodeBasicCreate.userErrors",
+        "proxyPath": "$.data.discountCodeBasicCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-customer-gets-value-multiple-types-create.graphql",
+          "variablesCapturePath": "$.cases.setup.variables"
+        }
+      },
+      {
+        "name": "update-multiple-value-types-errors",
+        "capturePath": "$.cases.update.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-customer-gets-value-multiple-types-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-valid-create-user-errors",
+              "path": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.update.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-multiple-value-types-data",
+        "capturePath": "$.cases.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-customer-gets-value-multiple-types-update.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-valid-create-user-errors",
+              "path": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.cases.update.variables.input"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
