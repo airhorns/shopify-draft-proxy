@@ -5564,7 +5564,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["fulfillmentServiceDelete", "FulfillmentServiceDelete"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages fulfillment-service deletion, including missing-id userErrors and associated location side effects for DELETE/TRANSFER versus KEEP inventory actions. Inventory movement itself remains in-memory only and no external endpoints are invoked.",
+        "Locally stages fulfillment-service deletion, including missing-id userErrors, TRANSFER destination validation, associated location side effects for DELETE/TRANSFER versus KEEP inventory actions, and local fulfillment-order reassignment/closure for work assigned to the deleted service. Inventory quantity movement itself remains in-memory only and no external endpoints are invoked.",
       ),
     ),
     RegistryEntry(
