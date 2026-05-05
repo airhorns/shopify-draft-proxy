@@ -20,6 +20,11 @@
 //// - `read_optional_string` / `read_optional_string_array` —
 ////   resolved-arg readers that ignore non-matching variants. Both
 ////   `webhooks` and `saved_searches` use these.
+//// - `MutationFieldResult` — the shared `{key, payload, staged_resource_ids}`
+////   shape used by simple-shape mutation handlers (segments, functions,
+////   privacy, gift_cards, localization, media). Domains with extra fields
+////   (top-level errors, log-draft toggles, store/identity threading) keep
+////   their local types.
 
 import gleam/dict.{type Dict}
 import gleam/int
