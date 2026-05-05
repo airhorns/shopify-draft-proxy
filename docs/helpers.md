@@ -38,6 +38,16 @@ Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversa
 
 Endpoint modules should provide only the domain-specific positive term matcher and documented Shopify quirks. Do not add new resource-local query parsers or duplicated query-tree traversal helpers.
 
+## `src/shopify_draft_proxy/shopify/resource_ids.gleam`
+
+Shared helpers for Shopify resource ID handling.
+
+- canonical Shopify GID construction from full GIDs, numeric tails, and opaque tails
+- GID tail extraction with query suffixes ignored
+- stable Shopify resource ID sorting that compares numeric tails when available
+
+Use this module before adding resource-local GID tail parsers, canonical ID builders, or Shopify resource ID comparators.
+
 ## `src/shopify_draft_proxy/proxy/upstream_query.gleam`
 
 Shared chokepoint for runtime reads that need upstream Shopify data.
