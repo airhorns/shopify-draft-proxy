@@ -354,8 +354,12 @@ fn root_query_payload(
         }
         "discountNodes" ->
           serialize_discount_connection(
-            filter_discounts(
-              store.list_effective_discounts(store),
+            sort_discounts(
+              filter_discounts(
+                store.list_effective_discounts(store),
+                field,
+                variables,
+              ),
               field,
               variables,
             ),
@@ -365,8 +369,12 @@ fn root_query_payload(
           )
         "codeDiscountNodes" ->
           serialize_discount_connection(
-            filter_discounts(
-              store.list_effective_discounts(store),
+            sort_discounts(
+              filter_discounts(
+                store.list_effective_discounts(store),
+                field,
+                variables,
+              ),
               field,
               variables,
             )
@@ -377,8 +385,12 @@ fn root_query_payload(
           )
         "automaticDiscountNodes" ->
           serialize_discount_connection(
-            filter_discounts(
-              store.list_effective_discounts(store),
+            sort_discounts(
+              filter_discounts(
+                store.list_effective_discounts(store),
+                field,
+                variables,
+              ),
               field,
               variables,
             )
@@ -554,8 +566,87 @@ fn filter_discounts(
   }
 }
 
+fn sort_discounts(
+  records: List(DiscountRecord),
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(DiscountRecord) {
+  let reverse =
+    read_bool_arg(field, variables, "reverse") |> option.unwrap(False)
+  case read_string_arg(field, variables, "sortKey") {
+    Some("CREATED_AT") ->
+      sort_discounts_by_timestamp(records, "createdAt", reverse)
+    Some("UPDATED_AT") ->
+      sort_discounts_by_timestamp(records, "updatedAt", reverse)
+    _ -> records
+  }
+}
+
+fn sort_discounts_by_timestamp(
+  records: List(DiscountRecord),
+  timestamp_field: String,
+  reverse: Bool,
+) -> List(DiscountRecord) {
+  records
+  |> list.sort(fn(left, right) {
+    let compared = compare_discount_timestamp(left, right, timestamp_field)
+    case reverse {
+      True -> reverse_order(compared)
+      False -> compared
+    }
+  })
+}
+
+fn compare_discount_timestamp(
+  left: DiscountRecord,
+  right: DiscountRecord,
+  timestamp_field: String,
+) -> order.Order {
+  case
+    string.compare(
+      discount_record_timestamp(left, timestamp_field) |> option.unwrap(""),
+      discount_record_timestamp(right, timestamp_field) |> option.unwrap(""),
+    )
+  {
+    order.Eq -> string.compare(left.id, right.id)
+    other -> other
+  }
+}
+
+fn reverse_order(value: order.Order) -> order.Order {
+  case value {
+    order.Lt -> order.Gt
+    order.Gt -> order.Lt
+    order.Eq -> order.Eq
+  }
+}
+
 fn discount_owner_source(record: DiscountRecord) -> SourceValue {
   captured_to_source(record.payload)
+}
+
+fn discount_record_timestamp(
+  record: DiscountRecord,
+  field: String,
+) -> Option(String) {
+  case discount_owner_source(record) {
+    SrcObject(fields) -> {
+      let discount = case record.owner_kind {
+        "automatic" ->
+          dict.get(fields, "automaticDiscount") |> result.unwrap(SrcNull)
+        _ -> dict.get(fields, "codeDiscount") |> result.unwrap(SrcNull)
+      }
+      case discount {
+        SrcObject(discount_fields) ->
+          case dict.get(discount_fields, field) {
+            Ok(SrcString(value)) -> Some(value)
+            _ -> None
+          }
+        _ -> None
+      }
+    }
+    _ -> None
+  }
 }
 
 fn discount_node_source(record: DiscountRecord) -> SourceValue {
@@ -1348,32 +1439,27 @@ fn set_status(
                 [],
               )
             [] -> {
-              let #(transition_timestamp, next_identity) = case status {
+              let #(updated_at, next_identity) =
+                synthetic_identity.make_synthetic_timestamp(identity)
+              let transition_timestamp = case status {
                 "ACTIVE" ->
                   case record.status {
-                    "ACTIVE" -> #(None, identity)
-                    _ -> {
-                      let #(timestamp, next_identity) =
-                        synthetic_identity.make_synthetic_timestamp(identity)
-                      #(Some(timestamp), next_identity)
-                    }
+                    "ACTIVE" -> None
+                    _ -> Some(updated_at)
                   }
-                "EXPIRED" -> {
-                  let #(timestamp, next_identity) =
-                    synthetic_identity.make_synthetic_timestamp(identity)
-                  #(Some(timestamp), next_identity)
-                }
-                _ -> #(None, identity)
+                "EXPIRED" -> Some(updated_at)
+                _ -> None
               }
               let record =
                 DiscountRecord(
                   ..record,
                   status: status,
                   payload: update_payload_status(
-                    record.payload,
-                    status,
-                    transition_timestamp,
-                  ),
+                      record.payload,
+                      status,
+                      transition_timestamp,
+                    )
+                    |> update_payload_updated_at(updated_at),
                 )
               let #(record, next_store) = store.stage_discount(store, record)
               MutationResult(
@@ -1470,7 +1556,16 @@ fn delete_discount(
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let id = read_string_arg(field, variables, "id") |> option.unwrap("")
-  let next_store = store.delete_staged_discount(store, id)
+  let #(next_store, next_identity) = case
+    store.get_effective_discount_by_id(store, id)
+  {
+    Some(_) -> {
+      let #(_, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      #(store.delete_staged_discount(store, id), next_identity)
+    }
+    None -> #(store.delete_staged_discount(store, id), identity)
+  }
   let payload =
     json.object(
       list.map(child_fields(field), fn(child) {
@@ -1489,7 +1584,7 @@ fn delete_discount(
         }
       }),
     )
-  MutationResult(key, payload, next_store, identity, [id], [])
+  MutationResult(key, payload, next_store, next_identity, [id], [])
 }
 
 fn bulk_job_payload(
@@ -1544,7 +1639,8 @@ fn bulk_job_payload(
             #("query", SrcNull),
           ]),
         )
-      let next_store = apply_bulk_effects(store, root, args)
+      let #(next_store, identity_after_effects) =
+        apply_bulk_effects(store, root, args, next_identity)
       let payload =
         project_graphql_value(
           SrcObject(
@@ -1556,7 +1652,14 @@ fn bulk_job_payload(
           child_fields(field),
           dict.new(),
         )
-      MutationResult(key, payload, next_store, next_identity, [job_id], [])
+      MutationResult(
+        key,
+        payload,
+        next_store,
+        identity_after_effects,
+        [job_id],
+        [],
+      )
     }
   }
 }
@@ -1594,6 +1697,9 @@ fn redeem_code_bulk_add(
         Some(record) -> {
           let #(updated, identity_after_codes) =
             append_codes(store, record, codes, identity_after_bulk)
+          let #(updated_at, identity_after_codes) =
+            synthetic_identity.make_synthetic_timestamp(identity_after_codes)
+          let updated = bump_discount_updated_at(updated, updated_at)
           let #(_, s) = store.stage_discount(store, updated)
           #(s, identity_after_codes)
         }
@@ -1651,19 +1757,22 @@ fn redeem_code_bulk_delete(
     Some(id) -> maybe_hydrate_discount(store, identity, id, upstream)
     None -> #(store, identity)
   }
-  let next_store = case discount_id {
+  let #(next_store, identity_after_update) = case discount_id {
     Some(id) ->
       case store.get_effective_discount_by_id(store, id) {
         Some(record) -> {
-          let updated = remove_codes_by_ids(record, ids)
+          let #(updated_at, identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let updated = remove_codes_by_ids(record, ids, updated_at)
           let #(_, s) = store.stage_discount(store, updated)
-          s
+          #(s, identity)
         }
-        None -> store
+        None -> #(store, identity)
       }
-    None -> store
+    None -> #(store, identity)
   }
-  let #(job_id, next_identity) = make_discount_async_gid(store, identity, "Job")
+  let #(job_id, next_identity) =
+    make_discount_async_gid(store, identity_after_update, "Job")
   let payload =
     project_graphql_value(
       SrcObject(
@@ -1764,6 +1873,12 @@ fn build_discount_record(
   let typename = typename_for(owner_kind, discount_type)
   let #(code_source, next_identity) =
     code_connection_for_record(identity, code, existing)
+  let #(mutation_timestamp, next_identity) =
+    synthetic_identity.make_synthetic_timestamp(next_identity)
+  let created_at =
+    existing
+    |> option.then(fn(record) { discount_record_timestamp(record, "createdAt") })
+    |> option.unwrap(mutation_timestamp)
   let discount =
     SrcObject(
       dict.from_list([
@@ -1774,8 +1889,8 @@ fn build_discount_record(
         #("summary", SrcString(summary_for(input, discount_type))),
         #("startsAt", resolved_to_source(read_value(input, "startsAt"))),
         #("endsAt", resolved_to_source(read_value(input, "endsAt"))),
-        #("createdAt", SrcString("2024-01-01T00:00:00.000Z")),
-        #("updatedAt", SrcString("2024-01-01T00:00:00.000Z")),
+        #("createdAt", SrcString(created_at)),
+        #("updatedAt", SrcString(mutation_timestamp)),
         #("asyncUsageCount", SrcInt(0)),
         #(
           "discountClasses",
@@ -3060,35 +3175,67 @@ fn apply_bulk_effects(
   store: Store,
   root: String,
   args: Dict(String, root_field.ResolvedValue),
-) -> Store {
+  identity: SyntheticIdentityRegistry,
+) -> #(Store, SyntheticIdentityRegistry) {
   let ids = read_string_array(args, "ids", [])
-  list.fold(ids, store, fn(current, id) {
+  list.fold(ids, #(store, identity), fn(acc, id) {
+    let #(current, current_identity) = acc
     case root {
       "discountCodeBulkDelete" | "discountAutomaticBulkDelete" ->
-        store.delete_staged_discount(current, id)
-      "discountCodeBulkActivate" -> set_record_status(current, id, "ACTIVE")
-      "discountCodeBulkDeactivate" -> set_record_status(current, id, "EXPIRED")
-      _ -> current
+        case store.get_effective_discount_by_id(current, id) {
+          Some(_) -> {
+            let #(_, next_identity) =
+              synthetic_identity.make_synthetic_timestamp(current_identity)
+            #(store.delete_staged_discount(current, id), next_identity)
+          }
+          None -> #(store.delete_staged_discount(current, id), current_identity)
+        }
+      "discountCodeBulkActivate" ->
+        set_record_status(current, current_identity, id, "ACTIVE")
+      "discountCodeBulkDeactivate" ->
+        set_record_status(current, current_identity, id, "EXPIRED")
+      _ -> #(current, current_identity)
     }
   })
 }
 
-fn set_record_status(store: Store, id: String, status: String) -> Store {
+fn set_record_status(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  id: String,
+  status: String,
+) -> #(Store, SyntheticIdentityRegistry) {
   case store.get_effective_discount_by_id(store, id) {
     Some(record) -> {
+      let #(updated_at, next_identity) =
+        synthetic_identity.make_synthetic_timestamp(identity)
+      let transition_timestamp = case status {
+        "ACTIVE" ->
+          case record.status {
+            "ACTIVE" -> None
+            _ -> Some(updated_at)
+          }
+        "EXPIRED" -> Some(updated_at)
+        _ -> None
+      }
       let #(record, next_store) =
         store.stage_discount(
           store,
           DiscountRecord(
             ..record,
             status: status,
-            payload: update_payload_status(record.payload, status, None),
+            payload: update_payload_status(
+                record.payload,
+                status,
+                transition_timestamp,
+              )
+              |> update_payload_updated_at(updated_at),
           ),
         )
       let _ = record
-      next_store
+      #(next_store, next_identity)
     }
-    None -> store
+    None -> #(store, identity)
   }
 }
 
@@ -3261,6 +3408,21 @@ fn read_int_arg(
     Ok(args) ->
       case dict.get(args, name) {
         Ok(root_field.IntVal(value)) -> Some(value)
+        _ -> None
+      }
+    Error(_) -> None
+  }
+}
+
+fn read_bool_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(Bool) {
+  case root_field.get_field_arguments(field, variables) {
+    Ok(args) ->
+      case dict.get(args, name) {
+        Ok(root_field.BoolVal(value)) -> Some(value)
         _ -> None
       }
     Error(_) -> None
@@ -4005,6 +4167,45 @@ fn update_payload_status(
   }
 }
 
+fn bump_discount_updated_at(
+  record: DiscountRecord,
+  timestamp: String,
+) -> DiscountRecord {
+  DiscountRecord(
+    ..record,
+    payload: update_payload_updated_at(record.payload, timestamp),
+  )
+}
+
+fn update_payload_updated_at(
+  payload: CapturedJsonValue,
+  timestamp: String,
+) -> CapturedJsonValue {
+  case captured_to_source(payload) {
+    SrcObject(fields) -> {
+      let updated =
+        ["codeDiscount", "automaticDiscount"]
+        |> list.fold(fields, fn(acc, key) {
+          case dict.get(acc, key) {
+            Ok(SrcObject(discount)) ->
+              dict.insert(
+                acc,
+                key,
+                SrcObject(dict.insert(
+                  discount,
+                  "updatedAt",
+                  SrcString(timestamp),
+                )),
+              )
+            _ -> acc
+          }
+        })
+      source_to_captured(SrcObject(updated))
+    }
+    _ -> payload
+  }
+}
+
 fn activate_discount_dates(
   discount: Dict(String, SourceValue),
   timestamp: String,
@@ -4106,6 +4307,7 @@ fn append_codes(
 fn remove_codes_by_ids(
   record: DiscountRecord,
   ids: List(String),
+  updated_at: String,
 ) -> DiscountRecord {
   let remaining_codes =
     existing_code_nodes(record)
@@ -4120,7 +4322,8 @@ fn remove_codes_by_ids(
       [first, ..] -> Some(first)
       [] -> None
     },
-    payload: update_payload_codes(record.payload, remaining_codes),
+    payload: update_payload_codes(record.payload, remaining_codes)
+      |> update_payload_updated_at(updated_at),
   )
 }
 
