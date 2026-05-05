@@ -60,7 +60,7 @@ import shopify_draft_proxy/state/types.{
   StorePropertyRecord, StorePropertyString,
 }
 
-const shop_policy_body_limit_chars = 524_288
+const shop_policy_body_limit_chars = 524_287
 
 const shop_policy_type_order = [
   "CONTACT_INFORMATION",
@@ -1292,7 +1292,7 @@ fn shop_policy_source(policy: ShopPolicyRecord) -> SourceValue {
     #("__typename", SrcString("ShopPolicy")),
     #("id", SrcString(policy.id)),
     #("title", SrcString(policy.title)),
-    #("body", SrcString(policy.body)),
+    #("body", SrcString(render_shop_policy_body(policy))),
     #("type", SrcString(policy.type_)),
     #("url", SrcString(policy.url)),
     #("createdAt", SrcString(policy.created_at)),
@@ -3335,6 +3335,7 @@ fn shop_policy_from_json(
         url: json_string(value, "url", ""),
         created_at: json_string(value, "createdAt", ""),
         updated_at: json_string(value, "updatedAt", ""),
+        migrated_to_html: json_bool(value, "migratedToHtml", True),
       ))
     _ -> Error(Nil)
   }
@@ -3437,21 +3438,16 @@ fn stage_valid_shop_policy_update(
       let policy =
         ShopPolicyRecord(
           id: id,
-          title: case existing {
-            Some(policy) -> policy.title
-            None -> shop_policy_title(type_)
-          },
+          title: shop_policy_title(type_),
           body: body,
           type_: type_,
-          url: case existing {
-            Some(policy) -> policy.url
-            None -> build_shop_policy_url(shop, id, type_)
-          },
+          url: build_shop_policy_url(shop, id, type_),
           created_at: case existing {
             Some(policy) -> policy.created_at
             None -> now
           },
           updated_at: now,
+          migrated_to_html: True,
         )
       let other_policies =
         list.filter(shop.shop_policies, fn(candidate) {
@@ -3792,14 +3788,14 @@ fn policy_type_index_loop(
 
 fn shop_policy_title(type_: String) -> String {
   case type_ {
-    "CONTACT_INFORMATION" -> "Contact"
-    "LEGAL_NOTICE" -> "Legal notice"
-    "PRIVACY_POLICY" -> "Privacy policy"
-    "REFUND_POLICY" -> "Refund policy"
-    "SHIPPING_POLICY" -> "Shipping policy"
-    "SUBSCRIPTION_POLICY" -> "Cancellation policy"
-    "TERMS_OF_SALE" -> "Terms of sale"
-    "TERMS_OF_SERVICE" -> "Terms of service"
+    "CONTACT_INFORMATION" -> "Contact Information"
+    "LEGAL_NOTICE" -> "Legal Notice"
+    "PRIVACY_POLICY" -> "Privacy Policy"
+    "REFUND_POLICY" -> "Refund Policy"
+    "SHIPPING_POLICY" -> "Shipping Policy"
+    "SUBSCRIPTION_POLICY" -> "Subscription Policy"
+    "TERMS_OF_SALE" -> "Terms of Sale"
+    "TERMS_OF_SERVICE" -> "Terms of Service"
     _ -> type_
   }
 }
@@ -3811,15 +3807,35 @@ fn build_shop_policy_url(
 ) -> String {
   case read_numeric_gid_tail(shop.id), read_numeric_gid_tail(policy_id) {
     Some(shop_tail), Some(policy_tail) ->
-      "https://checkout.shopify.com/"
+      shop_policy_url_base(shop)
+      <> "/"
       <> shop_tail
       <> "/policies/"
       <> policy_tail
       <> ".html?locale=en"
     _, _ ->
-      trim_trailing_slash(shop.url)
+      shop_policy_url_base(shop)
       <> "/policies/"
       <> string.replace(string.lowercase(type_), "_", "-")
+  }
+}
+
+fn shop_policy_url_base(shop: ShopRecord) -> String {
+  case string.trim(shop.primary_domain.url) {
+    "" -> {
+      case string.trim(shop.primary_domain.host) {
+        "" -> fallback_shop_url(shop)
+        host -> "https://" <> host
+      }
+    }
+    url -> trim_trailing_slash(url)
+  }
+}
+
+fn fallback_shop_url(shop: ShopRecord) -> String {
+  case string.trim(shop.url) {
+    "" -> "https://" <> shop.myshopify_domain
+    url -> trim_trailing_slash(url)
   }
 }
 
@@ -3828,6 +3844,29 @@ fn trim_trailing_slash(value: String) -> String {
     True -> string.drop_end(value, 1)
     False -> value
   }
+}
+
+fn render_shop_policy_body(policy: ShopPolicyRecord) -> String {
+  case policy.migrated_to_html {
+    True -> policy.body
+    False -> simple_format(policy.body)
+  }
+}
+
+fn simple_format(body: String) -> String {
+  let normalized =
+    body
+    |> string.replace("\r\n", "\n")
+    |> string.replace("\r", "\n")
+  let paragraphs =
+    normalized
+    |> string.split(on: "\n\n")
+    |> list.map(simple_format_paragraph)
+  string.join(paragraphs, "\n\n")
+}
+
+fn simple_format_paragraph(paragraph: String) -> String {
+  "<p>" <> string.replace(paragraph, "\n", "<br />\n") <> "</p>"
 }
 
 fn read_numeric_gid_tail(id: String) -> Option(String) {

@@ -2,6 +2,7 @@
 
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
@@ -139,10 +140,16 @@ fn make_policy(body: String) -> ShopPolicyRecord {
     title: "Contact",
     body: body,
     type_: "CONTACT_INFORMATION",
-    url: "https://checkout.shopify.com/63755419881/policies/42438689001.html?locale=en",
+    url: "https://very-big-test-store.myshopify.com/63755419881/policies/42438689001.html?locale=en",
     created_at: "2026-04-25T11:52:28Z",
     updated_at: "2026-04-25T11:52:29Z",
+    migrated_to_html: True,
   )
+}
+
+fn make_legacy_policy(body: String) -> ShopPolicyRecord {
+  let policy = make_policy(body)
+  ShopPolicyRecord(..policy, migrated_to_html: False)
 }
 
 fn make_raw_record(
@@ -249,7 +256,15 @@ pub fn shop_policy_update_stages_downstream_read_and_log_test() {
 
   assert mutation_status == 200
   assert string.contains(mutation_serialized, "\"userErrors\":[]")
+  assert string.contains(
+    mutation_serialized,
+    "\"title\":\"Contact Information\"",
+  )
   assert string.contains(mutation_serialized, "\"body\":\"<p>After</p>\"")
+  assert string.contains(
+    mutation_serialized,
+    "\"url\":\"https://very-big-test-store.myshopify.com/63755419881/policies/1.html?locale=en\"",
+  )
   assert string.contains(
     mutation_serialized,
     "\"id\":\"gid://shopify/ShopPolicy/1\"",
@@ -265,7 +280,12 @@ pub fn shop_policy_update_stages_downstream_read_and_log_test() {
   let read_serialized = json.to_string(read_body_json)
 
   assert read_status == 200
+  assert string.contains(read_serialized, "\"title\":\"Contact Information\"")
   assert string.contains(read_serialized, "\"body\":\"<p>After</p>\"")
+  assert string.contains(
+    read_serialized,
+    "\"url\":\"https://very-big-test-store.myshopify.com/63755419881/policies/1.html?locale=en\"",
+  )
   assert string.contains(read_serialized, "\"translations\":[]")
 
   let log = json.to_string(draft_proxy.get_log_snapshot(proxy))
@@ -274,6 +294,67 @@ pub fn shop_policy_update_stages_downstream_read_and_log_test() {
     log,
     "\"stagedResourceIds\":[\"gid://shopify/ShopPolicy/1\"]",
   )
+}
+
+pub fn shop_policy_update_uses_shopify_title_case_for_all_policy_types_test() {
+  [
+    #("CONTACT_INFORMATION", "Contact Information"),
+    #("LEGAL_NOTICE", "Legal Notice"),
+    #("PRIVACY_POLICY", "Privacy Policy"),
+    #("REFUND_POLICY", "Refund Policy"),
+    #("SHIPPING_POLICY", "Shipping Policy"),
+    #("SUBSCRIPTION_POLICY", "Subscription Policy"),
+    #("TERMS_OF_SALE", "Terms of Sale"),
+    #("TERMS_OF_SERVICE", "Terms of Service"),
+  ]
+  |> list.each(fn(entry) {
+    let #(type_, expected_title) = entry
+    let mutation_body =
+      "{\"query\":\"mutation { shopPolicyUpdate(shopPolicy: { type: "
+      <> type_
+      <> ", body: \\\"<p>After</p>\\\" }) { shopPolicy { title url } userErrors { field message code } } }\"}"
+    let #(proxy_state.Response(status: status, body: response_body, ..), _) =
+      draft_proxy.process_request(
+        seeded_proxy(),
+        graphql_request(mutation_body),
+      )
+    let serialized = json.to_string(response_body)
+
+    assert status == 200
+    assert string.contains(serialized, "\"title\":\"" <> expected_title <> "\"")
+    assert string.contains(
+      serialized,
+      "\"url\":\"https://very-big-test-store.myshopify.com/63755419881/policies/1.html?locale=en\"",
+    )
+    assert string.contains(serialized, "\"userErrors\":[]")
+  })
+}
+
+pub fn shop_policy_update_new_plain_text_body_is_migrated_and_verbatim_test() {
+  let mutation_body =
+    "{\"query\":\"mutation { shopPolicyUpdate(shopPolicy: { type: PRIVACY_POLICY, body: \\\"Line one\\\\nLine two\\\" }) { shopPolicy { body } userErrors { field message code } } }\"}"
+  let #(
+    proxy_state.Response(status: mutation_status, body: mutation_body_json, ..),
+    proxy,
+  ) =
+    draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
+  let mutation_serialized = json.to_string(mutation_body_json)
+
+  assert mutation_status == 200
+  assert string.contains(
+    mutation_serialized,
+    "\"body\":\"Line one\\nLine two\"",
+  )
+  assert !string.contains(mutation_serialized, "<br />")
+
+  let read_body = "{\"query\":\"query { shop { shopPolicies { body } } }\"}"
+  let #(proxy_state.Response(status: read_status, body: read_body_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read_serialized = json.to_string(read_body_json)
+
+  assert read_status == 200
+  assert string.contains(read_serialized, "\"body\":\"Line one\\nLine two\"")
+  assert !string.contains(read_serialized, "<br />")
 }
 
 pub fn shop_policy_update_reuses_existing_policy_test() {
@@ -301,7 +382,7 @@ pub fn shop_policy_update_reuses_existing_policy_test() {
 }
 
 pub fn oversized_shop_policy_body_returns_user_error_test() {
-  let too_big = string.repeat("x", 524_289)
+  let too_big = string.repeat("x", 524_288)
   let mutation_body =
     "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"CONTACT_INFORMATION\",\"body\":\""
     <> too_big
@@ -321,6 +402,25 @@ pub fn oversized_shop_policy_body_returns_user_error_test() {
     == "{\"entries\":[]}"
 }
 
+pub fn maximum_shop_policy_body_size_succeeds_test() {
+  let maximum = string.repeat("x", 524_287)
+  let mutation_body =
+    "{\"query\":\"mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) { shopPolicyUpdate(shopPolicy: $shopPolicy) { shopPolicy { id } userErrors { field message code } } }\",\"variables\":{\"shopPolicy\":{\"type\":\"CONTACT_INFORMATION\",\"body\":\""
+    <> maximum
+    <> "\"}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(seeded_proxy(), graphql_request(mutation_body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"id\":\"gid://shopify/ShopPolicy/1\"")
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "\"stagedResourceIds\":[\"gid://shopify/ShopPolicy/1\"]",
+  )
+}
+
 pub fn admin_platform_node_resolves_store_property_records_test() {
   let policy = make_policy("<p>Relay contact policy</p>")
   let proxy = draft_proxy.new()
@@ -338,6 +438,25 @@ pub fn admin_platform_node_resolves_store_property_records_test() {
   assert string.contains(serialized, "\"__typename\":\"ShopPolicy\"")
   assert string.contains(serialized, "\"body\":\"<p>Relay contact policy</p>\"")
   assert string.contains(serialized, "null]}")
+}
+
+pub fn legacy_shop_policy_body_is_simple_formatted_for_shop_and_node_reads_test() {
+  let policy = make_legacy_policy("Line one\nLine two")
+  let proxy = draft_proxy.new()
+  let seeded_store = store.upsert_base_shop(proxy.store, make_shop([policy]))
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+  let body =
+    "{\"query\":\"query($ids: [ID!]!) { shop { shopPolicies { body } } nodes(ids: $ids) { __typename ... on ShopPolicy { body } } }\",\"variables\":{\"ids\":[\"gid://shopify/ShopPolicy/42438689001\"]}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(
+    serialized,
+    "\"body\":\"<p>Line one<br />\\nLine two</p>\"",
+  )
+  assert !string.contains(serialized, "\"body\":\"Line one\\nLine two\"")
 }
 
 pub fn location_reads_and_local_mutations_use_store_state_test() {
