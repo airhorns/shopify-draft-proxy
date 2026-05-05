@@ -1468,6 +1468,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The active 2026-04 PaymentCustomization output type does not expose functionHandle, so parity compares Shopify’s resolved functionId and runtime tests cover local functionHandle projection.',
   },
   {
+    domain: 'payments',
+    captureId: 'payment-customization-update-immutable-function',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-customization-immutable-function-conformance.ts',
+    purpose:
+      'paymentCustomizationUpdate rejects replacement functionId input and downstream paymentCustomization readback keeps the original functionId.',
+    requiredAuthScopes: ['read_payment_customizations', 'write_payment_customizations', 'shopifyFunctions read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-customization-update-immutable-function.json`,
+      'config/parity-specs/payments/payment-customization-update-immutable-function.json',
+      'config/parity-requests/payments/payment-customization-immutable-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable payment customization, captures rejected functionId replacement and readback behavior, then deletes the payment customization.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'admin-platform',
     captureId: 'admin-platform',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
