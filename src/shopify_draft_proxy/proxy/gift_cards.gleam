@@ -1987,8 +1987,6 @@ fn handle_gift_card_update(
   }
   case id, existing {
     Some(_), Some(current) -> {
-      let #(now, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity)
       let new_note = case dict_has_key(input, "note") {
         True -> graphql_helpers.read_arg_string_nonempty(input, "note")
         False -> current.note
@@ -2030,43 +2028,122 @@ fn handle_gift_card_update(
         False, False -> #(current.recipient_id, current.recipient_attributes)
       }
       let #(new_recipient_id, new_recipient_attributes) = recipient_handling
-      let updated =
-        GiftCardRecord(
-          ..current,
-          note: new_note,
-          template_suffix: new_template,
-          expires_on: new_expires,
-          customer_id: new_customer,
-          notify: current.notify,
-          recipient_id: new_recipient_id,
-          recipient_attributes: new_recipient_attributes,
-          updated_at: now,
-        )
-      let #(_, store_after) = store.stage_update_gift_card(store, updated)
-      let payload =
-        GiftCardPayload(
-          gift_card: Some(updated),
-          gift_card_code: None,
-          gift_card_transaction: None,
-          user_errors: [],
-        )
-      let json_payload =
-        gift_card_payload_json(
-          payload,
-          "GiftCardUpdatePayload",
-          field,
-          fragments,
-          variables,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: json_payload,
-          staged_resource_ids: [updated.id],
-        ),
-        store_after,
-        identity_after_ts,
-      )
+      let deactivated_errors =
+        gift_card_update_deactivated_user_errors(input, current)
+      case deactivated_errors {
+        [_first, ..] ->
+          gift_card_update_error_result(
+            key,
+            field,
+            fragments,
+            variables,
+            store,
+            identity,
+            deactivated_errors,
+          )
+        [] -> {
+          let customer_error =
+            gift_card_update_customer_user_error(store, current, input)
+          case customer_error {
+            Some(error) ->
+              gift_card_update_error_result(
+                key,
+                field,
+                fragments,
+                variables,
+                store,
+                identity,
+                [error],
+              )
+            None -> {
+              let changed =
+                gift_card_update_changes_record(
+                  current,
+                  new_note,
+                  new_template,
+                  new_expires,
+                  new_customer,
+                  new_recipient_id,
+                  new_recipient_attributes,
+                )
+              case changed {
+                False ->
+                  gift_card_update_error_result(
+                    key,
+                    field,
+                    fragments,
+                    variables,
+                    store,
+                    identity,
+                    [gift_card_update_missing_arguments_user_error()],
+                  )
+                True -> {
+                  let recipient_errors =
+                    gift_card_update_recipient_attribute_user_errors(
+                      store,
+                      current,
+                      input,
+                    )
+                  case recipient_errors {
+                    [_first, ..] ->
+                      gift_card_update_error_result(
+                        key,
+                        field,
+                        fragments,
+                        variables,
+                        store,
+                        identity,
+                        recipient_errors,
+                      )
+                    [] -> {
+                      let #(now, identity_after_ts) =
+                        synthetic_identity.make_synthetic_timestamp(identity)
+                      let updated =
+                        GiftCardRecord(
+                          ..current,
+                          note: new_note,
+                          template_suffix: new_template,
+                          expires_on: new_expires,
+                          customer_id: new_customer,
+                          notify: current.notify,
+                          recipient_id: new_recipient_id,
+                          recipient_attributes: new_recipient_attributes,
+                          updated_at: now,
+                        )
+                      let #(_, store_after) =
+                        store.stage_update_gift_card(store, updated)
+                      let payload =
+                        GiftCardPayload(
+                          gift_card: Some(updated),
+                          gift_card_code: None,
+                          gift_card_transaction: None,
+                          user_errors: [],
+                        )
+                      let json_payload =
+                        gift_card_payload_json(
+                          payload,
+                          "GiftCardUpdatePayload",
+                          field,
+                          fragments,
+                          variables,
+                        )
+                      #(
+                        MutationFieldResult(
+                          key: key,
+                          payload: json_payload,
+                          staged_resource_ids: [updated.id],
+                        ),
+                        store_after,
+                        identity_after_ts,
+                      )
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
     _, _ -> {
       let payload = empty_payload([not_found_user_error()])
@@ -2552,6 +2629,186 @@ fn not_found_user_error() -> UserError {
 
 fn invalid_user_error(field: List(String), message: String) -> UserError {
   UserError(field: field, code: Some("INVALID"), message: message)
+}
+
+fn gift_card_update_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  errors: List(UserError),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload = empty_payload(errors)
+  let json_payload =
+    gift_card_payload_json(
+      payload,
+      "GiftCardUpdatePayload",
+      field,
+      fragments,
+      variables,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: json_payload,
+      staged_resource_ids: [],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn gift_card_update_deactivated_user_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  current: GiftCardRecord,
+) -> List(UserError) {
+  case current.enabled {
+    True -> []
+    False ->
+      [
+        "expiresOn",
+        "customerId",
+        "recipientAttributes",
+        "crossCurrencyRedemptionStrategy",
+      ]
+      |> list.filter_map(fn(field) {
+        case dict_has_key(input, field) {
+          True ->
+            Ok(invalid_user_error(
+              ["input", field],
+              "The gift card is deactivated.",
+            ))
+          False -> Error(Nil)
+        }
+      })
+  }
+}
+
+fn gift_card_update_customer_user_error(
+  store: Store,
+  current: GiftCardRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(UserError) {
+  case dict_has_key(input, "customerId") {
+    False -> None
+    True -> {
+      let new_customer =
+        graphql_helpers.read_arg_string_nonempty(input, "customerId")
+      case new_customer == current.customer_id, new_customer {
+        True, _ -> None
+        _, None -> None
+        False, Some(id) ->
+          case store.get_effective_customer_by_id(store, id) {
+            Some(_) -> None
+            None -> Some(gift_card_create_customer_not_found_user_error())
+          }
+      }
+    }
+  }
+}
+
+fn gift_card_update_changes_record(
+  current: GiftCardRecord,
+  note: Option(String),
+  template_suffix: Option(String),
+  expires_on: Option(String),
+  customer_id: Option(String),
+  recipient_id: Option(String),
+  recipient_attributes: Option(GiftCardRecipientAttributesRecord),
+) -> Bool {
+  note != current.note
+  || template_suffix != current.template_suffix
+  || expires_on != current.expires_on
+  || customer_id != current.customer_id
+  || recipient_id != current.recipient_id
+  || recipient_attributes != current.recipient_attributes
+}
+
+fn gift_card_update_missing_arguments_user_error() -> UserError {
+  invalid_user_error(
+    ["input"],
+    "At least one argument is required in the input.",
+  )
+}
+
+fn gift_card_update_recipient_attribute_user_errors(
+  store: Store,
+  current: GiftCardRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict_get(input, "recipientAttributes") {
+    Some(root_field.ObjectVal(attributes)) -> {
+      let length_errors =
+        [
+          #("preferredName", 255),
+          #("message", 200),
+        ]
+        |> list.filter_map(fn(pair) {
+          let #(field, max_length) = pair
+          case graphql_helpers.read_arg_string(attributes, field) {
+            Some(value) ->
+              case string.length(value) > max_length {
+                True ->
+                  Ok(UserError(
+                    field: ["input", "recipientAttributes", field],
+                    code: Some("TOO_LONG"),
+                    message: field
+                      <> " is too long (maximum is "
+                      <> int.to_string(max_length)
+                      <> ")",
+                  ))
+                False -> Error(Nil)
+              }
+            _ -> Error(Nil)
+          }
+        })
+      case length_errors {
+        [_first, ..] -> length_errors
+        [] -> {
+          let recipient_error =
+            gift_card_update_recipient_customer_user_error(
+              store,
+              current,
+              attributes,
+            )
+          case recipient_error {
+            Some(error) -> [error]
+            None -> []
+          }
+        }
+      }
+    }
+    _ -> []
+  }
+}
+
+fn gift_card_update_recipient_customer_user_error(
+  store: Store,
+  current: GiftCardRecord,
+  attributes: Dict(String, root_field.ResolvedValue),
+) -> Option(UserError) {
+  let new_recipient = case
+    graphql_helpers.read_arg_string_nonempty(attributes, "id")
+  {
+    Some(id) -> Some(id)
+    None -> graphql_helpers.read_arg_string_nonempty(attributes, "recipientId")
+  }
+  case new_recipient == current.recipient_id, new_recipient {
+    True, _ -> None
+    _, None -> None
+    False, Some(id) ->
+      case store.get_effective_customer_by_id(store, id) {
+        Some(_) -> None
+        None ->
+          Some(UserError(
+            field: ["input", "recipientAttributes", "id"],
+            code: Some("CUSTOMER_NOT_FOUND"),
+            message: "The customer could not be found.",
+          ))
+      }
+  }
 }
 
 fn gift_card_create_error_result(

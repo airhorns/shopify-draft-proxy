@@ -79,6 +79,9 @@ export const localSetupSchema = z.discriminatedUnion('kind', [
     kind: z.literal('seedSegments'),
     count: z.number().int().nonnegative(),
   }),
+  z.strictObject({
+    kind: z.literal('seedGiftCardUpdateValidation'),
+  }),
 ]);
 export type LocalSetup = z.infer<typeof localSetupSchema>;
 

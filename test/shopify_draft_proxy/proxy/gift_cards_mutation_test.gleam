@@ -10,6 +10,7 @@
 import gleam/dict
 import gleam/json
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/proxy/gift_cards
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
@@ -431,6 +432,108 @@ pub fn gift_card_update_missing_card_uses_typed_not_found_error_test() {
     )
   assert body
     == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"id\"],\"code\":\"GIFT_CARD_NOT_FOUND\",\"message\":\"The gift card could not be found.\"}]}}}"
+}
+
+pub fn gift_card_update_rejects_deactivated_card_protected_field_test() {
+  let id = "gid://shopify/GiftCard/update-deactivated"
+  let s =
+    store.new() |> seed_card(transaction_card(id, False, None, "50.0", "CAD"))
+  let body =
+    run_mutation(
+      s,
+      "mutation { giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { expiresOn: \"2099-12-31\" }) { giftCard { id enabled expiresOn } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"expiresOn\"],\"code\":\"INVALID\",\"message\":\"The gift card is deactivated.\"}]}}}"
+}
+
+pub fn gift_card_update_rejects_empty_input_test() {
+  let id = "gid://shopify/GiftCard/update-empty"
+  let s =
+    store.new() |> seed_card(transaction_card(id, True, None, "50.0", "CAD"))
+  let body =
+    run_mutation(
+      s,
+      "mutation { giftCardUpdate(id: \""
+        <> id
+        <> "\", input: {}) { giftCard { id note } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"At least one argument is required in the input.\"}]}}}"
+}
+
+pub fn gift_card_update_rejects_missing_changed_customer_test() {
+  let id = "gid://shopify/GiftCard/update-missing-customer"
+  let customer_id = "gid://shopify/Customer/1"
+  let missing_customer_id = "gid://shopify/Customer/9999999"
+  let card =
+    GiftCardRecord(
+      ..transaction_card(id, True, None, "50.0", "CAD"),
+      customer_id: Some(customer_id),
+    )
+  let s =
+    store.new()
+    |> seed_card(card)
+    |> seed_customer(customer(customer_id, Some("ada@example.com"), None))
+  let body =
+    run_mutation(
+      s,
+      "mutation { giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { customerId: \""
+        <> missing_customer_id
+        <> "\" }) { giftCard { id customer { id } } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]}}}"
+}
+
+pub fn gift_card_update_rejects_too_long_recipient_preferred_name_test() {
+  let id = "gid://shopify/GiftCard/update-recipient-name"
+  let recipient_id = "gid://shopify/Customer/2"
+  let too_long_name = string.repeat("x", times: 256)
+  let s =
+    store.new()
+    |> seed_card(transaction_card(id, True, None, "50.0", "CAD"))
+    |> seed_customer(customer(recipient_id, Some("recipient@example.com"), None))
+  let body =
+    run_mutation(
+      s,
+      "mutation { giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", preferredName: \""
+        <> too_long_name
+        <> "\" } }) { giftCard { id recipientAttributes { preferredName recipient { id } } } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"preferredName\"],\"code\":\"TOO_LONG\",\"message\":\"preferredName is too long (maximum is 255)\"}]}}}"
+}
+
+pub fn gift_card_update_rejects_too_long_recipient_message_test() {
+  let id = "gid://shopify/GiftCard/update-recipient-message"
+  let recipient_id = "gid://shopify/Customer/2"
+  let too_long_message = string.repeat("x", times: 201)
+  let s =
+    store.new()
+    |> seed_card(transaction_card(id, True, None, "50.0", "CAD"))
+    |> seed_customer(customer(recipient_id, Some("recipient@example.com"), None))
+  let body =
+    run_mutation(
+      s,
+      "mutation { giftCardUpdate(id: \""
+        <> id
+        <> "\", input: { recipientAttributes: { id: \""
+        <> recipient_id
+        <> "\", message: \""
+        <> too_long_message
+        <> "\" } }) { giftCard { id recipientAttributes { message recipient { id } } } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardUpdate\":{\"giftCard\":null,\"userErrors\":[{\"field\":[\"input\",\"recipientAttributes\",\"message\"],\"code\":\"TOO_LONG\",\"message\":\"message is too long (maximum is 200)\"}]}}}"
 }
 
 // ----------- giftCardCredit -----------

@@ -1,0 +1,65 @@
+{
+  "scenarioId": "gift-card-update-validation",
+  "operationNames": ["giftCardUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-update-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation.graphql",
+    "variablesCapturePath": "$.proxyVariables.updateValidation",
+    "localSetups": [{ "kind": "seedGiftCardUpdateValidation" }]
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-694 captures giftCardUpdate validation branches for deactivated-card protected fields, missing update arguments, changed customerId existence, recipient text length caps, and success. The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, and public recipient length validators surface as top-level INVALID_FIELD_ARGUMENTS, so the live fixture records Shopify field/message evidence and the expected replay payload adds the typed code values required by the internal GiftCardErrorCode contract.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "deactivated card rejects expiresOn update",
+        "capturePath": "$.expected.data.deactivatedExpiresOn.userErrors",
+        "proxyPath": "$.data.deactivatedExpiresOn.userErrors"
+      },
+      {
+        "name": "empty input returns missing optional arguments error",
+        "capturePath": "$.expected.data.emptyInput.userErrors",
+        "proxyPath": "$.data.emptyInput.userErrors"
+      },
+      {
+        "name": "changed missing customerId returns CUSTOMER_NOT_FOUND",
+        "capturePath": "$.expected.data.missingCustomer.userErrors",
+        "proxyPath": "$.data.missingCustomer.userErrors"
+      },
+      {
+        "name": "recipient preferredName length returns TOO_LONG",
+        "capturePath": "$.expected.data.longRecipientName.userErrors",
+        "proxyPath": "$.data.longRecipientName.userErrors"
+      },
+      {
+        "name": "recipient message length returns TOO_LONG",
+        "capturePath": "$.expected.data.longRecipientMessage.userErrors",
+        "proxyPath": "$.data.longRecipientMessage.userErrors"
+      },
+      {
+        "name": "valid note update succeeds",
+        "capturePath": "$.expected.data.success",
+        "proxyPath": "$.data.success",
+        "expectedDifferences": [
+          {
+            "path": "$.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy stages giftCardUpdate locally against a synthetic GiftCard GID."
+          },
+          {
+            "path": "$.giftCard.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
+          }
+        ]
+      }
+    ]
+  }
+}

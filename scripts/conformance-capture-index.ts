@@ -2373,6 +2373,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-update-validation',
+    scriptPath: 'scripts/capture-gift-card-update-validation-conformance.ts',
+    purpose:
+      'Gift-card update validation for deactivated-card protected fields, empty input, missing changed customerId, recipient text length, and success.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-update-validation.json`,
+      'config/parity-specs/gift-cards/gift-card-update-validation.json',
+      'config/parity-requests/gift-cards/gift-card-update-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable customers plus active/deactivated gift cards, records validation branches, deactivates setup gift cards, and deletes setup customers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, so the fixture records public field/message evidence and augments replay expectations with the internal typed code contract.',
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-notification-validation',
     scriptPath: 'scripts/capture-gift-card-notification-validation-conformance.ts',
     purpose: 'Gift-card notification validation branches that fail before customer-visible notification dispatch.',
