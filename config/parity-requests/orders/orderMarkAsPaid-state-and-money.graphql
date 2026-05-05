@@ -1,0 +1,40 @@
+mutation OrderMarkAsPaidStateAndMoney($input: OrderMarkAsPaidInput!) {
+  orderMarkAsPaid(input: $input) {
+    order {
+      id
+      presentmentCurrencyCode
+      displayFinancialStatus
+      paymentGatewayNames
+      totalOutstandingSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      transactions {
+        id
+        kind
+        status
+        gateway
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

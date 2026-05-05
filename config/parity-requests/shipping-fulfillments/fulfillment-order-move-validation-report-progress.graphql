@@ -1,0 +1,20 @@
+mutation FulfillmentOrderMoveValidationReportProgress($id: ID!, $progressReport: FulfillmentOrderReportProgressInput) {
+  fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {
+    fulfillmentOrder {
+      id
+      status
+      requestStatus
+      assignedLocation {
+        name
+        location {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
