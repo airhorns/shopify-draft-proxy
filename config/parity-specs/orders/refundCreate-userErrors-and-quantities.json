@@ -1,0 +1,70 @@
+{
+  "scenarioId": "refund-create-user-errors-and-quantities",
+  "operationNames": ["refundCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/refund-create-user-errors-and-quantities.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/refundCreate-userErrors-and-quantities.graphql",
+    "variablesCapturePath": "$.unknownOrder.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-order userErrors field path",
+        "capturePath": "$.unknownOrder.response.data.refundCreate.userErrors",
+        "proxyPath": "$.data.refundCreate.userErrors"
+      },
+      {
+        "name": "over-refund quantity userErrors field path",
+        "capturePath": "$.overRefundQuantityLineItem.response.data.refundCreate.userErrors",
+        "proxyPath": "$.data.refundCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-userErrors-and-quantities.graphql",
+          "variablesCapturePath": "$.overRefundQuantityLineItem.variables"
+        }
+      },
+      {
+        "name": "over-refund quantity refund remains null",
+        "capturePath": "$.overRefundQuantityLineItem.response.data.refundCreate.refund",
+        "proxyPath": "$.data.refundCreate.refund",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-userErrors-and-quantities.graphql",
+          "variablesCapturePath": "$.overRefundQuantityLineItem.variables"
+        }
+      },
+      {
+        "name": "over-refund amount userErrors message",
+        "capturePath": "$.overRefundAmountNoAllow.response.data.refundCreate.userErrors",
+        "proxyPath": "$.data.refundCreate.userErrors",
+        "expectedDifferences": [
+          {
+            "path": "$[0].field",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "HAR-575 local behavior attaches amount over-refund validation to transactions; the available 2025-01 live capture reports the same guardrail with a null field."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-userErrors-and-quantities.graphql",
+          "variablesCapturePath": "$.overRefundAmountNoAllow.variables"
+        }
+      },
+      {
+        "name": "over-refund amount refund remains null",
+        "capturePath": "$.overRefundAmountNoAllow.response.data.refundCreate.refund",
+        "proxyPath": "$.data.refundCreate.refund",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/refundCreate-userErrors-and-quantities.graphql",
+          "variablesCapturePath": "$.overRefundAmountNoAllow.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured live Shopify refundCreate missing-order, over-refund line quantity, and amount guardrails against a paid order with an existing partial refund. The same capture records allowOverRefunding:true still failing for the current conformance app, so the local allowOverRefunding success branch is covered by the focused Gleam runtime test rather than by a strict live target."
+}

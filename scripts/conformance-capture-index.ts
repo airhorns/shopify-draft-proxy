@@ -292,6 +292,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'product-variant-scalar-validations',
+    scriptPath: 'scripts/capture-product-variant-scalar-validation-conformance.ts',
+    purpose:
+      'productVariantsBulkCreate scalar validation for price, compareAtPrice, weight, inventory, SKU, barcode, option value length, and max input size.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_inventory'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productVariantsBulkCreate-validation.json`,
+      'config/parity-specs/products/productVariantsBulkCreate-validation.json',
+      'config/parity-requests/products/productVariantsBulkCreate-validation*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, captures rejected validation branches, and deletes the product in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     captureId: 'inventory-item-mutations',
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',

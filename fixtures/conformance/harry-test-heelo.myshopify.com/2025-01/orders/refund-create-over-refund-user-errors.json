@@ -1,0 +1,487 @@
+{
+  "variables": {
+    "input": {
+      "orderId": "gid://shopify/Order/8728457118002",
+      "note": "invalid over refund",
+      "notify": false,
+      "refundLineItems": [
+        {
+          "lineItemId": "gid://shopify/LineItem/19301562712370",
+          "quantity": 1,
+          "restockType": "NO_RESTOCK"
+        }
+      ],
+      "shipping": {
+        "fullRefund": true
+      },
+      "transactions": [
+        {
+          "amount": "25.00",
+          "gateway": "manual",
+          "kind": "REFUND",
+          "orderId": "gid://shopify/Order/8728457118002",
+          "parentId": "gid://shopify/OrderTransaction/10415451963698"
+        }
+      ]
+    }
+  },
+  "setup": {
+    "orderCreate": {
+      "variables": {
+        "order": {
+          "email": "hermes-refund-over-refund-1777939701288@example.com",
+          "note": "refundCreate over-refund parity seed order",
+          "tags": ["parity-probe", "refund-create", "over-refund"],
+          "test": true,
+          "customAttributes": [
+            {
+              "key": "source",
+              "value": "hermes-refund-parity"
+            },
+            {
+              "key": "scenario",
+              "value": "over-refund"
+            }
+          ],
+          "billingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Refund",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9",
+            "phone": "+14165550101"
+          },
+          "shippingAddress": {
+            "firstName": "Hermes",
+            "lastName": "Refund",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9",
+            "phone": "+14165550101"
+          },
+          "shippingLines": [
+            {
+              "title": "Standard",
+              "code": "STANDARD",
+              "source": "hermes-refund-parity",
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "5.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "lineItems": [
+            {
+              "title": "Hermes refundable over-refund item",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "sku": "hermes-refund-over-refund-1777939701288"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "15.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8728457118002",
+              "name": "#1070",
+              "createdAt": "2026-05-05T00:08:21Z",
+              "updatedAt": "2026-05-05T00:08:21Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "note": "refundCreate over-refund parity seed order",
+              "tags": ["over-refund", "parity-probe", "refund-create"],
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "hermes-refund-parity"
+                },
+                {
+                  "key": "scenario",
+                  "value": "over-refund"
+                }
+              ],
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "shippingLines": {
+                "nodes": [
+                  {
+                    "title": "Standard",
+                    "code": "STANDARD",
+                    "originalPriceSet": {
+                      "shopMoney": {
+                        "amount": "5.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19301562712370",
+                    "title": "Hermes refundable over-refund item",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "hermes-refund-over-refund-1777939701288",
+                    "variantTitle": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10415451963698",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "15.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "refunds": [],
+              "returns": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 41,
+            "actualQueryCost": 24,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1976,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "locations": {
+      "response": {
+        "data": {
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Location/112829759794",
+                "isActive": true,
+                "fulfillsOnlineOrders": true
+              },
+              {
+                "id": "gid://shopify/Location/106318463282",
+                "isActive": true,
+                "fulfillsOnlineOrders": true
+              },
+              {
+                "id": "gid://shopify/Location/106318430514",
+                "isActive": true,
+                "fulfillsOnlineOrders": true
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 5,
+            "actualQueryCost": 4,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1996,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "refundCreate": {
+          "refund": null,
+          "order": {
+            "id": "gid://shopify/Order/8728457118002",
+            "displayFinancialStatus": "PAID",
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Refund amount $25.00 is greater than net payment received $15.00"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 33,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Order/8728457118002"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8728457118002",
+          "name": "#1070",
+          "displayFinancialStatus": "PAID",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "refunds": [],
+          "returns": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          },
+          "transactions": [
+            {
+              "id": "gid://shopify/OrderTransaction/10415451963698",
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ],
+          "totalRefundedSet": {
+            "shopMoney": {
+              "amount": "0.0",
+              "currencyCode": "CAD"
+            }
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8728457118002"
+      },
+      "query": "hand-synthesized from checked-in setup orderCreate response for refundCreate Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8728457118002",
+              "name": "#1070",
+              "createdAt": "2026-05-05T00:08:21Z",
+              "updatedAt": "2026-05-05T00:08:21Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "note": "refundCreate over-refund parity seed order",
+              "tags": ["over-refund", "parity-probe", "refund-create"],
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "hermes-refund-parity"
+                },
+                {
+                  "key": "scenario",
+                  "value": "over-refund"
+                }
+              ],
+              "subtotalPriceSet": {
+                "shopMoney": {
+                  "amount": "10.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "15.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "shippingLines": {
+                "nodes": [
+                  {
+                    "title": "Standard",
+                    "code": "STANDARD",
+                    "originalPriceSet": {
+                      "shopMoney": {
+                        "amount": "5.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19301562712370",
+                    "title": "Hermes refundable over-refund item",
+                    "quantity": 1,
+                    "currentQuantity": 1,
+                    "sku": "hermes-refund-over-refund-1777939701288",
+                    "variantTitle": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10415451963698",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "15.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ],
+              "refunds": [],
+              "returns": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
