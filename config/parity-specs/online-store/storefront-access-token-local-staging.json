@@ -6,7 +6,8 @@
     "runtime-staging",
     "payload-shape",
     "downstream-read-parity",
-    "credential-redaction",
+    "credential-return-on-create",
+    "credential-redaction-on-read",
     "null-empty-behavior"
   ],
   "liveCaptureFiles": [
@@ -66,5 +67,5 @@
       }
     ]
   },
-  "notes": "HAR-452 rework adds explicit generic parity coverage for the staged storefront access token lifecycle requested in PR review. Live 2026-04 safe-read evidence confirms Shopify's empty shop.storefrontAccessTokens connection shape; the current live credential returns ACCESS_DENIED for storefrontAccessTokenCreate, so successful write evidence remains local-runtime-backed and runtime-test-backed until a write-capable conformance credential is available. The strict proxy replay covers create payload redaction, downstream read-after-create, delete payload, and downstream empty read-after-delete."
+  "notes": "HAR-452 rework adds explicit generic parity coverage for the staged storefront access token lifecycle requested in PR review. HAR-584 updates the local create payload to return a deterministic shpat_ token and non-empty storefront scopes while downstream reads keep the token value redacted. Live 2026-04 safe-read evidence confirms Shopify's empty shop.storefrontAccessTokens connection shape; the current live credential returns ACCESS_DENIED for storefrontAccessTokenCreate, so successful write evidence remains local-runtime-backed and runtime-test-backed until a write-capable conformance credential is available. The strict proxy replay covers create payload shape, downstream read-after-create, delete payload, and downstream empty read-after-delete."
 }
