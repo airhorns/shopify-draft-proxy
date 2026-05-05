@@ -60,9 +60,7 @@
             "article": null,
             "userErrors": [
               {
-                "field": [
-                  "article"
-                ],
+                "field": ["article"],
                 "message": "Must reference or create a blog when creating an article.",
                 "code": "BLOG_REFERENCE_REQUIRED"
               }
@@ -107,9 +105,7 @@
             "article": null,
             "userErrors": [
               {
-                "field": [
-                  "article"
-                ],
+                "field": ["article"],
                 "message": "Can't create a blog from input if a blog ID is supplied.",
                 "code": "AMBIGUOUS_BLOG"
               }
@@ -149,9 +145,7 @@
             "article": null,
             "userErrors": [
               {
-                "field": [
-                  "article"
-                ],
+                "field": ["article"],
                 "message": "Can't create an article if both author name and user ID are blank.",
                 "code": "AUTHOR_FIELD_REQUIRED"
               }

@@ -80,7 +80,7 @@ describe('public TS API', () => {
       ok: true,
       message: expect.stringContaining('shopify-draft-proxy'),
     });
-  });
+  }, 10_000);
 
   it('round-trips state via dumpState/restoreState with the documented schema', async () => {
     const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {

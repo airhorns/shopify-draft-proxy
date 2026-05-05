@@ -16411,7 +16411,7 @@ fn handle_inventory_set_quantities(
             [],
           )
         Some(name), _, _ -> {
-          case valid_staged_inventory_quantity_name(name) {
+          case valid_inventory_set_quantity_name(name) {
             False ->
               inventory_quantity_mutation_result(
                 key,
@@ -16419,7 +16419,7 @@ fn handle_inventory_set_quantities(
                 store,
                 identity,
                 None,
-                [invalid_inventory_quantity_name_error(["input", "name"])],
+                [invalid_inventory_set_quantity_name_error()],
                 field,
                 fragments,
                 [],
@@ -23618,16 +23618,16 @@ fn apply_inventory_set_quantities(
   List(ProductUserError),
 ) {
   let reference_document_uri = read_string_field(input, "referenceDocumentUri")
-  let initial = #([], [], store)
-  let result =
-    quantities
-    |> enumerate_items()
-    |> list.try_fold(initial, fn(acc, pair) {
-      let #(quantity, index) = pair
-      let #(changes, mirrored_changes, current_store) = acc
-      case validate_inventory_set_quantity(quantity, index) {
-        Some(error) -> Error([error])
-        None -> {
+  case validate_inventory_set_quantity_inputs(quantities) {
+    [_, ..] as errors -> Error(errors)
+    [] -> {
+      let initial = #([], [], store)
+      let result =
+        quantities
+        |> enumerate_items()
+        |> list.try_fold(initial, fn(acc, pair) {
+          let #(quantity, index) = pair
+          let #(changes, mirrored_changes, current_store) = acc
           let assert Some(inventory_item_id) = quantity.inventory_item_id
           let assert Some(location_id) = quantity.location_id
           let assert Some(next_quantity) = quantity.quantity
@@ -23656,46 +23656,41 @@ fn apply_inventory_set_quantities(
                   quantity_after_change: None,
                   ledger_document_uri: None,
                 )
-              let mirrored = case is_on_hand_component_quantity_name(name) {
-                True -> [
-                  InventoryAdjustmentChange(
-                    inventory_item_id: inventory_item_id,
-                    location_id: location_id,
-                    name: "on_hand",
-                    delta: delta,
-                    quantity_after_change: None,
-                    ledger_document_uri: None,
-                  ),
-                ]
-                False -> []
-              }
+              let #(changes_to_append, mirrored) =
+                inventory_set_quantity_changes(
+                  inventory_item_id,
+                  location_id,
+                  name,
+                  delta,
+                  change,
+                )
               Ok(#(
-                list.append(changes, [change]),
+                list.append(changes, changes_to_append),
                 list.append(mirrored_changes, mirrored),
                 next_store,
               ))
             }
           }
+        })
+      case result {
+        Error(errors) -> Error(errors)
+        Ok(done) -> {
+          let #(changes, mirrored_changes, next_store) = done
+          let #(group, next_identity) =
+            make_inventory_adjustment_group(
+              identity,
+              reason,
+              reference_document_uri,
+              list.append(changes, mirrored_changes),
+            )
+          Ok(#(
+            next_store,
+            next_identity,
+            group,
+            inventory_adjustment_staged_ids(group),
+          ))
         }
       }
-    })
-  case result {
-    Error(errors) -> Error(errors)
-    Ok(done) -> {
-      let #(changes, mirrored_changes, next_store) = done
-      let #(group, next_identity) =
-        make_inventory_adjustment_group(
-          identity,
-          reason,
-          reference_document_uri,
-          list.append(changes, mirrored_changes),
-        )
-      Ok(#(
-        next_store,
-        next_identity,
-        group,
-        inventory_adjustment_staged_ids(group),
-      ))
     }
   }
 }
@@ -23706,7 +23701,7 @@ fn validate_inventory_adjust_inputs(
 ) -> List(ProductUserError) {
   let name_errors = case valid_inventory_adjust_quantity_name(name) {
     True -> []
-    False -> [invalid_inventory_quantity_name_error(["input", "name"])]
+    False -> [invalid_inventory_adjust_quantity_name_error(["input", "name"])]
   }
   let ledger_errors = case name {
     "available" -> []
@@ -23726,7 +23721,23 @@ fn validate_inventory_adjust_inputs(
         }
       })
   }
-  list.append(name_errors, ledger_errors)
+  let quantity_errors =
+    changes
+    |> enumerate_items()
+    |> list.flat_map(fn(pair) {
+      let #(change, index) = pair
+      case change.delta {
+        Some(delta) ->
+          inventory_quantity_bounds_errors(delta, [
+            "input",
+            "changes",
+            int.to_string(index),
+            "delta",
+          ])
+        None -> []
+      }
+    })
+  list.append(name_errors, list.append(ledger_errors, quantity_errors))
 }
 
 fn stage_inventory_quantity_adjust(
@@ -23844,29 +23855,195 @@ fn stage_inventory_quantity_adjust(
 fn validate_inventory_set_quantity(
   quantity: InventorySetQuantityInput,
   index: Int,
-) -> Option(ProductUserError) {
+) -> List(ProductUserError) {
   let path = ["input", "quantities", int.to_string(index)]
-  case quantity.inventory_item_id, quantity.location_id, quantity.quantity {
-    None, _, _ ->
-      Some(ProductUserError(
+  let required_errors = case
+    quantity.inventory_item_id,
+    quantity.location_id,
+    quantity.quantity
+  {
+    None, _, _ -> [
+      ProductUserError(
         list.append(path, ["inventoryItemId"]),
         "Inventory item id is required",
         None,
-      ))
-    _, None, _ ->
-      Some(ProductUserError(
+      ),
+    ]
+    _, None, _ -> [
+      ProductUserError(
         list.append(path, ["locationId"]),
         "Inventory location id is required",
         None,
-      ))
-    _, _, None ->
-      Some(ProductUserError(
+      ),
+    ]
+    _, _, None -> [
+      ProductUserError(
         list.append(path, ["quantity"]),
         "Inventory quantity is required",
         None,
-      ))
-    _, _, _ -> None
+      ),
+    ]
+    _, _, _ -> []
   }
+  let quantity_errors = case quantity.quantity {
+    Some(quantity) -> inventory_set_quantity_bounds_errors(quantity, path)
+    None -> []
+  }
+  list.append(required_errors, quantity_errors)
+}
+
+fn inventory_set_quantity_changes(
+  inventory_item_id: String,
+  location_id: String,
+  name: String,
+  delta: Int,
+  change: InventoryAdjustmentChange,
+) -> #(List(InventoryAdjustmentChange), List(InventoryAdjustmentChange)) {
+  case name {
+    "on_hand" -> #(
+      [
+        InventoryAdjustmentChange(
+          inventory_item_id: inventory_item_id,
+          location_id: location_id,
+          name: "available",
+          delta: delta,
+          quantity_after_change: None,
+          ledger_document_uri: None,
+        ),
+      ],
+      [change],
+    )
+    _ -> {
+      let mirrored = case is_on_hand_component_quantity_name(name) {
+        True -> [
+          InventoryAdjustmentChange(
+            inventory_item_id: inventory_item_id,
+            location_id: location_id,
+            name: "on_hand",
+            delta: delta,
+            quantity_after_change: None,
+            ledger_document_uri: None,
+          ),
+        ]
+        False -> []
+      }
+      #([change], mirrored)
+    }
+  }
+}
+
+fn validate_inventory_set_quantity_inputs(
+  quantities: List(InventorySetQuantityInput),
+) -> List(ProductUserError) {
+  let input_errors =
+    quantities
+    |> enumerate_items()
+    |> list.flat_map(fn(pair) {
+      let #(quantity, index) = pair
+      validate_inventory_set_quantity(quantity, index)
+    })
+  list.append(input_errors, duplicate_inventory_set_quantity_errors(quantities))
+}
+
+fn inventory_set_quantity_bounds_errors(
+  quantity: Int,
+  path: List(String),
+) -> List(ProductUserError) {
+  case quantity {
+    quantity if quantity > max_inventory_quantity -> [
+      ProductUserError(
+        list.append(path, ["quantity"]),
+        "The quantity can't be higher than 1,000,000,000.",
+        Some("INVALID_QUANTITY_TOO_HIGH"),
+      ),
+    ]
+    quantity if quantity < min_inventory_quantity -> [
+      ProductUserError(
+        list.append(path, ["quantity"]),
+        "The quantity can't be lower than -1,000,000,000.",
+        Some("INVALID_QUANTITY_TOO_LOW"),
+      ),
+    ]
+    quantity if quantity < 0 -> [
+      ProductUserError(
+        list.append(path, ["quantity"]),
+        "The quantity can't be negative.",
+        Some("INVALID_QUANTITY_NEGATIVE"),
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn inventory_quantity_bounds_errors(
+  quantity: Int,
+  path: List(String),
+) -> List(ProductUserError) {
+  case quantity {
+    quantity if quantity > max_inventory_quantity -> [
+      ProductUserError(
+        path,
+        "The quantity can't be higher than 1,000,000,000.",
+        Some("INVALID_QUANTITY_TOO_HIGH"),
+      ),
+    ]
+    quantity if quantity < min_inventory_quantity -> [
+      ProductUserError(
+        path,
+        "The quantity can't be lower than -1,000,000,000.",
+        Some("INVALID_QUANTITY_TOO_LOW"),
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn duplicate_inventory_set_quantity_errors(
+  quantities: List(InventorySetQuantityInput),
+) -> List(ProductUserError) {
+  quantities
+  |> enumerate_items()
+  |> list.flat_map(fn(pair) {
+    let #(quantity, index) = pair
+    case quantity.inventory_item_id, quantity.location_id {
+      Some(inventory_item_id), Some(location_id) -> {
+        case
+          has_duplicate_inventory_item_location_pair(
+            quantities,
+            index,
+            inventory_item_id,
+            location_id,
+          )
+        {
+          True -> [
+            ProductUserError(
+              ["input", "quantities", int.to_string(index), "locationId"],
+              "The combination of inventoryItemId and locationId must be unique.",
+              Some("NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"),
+            ),
+          ]
+          False -> []
+        }
+      }
+      _, _ -> []
+    }
+  })
+}
+
+fn has_duplicate_inventory_item_location_pair(
+  quantities: List(InventorySetQuantityInput),
+  index: Int,
+  inventory_item_id: String,
+  location_id: String,
+) -> Bool {
+  quantities
+  |> enumerate_items()
+  |> list.any(fn(pair) {
+    let #(quantity, other_index) = pair
+    other_index != index
+    && quantity.inventory_item_id == Some(inventory_item_id)
+    && quantity.location_id == Some(location_id)
+  })
 }
 
 fn stage_inventory_quantity_set(
@@ -23921,6 +24098,7 @@ fn stage_inventory_quantity_set(
                   next_quantity,
                 )
                 |> maybe_add_on_hand_component_delta(name, delta)
+                |> maybe_add_available_for_on_hand_delta(name, delta)
               let next_store =
                 stage_variant_inventory_levels(
                   store,
@@ -24445,6 +24623,17 @@ fn maybe_add_on_hand_component_delta(
   }
 }
 
+fn maybe_add_available_for_on_hand_delta(
+  quantities: List(InventoryQuantityRecord),
+  name: String,
+  delta: Int,
+) -> List(InventoryQuantityRecord) {
+  case name {
+    "on_hand" -> add_inventory_quantity_amount(quantities, "available", delta)
+    _ -> quantities
+  }
+}
+
 fn add_on_hand_move_delta(
   quantities: List(InventoryQuantityRecord),
   from_name: String,
@@ -24479,6 +24668,17 @@ fn is_on_hand_component_quantity_name(name: String) -> Bool {
   }
 }
 
+const max_inventory_quantity = 1_000_000_000
+
+const min_inventory_quantity = -1_000_000_000
+
+fn valid_inventory_set_quantity_name(name: String) -> Bool {
+  case name {
+    "available" | "on_hand" -> True
+    _ -> False
+  }
+}
+
 fn valid_staged_inventory_quantity_name(name: String) -> Bool {
   case name {
     "available"
@@ -24495,6 +24695,8 @@ fn valid_staged_inventory_quantity_name(name: String) -> Bool {
 fn valid_inventory_adjust_quantity_name(name: String) -> Bool {
   case name {
     "available"
+    | "on_hand"
+    | "committed"
     | "damaged"
     | "incoming"
     | "quality_control"
@@ -24502,6 +24704,24 @@ fn valid_inventory_adjust_quantity_name(name: String) -> Bool {
     | "safety_stock" -> True
     _ -> False
   }
+}
+
+fn invalid_inventory_set_quantity_name_error() -> ProductUserError {
+  ProductUserError(
+    ["input", "name"],
+    "The quantity name must be either 'available' or 'on_hand'.",
+    Some("INVALID_NAME"),
+  )
+}
+
+fn invalid_inventory_adjust_quantity_name_error(
+  field: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    "The specified quantity name is invalid. Valid values are: available, on_hand, committed, damaged, incoming, quality_control, reserved, safety_stock.",
+    Some("INVALID_QUANTITY_NAME"),
+  )
 }
 
 fn invalid_inventory_quantity_name_error(

@@ -1,0 +1,919 @@
+{
+  "capturedAt": "2026-05-04T22:56:33.197Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "cases": {
+    "damaged": {
+      "setup": {
+        "productId": "gid://shopify/Product/10176760643890",
+        "variantId": "gid://shopify/ProductVariant/51125047853362",
+        "inventoryItemId": "gid://shopify/InventoryItem/53228116771122",
+        "locationId": "gid://shopify/Location/106318430514",
+        "available": 0,
+        "onHand": 0,
+        "create": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760643890",
+                "title": "HAR-568 inventorySetQuantities 2025-01 damaged 1777935385287",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51125047853362",
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53228116771122",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "track": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760643890",
+                "tracksInventory": true,
+                "totalInventory": 0
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51125047853362",
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53228116771122",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "inventoryLevel": {
+          "data": {
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53228116771122",
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53228116771122",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "#graphql\n  mutation InventorySetQuantitiesNameValidation($input: InventorySetQuantitiesInput!) {\n    inventorySetQuantities(input: $input) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "damaged",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://har-568/2025-01/damaged/1777935385287",
+          "ignoreCompareQuantity": true,
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53228116771122",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 5
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "name"],
+                "message": "The quantity name must be either 'available' or 'on_hand'.",
+                "code": "INVALID_NAME"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10176760643890",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "committed": {
+      "setup": {
+        "productId": "gid://shopify/Product/10176760676658",
+        "variantId": "gid://shopify/ProductVariant/51125047886130",
+        "inventoryItemId": "gid://shopify/InventoryItem/53228116803890",
+        "locationId": "gid://shopify/Location/106318430514",
+        "available": 0,
+        "onHand": 0,
+        "create": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760676658",
+                "title": "HAR-568 inventorySetQuantities 2025-01 committed 1777935385287",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51125047886130",
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53228116803890",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "track": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760676658",
+                "tracksInventory": true,
+                "totalInventory": 0
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51125047886130",
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53228116803890",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "inventoryLevel": {
+          "data": {
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53228116803890",
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53228116803890",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "#graphql\n  mutation InventorySetQuantitiesNameValidation($input: InventorySetQuantitiesInput!) {\n    inventorySetQuantities(input: $input) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "committed",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://har-568/2025-01/committed/1777935385287",
+          "ignoreCompareQuantity": true,
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53228116803890",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 5
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "name"],
+                "message": "The quantity name must be either 'available' or 'on_hand'.",
+                "code": "INVALID_NAME"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10176760676658",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "onHand": {
+      "setup": {
+        "productId": "gid://shopify/Product/10176760709426",
+        "variantId": "gid://shopify/ProductVariant/51125047918898",
+        "inventoryItemId": "gid://shopify/InventoryItem/53228116836658",
+        "locationId": "gid://shopify/Location/106318430514",
+        "available": 0,
+        "onHand": 0,
+        "create": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760709426",
+                "title": "HAR-568 inventorySetQuantities 2025-01 on-hand 1777935385287",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51125047918898",
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53228116836658",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "track": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760709426",
+                "tracksInventory": true,
+                "totalInventory": 0
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51125047918898",
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53228116836658",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "inventoryLevel": {
+          "data": {
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53228116836658",
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53228116836658",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "#graphql\n  mutation InventorySetQuantitiesNameValidation($input: InventorySetQuantitiesInput!) {\n    inventorySetQuantities(input: $input) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "on_hand",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://har-568/2025-01/on-hand/1777935385287",
+          "ignoreCompareQuantity": true,
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53228116836658",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 4
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": {
+              "reason": "correction",
+              "referenceDocumentUri": "logistics://har-568/2025-01/on-hand/1777935385287",
+              "changes": [
+                {
+                  "name": "available",
+                  "delta": 4,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53228116836658"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
+                },
+                {
+                  "name": "on_hand",
+                  "delta": 4,
+                  "item": {
+                    "id": "gid://shopify/InventoryItem/53228116836658"
+                  },
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10176760709426",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "availableTooHigh": {
+      "setup": {
+        "productId": "gid://shopify/Product/10176760742194",
+        "variantId": "gid://shopify/ProductVariant/51125047951666",
+        "inventoryItemId": "gid://shopify/InventoryItem/53228116869426",
+        "locationId": "gid://shopify/Location/106318430514",
+        "available": 0,
+        "onHand": 0,
+        "create": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760742194",
+                "title": "HAR-568 inventorySetQuantities 2025-01 available-too-high 1777935385287",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51125047951666",
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53228116869426",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "track": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760742194",
+                "tracksInventory": true,
+                "totalInventory": 0
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51125047951666",
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53228116869426",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "inventoryLevel": {
+          "data": {
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53228116869426",
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53228116869426",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "#graphql\n  mutation InventorySetQuantitiesNameValidation($input: InventorySetQuantitiesInput!) {\n    inventorySetQuantities(input: $input) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://har-568/2025-01/available-too-high/1777935385287",
+          "ignoreCompareQuantity": true,
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53228116869426",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 1000000001
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "quantities", "0", "quantity"],
+                "message": "The quantity can't be higher than 1,000,000,000.",
+                "code": "INVALID_QUANTITY_TOO_HIGH"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10176760742194",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "duplicatePair": {
+      "setup": {
+        "productId": "gid://shopify/Product/10176760774962",
+        "variantId": "gid://shopify/ProductVariant/51125047984434",
+        "inventoryItemId": "gid://shopify/InventoryItem/53228116902194",
+        "locationId": "gid://shopify/Location/106318430514",
+        "available": 0,
+        "onHand": 0,
+        "create": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760774962",
+                "title": "HAR-568 inventorySetQuantities 2025-01 duplicate-pair 1777935385287",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51125047984434",
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53228116902194",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "track": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10176760774962",
+                "tracksInventory": true,
+                "totalInventory": 0
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51125047984434",
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53228116902194",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        },
+        "inventoryLevel": {
+          "data": {
+            "inventoryItem": {
+              "id": "gid://shopify/InventoryItem/53228116902194",
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53228116902194",
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "query": "#graphql\n  mutation InventorySetQuantitiesNameValidation($input: InventorySetQuantitiesInput!) {\n    inventorySetQuantities(input: $input) {\n      inventoryAdjustmentGroup {\n        reason\n        referenceDocumentUri\n        changes { name delta item { id } location { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "available",
+          "reason": "correction",
+          "referenceDocumentUri": "logistics://har-568/2025-01/duplicate/1777935385287",
+          "ignoreCompareQuantity": true,
+          "quantities": [
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53228116902194",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 1
+            },
+            {
+              "inventoryItemId": "gid://shopify/InventoryItem/53228116902194",
+              "locationId": "gid://shopify/Location/106318430514",
+              "quantity": 2
+            }
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "inventorySetQuantities": {
+            "inventoryAdjustmentGroup": null,
+            "userErrors": [
+              {
+                "field": ["input", "quantities", "0", "locationId"],
+                "message": "The combination of inventoryItemId and locationId must be unique.",
+                "code": "NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"
+              },
+              {
+                "field": ["input", "quantities", "1", "locationId"],
+                "message": "The combination of inventoryItemId and locationId must be unique.",
+                "code": "NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 13,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      },
+      "cleanup": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10176760774962",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
