@@ -717,6 +717,9 @@ const reportProgress = await capture(reportProgressMutation, {
   },
 });
 const afterReportProgress = await readAfter(scheduleProgressOrder.order);
+const cancelAfterReportProgress = await capture(cancelMutation, {
+  id: scheduleProgressOrder.order.fulfillmentOrderId,
+});
 const open = await capture(openMutation, { id: scheduleProgressOrder.order.fulfillmentOrderId });
 const afterOpen = await readAfter(scheduleProgressOrder.order);
 const close = await capture(closeMutation, {
@@ -734,6 +737,7 @@ const reroute = await capture(rerouteMutation, {
 });
 const afterReroute = await readAfter(rerouteOrder.order);
 const cancel = await capture(cancelMutation, { id: rerouteOrder.order.fulfillmentOrderId });
+const cancelAgainAfterCancel = await capture(cancelMutation, { id: rerouteOrder.order.fulfillmentOrderId });
 const afterCancel = await readAfter(rerouteOrder.order);
 
 const residualOrder = await createTrackedOrder('residual-split-deadline-merge', 3);
@@ -824,6 +828,7 @@ const output = {
       afterReschedule,
       reportProgress,
       afterReportProgress,
+      cancelAfterReportProgress,
       open,
       afterOpen,
       close,
@@ -835,6 +840,7 @@ const output = {
       reroute,
       afterReroute,
       cancelAfterReroute: cancel,
+      cancelAgainAfterCancel,
       afterCancel,
     },
     residualSplitDeadlineMerge: {
