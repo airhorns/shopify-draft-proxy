@@ -1,13 +1,18 @@
 import gleam/dict
+import gleam/int
 import gleam/json
 import gleam/list
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/b2b
 import shopify_draft_proxy/proxy/b2b_user_error_codes
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/types.{ShopLocaleRecord}
+import shopify_draft_proxy/state/types.{
+  type CustomerRecord, B2BCompanyRecord, CustomerRecord, ShopLocaleRecord,
+  StorePropertyString,
+}
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   let request =
@@ -39,6 +44,81 @@ fn proxy_with_primary_locale(locale: String) -> draft_proxy.DraftProxy {
         market_web_presence_ids: [],
       ),
     )
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn seed_customer(
+  proxy: draft_proxy.DraftProxy,
+  record: CustomerRecord,
+) -> draft_proxy.DraftProxy {
+  let #(_, seeded_store) = store.stage_create_customer(proxy.store, record)
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
+fn customer(id: String, email: Option(String)) -> CustomerRecord {
+  CustomerRecord(
+    id: id,
+    first_name: Some("Har"),
+    last_name: Some("Buyer"),
+    display_name: Some("Har Buyer"),
+    email: email,
+    legacy_resource_id: None,
+    locale: Some("en"),
+    note: None,
+    can_delete: Some(True),
+    verified_email: Some(True),
+    data_sale_opt_out: False,
+    tax_exempt: Some(False),
+    tax_exemptions: [],
+    state: Some("DISABLED"),
+    tags: [],
+    number_of_orders: Some("0"),
+    amount_spent: None,
+    default_email_address: None,
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    created_at: Some("2024-01-01T00:00:00.000Z"),
+    updated_at: Some("2024-01-01T00:00:00.000Z"),
+  )
+}
+
+fn contact_ids(count: Int) -> List(String) {
+  contact_ids_loop(1, count, [])
+}
+
+fn contact_ids_loop(index: Int, count: Int, acc: List(String)) -> List(String) {
+  case index > count {
+    True -> list.reverse(acc)
+    False ->
+      contact_ids_loop(index + 1, count, [
+        "gid://shopify/CompanyContact/" <> int.to_string(index),
+        ..acc
+      ])
+  }
+}
+
+fn proxy_with_company_at_contact_cap(
+  customer_record: CustomerRecord,
+) -> draft_proxy.DraftProxy {
+  let proxy = draft_proxy.new()
+  let #(_, seeded_store) =
+    store.stage_create_customer(proxy.store, customer_record)
+  let company =
+    B2BCompanyRecord(
+      id: "gid://shopify/Company/606",
+      cursor: None,
+      data: dict.from_list([
+        #("id", StorePropertyString("gid://shopify/Company/606")),
+        #("name", StorePropertyString("HAR 606 Cap")),
+      ]),
+      contact_ids: contact_ids(10_000),
+      location_ids: [],
+      contact_role_ids: [],
+    )
+  let #(_, seeded_store) =
+    store.upsert_staged_b2b_company(seeded_store, company)
   proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
@@ -360,6 +440,125 @@ pub fn b2b_contact_create_and_update_reject_duplicate_email_and_phone_test() {
   assert string.contains(
     phone_update_json,
     "\"field\":[\"input\",\"phone\"],\"message\":\"Phone number has already been taken.\",\"code\":\"TAKEN\"",
+  )
+}
+
+pub fn b2b_assign_customer_as_contact_rejects_unknown_customer_test() {
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"HAR 606 Unknown Customer\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(draft_proxy.new(), create_company)
+  assert create_status == 200
+
+  let assign_unknown =
+    "mutation { companyAssignCustomerAsContact(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", customerId: \"gid://shopify/Customer/999999999\") { companyContact { id customer { id email } } userErrors { field message code } } }"
+  let #(Response(status: assign_status, body: assign_body, ..), _) =
+    graphql(proxy, assign_unknown)
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"companyContact\":null")
+  assert string.contains(
+    assign_json,
+    "\"field\":[\"customerId\"],\"message\":\"Customer does not exist.\",\"code\":\"CUSTOMER_NOT_FOUND\"",
+  )
+}
+
+pub fn b2b_assign_customer_as_contact_rejects_duplicate_customer_test() {
+  let customer_id = "gid://shopify/Customer/6061"
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"HAR 606 Duplicate Customer\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(draft_proxy.new(), create_company)
+  assert create_status == 200
+  let proxy =
+    seed_customer(proxy, customer(customer_id, Some("har-606@example.com")))
+
+  let assign =
+    "mutation { companyAssignCustomerAsContact(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", customerId: \""
+    <> customer_id
+    <> "\") { companyContact { id customer { id email } } userErrors { field message code } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(proxy, assign)
+  assert first_status == 200
+  let first_json = json.to_string(first_body)
+  assert string.contains(first_json, "\"userErrors\":[]")
+  assert string.contains(first_json, "\"email\":\"har-606@example.com\"")
+
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql(proxy, assign)
+  assert second_status == 200
+  let second_json = json.to_string(second_body)
+  assert string.contains(second_json, "\"companyContact\":null")
+  assert string.contains(
+    second_json,
+    "\"field\":[\"companyId\"],\"message\":\"Customer is already associated with a company contact.\",\"code\":\"CUSTOMER_ALREADY_A_CONTACT\"",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { contactsCount { count } } }",
+    )
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"count\":1")
+}
+
+pub fn b2b_assign_customer_as_contact_rejects_customer_without_email_test() {
+  let customer_id = "gid://shopify/Customer/6062"
+  let create_company =
+    "mutation { companyCreate(input: { company: { name: \"HAR 606 No Email\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(draft_proxy.new(), create_company)
+  assert create_status == 200
+  let proxy = seed_customer(proxy, customer(customer_id, None))
+
+  let assign =
+    "mutation { companyAssignCustomerAsContact(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", customerId: \""
+    <> customer_id
+    <> "\") { companyContact { id } userErrors { field message code } } }"
+  let #(Response(status: assign_status, body: assign_body, ..), _) =
+    graphql(proxy, assign)
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"companyContact\":null")
+  assert string.contains(
+    assign_json,
+    "\"field\":[\"companyId\"],\"message\":\"Customer must have an email address.\",\"code\":\"CUSTOMER_EMAIL_MUST_EXIST\"",
+  )
+}
+
+pub fn b2b_company_contact_roots_enforce_contact_cap_test() {
+  let customer_id = "gid://shopify/Customer/6063"
+  let proxy =
+    proxy_with_company_at_contact_cap(customer(
+      customer_id,
+      Some("har-606-cap@example.com"),
+    ))
+
+  let assign =
+    "mutation { companyAssignCustomerAsContact(companyId: \"gid://shopify/Company/606\", customerId: \""
+    <> customer_id
+    <> "\") { companyContact { id } userErrors { field message code } } }"
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(proxy, assign)
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"companyContact\":null")
+  assert string.contains(
+    assign_json,
+    "\"field\":[\"companyId\"],\"message\":\"Company contact maximum cap reached.\",\"code\":\"COMPANY_CONTACT_MAX_CAP_REACHED\"",
+  )
+
+  let create_contact =
+    "mutation { companyContactCreate(companyId: \"gid://shopify/Company/606\", input: { email: \"har-606-new@example.com\" }) { companyContact { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), _) =
+    graphql(proxy, create_contact)
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"companyContact\":null")
+  assert string.contains(
+    create_json,
+    "\"field\":[\"companyId\"],\"message\":\"Company contact maximum cap reached.\",\"code\":\"COMPANY_CONTACT_MAX_CAP_REACHED\"",
   )
 }
 

@@ -3052,3 +3052,27 @@ Practical rule:
 
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
+
+## 76. B2B customer-as-contact validation codes are version/evidence-sensitive
+
+HAR-606 probed `companyAssignCustomerAsContact` on Admin GraphQL 2025-01 and
+2026-04 against `harry-test-heelo.myshopify.com` while fixing local customer
+resolution.
+
+Observed public Admin API behavior:
+
+- unknown customer IDs returned `field: ["customerId"]`, message
+  `Customer does not exist.`, and code `RESOURCE_NOT_FOUND`
+- assigning the same customer twice returned `field: ["companyId"]`, message
+  `Customer is already associated with a company contact.`, and code
+  `INVALID_INPUT`
+- assigning a customer with no email returned `field: ["companyId"]`, message
+  `Customer must have an email address.`, and code `INVALID_INPUT`
+
+Practical rule:
+
+- the local handler follows HAR-606's internal-source acceptance codes
+  (`CUSTOMER_NOT_FOUND`, `CUSTOMER_ALREADY_A_CONTACT`, and
+  `CUSTOMER_EMAIL_MUST_EXIST`) while preserving the observed field/message
+  shapes; re-record parity if Shopify's public Admin API starts returning those
+  more specific enum values

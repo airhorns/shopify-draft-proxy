@@ -39,10 +39,11 @@ import shopify_draft_proxy/state/synthetic_identity.{
 }
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
-  type B2BCompanyLocationRecord, type B2BCompanyRecord, type StorePropertyValue,
-  B2BCompanyContactRecord, B2BCompanyContactRoleRecord, B2BCompanyLocationRecord,
-  B2BCompanyRecord, StorePropertyBool, StorePropertyFloat, StorePropertyInt,
-  StorePropertyList, StorePropertyNull, StorePropertyObject, StorePropertyString,
+  type B2BCompanyLocationRecord, type B2BCompanyRecord, type CustomerRecord,
+  type StorePropertyValue, B2BCompanyContactRecord, B2BCompanyContactRoleRecord,
+  B2BCompanyLocationRecord, B2BCompanyRecord, StorePropertyBool,
+  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
+  StorePropertyObject, StorePropertyString,
 }
 
 const domain = "b2b"
@@ -50,6 +51,8 @@ const domain = "b2b"
 const default_string_max_length = 255
 
 const notes_max_length = 5000
+
+const company_contact_maximum_cap = 10_000
 
 pub type B2BError {
   ParseFailed(root_field.RootFieldError)
@@ -1220,6 +1223,80 @@ fn company_contacts(store: Store, company: B2BCompanyRecord) {
       None -> Error(Nil)
     }
   })
+}
+
+fn contact_customer_id(contact: B2BCompanyContactRecord) -> Option(String) {
+  case dict.get(contact.data, "customerId") {
+    Ok(StorePropertyString(customer_id)) -> Some(customer_id)
+    _ -> None
+  }
+}
+
+fn find_company_contact_by_customer_id(
+  contacts: List(B2BCompanyContactRecord),
+  customer_id: String,
+) -> Option(B2BCompanyContactRecord) {
+  contacts
+  |> list.find(fn(contact) { contact_customer_id(contact) == Some(customer_id) })
+  |> option_from_result
+}
+
+fn customer_email(customer: CustomerRecord) -> Option(String) {
+  case customer.email {
+    Some(email) -> {
+      let trimmed = string.trim(email)
+      case trimmed == "" {
+        True -> None
+        False -> Some(email)
+      }
+    }
+    None -> None
+  }
+}
+
+fn customer_contact_source(
+  customer: CustomerRecord,
+  email: String,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Customer")),
+    #("id", SrcString(customer.id)),
+    #("email", SrcString(email)),
+    #("firstName", customer.first_name |> optional_src_string),
+    #("lastName", customer.last_name |> optional_src_string),
+  ])
+}
+
+fn company_contact_cap_reached(company: B2BCompanyRecord) -> Bool {
+  list.length(company.contact_ids) >= company_contact_maximum_cap
+}
+
+fn company_contact_cap_error() -> UserError {
+  user_error(
+    Some(["companyId"]),
+    "Company contact maximum cap reached.",
+    user_error_code.company_contact_max_cap_reached,
+  )
+}
+
+fn company_contact_mutation_error(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: List(String),
+  message: String,
+  code: user_error_code.Code,
+) -> RootResult {
+  RootResult(
+    Payload(
+      ..empty_payload([
+        user_error(Some(field), message, code),
+      ]),
+      company_contact: None,
+    ),
+    store,
+    identity,
+    [],
+  )
 }
 
 fn company_locations(store: Store, company: B2BCompanyRecord) {
@@ -2580,36 +2657,53 @@ fn handle_contact_create(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let #(prepared, prepare_errors) =
-            prepare_contact_create_input(store, read_object(args, "input"))
-          let #(input, validation_errors) =
-            validate_contact_input(prepared, ["input"])
-          let errors = list.append(prepare_errors, validation_errors)
-          case errors {
-            [_, ..] ->
+          case company_contact_cap_reached(company) {
+            True ->
               RootResult(
-                Payload(..empty_payload(errors), company_contact: None),
+                Payload(
+                  ..empty_payload([company_contact_cap_error()]),
+                  company_contact: None,
+                ),
                 store,
                 identity,
                 [],
               )
-            [] -> {
-              let #(contact, store, identity) =
-                create_contact(store, identity, company_id, input, False)
-              let #(company, store) =
-                stage_company(
-                  store,
-                  B2BCompanyRecord(
-                    ..company,
-                    contact_ids: append_unique(company.contact_ids, contact.id),
-                  ),
-                )
-              RootResult(
-                Payload(..empty_payload([]), company_contact: Some(contact)),
-                store,
-                identity,
-                [contact.id, company.id],
-              )
+            False -> {
+              let #(prepared, prepare_errors) =
+                prepare_contact_create_input(store, read_object(args, "input"))
+              let #(input, validation_errors) =
+                validate_contact_input(prepared, ["input"])
+              let errors = list.append(prepare_errors, validation_errors)
+              case errors {
+                [_, ..] ->
+                  RootResult(
+                    Payload(..empty_payload(errors), company_contact: None),
+                    store,
+                    identity,
+                    [],
+                  )
+                [] -> {
+                  let #(contact, store, identity) =
+                    create_contact(store, identity, company_id, input, False)
+                  let #(company, store) =
+                    stage_company(
+                      store,
+                      B2BCompanyRecord(
+                        ..company,
+                        contact_ids: append_unique(
+                          company.contact_ids,
+                          contact.id,
+                        ),
+                      ),
+                    )
+                  RootResult(
+                    Payload(..empty_payload([]), company_contact: Some(contact)),
+                    store,
+                    identity,
+                    [contact.id, company.id],
+                  )
+                }
+              }
             }
           }
         }
@@ -2832,53 +2926,116 @@ fn handle_assign_customer_as_contact(
     Some(company_id), Some(customer_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let #(input, errors) = prepare_contact_create_input(store, dict.new())
-          case errors {
-            [_, ..] ->
-              RootResult(
-                Payload(..empty_payload(errors), company_contact: None),
+          let contacts = company_contacts(store, company)
+          case store.get_effective_customer_by_id(store, customer_id) {
+            None ->
+              company_contact_mutation_error(
                 store,
                 identity,
-                [],
+                ["customerId"],
+                "Customer does not exist.",
+                user_error_code.customer_not_found,
               )
-            [] -> {
-              let #(contact, store, identity) =
-                create_contact(store, identity, company_id, input, False)
-              let contact =
-                B2BCompanyContactRecord(
-                  ..contact,
-                  data: contact.data
-                    |> dict.insert(
-                      "customerId",
-                      StorePropertyString(customer_id),
-                    )
-                    |> dict.insert(
-                      "customer",
-                      source_to_value(
-                        src_object([
-                          #("__typename", SrcString("Customer")),
-                          #("id", SrcString(customer_id)),
-                        ]),
-                      ),
-                    ),
-                )
-              let #(contact, store) =
-                store.upsert_staged_b2b_company_contact(store, contact)
-              let #(company, store) =
-                stage_company(
-                  store,
-                  B2BCompanyRecord(
-                    ..company,
-                    contact_ids: append_unique(company.contact_ids, contact.id),
-                  ),
-                )
-              RootResult(
-                Payload(..empty_payload([]), company_contact: Some(contact)),
-                store,
-                identity,
-                [contact.id, company.id],
-              )
-            }
+            Some(customer) ->
+              case find_company_contact_by_customer_id(contacts, customer_id) {
+                Some(_) ->
+                  company_contact_mutation_error(
+                    store,
+                    identity,
+                    ["companyId"],
+                    "Customer is already associated with a company contact.",
+                    user_error_code.customer_already_a_contact,
+                  )
+                None ->
+                  case customer_email(customer) {
+                    None ->
+                      company_contact_mutation_error(
+                        store,
+                        identity,
+                        ["companyId"],
+                        "Customer must have an email address.",
+                        user_error_code.customer_email_must_exist,
+                      )
+                    Some(email) ->
+                      case company_contact_cap_reached(company) {
+                        True ->
+                          RootResult(
+                            Payload(
+                              ..empty_payload([company_contact_cap_error()]),
+                              company_contact: None,
+                            ),
+                            store,
+                            identity,
+                            [],
+                          )
+                        False -> {
+                          let #(input, errors) =
+                            prepare_contact_create_input(store, dict.new())
+                          case errors {
+                            [_, ..] ->
+                              RootResult(
+                                Payload(
+                                  ..empty_payload(errors),
+                                  company_contact: None,
+                                ),
+                                store,
+                                identity,
+                                [],
+                              )
+                            [] -> {
+                              let #(contact, store, identity) =
+                                create_contact(
+                                  store,
+                                  identity,
+                                  company_id,
+                                  input,
+                                  False,
+                                )
+                              let contact =
+                                B2BCompanyContactRecord(
+                                  ..contact,
+                                  data: contact.data
+                                    |> dict.insert(
+                                      "customerId",
+                                      StorePropertyString(customer_id),
+                                    )
+                                    |> dict.insert(
+                                      "customer",
+                                      customer_contact_source(customer, email)
+                                        |> source_to_value,
+                                    ),
+                                )
+                              let #(contact, store) =
+                                store.upsert_staged_b2b_company_contact(
+                                  store,
+                                  contact,
+                                )
+                              let #(company, store) =
+                                stage_company(
+                                  store,
+                                  B2BCompanyRecord(
+                                    ..company,
+                                    contact_ids: append_unique(
+                                      company.contact_ids,
+                                      contact.id,
+                                    ),
+                                  ),
+                                )
+                              RootResult(
+                                Payload(
+                                  ..empty_payload([]),
+                                  company_contact: Some(contact),
+                                ),
+                                store,
+                                identity,
+                                [contact.id, company.id],
+                              )
+                            }
+                          }
+                        }
+                      }
+                  }
+              }
           }
         }
         None ->

@@ -71,9 +71,12 @@ Contacts created from `companyCreate(input.companyContact)` or
 reference so downstream B2B `CompanyContact.customer { id }` reads match
 Shopify's company/customer-contact relationship without broadening customer
 catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
-as that contact reference. `companyRevokeMainContact` clears all local
-`isMainContact` flags and downstream `Company.mainContact` reads return `null`,
-matching the captured Shopify 2026-04 behavior.
+as that contact reference only after resolving the customer from the effective
+local customer registry. It rejects unknown customers, customers without an
+email address, duplicate customer/contact assignments on the same company, and
+companies that have reached the 10,000-contact cap. `companyRevokeMainContact`
+clears all local `isMainContact` flags and downstream `Company.mainContact`
+reads return `null`, matching the captured Shopify 2026-04 behavior.
 
 Contact create/update inputs are prepared before staging to mirror Shopify's
 B2B contact input handling. Supported local paths normalize valid phone numbers
@@ -88,8 +91,9 @@ normalized phone values return Shopify's captured `TAKEN` user error code with
 the relevant `input.email` or `input.phone` field path.
 `companyAssignCustomerAsContact` currently has only `companyId` and
 `customerId` arguments in the checked-in Admin schema, so the local handler
-defaults the created contact locale but has no phone/email input to normalize or
-deduplicate on that root.
+defaults the created contact locale and derives the contact customer payload
+from the resolved local `Customer` record instead of synthesizing an arbitrary
+customer shape.
 
 HAR-446 captured a fidelity trap in the company-create path: when
 `companyCreate` creates both a main contact and a default company location,
