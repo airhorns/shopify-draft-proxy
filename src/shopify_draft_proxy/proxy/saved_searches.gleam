@@ -16,12 +16,13 @@ import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
-  type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
-  SerializeConnectionConfig, SrcList, SrcNull, SrcString, build_synthetic_cursor,
-  default_connection_page_info_options, default_connection_window_options,
-  default_selected_field_options, get_document_fragments, get_field_response_key,
-  paginate_connection_items, project_graphql_value, serialize_connection,
-  serialize_empty_connection, src_object,
+  type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
+  ConnectionWindow, SerializeConnectionConfig, SrcList, SrcNull, SrcString,
+  build_synthetic_cursor, default_connection_page_info_options,
+  default_connection_window_options, default_selected_field_options,
+  get_document_fragments, get_field_response_key, paginate_connection_items,
+  project_graphql_value, serialize_connection, serialize_empty_connection,
+  src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, read_optional_string, respond_to_query,
@@ -30,6 +31,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
+import shopify_draft_proxy/proxy/store_properties
 import shopify_draft_proxy/search_query_parser.{
   parse_search_query_term, search_query_term_value,
   strip_search_query_value_quotes,
@@ -44,6 +46,8 @@ import shopify_draft_proxy/state/types.{
   type SavedSearchFilter, type SavedSearchRecord, SavedSearchFilter,
   SavedSearchRecord,
 }
+
+const synthetic_shop_id: String = "gid://shopify/Shop/1?shopify-draft-proxy=synthetic"
 
 /// Errors specific to the saved-searches handler. Currently just
 /// surfaces upstream parse errors.
@@ -753,7 +757,8 @@ fn handle_delete(
     [] -> id_from_input
     _ -> None
   }
-  let payload = project_delete_payload(deleted_id, errors, field, fragments)
+  let payload =
+    project_delete_payload(store_after, deleted_id, errors, field, fragments)
   let draft =
     single_root_log_draft(
       "savedSearchDelete",
@@ -795,6 +800,7 @@ fn sanitized_update_input(
 }
 
 fn project_delete_payload(
+  store: Store,
   deleted_id: Option(String),
   errors: List(UserError),
   field: Selection,
@@ -808,6 +814,7 @@ fn project_delete_payload(
   let payload =
     src_object([
       #("deletedSavedSearchId", id_source),
+      #("shop", current_shop_source(store)),
       #("userErrors", user_errors_source),
     ])
   case field {
@@ -815,6 +822,22 @@ fn project_delete_payload(
       project_graphql_value(payload, selections, fragments)
     _ -> json.object([])
   }
+}
+
+fn current_shop_source(store: Store) -> SourceValue {
+  case store.get_effective_shop(store) {
+    Some(shop) -> store_properties.shop_source(shop)
+    None -> synthetic_shop_source()
+  }
+}
+
+fn synthetic_shop_source() -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Shop")),
+    #("id", SrcString(synthetic_shop_id)),
+    #("name", SrcString("Shopify Draft Proxy")),
+    #("myshopifyDomain", SrcString("shopify-draft-proxy.myshopify.com")),
+  ])
 }
 
 type RequireResourceType {

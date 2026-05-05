@@ -1,0 +1,163 @@
+{
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "contentType": "IMAGE",
+          "originalSource": "https://placehold.co/600x400/png",
+          "alt": "Hermes file image read 1777945543894"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/43665815961906",
+              "alt": "Hermes file image read 1777945543894",
+              "createdAt": "2026-05-05T01:45:49Z",
+              "fileStatus": "UPLOADED",
+              "image": null,
+              "preview": {
+                "image": null
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 23,
+          "actualQueryCost": 23,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1977,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterCreate": {
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/43665815961906",
+              "alt": "Hermes file image read 1777945543894",
+              "createdAt": "2026-05-05T01:45:49Z",
+              "fileStatus": "PROCESSING",
+              "image": null,
+              "preview": {
+                "image": null
+              }
+            },
+            {
+              "id": "gid://shopify/MediaImage/41691586658610",
+              "alt": "",
+              "createdAt": "2025-06-14T20:54:35Z",
+              "fileStatus": "READY",
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MINNA_PAIR_BACK_WEB.jpg?v=1749934475",
+                "width": 2048,
+                "height": 1365
+              },
+              "preview": {
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MINNA_PAIR_BACK_WEB.jpg?v=1749934475"
+                }
+              }
+            },
+            {
+              "id": "gid://shopify/MediaImage/41691586625842",
+              "alt": "",
+              "createdAt": "2025-06-14T20:54:35Z",
+              "fileStatus": "READY",
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MINNA_PAIR_FRONT_WEB.jpg?v=1749934475",
+                "width": 2048,
+                "height": 1365
+              },
+              "preview": {
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MINNA_PAIR_FRONT_WEB.jpg?v=1749934475"
+                }
+              }
+            },
+            {
+              "id": "gid://shopify/MediaImage/41691586527538",
+              "alt": "",
+              "createdAt": "2025-06-14T20:54:32Z",
+              "fileStatus": "READY",
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MECHANIC_PAIR_BACK_WEB.jpg?v=1749934472",
+                "width": 2048,
+                "height": 1365
+              },
+              "preview": {
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MECHANIC_PAIR_BACK_WEB.jpg?v=1749934472"
+                }
+              }
+            },
+            {
+              "id": "gid://shopify/MediaImage/41691586494770",
+              "alt": "",
+              "createdAt": "2025-06-14T20:54:32Z",
+              "fileStatus": "READY",
+              "image": {
+                "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MECHANIC_PAIR_FRONT_WEB.jpg?v=1749934472",
+                "width": 2048,
+                "height": 1365
+              },
+              "preview": {
+                "image": {
+                  "url": "https://cdn.shopify.com/s/files/1/0928/9125/0994/files/DZR_MECHANIC_PAIR_FRONT_WEB.jpg?v=1749934472"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1978,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/43665815961906"]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/43665815961906"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1979,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

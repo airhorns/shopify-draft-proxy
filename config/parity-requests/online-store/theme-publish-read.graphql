@@ -1,0 +1,14 @@
+query ThemePublishDownstreamRead($previousId: ID!) {
+  previous: theme(id: $previousId) {
+    id
+    role
+    name
+  }
+  mains: themes(first: 10, roles: [MAIN]) {
+    nodes {
+      id
+      role
+      name
+    }
+  }
+}

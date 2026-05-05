@@ -1,0 +1,27 @@
+mutation MediaFileCreateThenImageRead($files: [FileCreateInput!]!) {
+  fileCreate(files: $files) {
+    files {
+      id
+      alt
+      createdAt
+      fileStatus
+      ... on MediaImage {
+        image {
+          url
+          width
+          height
+        }
+        preview {
+          image {
+            url
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

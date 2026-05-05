@@ -295,7 +295,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["backupRegionUpdate", "BackupRegionUpdate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-374 stages captured backup-region updates locally without mutating Shopify at runtime. Conformance covers current-region CA idempotent success and REGION_NOT_FOUND validation; mutation support remains CA-only until additional backupRegionUpdate success captures exist.",
+        "HAR-374/HAR-737 stage captured backup-region updates locally without mutating Shopify at runtime. Omitted/null region returns the effective current backupRegion with empty userErrors. Country updates resolve only conformance-backed shop-domain mappings: harry-test-heelo.myshopify.com CA/AE/AT/AU/BE/CH/CZ/DE/DK/ES/FI/MX and very-big-test-store.myshopify.com CA/US; unknown or unbacked countries preserve REGION_NOT_FOUND. HAR-737 records harry-test AE success/read-after-write evidence; live omitted/null calls currently return Shopify INTERNAL_SERVER_ERROR on that store/API, so parity derives their expected current-state envelope from the captured current backupRegion and empty success userErrors.",
       ),
     ),
     RegistryEntry(
@@ -343,7 +343,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["flowTriggerReceive", "FlowTriggerReceive"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-374 records local Flow trigger receipts for explicit local handles without external delivery, preserves raw mutations for commit replay, and mirrors captured invalid-handle and 50000-byte payload validation branches.",
+        "HAR-735 records local Flow trigger receipts for non-blank handles without the historical local-prefix gate, preserves raw mutations for commit replay, and mirrors captured body-conflict, missing-handle, invalid-handle, and JSON byte-size payload validation branches.",
       ),
     ),
     RegistryEntry(

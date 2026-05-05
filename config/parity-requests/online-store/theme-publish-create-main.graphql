@@ -1,0 +1,13 @@
+mutation ThemePublishCreateMain($source: URL!, $name: String) {
+  themeCreate(source: $source, name: $name, role: MAIN) {
+    theme {
+      id
+      name
+      role
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

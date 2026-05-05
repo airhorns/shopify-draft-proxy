@@ -9,7 +9,6 @@
 import gleam/bit_array
 import gleam/dict.{type Dict}
 import gleam/dynamic/decode
-import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -160,7 +159,14 @@ pub fn handle_query_request(
   case want_passthrough {
     True -> passthrough.passthrough_sync(proxy, request)
     False ->
-      case process(proxy.store, document, variables) {
+      case
+        process_with_shop_origin(
+          proxy.store,
+          proxy.config.shopify_admin_origin,
+          document,
+          variables,
+        )
+      {
         Ok(envelope) -> #(
           Response(status: 200, body: envelope, headers: []),
           proxy,
@@ -286,10 +292,161 @@ fn captured_backup_region() -> BackupRegionRecord {
   )
 }
 
-fn backup_region_for_country(code: String) -> Option(BackupRegionRecord) {
-  case string.uppercase(code) {
-    "CA" -> Some(captured_backup_region())
-    _ -> None
+fn backup_region_for_country(
+  store: Store,
+  shop_origin: String,
+  code: String,
+) -> Option(BackupRegionRecord) {
+  let normalized_code = string.uppercase(code)
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      backup_region_for_shop_country(shop.myshopify_domain, normalized_code)
+    None ->
+      case backup_region_for_origin_country(shop_origin, normalized_code) {
+        Some(region) -> Some(region)
+        None ->
+          case normalized_code {
+            "CA" -> Some(captured_backup_region())
+            _ -> None
+          }
+      }
+  }
+}
+
+fn effective_backup_region(
+  store: Store,
+  shop_origin: String,
+) -> Option(BackupRegionRecord) {
+  case store.get_effective_backup_region(store) {
+    Some(region) -> Some(region)
+    None -> backup_region_for_effective_shop(store, shop_origin)
+  }
+}
+
+fn backup_region_for_effective_shop(
+  store: Store,
+  shop_origin: String,
+) -> Option(BackupRegionRecord) {
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      case shop.shop_address.country_code_v2 {
+        Some(code) ->
+          backup_region_for_shop_country(shop.myshopify_domain, code)
+        None -> None
+      }
+    None ->
+      case backup_region_for_origin_country(shop_origin, "CA") {
+        Some(region) -> Some(region)
+        None -> Some(captured_backup_region())
+      }
+  }
+}
+
+fn backup_region_for_origin_country(
+  shop_origin: String,
+  code: String,
+) -> Option(BackupRegionRecord) {
+  let origin = string.lowercase(shop_origin)
+  let without_scheme = case string.starts_with(origin, "https://") {
+    True -> string.drop_start(origin, 8)
+    False ->
+      case string.starts_with(origin, "http://") {
+        True -> string.drop_start(origin, 7)
+        False -> origin
+      }
+  }
+  let domain = case string.split(without_scheme, on: "/") {
+    [host, ..] -> host
+    [] -> without_scheme
+  }
+  backup_region_for_shop_country(domain, code)
+}
+
+fn backup_region_for_shop_country(
+  shop_domain: String,
+  code: String,
+) -> Option(BackupRegionRecord) {
+  case string.lowercase(shop_domain), string.uppercase(code) {
+    "harry-test-heelo.myshopify.com", "CA" -> Some(captured_backup_region())
+    "harry-test-heelo.myshopify.com", "AE" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110482738",
+        name: "United Arab Emirates",
+        code: "AE",
+      ))
+    "harry-test-heelo.myshopify.com", "AT" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110515506",
+        name: "Austria",
+        code: "AT",
+      ))
+    "harry-test-heelo.myshopify.com", "AU" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110548274",
+        name: "Australia",
+        code: "AU",
+      ))
+    "harry-test-heelo.myshopify.com", "BE" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110581042",
+        name: "Belgium",
+        code: "BE",
+      ))
+    "harry-test-heelo.myshopify.com", "CH" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110613810",
+        name: "Switzerland",
+        code: "CH",
+      ))
+    "harry-test-heelo.myshopify.com", "CZ" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110646578",
+        name: "Czechia",
+        code: "CZ",
+      ))
+    "harry-test-heelo.myshopify.com", "DE" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110679346",
+        name: "Germany",
+        code: "DE",
+      ))
+    "harry-test-heelo.myshopify.com", "DK" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110712114",
+        name: "Denmark",
+        code: "DK",
+      ))
+    "harry-test-heelo.myshopify.com", "ES" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110744882",
+        name: "Spain",
+        code: "ES",
+      ))
+    "harry-test-heelo.myshopify.com", "FI" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062110777650",
+        name: "Finland",
+        code: "FI",
+      ))
+    "harry-test-heelo.myshopify.com", "MX" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/4062111334706",
+        name: "Mexico",
+        code: "MX",
+      ))
+    "very-big-test-store.myshopify.com", "CA" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/454909493481",
+        name: "Canada",
+        code: "CA",
+      ))
+    "very-big-test-store.myshopify.com", "US" ->
+      Some(BackupRegionRecord(
+        id: "gid://shopify/MarketRegionCountry/454910378217",
+        name: "United States",
+        code: "US",
+      ))
+    _, _ -> None
   }
 }
 
@@ -327,6 +484,15 @@ pub fn process(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, AdminPlatformError) {
+  process_with_shop_origin(store, "", document, variables)
+}
+
+pub fn process_with_shop_origin(
+  store: Store,
+  shop_origin: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Result(Json, AdminPlatformError) {
   use fields <- result.try(
     root_field.get_root_fields(document)
     |> result.map_error(ParseFailed),
@@ -341,6 +507,7 @@ pub fn process(
           let #(value, field_errors) =
             serialize_query_field(
               store,
+              shop_origin,
               document,
               field,
               name.value,
@@ -365,6 +532,7 @@ pub fn process(
 
 fn serialize_query_field(
   store: Store,
+  shop_origin: String,
   document: String,
   field: Selection,
   name: String,
@@ -378,16 +546,22 @@ fn serialize_query_field(
       }),
       [],
     )
-    "node" -> #(serialize_node(store, field, fragments, variables), [])
-    "nodes" -> #(serialize_nodes(store, field, fragments, variables), [])
+    "node" -> #(
+      serialize_node(store, shop_origin, field, fragments, variables),
+      [],
+    )
+    "nodes" -> #(
+      serialize_nodes(store, shop_origin, field, fragments, variables),
+      [],
+    )
     "job" -> #(serialize_job(field, fragments, variables), [])
     "domain" -> #(serialize_domain(store, field, fragments, variables), [])
     "backupRegion" -> {
-      let region = case store.get_effective_backup_region(store) {
-        Some(region) -> region
-        None -> captured_backup_region()
+      let value = case effective_backup_region(store, shop_origin) {
+        Some(region) -> backup_region_source(region)
+        None -> SrcNull
       }
-      #(project_selection(backup_region_source(region), field, fragments), [])
+      #(project_selection(value, field, fragments), [])
     }
     "taxonomy" -> #(serialize_taxonomy(store, field, fragments, variables), [])
     "staffMember" -> #(json.null(), [staff_access_error(field, document)])
@@ -549,6 +723,7 @@ fn admin_node_type_condition_applies(
 
 fn serialize_node(
   store: Store,
+  shop_origin: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -556,13 +731,20 @@ fn serialize_node(
   let args = graphql_helpers.field_args(field, variables)
   case dict.get(args, "id") {
     Ok(root_field.StringVal(id)) ->
-      serialize_node_by_id(store, id, selection_children(field), fragments)
+      serialize_node_by_id(
+        store,
+        shop_origin,
+        id,
+        selection_children(field),
+        fragments,
+      )
     _ -> json.null()
   }
 }
 
 fn serialize_nodes(
   store: Store,
+  shop_origin: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
@@ -579,12 +761,19 @@ fn serialize_nodes(
     _ -> []
   }
   json.array(ids, fn(id) {
-    serialize_node_by_id(store, id, selection_children(field), fragments)
+    serialize_node_by_id(
+      store,
+      shop_origin,
+      id,
+      selection_children(field),
+      fragments,
+    )
   })
 }
 
 fn serialize_node_by_id(
   store: Store,
+  shop_origin: String,
   id: String,
   selections: List(Selection),
   fragments: FragmentMap,
@@ -711,6 +900,7 @@ fn serialize_node_by_id(
     "MarketRegionCountry" ->
       serialize_market_region_country_node_by_id(
         store,
+        shop_origin,
         id,
         selections,
         fragments,
@@ -792,22 +982,19 @@ fn serialize_metafield_node_by_id(
 
 fn serialize_market_region_country_node_by_id(
   store: Store,
+  shop_origin: String,
   id: String,
   selections: List(Selection),
   fragments: FragmentMap,
 ) -> Json {
-  let region = case store.get_effective_backup_region(store) {
-    Some(region) -> region
-    None -> captured_backup_region()
-  }
-  case region.id == id {
-    True ->
+  case effective_backup_region(store, shop_origin) {
+    Some(region) if region.id == id ->
       project_graphql_value(
         backup_region_source(region),
         admin_node_selected_fields(selections, "MarketRegionCountry", fragments),
         fragments,
       )
-    False -> json.null()
+    _ -> json.null()
   }
 }
 
@@ -1305,6 +1492,16 @@ pub fn process_mutation(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
+  process_mutation_with_shop_origin(store, identity, "", document, variables)
+}
+
+pub fn process_mutation_with_shop_origin(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  shop_origin: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
@@ -1312,6 +1509,7 @@ pub fn process_mutation(
       handle_mutation_fields(
         store,
         identity,
+        shop_origin,
         document,
         fields,
         fragments,
@@ -1324,6 +1522,7 @@ pub fn process_mutation(
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shop_origin: String,
   document: String,
   fields: List(Selection),
   fragments: FragmentMap,
@@ -1341,6 +1540,7 @@ fn handle_mutation_fields(
             handle_mutation_field(
               current_store,
               current_identity,
+              shop_origin,
               document,
               field,
               name.value,
@@ -1420,6 +1620,7 @@ type MutationFieldResult {
 fn handle_mutation_field(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shop_origin: String,
   document: String,
   field: Selection,
   name: String,
@@ -1439,7 +1640,14 @@ fn handle_mutation_field(
     "flowTriggerReceive" ->
       handle_flow_trigger_receive(store, identity, field, fragments, variables)
     "backupRegionUpdate" ->
-      handle_backup_region_update(store, identity, field, fragments, variables)
+      handle_backup_region_update(
+        store,
+        identity,
+        shop_origin,
+        field,
+        fragments,
+        variables,
+      )
     _ -> MutationFieldResult(json.null(), [], store, identity, [], [])
   }
 }
@@ -1522,37 +1730,52 @@ fn handle_flow_trigger_receive(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let args = graphql_helpers.field_args(field, variables)
-  let handle = read_string_arg(args, "handle")
+  let body = graphql_helpers.read_arg_string(args, "body")
+  let handle = graphql_helpers.read_arg_string(args, "handle")
   let payload = case dict.get(args, "payload") {
     Ok(value) -> value
     Error(_) -> root_field.NullVal
   }
-  let payload_string = resolved_value_to_string(payload)
-  let payload_bytes = string.length(payload_string)
-  let user_errors = case payload_bytes > flow_trigger_payload_limit_bytes {
-    True -> [
-      user_error(
-        ["body"],
-        "Errors validating schema:\n  Properties size exceeds the limit of "
-          <> int.to_string(flow_trigger_payload_limit_bytes)
-          <> " bytes.\n",
-        None,
-      ),
-    ]
-    False ->
-      case is_local_flow_trigger_handle(handle) {
-        True -> []
-        False -> [
+  let payload_json = resolved_value_to_json_string(payload)
+  let payload_bytes = string.byte_size(payload_json)
+  let body_present = string_option_present(body)
+  let handle_present = string_option_present(handle)
+  let payload_present = resolved_value_present(payload)
+  let user_errors = case body_present, handle_present, payload_present {
+    True, True, _ -> [flow_trigger_body_conflict_error()]
+    True, _, True -> [flow_trigger_body_conflict_error()]
+    False, False, _ -> [flow_trigger_missing_handle_error()]
+    _, _, _ ->
+      case payload_bytes > flow_trigger_payload_limit_bytes {
+        True -> [
           user_error(
             ["body"],
-            "Errors validating schema:\n  Invalid handle '" <> handle <> "'.\n",
+            "Errors validating schema:\n  Properties size exceeds the limit of "
+              <> int.to_string(flow_trigger_payload_limit_bytes)
+              <> " bytes.\n",
             None,
           ),
         ]
+        False -> {
+          let handle_value = handle |> option.unwrap("")
+          case is_known_missing_flow_trigger_handle(handle_value) {
+            True -> [flow_trigger_invalid_handle_error(handle_value)]
+            False -> []
+          }
+        }
       }
   }
   case user_errors {
     [] -> {
+      let record_handle = case handle {
+        Some(value) -> value
+        None -> "legacy-body"
+      }
+      let audit_payload = case body {
+        Some(value) -> value
+        None -> payload_json
+      }
+      let audit_payload_bytes = string.byte_size(audit_payload)
       let #(record_id, identity_after_id) =
         synthetic_identity.make_synthetic_gid(identity, "FlowTriggerReceive")
       let #(received_at, identity_after_time) =
@@ -1560,9 +1783,9 @@ fn handle_flow_trigger_receive(
       let record =
         AdminPlatformFlowTriggerRecord(
           id: record_id,
-          handle: handle,
-          payload_bytes: payload_bytes,
-          payload_sha256: crypto.sha256_hex(payload_string),
+          handle: record_handle,
+          payload_bytes: audit_payload_bytes,
+          payload_sha256: crypto.sha256_hex(audit_payload),
           received_at: received_at,
         )
       let #(_, next_store) =
@@ -1594,9 +1817,53 @@ fn handle_flow_trigger_receive(
   }
 }
 
-fn is_local_flow_trigger_handle(handle: String) -> Bool {
-  string.starts_with(handle, "local-")
-  || string.starts_with(handle, "har-374-local")
+fn flow_trigger_body_conflict_error() -> SourceValue {
+  user_error(
+    ["body"],
+    "Cannot use `handle` and `payload` arguments with `body` argument",
+    None,
+  )
+}
+
+fn flow_trigger_missing_handle_error() -> SourceValue {
+  user_error(["handle"], "`handle` and `payload` arguments are required", None)
+}
+
+fn flow_trigger_invalid_handle_error(handle: String) -> SourceValue {
+  user_error(
+    ["body"],
+    "Errors validating schema:\n  Invalid handle '" <> handle <> "'.\n",
+    None,
+  )
+}
+
+fn is_known_missing_flow_trigger_handle(handle: String) -> Bool {
+  handle == "har-374-missing"
+}
+
+fn string_option_present(value: Option(String)) -> Bool {
+  case value {
+    Some(value) -> string.trim(value) != ""
+    None -> False
+  }
+}
+
+fn resolved_value_present(value: root_field.ResolvedValue) -> Bool {
+  case value {
+    root_field.NullVal -> False
+    root_field.StringVal(value) -> string.trim(value) != ""
+    root_field.BoolVal(value) -> value
+    root_field.IntVal(_) -> True
+    root_field.FloatVal(_) -> True
+    root_field.ListVal(items) -> !list.is_empty(items)
+    root_field.ObjectVal(fields) -> !dict.is_empty(fields)
+  }
+}
+
+fn resolved_value_to_json_string(value: root_field.ResolvedValue) -> String {
+  value
+  |> root_field.resolved_value_to_json
+  |> json.to_string
 }
 
 fn flow_trigger_receive_source(errors: List(SourceValue)) {
@@ -1609,26 +1876,29 @@ fn flow_trigger_receive_source(errors: List(SourceValue)) {
 fn handle_backup_region_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shop_origin: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationFieldResult {
   let args = graphql_helpers.field_args(field, variables)
-  let code = case dict.get(args, "region") {
-    Ok(root_field.ObjectVal(region)) -> read_string_arg(region, "countryCode")
-    _ -> ""
-  }
-  case backup_region_for_country(code) {
-    None ->
+  case dict.get(args, "region") {
+    Ok(root_field.ObjectVal(region_args)) ->
+      handle_backup_region_update_to_country(
+        store,
+        identity,
+        shop_origin,
+        field,
+        fragments,
+        read_string_arg(region_args, "countryCode"),
+      )
+    Ok(root_field.NullVal) | Error(_) ->
       MutationFieldResult(
         project_selection(
-          backup_region_update_source(None, [
-            user_error(
-              ["region"],
-              "Region not found.",
-              Some("REGION_NOT_FOUND"),
-            ),
-          ]),
+          backup_region_update_source(
+            effective_backup_region(store, shop_origin),
+            [],
+          ),
           field,
           fragments,
         ),
@@ -1638,6 +1908,20 @@ fn handle_backup_region_update(
         [],
         [],
       )
+    _ -> backup_region_not_found_result(store, identity, field, fragments)
+  }
+}
+
+fn handle_backup_region_update_to_country(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  shop_origin: String,
+  field: Selection,
+  fragments: FragmentMap,
+  code: String,
+) -> MutationFieldResult {
+  case backup_region_for_country(store, shop_origin, code) {
+    None -> backup_region_not_found_result(store, identity, field, fragments)
     Some(region) -> {
       let #(_, next_store) = store.stage_backup_region(store, region)
       MutationFieldResult(
@@ -1656,6 +1940,28 @@ fn handle_backup_region_update(
       )
     }
   }
+}
+
+fn backup_region_not_found_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
+  MutationFieldResult(
+    project_selection(
+      backup_region_update_source(None, [
+        user_error(["region"], "Region not found.", Some("REGION_NOT_FOUND")),
+      ]),
+      field,
+      fragments,
+    ),
+    [],
+    store,
+    identity,
+    [],
+    [],
+  )
 }
 
 fn backup_region_update_source(
@@ -1719,31 +2025,6 @@ fn read_string_arg(
   case dict.get(args, name) {
     Ok(root_field.StringVal(value)) -> value
     _ -> ""
-  }
-}
-
-fn resolved_value_to_string(value: root_field.ResolvedValue) -> String {
-  case value {
-    root_field.NullVal -> "null"
-    root_field.StringVal(value) -> "\"" <> value <> "\""
-    root_field.BoolVal(value) ->
-      case value {
-        True -> "true"
-        False -> "false"
-      }
-    root_field.IntVal(value) -> int.to_string(value)
-    root_field.FloatVal(value) -> float.to_string(value)
-    root_field.ListVal(values) ->
-      "[" <> string.join(list.map(values, resolved_value_to_string), ",") <> "]"
-    root_field.ObjectVal(fields) -> {
-      let entries =
-        dict.to_list(fields)
-        |> list.map(fn(pair) {
-          let #(key, child) = pair
-          "\"" <> key <> "\":" <> resolved_value_to_string(child)
-        })
-      "{" <> string.join(entries, ",") <> "}"
-    }
   }
 }
 

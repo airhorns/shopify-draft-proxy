@@ -1,0 +1,14 @@
+mutation OnlineStorePageHandleDedupeAndTakenness($page: PageCreateInput!) {
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

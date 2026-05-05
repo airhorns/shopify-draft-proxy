@@ -26,7 +26,11 @@
               "createdAt": "2024-01-01T00:00:01.000Z",
               "fileStatus": "UPLOADED",
               "filename": "reference-source.jpg",
-              "image": null
+              "image": {
+                "url": "https://cdn.example.com/reference-source.jpg",
+                "width": null,
+                "height": null
+              }
             }
           ],
           "userErrors": []

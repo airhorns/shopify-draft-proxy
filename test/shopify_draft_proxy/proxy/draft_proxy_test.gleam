@@ -689,6 +689,22 @@ pub fn graphql_saved_search_delete_removes_record_test() {
     == "{\"data\":{\"orderSavedSearches\":{\"nodes\":[]}}}"
 }
 
+pub fn graphql_saved_search_delete_success_includes_shop_test() {
+  let proxy = draft_proxy.new()
+  let #(_, proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(saved_search_create_body),
+    )
+  let delete_body =
+    "{\"query\":\"mutation { savedSearchDelete(input: { id: \\\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\\\" }) { deletedSavedSearchId shop { id name myshopifyDomain } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(delete_body))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchDelete\":{\"deletedSavedSearchId\":\"gid://shopify/SavedSearch/1?shopify-draft-proxy=synthetic\",\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\",\"name\":\"Shopify Draft Proxy\",\"myshopifyDomain\":\"shopify-draft-proxy.myshopify.com\"},\"userErrors\":[]}}}"
+}
+
 pub fn graphql_saved_search_delete_unknown_id_test() {
   let proxy = draft_proxy.new()
   let delete_body =
@@ -698,6 +714,17 @@ pub fn graphql_saved_search_delete_unknown_id_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"savedSearchDelete\":{\"deletedSavedSearchId\":null,\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Saved Search does not exist\"}]}}}"
+}
+
+pub fn graphql_saved_search_delete_unknown_id_includes_shop_test() {
+  let proxy = draft_proxy.new()
+  let delete_body =
+    "{\"query\":\"mutation { savedSearchDelete(input: { id: \\\"gid://shopify/SavedSearch/777\\\" }) { deletedSavedSearchId shop { id name myshopifyDomain } userErrors { field message } } }\"}"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(delete_body))
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchDelete\":{\"deletedSavedSearchId\":null,\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\",\"name\":\"Shopify Draft Proxy\",\"myshopifyDomain\":\"shopify-draft-proxy.myshopify.com\"},\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Saved Search does not exist\"}]}}}"
 }
 
 pub fn graphql_saved_search_delete_default_record_test() {

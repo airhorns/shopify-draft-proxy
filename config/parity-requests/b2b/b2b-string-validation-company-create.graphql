@@ -1,0 +1,14 @@
+mutation B2BStringValidationCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      note
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

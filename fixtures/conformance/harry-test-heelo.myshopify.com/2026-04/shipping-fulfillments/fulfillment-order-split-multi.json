@@ -1,0 +1,1057 @@
+{
+  "metadata": {
+    "issue": "HAR-559",
+    "capturedAt": "2026-05-05T02:10:31.602Z",
+    "startedAt": "2026-05-05T02:10:28.073Z",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "scopedRoots": ["fulfillmentOrderSplit"],
+    "createdOrders": [
+      {
+        "id": "gid://shopify/Order/8728584192306",
+        "name": "#1079",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226",
+        "fulfillmentOrderLineItemIds": [
+          "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+          "gid://shopify/FulfillmentOrderLineItem/19450952286514"
+        ]
+      },
+      {
+        "id": "gid://shopify/Order/8728584225074",
+        "name": "#1080",
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906164530",
+        "fulfillmentOrderLineItemIds": ["gid://shopify/FulfillmentOrderLineItem/19450952384818"]
+      }
+    ],
+    "cleanupMergeInputs": [
+      {
+        "mergeIntents": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226"
+          },
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906197298"
+          }
+        ]
+      },
+      {
+        "mergeIntents": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906164530"
+          },
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906230066"
+          }
+        ]
+      }
+    ]
+  },
+  "captures": {
+    "orderACreate": {
+      "query": "#graphql\n  fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation CreateFulfillmentOrderSplitMultiOrder($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderSplitMultiFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-559-order-a-20260505021028@example.com",
+          "note": "HAR-559 fulfillment-order split multi order-a 20260505021028",
+          "tags": ["har-559", "fulfillment-order-split-multi", "order-a"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "HAR",
+            "lastName": "Probe",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "HAR-559 split A item 1 20260505021028",
+              "quantity": 2,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            },
+            {
+              "variantId": "gid://shopify/ProductVariant/51098706739506",
+              "title": "HAR-559 split A item 2 20260505021028",
+              "quantity": 3,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8728584192306",
+                "name": "#1079",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652906066226",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-05T02:10:28Z",
+                      "supportedActions": [
+                        {
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
+                        }
+                      ],
+                      "assignedLocation": {
+                        "name": "Shop location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318430514",
+                          "name": "Shop location"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                            "totalQuantity": 2,
+                            "remainingQuantity": 2,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301806342450",
+                              "title": "HAR-559 split A item 1 20260505021028",
+                              "quantity": 2,
+                              "fulfillableQuantity": 2
+                            }
+                          },
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                            "totalQuantity": 3,
+                            "remainingQuantity": 3,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301806375218",
+                              "title": "HAR-559 split A item 2 20260505021028",
+                              "quantity": 3,
+                              "fulfillableQuantity": 3
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 48,
+              "actualQueryCost": 18,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1982,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderBCreate": {
+      "query": "#graphql\n  fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation CreateFulfillmentOrderSplitMultiOrder($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderSplitMultiFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-559-order-b-20260505021029@example.com",
+          "note": "HAR-559 fulfillment-order split multi order-b 20260505021029",
+          "tags": ["har-559", "fulfillment-order-split-multi", "order-b"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "HAR",
+            "lastName": "Probe",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "HAR-559 split B item 20260505021029",
+              "quantity": 3,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8728584225074",
+                "name": "#1080",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652906164530",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-05T02:10:29Z",
+                      "supportedActions": [
+                        {
+                          "action": "CREATE_FULFILLMENT"
+                        },
+                        {
+                          "action": "REPORT_PROGRESS"
+                        },
+                        {
+                          "action": "MOVE"
+                        },
+                        {
+                          "action": "HOLD"
+                        },
+                        {
+                          "action": "SPLIT"
+                        }
+                      ],
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                            "totalQuantity": 3,
+                            "remainingQuantity": 3,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301806473522",
+                              "title": "HAR-559 split B item 20260505021029",
+                              "quantity": 3,
+                              "fulfillableQuantity": 3
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 48,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "emptyLineItems": {
+      "query": "#graphql\n  fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderSplitMulti($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentOrderSplits": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226",
+            "fulfillmentOrderLineItems": []
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderSplit": {
+              "fulfillmentOrderSplits": null,
+              "userErrors": [
+                {
+                  "field": ["fulfillmentOrderSplits", "0", "fulfillmentOrderLineItems"],
+                  "message": "There must be at least one item selected in this fulfillment to split it.",
+                  "code": "NO_LINE_ITEMS_PROVIDED_TO_SPLIT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 46,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "zeroQuantity": {
+      "query": "#graphql\n  fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderSplitMulti($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentOrderSplits": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                "quantity": 0
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderSplit": {
+              "fulfillmentOrderSplits": null,
+              "userErrors": [
+                {
+                  "field": ["fulfillmentOrderSplits", "0", "fulfillmentOrderLineItems", "0", "quantity"],
+                  "message": "You must select at least one item to split into a new fulfillment order.",
+                  "code": "GREATER_THAN"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 46,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownFulfillmentOrder": {
+      "query": "#graphql\n  fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderSplitMulti($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentOrderSplits": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/999999999999999",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                "quantity": 1
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderSplit": {
+              "fulfillmentOrderSplits": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Fulfillment order does not exist.",
+                  "code": "FULFILLMENT_ORDER_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 46,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "multiSplit": {
+      "query": "#graphql\n  fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderSplitMulti($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {\n    fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {\n      fulfillmentOrderSplits {\n        fulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n        remainingFulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n        replacementFulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentOrderSplits": [
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                "quantity": 1
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                "quantity": 1
+              }
+            ]
+          },
+          {
+            "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906164530",
+            "fulfillmentOrderLineItems": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                "quantity": 2
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderSplit": {
+              "fulfillmentOrderSplits": [
+                {
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652906066226",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Shop location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301806342450",
+                            "title": "HAR-559 split A item 1 20260505021028",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        },
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301806375218",
+                            "title": "HAR-559 split A item 2 20260505021028",
+                            "quantity": 3,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652906197298",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Shop location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952417586",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301806342450",
+                            "title": "HAR-559 split A item 1 20260505021028",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        },
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952450354",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301806375218",
+                            "title": "HAR-559 split A item 2 20260505021028",
+                            "quantity": 3,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "replacementFulfillmentOrder": null
+                },
+                {
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652906164530",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301806473522",
+                            "title": "HAR-559 split B item 20260505021029",
+                            "quantity": 3,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "remainingFulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652906230066",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      },
+                      {
+                        "action": "MERGE"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952483122",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301806473522",
+                            "title": "HAR-559 split B item 20260505021029",
+                            "quantity": 3,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "replacementFulfillmentOrder": null
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 46,
+              "actualQueryCost": 33,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1967,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "merge": {
+      "query": "#graphql\n  fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    supportedActions {\n      action\n    }\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation CleanupFulfillmentOrderSplitMultiMerge($fulfillmentOrderMergeInputs: [FulfillmentOrderMergeInput!]!) {\n    fulfillmentOrderMerge(fulfillmentOrderMergeInputs: $fulfillmentOrderMergeInputs) {\n      fulfillmentOrderMerges {\n        fulfillmentOrder {\n          ...FulfillmentOrderSplitMultiFields\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentOrderMergeInputs": [
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906066226"
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906197298"
+              }
+            ]
+          },
+          {
+            "mergeIntents": [
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906164530"
+              },
+              {
+                "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652906230066"
+              }
+            ]
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderMerge": {
+              "fulfillmentOrderMerges": [
+                {
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652906066226",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "Shop location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318430514",
+                        "name": "Shop location"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                          "totalQuantity": 2,
+                          "remainingQuantity": 2,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301806342450",
+                            "title": "HAR-559 split A item 1 20260505021028",
+                            "quantity": 2,
+                            "fulfillableQuantity": 2
+                          }
+                        },
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                          "totalQuantity": 3,
+                          "remainingQuantity": 3,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301806375218",
+                            "title": "HAR-559 split A item 2 20260505021028",
+                            "quantity": 3,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "fulfillmentOrder": {
+                    "id": "gid://shopify/FulfillmentOrder/9652906164530",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "updatedAt": "2026-05-05T02:10:30Z",
+                    "supportedActions": [
+                      {
+                        "action": "CREATE_FULFILLMENT"
+                      },
+                      {
+                        "action": "REPORT_PROGRESS"
+                      },
+                      {
+                        "action": "MOVE"
+                      },
+                      {
+                        "action": "HOLD"
+                      },
+                      {
+                        "action": "SPLIT"
+                      }
+                    ],
+                    "assignedLocation": {
+                      "name": "My Custom Location",
+                      "location": {
+                        "id": "gid://shopify/Location/106318463282",
+                        "name": "My Custom Location"
+                      }
+                    },
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                          "totalQuantity": 3,
+                          "remainingQuantity": 3,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19301806473522",
+                            "title": "HAR-559 split B item 20260505021029",
+                            "quantity": 3,
+                            "fulfillableQuantity": 3
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 22,
+              "actualQueryCost": 21,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1979,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "orderCancels": [
+      {
+        "query": "mutation CleanupFulfillmentOrderSplitMultiOrder(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "orderId": "gid://shopify/Order/8728584192306",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": false
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCancel": {
+                "job": {
+                  "id": "gid://shopify/Job/1947eeb5-97bc-4746-95f1-1dc74f4f7dc1"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "query": "mutation CleanupFulfillmentOrderSplitMultiOrder(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+        "variables": {
+          "orderId": "gid://shopify/Order/8728584225074",
+          "reason": "OTHER",
+          "notifyCustomer": false,
+          "restock": false
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "orderCancel": {
+                "job": {
+                  "id": "gid://shopify/Job/1947eeb5-97bc-4746-95f1-1dc74f4f7dc1"
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 10,
+                "actualQueryCost": 10,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1990,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652906066226"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id status requestStatus fulfillAt fulfillBy updatedAt\n      supportedActions { action }\n      assignedLocation { name location { id name } }\n      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n      merchantRequests(first: 10) { nodes { kind message requestOptions } }\n      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n      order { id name displayFulfillmentStatus }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652906066226",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "updatedAt": "2026-05-05T02:10:28Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "Shop location",
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19450952253746",
+                    "totalQuantity": 2,
+                    "remainingQuantity": 2,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301806342450",
+                      "title": "HAR-559 split A item 1 20260505021028",
+                      "quantity": 2,
+                      "fulfillableQuantity": 2
+                    }
+                  },
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19450952286514",
+                    "totalQuantity": 3,
+                    "remainingQuantity": 3,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301806375218",
+                      "title": "HAR-559 split A item 2 20260505021028",
+                      "quantity": 3,
+                      "fulfillableQuantity": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652906164530"
+      },
+      "query": "query ShippingFulfillmentOrderHydrate($id: ID!) {\n    fulfillmentOrder(id: $id) {\n      id status requestStatus fulfillAt fulfillBy updatedAt\n      supportedActions { action }\n      assignedLocation { name location { id name } }\n      fulfillmentHolds { id handle reason reasonNotes displayReason heldByApp { id title } heldByRequestingApp }\n      merchantRequests(first: 10) { nodes { kind message requestOptions } }\n      lineItems(first: 20) { nodes { id totalQuantity remainingQuantity lineItem { id title quantity fulfillableQuantity } } }\n      order { id name displayFulfillmentStatus }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652906164530",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "updatedAt": "2026-05-05T02:10:29Z",
+              "supportedActions": [
+                {
+                  "action": "CREATE_FULFILLMENT"
+                },
+                {
+                  "action": "REPORT_PROGRESS"
+                },
+                {
+                  "action": "MOVE"
+                },
+                {
+                  "action": "HOLD"
+                },
+                {
+                  "action": "SPLIT"
+                }
+              ],
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19450952384818",
+                    "totalQuantity": 3,
+                    "remainingQuantity": 3,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301806473522",
+                      "title": "HAR-559 split B item 20260505021029",
+                      "quantity": 3,
+                      "fulfillableQuantity": 3
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -755,6 +755,7 @@ fn project_customer_segment_members_query_record(
           case name.value {
             "__typename" -> #(key, json.string("CustomerSegmentMembersQuery"))
             "id" -> #(key, json.string(record.id))
+            "status" -> #(key, json.string(record.status))
             "currentCount" -> #(key, json.int(record.current_count))
             "done" -> #(key, json.bool(record.done))
             _ -> #(key, json.null())
@@ -1221,9 +1222,9 @@ fn serialize_membership_items(
 // ===========================================================================
 
 /// Outcome of a segments mutation.
-/// User-error payload. Mirrors `SegmentUserError` (field+message only).
+/// User-error payload. Mirrors selected Shopify user-error fields.
 pub type UserError {
-  UserError(field: List(String), message: String)
+  UserError(field: List(String), message: String, code: Option(String))
 }
 
 type MutationFieldResult {
@@ -1380,10 +1381,14 @@ fn handle_segment_create(
   let raw_name = graphql_helpers.read_arg_string_nonempty(args, "name")
   let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
   let name_errors = case raw_name {
-    None -> [UserError(field: ["name"], message: "Name can't be blank")]
+    None -> [
+      UserError(field: ["name"], message: "Name can't be blank", code: None),
+    ]
     Some(s) ->
       case string.trim(s) {
-        "" -> [UserError(field: ["name"], message: "Name can't be blank")]
+        "" -> [
+          UserError(field: ["name"], message: "Name can't be blank", code: None),
+        ]
         _ -> []
       }
   }
@@ -1466,7 +1471,9 @@ fn handle_segment_update(
   }
   let id_errors = case id, existing {
     Some(_), Some(_) -> []
-    _, _ -> [UserError(field: ["id"], message: "Segment does not exist")]
+    _, _ -> [
+      UserError(field: ["id"], message: "Segment does not exist", code: None),
+    ]
   }
   let raw_name = graphql_helpers.read_arg_string_nonempty(args, "name")
   let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
@@ -1476,10 +1483,18 @@ fn handle_segment_update(
     False -> []
     True ->
       case raw_name {
-        None -> [UserError(field: ["name"], message: "Name can't be blank")]
+        None -> [
+          UserError(field: ["name"], message: "Name can't be blank", code: None),
+        ]
         Some(s) ->
           case string.trim(s) {
-            "" -> [UserError(field: ["name"], message: "Name can't be blank")]
+            "" -> [
+              UserError(
+                field: ["name"],
+                message: "Name can't be blank",
+                code: None,
+              ),
+            ]
             _ -> []
           }
       }
@@ -1574,7 +1589,9 @@ fn handle_segment_delete(
   }
   let errors = case id, existing {
     Some(_), Some(_) -> []
-    _, _ -> [UserError(field: ["id"], message: "Segment does not exist")]
+    _, _ -> [
+      UserError(field: ["id"], message: "Segment does not exist", code: None),
+    ]
   }
   case errors, id {
     [], Some(id_value) -> {
@@ -1629,6 +1646,7 @@ type CustomerSegmentMembersQueryPayload {
 type CustomerSegmentMembersQueryResponse {
   CustomerSegmentMembersQueryResponse(
     id: String,
+    status: String,
     current_count: Int,
     done: Bool,
   )
@@ -1661,11 +1679,14 @@ fn handle_customer_segment_members_query_create(
         None -> None
       }
   }
-  let user_errors = validate_customer_segment_members_query(resolved_query)
+  let user_errors =
+    validate_customer_segment_members_query_create(
+      raw_query,
+      segment_id,
+      resolved_query,
+    )
   case user_errors {
     [] -> {
-      let members =
-        list_customer_segment_members_for_query(store, resolved_query)
       let #(gid, identity_after) =
         synthetic_identity.make_synthetic_gid(
           identity,
@@ -1676,14 +1697,16 @@ fn handle_customer_segment_members_query_create(
           id: gid,
           query: resolved_query,
           segment_id: segment_id,
-          current_count: list.length(members),
-          done: True,
+          status: "INITIALIZED",
+          current_count: 0,
+          done: False,
         )
       let store_after =
         store.stage_customer_segment_members_query(store, staged_record)
       let response =
         CustomerSegmentMembersQueryResponse(
           id: gid,
+          status: "INITIALIZED",
           current_count: 0,
           done: False,
         )
@@ -1725,17 +1748,45 @@ fn handle_customer_segment_members_query_create(
   }
 }
 
+fn validate_customer_segment_members_query_create(
+  raw_query: Option(String),
+  segment_id: Option(String),
+  resolved_query: Option(String),
+) -> List(UserError) {
+  case raw_query, segment_id {
+    Some(_), Some(_) -> [
+      invalid_customer_segment_members_query_input_error(
+        "Providing both segment_id and query is not supported.",
+      ),
+    ]
+    None, None -> [
+      invalid_customer_segment_members_query_input_error(
+        "You must provide one of segment_id or query.",
+      ),
+    ]
+    _, _ -> validate_customer_segment_members_query(resolved_query)
+  }
+}
+
+fn invalid_customer_segment_members_query_input_error(
+  message: String,
+) -> UserError {
+  UserError(field: ["input"], message: message, code: Some("INVALID"))
+}
+
 fn validate_customer_segment_members_query(
   query: Option(String),
 ) -> List(UserError) {
   case query {
-    None -> [UserError(field: [], message: "Query can't be blank")]
+    None -> [UserError(field: [], message: "Query can't be blank", code: None)]
     Some(q) ->
       case string.trim(q) {
-        "" -> [UserError(field: [], message: "Query can't be blank")]
+        "" -> [
+          UserError(field: [], message: "Query can't be blank", code: None),
+        ]
         trimmed ->
           list.map(validate_member_query_string(trimmed), fn(message) {
-            UserError(field: [], message: message)
+            UserError(field: [], message: message, code: None)
           })
       }
   }
@@ -1883,6 +1934,7 @@ fn project_member_query_record(
           case name.value {
             "__typename" -> #(key, json.string("CustomerSegmentMembersQuery"))
             "id" -> #(key, json.string(record.id))
+            "status" -> #(key, json.string(record.status))
             "currentCount" -> #(key, json.int(record.current_count))
             "done" -> #(key, json.bool(record.done))
             _ -> #(key, json.null())
@@ -1956,16 +2008,24 @@ pub fn validate_segment_query(
   field_path: List(String),
 ) -> List(UserError) {
   case raw {
-    None -> [UserError(field: field_path, message: "Query can't be blank")]
+    None -> [
+      UserError(field: field_path, message: "Query can't be blank", code: None),
+    ]
     Some(q) ->
       case string.trim(q) {
-        "" -> [UserError(field: field_path, message: "Query can't be blank")]
+        "" -> [
+          UserError(
+            field: field_path,
+            message: "Query can't be blank",
+            code: None,
+          ),
+        ]
         trimmed ->
           case validate_segment_query_string(trimmed) {
             [] -> []
             messages ->
               list.map(messages, fn(m) {
-                UserError(field: field_path, message: m)
+                UserError(field: field_path, message: m, code: None)
               })
           }
       }
@@ -2326,5 +2386,9 @@ fn user_error_to_source(error: UserError) -> SourceValue {
       parts -> SrcList(list.map(parts, fn(part) { SrcString(part) }))
     }),
     #("message", SrcString(error.message)),
+    #("code", case error.code {
+      Some(value) -> SrcString(value)
+      None -> SrcNull
+    }),
   ])
 }

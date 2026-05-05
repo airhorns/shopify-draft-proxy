@@ -187,3 +187,20 @@ lifecycle capture. The new scenario records `companyUpdate`,
 reads. The capture showed that contact creation materializes customer
 references, revoking the main contact returns `Company.mainContact: null`, and
 `companiesCount` does not accept a `query` argument in 2026-04.
+
+HAR-625 adds local free-text guardrails for supported B2B mutations before any
+staged state is written. Company and company-location `name` values are
+HTML-stripped before blank/length checks and local staging; `name` values longer
+than 255 characters fail with `TOO_LONG`. Company-contact `title` values longer
+than 255 characters fail with `TOO_LONG`, and title/notes-style fields with
+markup fail with `CONTAINS_HTML_TAGS`. Company and company-location `note`
+inputs use Shopify's `notes` user-error field label and fail above 5000
+characters. The 2026-04 `b2b-string-validation` parity capture on
+`harry-test-heelo.myshopify.com` now gives executable strict evidence for the
+live-reproduced length branches: `companyCreate` long name, `companyCreate`
+long note, and `companyLocationCreate` long name. The same capture intentionally
+keeps probe-only responses for current live mismatches: Shopify accepted HTML in
+company notes/contact titles, accepted a 300-character contact title, and
+reported only `TOO_LONG` for HTML-plus-too-long notes. Those internal-source
+HTML/title branches remain covered by runtime tests rather than a misleading
+parity spec.

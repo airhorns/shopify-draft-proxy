@@ -8,11 +8,15 @@
 import gleam/dict
 import gleam/json
 import gleam/option.{None, Some}
+import gleam/string
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/segments
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
-import shopify_draft_proxy/state/types.{type SegmentRecord, SegmentRecord}
+import shopify_draft_proxy/state/types.{
+  type CustomerRecord, type SegmentRecord, CustomerDefaultEmailAddressRecord,
+  CustomerRecord, Money, SegmentRecord,
+}
 
 // ----------- Helpers -----------
 
@@ -51,6 +55,49 @@ fn segment_record(id: String, name: String, query: String) -> SegmentRecord {
   )
 }
 
+fn customer(
+  id: String,
+  first_name: String,
+  number_of_orders: String,
+) -> CustomerRecord {
+  CustomerRecord(
+    id: id,
+    first_name: Some(first_name),
+    last_name: None,
+    display_name: Some(first_name),
+    email: Some(string.lowercase(first_name) <> "@example.com"),
+    legacy_resource_id: None,
+    locale: Some("en"),
+    note: None,
+    can_delete: Some(True),
+    verified_email: Some(True),
+    data_sale_opt_out: False,
+    tax_exempt: Some(False),
+    tax_exemptions: [],
+    state: Some("DISABLED"),
+    tags: [],
+    number_of_orders: Some(number_of_orders),
+    amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
+    default_email_address: Some(CustomerDefaultEmailAddressRecord(
+      email_address: Some(string.lowercase(first_name) <> "@example.com"),
+      marketing_state: None,
+      marketing_opt_in_level: None,
+      marketing_updated_at: None,
+    )),
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    created_at: None,
+    updated_at: None,
+  )
+}
+
+fn seed_customer(store_in: store.Store, record: CustomerRecord) -> store.Store {
+  let #(_, s) = store.stage_create_customer(store_in, record)
+  s
+}
+
 // ----------- envelope -----------
 
 pub fn process_mutation_returns_data_envelope_test() {
@@ -62,6 +109,76 @@ pub fn process_mutation_returns_data_envelope_test() {
   // Always wraps in `{"data": {...}}`.
   assert body
     == "{\"data\":{\"segmentCreate\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"name\":\"VIPs\"},\"userErrors\":[]}}}"
+}
+
+// ----------- customerSegmentMembersQueryCreate -----------
+
+pub fn member_query_create_rejects_both_query_and_segment_id_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { customerSegmentMembersQueryCreate(input: { segmentId: \"gid://shopify/Segment/1\", query: \"number_of_orders > 0\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"Providing both segment_id and query is not supported.\"}]}}}"
+}
+
+pub fn member_query_create_rejects_neither_query_nor_segment_id_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { customerSegmentMembersQueryCreate(input: {}) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"You must provide one of segment_id or query.\"}]}}}"
+}
+
+pub fn member_query_create_stages_initialized_query_job_test() {
+  let s =
+    store.new()
+    |> seed_customer(customer("gid://shopify/Customer/1", "Buyer", "3"))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { customerSegmentMembersQueryCreate(input: { query: \"number_of_orders > 0\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":{\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false},\"userErrors\":[]}}}"
+  let assert Some(record) =
+    store.get_effective_customer_segment_members_query_by_id(
+      outcome.store,
+      "gid://shopify/CustomerSegmentMembersQuery/1",
+    )
+  assert record.status == "INITIALIZED"
+  assert record.current_count == 0
+  assert record.done == False
+
+  let assert Ok(lookup) =
+    segments.handle_segments_query(
+      outcome.store,
+      "{ customerSegmentMembersQuery(id: \"gid://shopify/CustomerSegmentMembersQuery/1\") { id status currentCount done } }",
+      dict.new(),
+    )
+  assert json.to_string(lookup)
+    == "{\"customerSegmentMembersQuery\":{\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false}}"
+}
+
+pub fn member_query_create_from_segment_id_stages_initialized_query_job_test() {
+  let s =
+    store.new()
+    |> seed(segment_record(
+      "gid://shopify/Segment/55",
+      "Buyers",
+      "number_of_orders > 0",
+    ))
+  let body =
+    run_mutation(
+      s,
+      "mutation { customerSegmentMembersQueryCreate(input: { segmentId: \"gid://shopify/Segment/55\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":{\"id\":\"gid://shopify/CustomerSegmentMembersQuery/1\",\"status\":\"INITIALIZED\",\"currentCount\":0,\"done\":false},\"userErrors\":[]}}}"
 }
 
 // ----------- segmentCreate -----------
