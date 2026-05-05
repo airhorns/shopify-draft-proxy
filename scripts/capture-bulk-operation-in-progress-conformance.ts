@@ -295,7 +295,7 @@ async function currentBulkOperation(type: 'QUERY' | 'MUTATION'): Promise<BulkOpe
 
 async function cancelIfNonTerminal(type: 'QUERY' | 'MUTATION'): Promise<void> {
   const operation = await currentBulkOperation(type);
-  if (!isNonTerminal(operation)) {
+  if (operation === null || !isNonTerminal(operation)) {
     return;
   }
   console.log(`Canceling pre-existing ${type} bulk operation ${operation.id}`);
