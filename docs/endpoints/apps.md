@@ -53,7 +53,7 @@ Current modeled behavior:
 - `appSubscriptionCancel` stages cancellation only for `PENDING`, `ACCEPTED`, and `ACTIVE` subscriptions. `CANCELLED`, `DECLINED`, `EXPIRED`, `FROZEN`, and other non-cancellable statuses return an `id` userError shaped like Shopify's invalid transition payload without mutating local state. Unknown subscription IDs return an `id` userError with a record-not-found message and no error code.
 - `appSubscriptionLineItemUpdate` validates the subscription line-item GID shape before lookup, only mutates usage-pricing line items, rejects capped-amount currency mismatches, and requires the requested capped amount to be greater than the existing usage cap before staging the new amount. Recurring-pricing line items, malformed IDs, unknown local IDs, currency mismatches, and non-increasing caps return userErrors without mutating local state.
 - `appSubscriptionTrialExtend` validates Shopify's `days` range (`1..1000`), rejects unknown IDs with `SUBSCRIPTION_NOT_FOUND`, rejects non-`ACTIVE` subscriptions with `SUBSCRIPTION_NOT_ACTIVE`, rejects expired active trials with `TRIAL_NOT_ACTIVE`, and only mutates `trialDays` for active subscriptions still inside their trial window.
-- `appUsageRecordCreate` stages usage records under staged usage line items and exposes them through `AppSubscriptionLineItem.usageRecords`.
+- `appUsageRecordCreate` stages usage records only for usage-pricing line items. It rejects recurring line items, over-255-character idempotency keys, currency mismatches against the line item's capped amount, and charges whose proposed cumulative `balanceUsed` would exceed `cappedAmount`. Successful creates increment `AppUsagePricing.balanceUsed`, expose the staged record through `AppSubscriptionLineItem.usageRecords`, and reuse the prior staged record when the same idempotency key is repeated for the same line item.
 - `appRevokeAccessScopes` removes locally granted optional scopes from the
   current app installation. Validation failures do not partially revoke any
   scope: catalog-unknown handles return `UNKNOWN_SCOPES`, catalog-known but
@@ -121,6 +121,7 @@ The capture records:
   app-domain generic Node read targets
 - `config/parity-specs/apps/app-purchase-one-time-create-validation.json`
 - `config/parity-specs/apps/app-revoke-access-scopes-error-codes.json`
+- `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
 - `config/parity-specs/apps/app-subscription-trial-extend-validation.json`
 - `corepack pnpm conformance:check`
