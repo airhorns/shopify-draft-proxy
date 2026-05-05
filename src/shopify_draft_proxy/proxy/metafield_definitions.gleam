@@ -2061,15 +2061,16 @@ fn validate_product_owner_definition_input(
         None -> Ok(blank_definition_error(field_name))
       }
     })
-  let owner_type_error = case read_optional_string(input, "ownerType") {
-    Some("PRODUCT") | None -> []
-    Some(_) -> [
+  let owner_type_error = case create, read_optional_string(input, "ownerType") {
+    True, Some("PRODUCT") | _, None -> []
+    True, Some(_) -> [
       UserError(
         field: Some(["definition", "ownerType"]),
         message: "Only PRODUCT metafield definitions are supported locally.",
         code: "UNSUPPORTED_OWNER_TYPE",
       ),
     ]
+    False, _ -> []
   }
   list.append(errors, owner_type_error)
 }
