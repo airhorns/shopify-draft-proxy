@@ -1,0 +1,12 @@
+mutation ThemePublishDemotesPreviousMain($id: ID!) {
+  themePublish(id: $id) {
+    theme {
+      id
+      role
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

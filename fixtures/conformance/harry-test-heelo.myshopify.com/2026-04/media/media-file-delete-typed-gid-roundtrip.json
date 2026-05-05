@@ -1,0 +1,99 @@
+{
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "contentType": "IMAGE",
+          "originalSource": "https://placehold.co/600x400/png",
+          "alt": "Hermes typed delete actual 1777945543894"
+        },
+        {
+          "contentType": "IMAGE",
+          "originalSource": "https://placehold.co/600x400/png",
+          "alt": "Hermes typed delete wrong type 1777945543894"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/43665815994674",
+              "alt": "Hermes typed delete actual 1777945543894",
+              "createdAt": "2026-05-05T01:45:50Z",
+              "fileStatus": "UPLOADED"
+            },
+            {
+              "id": "gid://shopify/MediaImage/43665816027442",
+              "alt": "Hermes typed delete wrong type 1777945543894",
+              "createdAt": "2026-05-05T01:45:50Z",
+              "fileStatus": "UPLOADED"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteActual": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/43665815994674"]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/43665815994674"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteWrongType": {
+    "variables": {
+      "fileIds": ["gid://shopify/Video/43665816027442"]
+    },
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/43665816027442"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

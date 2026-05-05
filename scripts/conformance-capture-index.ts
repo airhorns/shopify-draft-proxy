@@ -247,7 +247,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-file-mutation-conformance.mts',
     purpose: 'fileCreate/fileUpdate/fileDelete and staged upload interactions.',
     requiredAuthScopes: ['read_files', 'write_files'],
-    fixtureOutputs: [`${CAPTURE_ROOT}file-mutation-*.json`, `${LOCAL_RUNTIME_ROOT}files-upload-local-runtime.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}file-mutation-*.json`,
+      `${CAPTURE_ROOT}media-file-*.json`,
+      `${LOCAL_RUNTIME_ROOT}files-upload-local-runtime.json`,
+    ],
     cleanupBehavior:
       'Deletes created files when Shopify returns file IDs; local-runtime fixtures need no Shopify cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
@@ -866,6 +870,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'online-store',
+    captureId: 'online-store-page-handle-dedupe-and-takenness',
+    scriptPath: 'scripts/capture-online-store-page-handle-conformance.ts',
+    purpose:
+      'pageCreate handle normalization, auto-dedupe for derived handle collisions, and explicit TAKEN userErrors.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-page-handle-dedupe-and-takenness.json`,
+      'config/parity-specs/online-store/online-store-page-handle-dedupe-and-takenness.json',
+      'config/parity-requests/online-store/online-store-page-handle-dedupe-and-takenness.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable pages and deletes every successful pageCreate result during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'collections',
     captureId: 'collections',
     scriptPath: 'scripts/capture-collection-conformance.mts',
@@ -1244,6 +1263,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'admin-platform',
+    captureId: 'admin-platform-backup-region-update-extended',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-admin-platform-backup-region-update-extended.mts',
+    purpose:
+      'backupRegionUpdate omitted/null current-state semantics, harry-test-heelo non-CA success, read-after-write, and REGION_NOT_FOUND validation.',
+    requiredAuthScopes: ['active Admin API token with Markets/admin platform access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-platform-backup-region-update-extended.json`,
+      'config/parity-specs/admin-platform/admin-platform-backup-region-update-extended.json',
+    ],
+    cleanupBehavior: 'Temporarily stages AE as the backup region, then restores the store backup region to CA.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'orders',
     captureId: 'order-refunds',
     scriptPath: 'scripts/capture-order-refund-conformance.mts',
@@ -1278,6 +1312,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [`${CAPTURE_ROOT}fulfillment-order-lifecycle.json`],
     cleanupBehavior: 'Cancels disposable order and records cleanup captures.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-split-multi',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-split-multi-conformance.ts',
+    purpose: 'fulfillmentOrderSplit multi-input quantity aggregation and indexed validation errors.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-split-multi.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-split-multi.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders, captures validation and success branches, merges split fulfillment orders back where possible, then cancels the orders.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
