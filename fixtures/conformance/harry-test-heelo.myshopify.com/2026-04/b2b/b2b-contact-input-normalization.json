@@ -1,0 +1,477 @@
+{
+  "scenarioId": "b2b-contact-input-normalization",
+  "capturedAt": "2026-05-05T01:23:19.101Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-614",
+    "plan": "Create a disposable B2B company and contacts; record phone normalization through duplicate-phone validation, locale defaulting, invalid phone/locale validation, duplicate email validation, duplicate update validation, and cleanup."
+  },
+  "schemaProbe": {
+    "request": {
+      "query": "#graphql\n  query HAR614B2BContactInputSchema {\n    contactType: __type(name: \"CompanyContact\") { fields { name } }\n    inputType: __type(name: \"CompanyContactInput\") { inputFields { name } }\n    shop { billingAddress { countryCodeV2 } }\n    shopLocales { locale primary published }\n  }\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "contactType": {
+          "fields": [
+            {
+              "name": "company"
+            },
+            {
+              "name": "createdAt"
+            },
+            {
+              "name": "customer"
+            },
+            {
+              "name": "draftOrders"
+            },
+            {
+              "name": "id"
+            },
+            {
+              "name": "isMainContact"
+            },
+            {
+              "name": "lifetimeDuration"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "orders"
+            },
+            {
+              "name": "roleAssignments"
+            },
+            {
+              "name": "title"
+            },
+            {
+              "name": "updatedAt"
+            }
+          ]
+        },
+        "inputType": {
+          "inputFields": [
+            {
+              "name": "firstName"
+            },
+            {
+              "name": "lastName"
+            },
+            {
+              "name": "email"
+            },
+            {
+              "name": "title"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "phone"
+            }
+          ]
+        },
+        "shop": {
+          "billingAddress": {
+            "countryCodeV2": "CA"
+          }
+        },
+        "shopLocales": [
+          {
+            "locale": "en",
+            "primary": true,
+            "published": true
+          }
+        ]
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR614CompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        contacts(first: 5) {\n          nodes {\n            id\n            locale\n            title\n            isMainContact\n          }\n        }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-614 B2B input 1777944197290"
+          },
+          "companyContact": {
+            "firstName": "Har",
+            "lastName": "Primary",
+            "email": "har-614-primary-1777944197290@example.com",
+            "title": "Primary buyer",
+            "phone": "(415) 419-7290"
+          },
+          "companyLocation": {
+            "name": "HAR-614 B2B input 1777944197290 HQ",
+            "billingAddress": {
+              "address1": "614 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5435097394",
+            "name": "HAR-614 B2B input 1777944197290",
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10145825074",
+                  "locale": "en",
+                  "title": "Primary buyer",
+                  "isMainContact": true
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicatePhone": {
+    "request": {
+      "query": "#graphql\n  mutation HAR614ContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        locale\n        title\n        company { id }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5435097394",
+        "input": {
+          "firstName": "Har",
+          "lastName": "Duplicate phone",
+          "email": "har-614-duplicate-phone-1777944197290@example.com",
+          "title": "Duplicate phone",
+          "phone": "+14154197290"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input", "phone"],
+              "message": "Phone number has already been taken.",
+              "code": "TAKEN"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateEmail": {
+    "request": {
+      "query": "#graphql\n  mutation HAR614ContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        locale\n        title\n        company { id }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5435097394",
+        "input": {
+          "firstName": "Har",
+          "lastName": "Duplicate email",
+          "email": "HAR-614-PRIMARY-1777944197290@EXAMPLE.COM",
+          "title": "Duplicate email",
+          "phone": "+14155550000"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input", "email"],
+              "message": "Email address has already been taken.",
+              "code": "TAKEN"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidPhone": {
+    "request": {
+      "query": "#graphql\n  mutation HAR614ContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        locale\n        title\n        company { id }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5435097394",
+        "input": {
+          "firstName": "Har",
+          "lastName": "Invalid phone",
+          "email": "har-614-invalid-phone-1777944197290@example.com",
+          "title": "Invalid phone",
+          "phone": "not-a-phone"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input", "phone"],
+              "message": "Phone is invalid",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidLocale": {
+    "request": {
+      "query": "#graphql\n  mutation HAR614ContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        locale\n        title\n        company { id }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5435097394",
+        "input": {
+          "firstName": "Har",
+          "lastName": "Invalid locale",
+          "email": "har-614-invalid-locale-1777944197290@example.com",
+          "title": "Invalid locale",
+          "locale": "not_a_locale"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input", "locale"],
+              "message": "Invalid locale format.",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondContact": {
+    "request": {
+      "query": "#graphql\n  mutation HAR614ContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        locale\n        title\n        company { id }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5435097394",
+        "input": {
+          "firstName": "Har",
+          "lastName": "Second",
+          "email": "har-614-second-1777944197290@example.com",
+          "title": "Second buyer",
+          "phone": "(650) 419-8502"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": {
+            "id": "gid://shopify/CompanyContact/10145857842",
+            "locale": "en",
+            "title": "Second buyer",
+            "company": {
+              "id": "gid://shopify/Company/5435097394"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateEmailUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR614ContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        locale\n        title\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10145857842",
+        "input": {
+          "email": "har-614-primary-1777944197290@example.com"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactUpdate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input", "email"],
+              "message": "Email address has already been taken.",
+              "code": "TAKEN"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicatePhoneUpdate": {
+    "request": {
+      "query": "#graphql\n  mutation HAR614ContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        locale\n        title\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10145857842",
+        "input": {
+          "phone": "(415) 419-7290"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactUpdate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": ["input", "phone"],
+              "message": "Phone number has already been taken.",
+              "code": "TAKEN"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete": {
+      "request": {
+        "query": "#graphql\n  mutation HAR614CompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5435097394"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5435097394",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
