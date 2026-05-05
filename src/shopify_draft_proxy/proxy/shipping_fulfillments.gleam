@@ -95,7 +95,11 @@ type FulfillmentServiceUserError {
 }
 
 type DeliveryProfileUserError {
-  DeliveryProfileUserError(field: Option(List(String)), message: String)
+  DeliveryProfileUserError(
+    field: Option(List(String)),
+    message: String,
+    code: Option(String),
+  )
 }
 
 pub fn is_shipping_fulfillment_query_root(name: String) -> Bool {
@@ -1905,11 +1909,16 @@ fn hydrate_mutation_prerequisites(
       // product/variant titles, which are upstream product-domain data.
       // Hydrate only the associated variants first; Snapshot mode and
       // missing cassettes fall back to the existing local-only shape.
-      let variant_ids = case read_object(args, "profile") {
-        Some(profile) -> read_string_array(profile, "variantsToAssociate")
-        None -> []
+      case read_object(args, "profile") {
+        Some(profile) -> {
+          let variant_ids = read_string_array(profile, "variantsToAssociate")
+          let location_ids = delivery_profile_create_location_ids(profile)
+          store_in
+          |> maybe_hydrate_delivery_profile_variants(variant_ids, upstream)
+          |> maybe_hydrate_delivery_profile_locations(location_ids, upstream)
+        }
+        None -> store_in
       }
-      maybe_hydrate_delivery_profile_variants(store_in, variant_ids, upstream)
     }
     "deliveryProfileRemove" ->
       maybe_hydrate_delivery_profile(
@@ -2098,6 +2107,57 @@ fn maybe_hydrate_delivery_profile_variants(
       }
     }
   }
+}
+
+fn maybe_hydrate_delivery_profile_locations(
+  store_in: Store,
+  ids: List(String),
+  upstream: UpstreamContext,
+) -> Store {
+  let missing =
+    ids
+    |> list.filter(fn(id) { !delivery_profile_location_available(store_in, id) })
+  case missing {
+    [] -> store_in
+    _ -> {
+      let query =
+        "query ShippingDeliveryProfileLocationsHydrate {
+  locationsAvailableForDeliveryProfilesConnection(first: 250) {
+    nodes { id name isActive isFulfillmentService }
+  }
+}
+"
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "ShippingDeliveryProfileLocationsHydrate",
+          query,
+          json.object([]),
+        )
+      {
+        Ok(value) -> hydrate_from_upstream_response(store_in, value)
+        Error(_) -> store_in
+      }
+    }
+  }
+}
+
+fn delivery_profile_create_location_ids(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  list.append(
+    read_object_array(input, "profileLocationGroups"),
+    read_object_array(input, "locationGroupsToCreate"),
+  )
+  |> list.flat_map(fn(group) {
+    list.append(
+      read_string_array(group, "locations"),
+      read_string_array(group, "locationsToAdd"),
+    )
+  })
+  |> unique_strings
 }
 
 fn maybe_hydrate_shipping_package(
@@ -2430,8 +2490,8 @@ fn handle_delivery_profile_create(
   let input = read_object(args, "profile")
   case input {
     Some(profile_input) -> {
-      case read_trimmed_string(profile_input, "name") {
-        Some(name) if name != "" -> {
+      case validate_delivery_profile_create_input(draft_store, profile_input) {
+        Ok(name) -> {
           let #(profile, next_identity) =
             make_delivery_profile(draft_store, identity, profile_input, name)
           let #(staged, next_store) =
@@ -2453,14 +2513,14 @@ fn handle_delivery_profile_create(
             next_identity,
           )
         }
-        _ ->
+        Error(user_errors) ->
           delivery_profile_validation_result(
             draft_store,
             identity,
             field,
             fragments,
             "DeliveryProfileCreatePayload",
-            [blank_delivery_profile_name_error()],
+            user_errors,
           )
       }
     }
@@ -3958,113 +4018,178 @@ fn handle_fulfillment_order_hold(
   let args = resolved_args(field, variables)
   let hold_input =
     read_object(args, "fulfillmentHold") |> option.unwrap(dict.new())
-  let quantity =
-    first_fulfillment_order_line_item_quantity(read_object_array(
-      hold_input,
-      "fulfillmentOrderLineItems",
-    ))
+  let line_item_inputs =
+    read_object_array(hold_input, "fulfillmentOrderLineItems")
+  let quantity = first_fulfillment_order_line_item_quantity(line_item_inputs)
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) -> {
-          let #(hold_id, identity) =
-            synthetic_identity.make_synthetic_gid(identity, "FulfillmentHold")
-          let hold =
-            fulfillment_hold_value(
-              hold_id,
-              read_string(hold_input, "handle"),
-              read_string(hold_input, "reason"),
-              read_string(hold_input, "reasonNotes"),
-            )
-          let held =
-            update_fulfillment_order_fields(order, [
-              #("status", CapturedString("ON_HOLD")),
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-              #(
-                "supportedActions",
-                captured_action_list([
-                  "RELEASE_HOLD",
-                  "HOLD",
-                  "MOVE",
+          case fulfillment_order_hold_validation_errors(order, hold_input) {
+            [_, ..] as user_errors -> #(
+              MutationFieldResult(
+                key: key,
+                payload: fulfillment_order_payload_json(field, fragments, [
+                  #("__typename", SrcString("FulfillmentOrderHoldPayload")),
+                  #("fulfillmentHold", SrcNull),
+                  #("fulfillmentOrder", SrcNull),
+                  #("remainingFulfillmentOrder", SrcNull),
+                  #(
+                    "userErrors",
+                    SrcList(list.map(
+                      user_errors,
+                      fulfillment_order_hold_user_error_source,
+                    )),
+                  ),
                 ]),
+                errors: [],
+                staged_resource_ids: [],
               ),
-              #("fulfillmentHolds", CapturedArray([hold])),
-              #(
-                "lineItems",
-                fulfillment_order_line_items_with_quantity(
-                  order.data,
-                  quantity,
-                  True,
-                ),
-              ),
-            ])
-          let held =
-            FulfillmentOrderRecord(
-              ..held,
-              status: "ON_HOLD",
-              manually_held: True,
+              draft_store,
+              identity,
             )
-          let remaining_quantity =
-            max_int(
-              first_fulfillment_order_line_item_total(order.data) - quantity,
-              0,
-            )
-          let #(remaining_id, identity) =
-            synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
-          let remaining =
-            update_fulfillment_order_fields(order, [
-              #("id", CapturedString(remaining_id)),
-              #("status", CapturedString("OPEN")),
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
+            [] -> {
+              let #(hold_id, identity) =
+                synthetic_identity.make_synthetic_gid(
+                  identity,
+                  "FulfillmentHold",
+                )
+              let hold =
+                fulfillment_hold_value(
+                  hold_id,
+                  Some(fulfillment_order_hold_handle(hold_input)),
+                  read_string(hold_input, "reason"),
+                  read_string(hold_input, "reasonNotes"),
+                )
+              let remaining_quantity =
+                max_int(
+                  first_fulfillment_order_line_item_total(order.data) - quantity,
+                  0,
+                )
+              let fulfillment_holds =
+                list.append(fulfillment_order_holds(order.data), [hold])
+              let held_line_items = case line_item_inputs {
+                [] ->
+                  captured_field(order.data, "lineItems")
+                  |> option.unwrap(CapturedArray([]))
+                [_, ..] ->
+                  fulfillment_order_line_items_with_quantity_and_fulfillable(
+                    order.data,
+                    quantity,
+                    remaining_quantity,
+                  )
+              }
+              let held =
+                update_fulfillment_order_fields(order, [
+                  #("status", CapturedString("ON_HOLD")),
+                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
+                  #(
+                    "supportedActions",
+                    captured_action_list(
+                      fulfillment_order_hold_supported_actions(
+                        fulfillment_holds,
+                      ),
+                    ),
+                  ),
+                  #("fulfillmentHolds", CapturedArray(fulfillment_holds)),
+                  #("lineItems", held_line_items),
+                ])
+              let held =
+                FulfillmentOrderRecord(
+                  ..held,
+                  status: "ON_HOLD",
+                  manually_held: True,
+                )
+              let #(held, next_store) =
+                store.stage_upsert_fulfillment_order(draft_store, held)
+              let #(remaining, next_store, identity) = case line_item_inputs {
+                [] -> #(None, next_store, identity)
+                [_, ..] -> {
+                  case remaining_quantity > 0 {
+                    False -> #(None, next_store, identity)
+                    True -> {
+                      let #(remaining_id, identity) =
+                        synthetic_identity.make_synthetic_gid(
+                          identity,
+                          "FulfillmentOrder",
+                        )
+                      let remaining =
+                        update_fulfillment_order_fields(order, [
+                          #("id", CapturedString(remaining_id)),
+                          #("status", CapturedString("OPEN")),
+                          #(
+                            "updatedAt",
+                            CapturedString(synthetic_timestamp_string()),
+                          ),
+                          #(
+                            "supportedActions",
+                            captured_action_list(case remaining_quantity > 1 {
+                              True -> [
+                                "CREATE_FULFILLMENT",
+                                "REPORT_PROGRESS",
+                                "MOVE",
+                                "HOLD",
+                                "SPLIT",
+                              ]
+                              False -> [
+                                "CREATE_FULFILLMENT",
+                                "REPORT_PROGRESS",
+                                "MOVE",
+                                "HOLD",
+                              ]
+                            }),
+                          ),
+                          #("fulfillmentHolds", CapturedArray([])),
+                          #(
+                            "lineItems",
+                            fulfillment_order_line_items_with_quantity(
+                              order.data,
+                              remaining_quantity,
+                              True,
+                            ),
+                          ),
+                        ])
+                      let remaining =
+                        FulfillmentOrderRecord(
+                          ..remaining,
+                          id: remaining_id,
+                          status: "OPEN",
+                          manually_held: False,
+                        )
+                      let #(remaining, next_store) =
+                        store.stage_upsert_fulfillment_order(
+                          next_store,
+                          remaining,
+                        )
+                      #(Some(remaining), next_store, identity)
+                    }
+                  }
+                }
+              }
               #(
-                "supportedActions",
-                captured_action_list([
-                  "CREATE_FULFILLMENT",
-                  "REPORT_PROGRESS",
-                  "MOVE",
-                  "HOLD",
-                ]),
-              ),
-              #("fulfillmentHolds", CapturedArray([])),
-              #(
-                "lineItems",
-                fulfillment_order_line_items_with_quantity(
-                  order.data,
-                  remaining_quantity,
-                  True,
+                MutationFieldResult(
+                  key: key,
+                  payload: fulfillment_order_payload_json(field, fragments, [
+                    #("__typename", SrcString("FulfillmentOrderHoldPayload")),
+                    #("fulfillmentHold", captured_json_source(hold)),
+                    #("fulfillmentOrder", fulfillment_order_source(held)),
+                    #("remainingFulfillmentOrder", case remaining {
+                      Some(remaining) -> fulfillment_order_source(remaining)
+                      None -> SrcNull
+                    }),
+                    #("userErrors", SrcList([])),
+                  ]),
+                  errors: [],
+                  staged_resource_ids: case remaining {
+                    Some(remaining) -> [held.id, remaining.id]
+                    None -> [held.id]
+                  },
                 ),
-              ),
-            ])
-          let remaining =
-            FulfillmentOrderRecord(
-              ..remaining,
-              id: remaining_id,
-              status: "OPEN",
-              manually_held: False,
-            )
-          let #(held, next_store) =
-            store.stage_upsert_fulfillment_order(draft_store, held)
-          let #(remaining, next_store) =
-            store.stage_upsert_fulfillment_order(next_store, remaining)
-          #(
-            MutationFieldResult(
-              key: key,
-              payload: fulfillment_order_payload_json(field, fragments, [
-                #("__typename", SrcString("FulfillmentOrderHoldPayload")),
-                #("fulfillmentHold", captured_json_source(hold)),
-                #("fulfillmentOrder", fulfillment_order_source(held)),
-                #(
-                  "remainingFulfillmentOrder",
-                  fulfillment_order_source(remaining),
-                ),
-                #("userErrors", SrcList([])),
-              ]),
-              errors: [],
-              staged_resource_ids: [held.id, remaining.id],
-            ),
-            next_store,
-            identity,
-          )
+                next_store,
+                identity,
+              )
+            }
+          }
         }
         None ->
           fulfillment_order_missing_mutation_result(
@@ -6325,6 +6450,262 @@ fn fulfillment_service_location_source(
   }
 }
 
+fn validate_delivery_profile_create_input(
+  draft_store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Result(String, List(DeliveryProfileUserError)) {
+  let name = read_trimmed_string(input, "name")
+  let name_errors = case name {
+    Some(value) if value != "" -> {
+      case string.length(value) >= 128 {
+        True -> [too_long_delivery_profile_create_name_error()]
+        False -> []
+      }
+    }
+    _ -> [blank_delivery_profile_create_name_error()]
+  }
+  let nested_errors =
+    list.append(
+      validate_delivery_profile_location_group_inputs(
+        draft_store,
+        input,
+        "profileLocationGroups",
+      ),
+      validate_delivery_profile_location_group_inputs(
+        draft_store,
+        input,
+        "locationGroupsToCreate",
+      ),
+    )
+  let errors = list.append(name_errors, nested_errors)
+  case errors, name {
+    [], Some(value) -> Ok(value)
+    _, _ -> Error(errors)
+  }
+}
+
+fn validate_delivery_profile_location_group_inputs(
+  draft_store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(DeliveryProfileUserError) {
+  read_indexed_object_array(input, key)
+  |> list.flat_map(fn(group) {
+    validate_delivery_profile_location_group(draft_store, key, group.0, group.1)
+  })
+}
+
+fn validate_delivery_profile_location_group(
+  draft_store: Store,
+  group_key: String,
+  group_index: Int,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(DeliveryProfileUserError) {
+  let location_errors =
+    read_indexed_string_array(input, "locations")
+    |> list.filter_map(fn(location) {
+      case delivery_profile_location_available(draft_store, location.1) {
+        True -> Error(Nil)
+        False ->
+          Ok(unknown_delivery_profile_location_error(
+            group_key
+            <> "."
+            <> int.to_string(group_index)
+            <> ".locations."
+            <> int.to_string(location.0),
+          ))
+      }
+    })
+  let zone_errors =
+    list.append(
+      validate_delivery_profile_zones(
+        read_indexed_object_array(input, "zonesToCreate"),
+        group_key,
+        group_index,
+        "zonesToCreate",
+      ),
+      validate_delivery_profile_zones(
+        read_indexed_object_array(input, "zonesToUpdate"),
+        group_key,
+        group_index,
+        "zonesToUpdate",
+      ),
+    )
+  list.append(location_errors, zone_errors)
+}
+
+fn delivery_profile_location_available(
+  draft_store: Store,
+  location_id: String,
+) -> Bool {
+  case store.get_effective_location_by_id(draft_store, location_id) {
+    Some(_) -> True
+    None ->
+      case
+        store.get_effective_store_property_location_by_id(
+          draft_store,
+          location_id,
+        )
+      {
+        Some(location) ->
+          is_active_location(location)
+          && !is_fulfillment_service_location(location)
+        None -> False
+      }
+  }
+}
+
+fn validate_delivery_profile_zones(
+  zones: List(#(Int, Dict(String, root_field.ResolvedValue))),
+  group_key: String,
+  group_index: Int,
+  zone_key: String,
+) -> List(DeliveryProfileUserError) {
+  let #(errors, _, _) =
+    list.fold(zones, #([], dict.new(), False), fn(acc, zone) {
+      let #(current_errors, seen_countries, has_overlap) = acc
+      let zone_index = zone.0
+      let countries = read_indexed_object_array(zone.1, "countries")
+      let empty_errors = case countries {
+        [] -> [
+          empty_delivery_profile_zone_countries_error(
+            group_key
+            <> "."
+            <> int.to_string(group_index)
+            <> "."
+            <> zone_key
+            <> "."
+            <> int.to_string(zone_index)
+            <> ".countries",
+          ),
+        ]
+        _ -> []
+      }
+      let #(next_seen, overlap_errors, next_has_overlap) =
+        validate_delivery_profile_zone_countries(
+          countries,
+          seen_countries,
+          has_overlap,
+          group_key,
+          group_index,
+          zone_key,
+          zone_index,
+        )
+      #(
+        list.append(current_errors, list.append(empty_errors, overlap_errors)),
+        next_seen,
+        next_has_overlap,
+      )
+    })
+  errors
+}
+
+fn validate_delivery_profile_zone_countries(
+  countries: List(#(Int, Dict(String, root_field.ResolvedValue))),
+  seen_countries: Dict(String, Bool),
+  has_overlap: Bool,
+  group_key: String,
+  group_index: Int,
+  zone_key: String,
+  zone_index: Int,
+) -> #(Dict(String, Bool), List(DeliveryProfileUserError), Bool) {
+  list.fold(countries, #(seen_countries, [], has_overlap), fn(acc, country) {
+    let #(current_seen, current_errors, current_has_overlap) = acc
+    let keys = delivery_profile_country_overlap_keys(country.1)
+    let overlap = list.any(keys, fn(key) { dict.has_key(current_seen, key) })
+    let next_seen =
+      list.fold(keys, current_seen, fn(seen, key) {
+        dict.insert(seen, key, True)
+      })
+    let next_errors = case overlap, current_has_overlap {
+      True, False -> [
+        overlapping_delivery_profile_zone_error(
+          group_key
+          <> "."
+          <> int.to_string(group_index)
+          <> "."
+          <> zone_key
+          <> "."
+          <> int.to_string(zone_index)
+          <> ".countries."
+          <> int.to_string(country.0),
+        ),
+      ]
+      _, _ -> []
+    }
+    #(
+      next_seen,
+      list.append(current_errors, next_errors),
+      current_has_overlap || overlap,
+    )
+  })
+}
+
+fn delivery_profile_country_overlap_keys(
+  country: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  case read_bool(country, "restOfWorld") {
+    Some(True) -> ["REST_OF_WORLD"]
+    _ ->
+      case read_string(country, "code") {
+        Some(code) -> [code]
+        None -> []
+      }
+  }
+}
+
+fn read_indexed_object_array(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(#(Int, Dict(String, root_field.ResolvedValue))) {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(items)) -> indexed_object_values(items, 0)
+    _ -> []
+  }
+}
+
+fn indexed_object_values(
+  values: List(root_field.ResolvedValue),
+  index: Int,
+) -> List(#(Int, Dict(String, root_field.ResolvedValue))) {
+  case values {
+    [] -> []
+    [first, ..rest] -> {
+      let tail = indexed_object_values(rest, index + 1)
+      case first {
+        root_field.ObjectVal(value) -> [#(index, value), ..tail]
+        _ -> tail
+      }
+    }
+  }
+}
+
+fn read_indexed_string_array(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(#(Int, String)) {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(items)) -> indexed_string_values(items, 0)
+    _ -> []
+  }
+}
+
+fn indexed_string_values(
+  values: List(root_field.ResolvedValue),
+  index: Int,
+) -> List(#(Int, String)) {
+  case values {
+    [] -> []
+    [first, ..rest] -> {
+      let tail = indexed_string_values(rest, index + 1)
+      case first {
+        root_field.StringVal(value) -> [#(index, value), ..tail]
+        _ -> tail
+      }
+    }
+  }
+}
+
 fn make_delivery_profile(
   draft_store: Store,
   identity: SyntheticIdentityRegistry,
@@ -7198,6 +7579,7 @@ fn delivery_profile_user_error_source(
     #("__typename", SrcString("UserError")),
     #("field", optional_string_list_source(error.field)),
     #("message", SrcString(error.message)),
+    #("code", option_to_source(error.code)),
   ])
 }
 
@@ -7338,6 +7720,53 @@ fn blank_delivery_profile_name_error() -> DeliveryProfileUserError {
   DeliveryProfileUserError(
     field: Some(["profile", "name"]),
     message: "Add a profile name",
+    code: None,
+  )
+}
+
+fn blank_delivery_profile_create_name_error() -> DeliveryProfileUserError {
+  DeliveryProfileUserError(
+    field: Some(["profile", "name"]),
+    message: "Add a profile name",
+    code: Some("PROFILE_CREATE_REQUIRES_NAME"),
+  )
+}
+
+fn too_long_delivery_profile_create_name_error() -> DeliveryProfileUserError {
+  DeliveryProfileUserError(
+    field: Some(["profile", "name"]),
+    message: "Profile name must be less than 128 characters long",
+    code: Some("TOO_LONG"),
+  )
+}
+
+fn unknown_delivery_profile_location_error(
+  field_path: String,
+) -> DeliveryProfileUserError {
+  DeliveryProfileUserError(
+    field: Some(["profile", field_path]),
+    message: "The Location could not be found for this shop.",
+    code: Some("LOCATION_NOT_FOUND"),
+  )
+}
+
+fn empty_delivery_profile_zone_countries_error(
+  field_path: String,
+) -> DeliveryProfileUserError {
+  DeliveryProfileUserError(
+    field: Some(["profile", field_path]),
+    message: "Profile is invalid: cannot create LocationGroupZone without countries.",
+    code: Some("CANNOT_UPDATE_ZONES"),
+  )
+}
+
+fn overlapping_delivery_profile_zone_error(
+  field_path: String,
+) -> DeliveryProfileUserError {
+  DeliveryProfileUserError(
+    field: Some(["profile", field_path]),
+    message: "Profile is invalid: zones cannot contain overlapping countries.",
+    code: Some("CANNOT_UPDATE_ZONES"),
   )
 }
 
@@ -7345,6 +7774,7 @@ fn delivery_profile_update_not_found() -> DeliveryProfileUserError {
   DeliveryProfileUserError(
     field: None,
     message: "Profile could not be updated.",
+    code: None,
   )
 }
 
@@ -7352,6 +7782,7 @@ fn delivery_profile_remove_not_found() -> DeliveryProfileUserError {
   DeliveryProfileUserError(
     field: None,
     message: "The Delivery Profile cannot be found for the shop.",
+    code: None,
   )
 }
 
@@ -7359,6 +7790,7 @@ fn delivery_profile_default_remove_error() -> DeliveryProfileUserError {
   DeliveryProfileUserError(
     field: None,
     message: "Cannot delete the default profile.",
+    code: None,
   )
 }
 
@@ -8007,6 +8439,211 @@ fn fulfillment_hold_value(
   ])
 }
 
+const max_fulfillment_holds_per_api_client = 10
+
+const fulfillment_hold_handle_max_length = 64
+
+fn fulfillment_order_hold_handle(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  read_string(input, "handle") |> option.unwrap("")
+}
+
+fn fulfillment_order_holds(data: CapturedJsonValue) -> List(CapturedJsonValue) {
+  case captured_field(data, "fulfillmentHolds") {
+    Some(CapturedArray(values)) -> values
+    Some(value) -> captured_array_field(value, "nodes", "")
+    None -> []
+  }
+}
+
+fn fulfillment_order_hold_validation_errors(
+  order: FulfillmentOrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(List(String), String, String)) {
+  let line_item_inputs = read_object_array(input, "fulfillmentOrderLineItems")
+  let input_errors =
+    list.append(
+      fulfillment_order_hold_line_item_quantity_errors(line_item_inputs),
+      fulfillment_order_hold_duplicate_line_item_errors(line_item_inputs),
+    )
+  case input_errors {
+    [_, ..] -> input_errors
+    [] -> {
+      let handle = fulfillment_order_hold_handle(input)
+      case string.length(handle) > fulfillment_hold_handle_max_length {
+        True -> [
+          #(
+            ["fulfillmentHold", "handle"],
+            "Handle is too long (maximum is 64 characters)",
+            "TOO_LONG",
+          ),
+        ]
+        False -> {
+          let existing_holds = fulfillment_order_holds(order.data)
+          case !list.is_empty(line_item_inputs) && order.status == "ON_HOLD" {
+            True -> [
+              #(
+                ["fulfillmentHold", "fulfillmentOrderLineItems"],
+                "The fulfillment order is not in a splittable state.",
+                "FULFILLMENT_ORDER_NOT_SPLITTABLE",
+              ),
+            ]
+            False ->
+              case
+                fulfillment_order_has_duplicate_hold_handle(
+                  existing_holds,
+                  handle,
+                )
+              {
+                True -> [
+                  #(
+                    ["fulfillmentHold", "handle"],
+                    "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
+                    "DUPLICATE_FULFILLMENT_HOLD_HANDLE",
+                  ),
+                ]
+                False ->
+                  case
+                    fulfillment_order_active_requesting_app_holds(
+                      existing_holds,
+                    )
+                    >= max_fulfillment_holds_per_api_client
+                  {
+                    True -> [
+                      #(
+                        ["id"],
+                        "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
+                        "FULFILLMENT_ORDER_HOLD_LIMIT_REACHED",
+                      ),
+                    ]
+                    False -> []
+                  }
+              }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn fulfillment_order_hold_line_item_quantity_errors(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(#(List(String), String, String)) {
+  inputs
+  |> list.index_fold([], fn(errors, input, index) {
+    let invalid = case dict.get(input, "quantity") {
+      Ok(root_field.IntVal(quantity)) if quantity <= 0 ->
+        Some(#(
+          "You must select at least one item to place on partial hold.",
+          "GREATER_THAN_ZERO",
+        ))
+      Ok(root_field.IntVal(_)) -> None
+      _ ->
+        Some(#(
+          "The line item quantity is invalid.",
+          "INVALID_LINE_ITEM_QUANTITY",
+        ))
+    }
+    case invalid {
+      Some(error) -> {
+        let #(message, code) = error
+        list.append(errors, [
+          #(
+            [
+              "fulfillmentHold",
+              "fulfillmentOrderLineItems",
+              int.to_string(index),
+              "quantity",
+            ],
+            message,
+            code,
+          ),
+        ])
+      }
+      None -> errors
+    }
+  })
+}
+
+fn fulfillment_order_hold_duplicate_line_item_errors(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(#(List(String), String, String)) {
+  let ids =
+    inputs
+    |> list.filter_map(fn(input) {
+      case read_string(input, "id") {
+        Some(id) -> Ok(id)
+        None -> Error(Nil)
+      }
+    })
+  case contains_duplicate_string(ids) {
+    True -> [
+      #(
+        ["fulfillmentHold", "fulfillmentOrderLineItems"],
+        "must contain unique line item ids",
+        "DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn contains_duplicate_string(values: List(String)) -> Bool {
+  case values {
+    [] -> False
+    [first, ..rest] ->
+      list.contains(rest, first) || contains_duplicate_string(rest)
+  }
+}
+
+fn fulfillment_order_has_duplicate_hold_handle(
+  holds: List(CapturedJsonValue),
+  handle: String,
+) -> Bool {
+  holds
+  |> list.any(fn(hold) {
+    fulfillment_hold_held_by_requesting_app(hold)
+    && { captured_string_field(hold, "handle") |> option.unwrap("") } == handle
+  })
+}
+
+fn fulfillment_order_active_requesting_app_holds(
+  holds: List(CapturedJsonValue),
+) -> Int {
+  holds
+  |> list.filter(fulfillment_hold_held_by_requesting_app)
+  |> list.length
+}
+
+fn fulfillment_order_hold_supported_actions(
+  holds: List(CapturedJsonValue),
+) -> List(String) {
+  case
+    fulfillment_order_active_requesting_app_holds(holds)
+    >= max_fulfillment_holds_per_api_client
+  {
+    True -> ["RELEASE_HOLD", "MOVE"]
+    False -> ["RELEASE_HOLD", "HOLD", "MOVE"]
+  }
+}
+
+fn fulfillment_hold_held_by_requesting_app(hold: CapturedJsonValue) -> Bool {
+  captured_bool_field(hold, "heldByRequestingApp") |> option.unwrap(True)
+}
+
+fn fulfillment_order_hold_user_error_source(
+  error: #(List(String), String, String),
+) -> SourceValue {
+  let #(field, message, code) = error
+  src_object([
+    #("__typename", SrcString("UserError")),
+    #("field", SrcList(list.map(field, SrcString))),
+    #("message", SrcString(message)),
+    #("code", SrcString(code)),
+  ])
+}
+
 fn first_fulfillment_order_line_item_quantity(
   inputs: List(Dict(String, root_field.ResolvedValue)),
 ) -> Int {
@@ -8033,17 +8670,44 @@ fn fulfillment_order_line_items_with_quantity(
   quantity: Int,
   update_line_item_fulfillable: Bool,
 ) -> CapturedJsonValue {
+  fulfillment_order_line_items_with_quantity_and_optional_fulfillable(
+    data,
+    quantity,
+    case update_line_item_fulfillable {
+      True -> Some(quantity)
+      False -> None
+    },
+  )
+}
+
+fn fulfillment_order_line_items_with_quantity_and_fulfillable(
+  data: CapturedJsonValue,
+  quantity: Int,
+  line_item_fulfillable_quantity: Int,
+) -> CapturedJsonValue {
+  fulfillment_order_line_items_with_quantity_and_optional_fulfillable(
+    data,
+    quantity,
+    Some(line_item_fulfillable_quantity),
+  )
+}
+
+fn fulfillment_order_line_items_with_quantity_and_optional_fulfillable(
+  data: CapturedJsonValue,
+  quantity: Int,
+  line_item_fulfillable_quantity: Option(Int),
+) -> CapturedJsonValue {
   let nodes =
     captured_array_field(data, "lineItems", "nodes")
     |> list.map(fn(node) {
       let line_item = case captured_field(node, "lineItem") {
         Some(value) -> {
-          case update_line_item_fulfillable {
-            True ->
+          case line_item_fulfillable_quantity {
+            Some(quantity) ->
               captured_upsert_fields(value, [
                 #("fulfillableQuantity", CapturedInt(quantity)),
               ])
-            False -> value
+            None -> value
           }
         }
         None -> CapturedNull

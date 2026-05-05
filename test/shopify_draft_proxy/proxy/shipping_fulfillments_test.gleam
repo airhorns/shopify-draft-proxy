@@ -1006,7 +1006,7 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
       delivery_profile_lifecycle_store(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
-      "mutation BlankCreate($profile: DeliveryProfileInput!) { deliveryProfileCreate(profile: $profile) { profile { id } userErrors { field message } } }",
+      "mutation BlankCreate($profile: DeliveryProfileInput!) { deliveryProfileCreate(profile: $profile) { profile { id } userErrors { field message code } } }",
       dict.from_list([
         #(
           "profile",
@@ -1020,7 +1020,7 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
       empty_upstream_context(),
     )
   assert json.to_string(create_outcome.data)
-    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"name\"],\"message\":\"Add a profile name\"}]}}}"
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"name\"],\"message\":\"Add a profile name\",\"code\":\"PROFILE_CREATE_REQUIRES_NAME\"}]}}}"
 
   let update_outcome =
     shipping_fulfillments.process_mutation(
@@ -1074,6 +1074,202 @@ pub fn delivery_profile_lifecycle_validation_branches_test() {
     )
   assert json.to_string(default_remove_outcome.data)
     == "{\"data\":{\"deliveryProfileRemove\":{\"job\":null,\"userErrors\":[{\"field\":null,\"message\":\"Cannot delete the default profile.\"}]}}}"
+}
+
+pub fn delivery_profile_create_validation_returns_coded_errors_test() {
+  let long_name =
+    delivery_profile_create_validation_json(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal(string.repeat("x", times: 300))),
+        ]),
+      ),
+    )
+  assert long_name
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"name\"],\"message\":\"Profile name must be less than 128 characters long\",\"code\":\"TOO_LONG\"}]}}}"
+
+  let unknown_location =
+    delivery_profile_create_validation_json(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Bad location")),
+          #(
+            "locationGroupsToCreate",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "locations",
+                    root_field.ListVal([
+                      root_field.StringVal("gid://shopify/Location/999999999"),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert unknown_location
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"locationGroupsToCreate.0.locations.0\"],\"message\":\"The Location could not be found for this shop.\",\"code\":\"LOCATION_NOT_FOUND\"}]}}}"
+
+  let empty_countries =
+    delivery_profile_create_validation_json(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Empty countries")),
+          #(
+            "locationGroupsToCreate",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "locations",
+                    root_field.ListVal([
+                      root_field.StringVal("gid://shopify/Location/1"),
+                    ]),
+                  ),
+                  #(
+                    "zonesToCreate",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("name", root_field.StringVal("Empty")),
+                          #("countries", root_field.ListVal([])),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert empty_countries
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"locationGroupsToCreate.0.zonesToCreate.0.countries\"],\"message\":\"Profile is invalid: cannot create LocationGroupZone without countries.\",\"code\":\"CANNOT_UPDATE_ZONES\"}]}}}"
+
+  let overlapping_zones =
+    delivery_profile_create_validation_json(
+      delivery_profile_lifecycle_store(),
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Overlap")),
+          #(
+            "locationGroupsToCreate",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "locations",
+                    root_field.ListVal([
+                      root_field.StringVal("gid://shopify/Location/1"),
+                    ]),
+                  ),
+                  #(
+                    "zonesToCreate",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("name", root_field.StringVal("One")),
+                          #(
+                            "countries",
+                            root_field.ListVal([
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #("code", root_field.StringVal("US")),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                        ]),
+                      ),
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("name", root_field.StringVal("Two")),
+                          #(
+                            "countries",
+                            root_field.ListVal([
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #("code", root_field.StringVal("US")),
+                                ]),
+                              ),
+                            ]),
+                          ),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert overlapping_zones
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":null,\"userErrors\":[{\"field\":[\"profile\",\"locationGroupsToCreate.0.zonesToCreate.1.countries.0\"],\"message\":\"Profile is invalid: zones cannot contain overlapping countries.\",\"code\":\"CANNOT_UPDATE_ZONES\"}]}}}"
+}
+
+pub fn delivery_profile_create_accepts_staged_location_test() {
+  let #(_, store_with_staged_location) =
+    store.upsert_staged_store_property_location(
+      delivery_profile_lifecycle_store(),
+      location(
+        "gid://shopify/Location/staged",
+        "Staged shop location",
+        True,
+        False,
+      ),
+    )
+  let result =
+    delivery_profile_create_validation_json(
+      store_with_staged_location,
+      root_field.ObjectVal(
+        dict.from_list([
+          #("name", root_field.StringVal("Staged location profile")),
+          #(
+            "locationGroupsToCreate",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #(
+                    "locations",
+                    root_field.ListVal([
+                      root_field.StringVal("gid://shopify/Location/staged"),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    )
+  assert result
+    == "{\"data\":{\"deliveryProfileCreate\":{\"profile\":{\"id\":\"gid://shopify/DeliveryProfile/1\",\"name\":\"Staged location profile\"},\"userErrors\":[]}}}"
+}
+
+fn delivery_profile_create_validation_json(
+  draft_store: store.Store,
+  profile: root_field.ResolvedValue,
+) -> String {
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      draft_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateDeliveryProfile($profile: DeliveryProfileInput!) { deliveryProfileCreate(profile: $profile) { profile { id name } userErrors { field message code } } }",
+      dict.from_list([#("profile", profile)]),
+      empty_upstream_context(),
+    )
+  json.to_string(outcome.data)
 }
 
 pub fn local_pickup_enable_disable_updates_downstream_location_read_test() {

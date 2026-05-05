@@ -38,6 +38,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
+import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
@@ -64,6 +65,73 @@ type OrderEditUserError {
     message: String,
     code: Option(String),
   )
+}
+
+fn user_error(
+  field_path: List(String),
+  message: String,
+  code: Option(String),
+) -> #(List(String), String, Option(String)) {
+  #(field_path, message, code)
+}
+
+fn inferred_user_error(
+  field_path: List(String),
+  message: String,
+) -> #(List(String), String, Option(String)) {
+  user_error(
+    field_path,
+    message,
+    infer_user_error_code(Some(field_path), message),
+  )
+}
+
+fn nullable_user_error(
+  field_path: Option(List(String)),
+  message: String,
+  code: Option(String),
+) -> #(Option(List(String)), String, Option(String)) {
+  #(field_path, message, code)
+}
+
+fn inferred_nullable_user_error(
+  field_path: Option(List(String)),
+  message: String,
+) -> #(Option(List(String)), String, Option(String)) {
+  nullable_user_error(
+    field_path,
+    message,
+    infer_user_error_code(field_path, message),
+  )
+}
+
+fn infer_user_error_code(
+  field_path: Option(List(String)),
+  message: String,
+) -> Option(String) {
+  case message {
+    "Order does not exist"
+    | "Order does not exist."
+    | "Fulfillment not found."
+    | "Fulfillment does not exist."
+    | "Draft order does not exist"
+    | "Draft order not found"
+    | "Return does not exist."
+    | "Reverse delivery does not exist."
+    | "abandonment_not_found"
+    | "Reverse fulfillment order does not exist." ->
+      Some(user_error_codes.not_found)
+    "Quantity is not removable from return." ->
+      Some(user_error_codes.return_line_item_quantity_invalid)
+    "Quantity cannot refund more items than were purchased" ->
+      Some(user_error_codes.invalid)
+    _ ->
+      case field_path {
+        Some(["returnLineItems", _, "quantity"]) ->
+          Some(user_error_codes.return_line_item_quantity_invalid)
+        _ -> Some(user_error_codes.invalid)
+      }
+  }
 }
 
 pub fn is_orders_query_root(name: String) -> Bool {
@@ -2836,7 +2904,7 @@ fn handle_draft_order_complete(
                     serialize_draft_order_mutation_payload(
                       field,
                       None,
-                      [#([], "Invalid payment gateway")],
+                      [inferred_user_error([], "Invalid payment gateway")],
                       fragments,
                     )
                   #(key, payload, store, identity, [], [], [])
@@ -2890,7 +2958,7 @@ fn handle_draft_order_complete(
                 serialize_draft_order_mutation_payload(
                   field,
                   None,
-                  [#(["id"], "Draft order does not exist")],
+                  [inferred_user_error(["id"], "Draft order does not exist")],
                   fragments,
                 )
               #(key, payload, store, identity, [], [], [])
@@ -2957,7 +3025,7 @@ fn handle_draft_order_delete(
             None -> #(
               key,
               serialize_draft_order_delete_payload(field, None, [
-                #(["id"], "Draft order does not exist"),
+                inferred_user_error(["id"], "Draft order does not exist"),
               ]),
               store,
               [],
@@ -2968,7 +3036,7 @@ fn handle_draft_order_delete(
         None -> #(
           key,
           serialize_draft_order_delete_payload(field, None, [
-            #(["id"], "Draft order does not exist"),
+            inferred_user_error(["id"], "Draft order does not exist"),
           ]),
           store,
           [],
@@ -2982,7 +3050,7 @@ fn handle_draft_order_delete(
 fn serialize_draft_order_delete_payload(
   field: Selection,
   deleted_id: Option(String),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
 ) -> Json {
   let entries =
     list.map(selection_children(field), fn(child) {
@@ -3037,7 +3105,7 @@ fn handle_order_delete_mutation(
         None -> {
           let payload =
             serialize_order_delete_payload(field, None, [
-              #(["orderId"], "Order does not exist"),
+              inferred_user_error(["orderId"], "Order does not exist"),
             ])
           #(key, payload, store, [], [])
         }
@@ -3045,7 +3113,7 @@ fn handle_order_delete_mutation(
     None -> {
       let payload =
         serialize_order_delete_payload(field, None, [
-          #(["orderId"], "Order does not exist"),
+          inferred_user_error(["orderId"], "Order does not exist"),
         ])
       #(key, payload, store, [], [])
     }
@@ -3055,7 +3123,7 @@ fn handle_order_delete_mutation(
 fn serialize_order_delete_payload(
   field: Selection,
   deleted_id: Option(String),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
 ) -> Json {
   let entries =
     list.map(selection_children(field), fn(child) {
@@ -3177,7 +3245,7 @@ fn unknown_draft_order_duplicate_result(
       field,
       None,
       [
-        #(["id"], "Draft order does not exist"),
+        inferred_user_error(["id"], "Draft order does not exist"),
       ],
       fragments,
     )
@@ -3246,17 +3314,17 @@ fn handle_draft_order_invoice_send(
 fn invoice_send_user_errors(
   args: Dict(String, root_field.ResolvedValue),
   draft_order: Option(DraftOrderRecord),
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   case draft_order {
-    None -> [#(None, "Draft order not found")]
+    None -> [inferred_nullable_user_error(None, "Draft order not found")]
     Some(record) -> {
       let recipient_errors = case invoice_send_recipient_present(args, record) {
         True -> []
-        False -> [#(None, "To can't be blank")]
+        False -> [inferred_nullable_user_error(None, "To can't be blank")]
       }
       let status_errors = case captured_string_field(record.data, "status") {
         Some("COMPLETED") -> [
-          #(
+          inferred_nullable_user_error(
             None,
             "Draft order Invoice can't be sent. This draft order is already paid.",
           ),
@@ -3291,7 +3359,7 @@ fn invoice_send_recipient_present(
 fn serialize_draft_order_invoice_send_payload(
   field: Selection,
   draft_order: Option(DraftOrderRecord),
-  user_errors: List(#(Option(List(String)), String)),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -3321,17 +3389,10 @@ fn serialize_draft_order_invoice_send_payload(
 
 fn serialize_nullable_user_error(
   field: Selection,
-  error: #(Option(List(String)), String),
+  error: #(Option(List(String)), String, Option(String)),
 ) -> Json {
-  let #(field_path, message) = error
-  let source =
-    src_object([
-      #("field", case field_path {
-        Some(path) -> SrcList(list.map(path, SrcString))
-        None -> SrcNull
-      }),
-      #("message", SrcString(message)),
-    ])
+  let #(field_path, message, code) = error
+  let source = user_error_source(field_path, message, code)
   project_graphql_value(source, selection_children(field), dict.new())
 }
 
@@ -3404,7 +3465,7 @@ fn build_calculated_draft_order_from_draft(
 fn serialize_draft_order_calculate_payload(
   field: Selection,
   calculated: Option(CapturedJsonValue),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -3464,7 +3525,7 @@ fn handle_draft_order_invoice_preview(
       }
       let user_errors = case draft_order {
         Some(_) -> []
-        None -> [#(["id"], "Draft order does not exist")]
+        None -> [inferred_user_error(["id"], "Draft order does not exist")]
       }
       let payload =
         serialize_draft_order_invoice_preview_payload(field, args, user_errors)
@@ -3490,7 +3551,7 @@ fn handle_draft_order_invoice_preview(
 fn serialize_draft_order_invoice_preview_payload(
   field: Selection,
   args: Dict(String, root_field.ResolvedValue),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
 ) -> Json {
   let email = read_object(args, "email") |> option.unwrap(dict.new())
   let subject =
@@ -3513,11 +3574,8 @@ fn serialize_draft_order_invoice_preview_payload(
         "userErrors",
         SrcList(
           list.map(user_errors, fn(error) {
-            let #(field_path, message) = error
-            src_object([
-              #("field", SrcList(list.map(field_path, SrcString))),
-              #("message", SrcString(message)),
-            ])
+            let #(field_path, message, code) = error
+            user_error_source(Some(field_path), message, code)
           }),
         ),
       ),
@@ -3545,7 +3603,7 @@ fn handle_draft_order_bulk_helper(
   let user_errors = case
     root_name != "draftOrderBulkDelete" && list.is_empty(tags)
   {
-    True -> [#(["tags"], "Tags can't be blank")]
+    True -> [inferred_user_error(["tags"], "Tags can't be blank")]
     False -> []
   }
   let targets = case user_errors {
@@ -3719,7 +3777,7 @@ fn unique_strings(values: List(String)) -> List(String) {
 fn serialize_draft_order_bulk_payload(
   field: Selection,
   job_id: Option(String),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
 ) -> Json {
   let entries =
     list.map(selection_children(field), fn(child) {
@@ -3867,7 +3925,7 @@ fn unknown_draft_order_update_result(
       field,
       None,
       [
-        #(["id"], "Draft order does not exist"),
+        inferred_user_error(["id"], "Draft order does not exist"),
       ],
       fragments,
     )
@@ -3923,7 +3981,7 @@ fn handle_order_lifecycle_mutation(
               field,
               None,
               [
-                #(["id"], "Order does not exist"),
+                inferred_user_error(["id"], "Order does not exist"),
               ],
               fragments,
             )
@@ -3941,7 +3999,7 @@ fn handle_order_lifecycle_mutation(
                   field,
                   None,
                   [
-                    #(["id"], "Order does not exist"),
+                    inferred_user_error(["id"], "Order does not exist"),
                   ],
                   fragments,
                 )
@@ -4010,7 +4068,7 @@ fn apply_order_lifecycle_update(
 fn serialize_order_mutation_payload(
   field: Selection,
   order: Option(OrderRecord),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -4137,7 +4195,7 @@ fn handle_order_cancel_mutation(
                       order_cancel_user_error(
                         ["orderId"],
                         "Order does not exist",
-                        "NOT_FOUND",
+                        user_error_codes.not_found,
                       ),
                     ])
                   #(key, payload, hydrated_store, identity, [], [], [])
@@ -4150,7 +4208,7 @@ fn handle_order_cancel_mutation(
                   order_cancel_user_error(
                     ["orderId"],
                     "Order does not exist",
-                    "NOT_FOUND",
+                    user_error_codes.not_found,
                   ),
                 ])
               #(key, payload, store, identity, [], [], [])
@@ -4172,7 +4230,7 @@ fn order_cancel_argument_errors(
       order_cancel_user_error(
         ["refund"],
         "Refund and refundMethod cannot both be present.",
-        "INVALID",
+        user_error_codes.invalid,
       ),
     ]
     False -> []
@@ -4184,7 +4242,7 @@ fn order_cancel_argument_errors(
           order_cancel_user_error(
             ["staffNote"],
             "Staff note is too long (maximum is 255 characters)",
-            "INVALID",
+            user_error_codes.invalid,
           ),
         ]
         False -> []
@@ -4212,7 +4270,7 @@ fn order_cancel_state_error(
       Some(order_cancel_user_error(
         ["orderId"],
         "Order has already been cancelled",
-        "INVALID",
+        user_error_codes.invalid,
       ))
     False ->
       case captured_string_field(order.data, "displayFinancialStatus") {
@@ -4220,7 +4278,7 @@ fn order_cancel_state_error(
           Some(order_cancel_user_error(
             ["orderId"],
             "Cannot cancel a refunded order",
-            "INVALID",
+            user_error_codes.invalid,
           ))
         _ ->
           case order_has_open_return(order) {
@@ -4228,7 +4286,7 @@ fn order_cancel_state_error(
               Some(order_cancel_user_error(
                 ["orderId"],
                 "Cannot cancel an order with open returns",
-                "INVALID",
+                user_error_codes.invalid,
               ))
             False -> None
           }
@@ -4359,7 +4417,7 @@ fn handle_order_invoice_send(
                 field,
                 None,
                 [
-                  #(["id"], "Order does not exist"),
+                  inferred_user_error(["id"], "Order does not exist"),
                 ],
                 fragments,
               ),
@@ -4373,7 +4431,7 @@ fn handle_order_invoice_send(
             field,
             None,
             [
-              #(["id"], "Order does not exist"),
+              inferred_user_error(["id"], "Order does not exist"),
             ],
             fragments,
           ),
@@ -4427,7 +4485,7 @@ fn handle_order_mark_as_paid_mutation(
               field,
               None,
               [
-                #(["id"], "Order does not exist"),
+                inferred_user_error(["id"], "Order does not exist"),
               ],
               fragments,
             )
@@ -4444,7 +4502,7 @@ fn handle_order_mark_as_paid_mutation(
                   field,
                   None,
                   [
-                    #(["id"], "Order does not exist"),
+                    inferred_user_error(["id"], "Order does not exist"),
                   ],
                   fragments,
                 )
@@ -4489,7 +4547,6 @@ fn apply_order_mark_as_paid_update(
       let #(timestamp, next_identity) =
         synthetic_identity.make_synthetic_timestamp(identity)
       let amount_set = order_payment_amount_set(order)
-      let currency_code = captured_money_set_currency(amount_set)
       let transaction =
         CapturedObject([
           #("kind", CapturedString("SALE")),
@@ -4503,7 +4560,9 @@ fn apply_order_mark_as_paid_update(
           #("updatedAt", CapturedString(timestamp)),
           #("displayFinancialStatus", CapturedString("PAID")),
           #("paymentGatewayNames", CapturedArray([CapturedString("manual")])),
-          #("totalOutstandingSet", money_set_string("0.0", currency_code)),
+          #("totalOutstandingSet", order_money_set(order, 0.0)),
+          #("totalReceivedSet", amount_set),
+          #("netPaymentSet", amount_set),
           #(
             "transactions",
             CapturedArray(list.append(order_transactions(order), [transaction])),
@@ -4528,6 +4587,7 @@ fn order_payment_amount_set(order: OrderRecord) -> CapturedJsonValue {
   outstanding
   |> option.or(captured_object_field(order.data, "currentTotalPriceSet"))
   |> option.or(captured_object_field(order.data, "totalPriceSet"))
+  |> option.map(ensure_money_bag_presentment)
   |> option.unwrap(money_set_string("0.0", order_currency_code(order)))
 }
 
@@ -4547,19 +4607,128 @@ fn captured_money_set_currency(value: CapturedJsonValue) -> String {
   }
 }
 
+fn captured_money_set_presentment_currency(value: CapturedJsonValue) -> String {
+  case captured_object_field(value, "presentmentMoney") {
+    Some(presentment_money) ->
+      captured_string_field(presentment_money, "currencyCode")
+      |> option.unwrap(captured_money_set_currency(value))
+    None -> captured_money_set_currency(value)
+  }
+}
+
+fn order_presentment_currency_code(order: OrderRecord) -> String {
+  order_presentment_reference_money_sets(order)
+  |> list.find_map(fn(money_set) {
+    captured_money_set_presentment_currency(money_set) |> Ok
+  })
+  |> result.unwrap(order_currency_code(order))
+}
+
+fn order_money_set(order: OrderRecord, amount: Float) -> CapturedJsonValue {
+  money_set_with_presentment(
+    amount,
+    order_currency_code(order),
+    amount *. order_presentment_rate(order),
+    order_presentment_currency_code(order),
+  )
+}
+
+fn order_money_set_string(
+  order: OrderRecord,
+  amount: Float,
+) -> CapturedJsonValue {
+  money_set_string_with_presentment(
+    format_decimal_amount(amount),
+    order_currency_code(order),
+    format_decimal_amount(amount *. order_presentment_rate(order)),
+    order_presentment_currency_code(order),
+  )
+}
+
+fn order_presentment_rate(order: OrderRecord) -> Float {
+  order_presentment_reference_money_sets(order)
+  |> list.find_map(fn(money_set) {
+    let amount = captured_money_value(money_set)
+    case amount >. 0.0 {
+      True -> Ok(captured_money_presentment_value(money_set) /. amount)
+      False -> Error(Nil)
+    }
+  })
+  |> result.unwrap(1.0)
+}
+
+fn order_presentment_reference_money_sets(
+  order: OrderRecord,
+) -> List(CapturedJsonValue) {
+  let order_level_sets =
+    [
+      "currentTotalPriceSet",
+      "totalPriceSet",
+      "totalOutstandingSet",
+      "subtotalPriceSet",
+    ]
+    |> list.filter_map(fn(field_name) {
+      captured_object_field(order.data, field_name) |> option_to_result
+    })
+  let line_item_sets =
+    order_line_items(order.data)
+    |> money_sets_from_field("originalUnitPriceSet")
+  list.append(order_level_sets, line_item_sets)
+}
+
 fn money_set_string(
   amount: String,
   currency_code: String,
+) -> CapturedJsonValue {
+  money_set_string_with_presentment(
+    amount,
+    currency_code,
+    amount,
+    currency_code,
+  )
+}
+
+fn money_set_string_with_presentment(
+  shop_amount: String,
+  shop_currency_code: String,
+  presentment_amount: String,
+  presentment_currency_code: String,
 ) -> CapturedJsonValue {
   CapturedObject([
     #(
       "shopMoney",
       CapturedObject([
-        #("amount", CapturedString(amount)),
-        #("currencyCode", CapturedString(currency_code)),
+        #("amount", CapturedString(shop_amount)),
+        #("currencyCode", CapturedString(shop_currency_code)),
+      ]),
+    ),
+    #(
+      "presentmentMoney",
+      CapturedObject([
+        #("amount", CapturedString(presentment_amount)),
+        #("currencyCode", CapturedString(presentment_currency_code)),
       ]),
     ),
   ])
+}
+
+fn ensure_money_bag_presentment(value: CapturedJsonValue) -> CapturedJsonValue {
+  case captured_object_field(value, "presentmentMoney") {
+    Some(CapturedObject(_)) -> value
+    _ ->
+      case captured_object_field(value, "shopMoney") {
+        Some(shop_money) -> {
+          let amount =
+            captured_string_field(shop_money, "amount")
+            |> option.unwrap(float.to_string(captured_money_value(value)))
+          let currency_code =
+            captured_string_field(shop_money, "currencyCode")
+            |> option.unwrap(captured_money_set_currency(value))
+          money_set_string(amount, currency_code)
+        }
+        None -> value
+      }
+  }
 }
 
 fn order_transactions(order: OrderRecord) -> List(CapturedJsonValue) {
@@ -4592,7 +4761,7 @@ fn handle_order_capture_mutation(
           field,
           None,
           None,
-          [#(["input"], "Input is required.")],
+          [inferred_user_error(["input"], "Input is required.")],
           fragments,
         )
       #(key, payload, store, identity, [], [
@@ -4612,7 +4781,7 @@ fn handle_order_capture_mutation(
               field,
               None,
               None,
-              [#(["input", "id"], "Order does not exist")],
+              [inferred_user_error(["input", "id"], "Order does not exist")],
               fragments,
             )
           #(key, payload, store, identity, [], [
@@ -4627,7 +4796,7 @@ fn handle_order_capture_mutation(
                   field,
                   None,
                   None,
-                  [#(["input", "id"], "Order does not exist")],
+                  [inferred_user_error(["input", "id"], "Order does not exist")],
                   fragments,
                 )
               #(key, payload, store, identity, [], [
@@ -4643,7 +4812,7 @@ fn handle_order_capture_mutation(
                       None,
                       Some(order),
                       [
-                        #(
+                        inferred_user_error(
                           ["input", "parentTransactionId"],
                           "Transaction does not exist",
                         ),
@@ -4663,7 +4832,7 @@ fn handle_order_capture_mutation(
                           None,
                           Some(order),
                           [
-                            #(
+                            inferred_user_error(
                               ["input", "parentTransactionId"],
                               "Transaction does not exist",
                             ),
@@ -4724,7 +4893,10 @@ fn capture_order_payment(
           None,
           Some(order),
           [
-            #(["input", "parentTransactionId"], "Transaction is not capturable"),
+            inferred_user_error(
+              ["input", "parentTransactionId"],
+              "Transaction is not capturable",
+            ),
           ],
           fragments,
         )
@@ -4740,7 +4912,12 @@ fn capture_order_payment(
               field,
               None,
               Some(order),
-              [#(["input", "amount"], "Amount must be greater than zero")],
+              [
+                inferred_user_error(
+                  ["input", "amount"],
+                  "Amount must be greater than zero",
+                ),
+              ],
               fragments,
             )
           #(key, payload, store, identity, [], [
@@ -4755,7 +4932,12 @@ fn capture_order_payment(
                   field,
                   None,
                   Some(order),
-                  [#(["input", "amount"], "Amount exceeds capturable amount")],
+                  [
+                    inferred_user_error(
+                      ["input", "amount"],
+                      "Amount exceeds capturable amount",
+                    ),
+                  ],
                   fragments,
                 )
               #(key, payload, store, identity, [], [
@@ -4763,8 +4945,6 @@ fn capture_order_payment(
               ])
             }
             False -> {
-              let currency_code =
-                payment_input_currency(input, order_currency_code(order))
               let #(payment_reference_id, identity_after_reference) =
                 synthetic_identity.make_synthetic_gid(
                   identity,
@@ -4774,7 +4954,7 @@ fn capture_order_payment(
                 build_payment_transaction(
                   identity_after_reference,
                   "CAPTURE",
-                  money_set(amount, currency_code),
+                  payment_input_money_set(input, order, amount),
                   captured_string_field(authorization, "gateway"),
                   captured_string_field(authorization, "id"),
                   Some(payment_reference_id),
@@ -4789,7 +4969,7 @@ fn capture_order_payment(
                     build_payment_transaction(
                       identity_after_capture,
                       "VOID",
-                      money_set(remaining_after_capture, currency_code),
+                      order_money_set(order, remaining_after_capture),
                       captured_string_field(authorization, "gateway"),
                       captured_string_field(authorization, "id"),
                       None,
@@ -4843,7 +5023,7 @@ fn handle_transaction_void_mutation(
         serialize_transaction_void_payload(
           field,
           None,
-          [#([field_name], "Transaction does not exist")],
+          [inferred_user_error([field_name], "Transaction does not exist")],
           fragments,
         )
       #(key, payload, store, identity, [], [
@@ -4857,7 +5037,7 @@ fn handle_transaction_void_mutation(
             serialize_transaction_void_payload(
               field,
               None,
-              [#([field_name], "Transaction does not exist")],
+              [inferred_user_error([field_name], "Transaction does not exist")],
               fragments,
             )
           #(key, payload, store, identity, [], [
@@ -4897,7 +5077,7 @@ fn void_order_transaction(
   List(LogDraft),
 ) {
   let user_errors = case is_successful_authorization(authorization) {
-    False -> [#(["id"], "Transaction is not voidable")]
+    False -> [inferred_user_error(["id"], "Transaction is not voidable")]
     True ->
       case
         transaction_has_voiding_child(
@@ -4905,7 +5085,9 @@ fn void_order_transaction(
           captured_string_field(authorization, "id") |> option.unwrap(""),
         )
       {
-        True -> [#(["id"], "Transaction has already been voided")]
+        True -> [
+          inferred_user_error(["id"], "Transaction has already been voided"),
+        ]
         False ->
           case
             captured_amount_for_authorization(
@@ -4914,7 +5096,12 @@ fn void_order_transaction(
             )
             >. 0.0
           {
-            True -> [#(["id"], "Transaction has already been captured")]
+            True -> [
+              inferred_user_error(
+                ["id"],
+                "Transaction has already been captured",
+              ),
+            ]
             False -> []
           }
       }
@@ -4984,7 +5171,7 @@ fn handle_order_create_mandate_payment_mutation(
           None,
           None,
           None,
-          [#(["id"], "Order does not exist")],
+          [inferred_user_error(["id"], "Order does not exist")],
           fragments,
         )
       #(key, payload, store, identity, [], [
@@ -5000,7 +5187,7 @@ fn handle_order_create_mandate_payment_mutation(
               None,
               None,
               None,
-              [#(["id"], "Order does not exist")],
+              [inferred_user_error(["id"], "Order does not exist")],
               fragments,
             )
           #(key, payload, store, identity, [], [
@@ -5017,7 +5204,12 @@ fn handle_order_create_mandate_payment_mutation(
                   None,
                   None,
                   Some(order),
-                  [#(["idempotencyKey"], "Idempotency key is required")],
+                  [
+                    inferred_user_error(
+                      ["idempotencyKey"],
+                      "Idempotency key is required",
+                    ),
+                  ],
                   fragments,
                 )
               #(key, payload, store, identity, [], [
@@ -5083,7 +5275,6 @@ fn create_mandate_payment(
   List(String),
   List(LogDraft),
 ) {
-  let currency_code = payment_input_currency(input, order_currency_code(order))
   let amount =
     payment_input_amount(
       input,
@@ -5101,7 +5292,7 @@ fn create_mandate_payment(
           None,
           None,
           Some(order),
-          [#(["amount"], "Amount must be greater than zero")],
+          [inferred_user_error(["amount"], "Amount must be greater than zero")],
           fragments,
         )
       #(key, payload, store, identity, [], [
@@ -5115,7 +5306,7 @@ fn create_mandate_payment(
         build_payment_transaction(
           identity_after_reference,
           "MANDATE_PAYMENT",
-          money_set(amount, currency_code),
+          payment_input_money_set(input, order, amount),
           Some("mandate"),
           None,
           Some(payment_reference_id),
@@ -5242,12 +5433,23 @@ fn append_payment_gateway(order: OrderRecord, gateway: String) -> OrderRecord {
 
 fn apply_payment_derived_fields(order: OrderRecord) -> OrderRecord {
   let currency_code = order_currency_code(order)
+  let presentment_currency_code = order_presentment_currency_code(order)
   let received = total_received_amount(order)
+  let presentment_received = total_received_presentment_amount(order)
   let total =
     captured_money_amount(order.data, "currentTotalPriceSet")
     |> nonzero_float(captured_money_amount(order.data, "totalPriceSet"))
+  let presentment_total =
+    captured_money_presentment_amount(order.data, "currentTotalPriceSet")
+    |> nonzero_float(captured_money_presentment_amount(
+      order.data,
+      "totalPriceSet",
+    ))
   let outstanding = max_float(0.0, total -. received)
+  let presentment_outstanding =
+    max_float(0.0, presentment_total -. presentment_received)
   let capturable = total_capturable_amount(order)
+  let presentment_capturable = total_capturable_presentment_amount(order)
   let has_voided_authorization =
     order_transactions(order)
     |> list.any(fn(transaction) {
@@ -5281,10 +5483,42 @@ fn apply_payment_derived_fields(order: OrderRecord) -> OrderRecord {
       #("displayFinancialStatus", CapturedString(display_status)),
       #("capturable", CapturedBool(capturable >. 0.0)),
       #("totalCapturable", CapturedString(float.to_string(capturable))),
-      #("totalCapturableSet", money_set(capturable, currency_code)),
-      #("totalOutstandingSet", money_set(outstanding, currency_code)),
-      #("totalReceivedSet", money_set(received, currency_code)),
-      #("netPaymentSet", money_set(received, currency_code)),
+      #(
+        "totalCapturableSet",
+        money_set_with_presentment(
+          capturable,
+          currency_code,
+          presentment_capturable,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "totalOutstandingSet",
+        money_set_with_presentment(
+          outstanding,
+          currency_code,
+          presentment_outstanding,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "totalReceivedSet",
+        money_set_with_presentment(
+          received,
+          currency_code,
+          presentment_received,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "netPaymentSet",
+        money_set_with_presentment(
+          received,
+          currency_code,
+          presentment_received,
+          presentment_currency_code,
+        ),
+      ),
     ])
   OrderRecord(..order, data: updated)
 }
@@ -5356,6 +5590,22 @@ fn captured_amount_for_authorization(
   })
 }
 
+fn captured_presentment_amount_for_authorization(
+  order: OrderRecord,
+  parent_transaction_id: String,
+) -> Float {
+  order_transactions(order)
+  |> list.filter(fn(transaction) {
+    captured_string_field(transaction, "kind") == Some("CAPTURE")
+    && captured_string_field(transaction, "status") == Some("SUCCESS")
+    && captured_string_field(transaction, "parentTransactionId")
+    == Some(parent_transaction_id)
+  })
+  |> list.fold(0.0, fn(sum, transaction) {
+    sum +. captured_money_presentment_amount(transaction, "amountSet")
+  })
+}
+
 fn capturable_amount_for_authorization(
   order: OrderRecord,
   authorization: CapturedJsonValue,
@@ -5376,6 +5626,29 @@ fn capturable_amount_for_authorization(
   }
 }
 
+fn capturable_presentment_amount_for_authorization(
+  order: OrderRecord,
+  authorization: CapturedJsonValue,
+) -> Float {
+  let authorization_id =
+    captured_string_field(authorization, "id") |> option.unwrap("")
+  case
+    !is_successful_authorization(authorization)
+    || transaction_has_voiding_child(order, authorization_id)
+  {
+    True -> 0.0
+    False -> {
+      let captured_presentment =
+        captured_presentment_amount_for_authorization(order, authorization_id)
+      max_float(
+        0.0,
+        captured_money_presentment_amount(authorization, "amountSet")
+          -. captured_presentment,
+      )
+    }
+  }
+}
+
 fn total_capturable_amount(order: OrderRecord) -> Float {
   order_transactions(order)
   |> list.filter(is_successful_authorization)
@@ -5384,11 +5657,27 @@ fn total_capturable_amount(order: OrderRecord) -> Float {
   })
 }
 
+fn total_capturable_presentment_amount(order: OrderRecord) -> Float {
+  order_transactions(order)
+  |> list.filter(is_successful_authorization)
+  |> list.fold(0.0, fn(sum, transaction) {
+    sum +. capturable_presentment_amount_for_authorization(order, transaction)
+  })
+}
+
 fn total_received_amount(order: OrderRecord) -> Float {
   order_transactions(order)
   |> list.filter(is_successful_payment_capture)
   |> list.fold(0.0, fn(sum, transaction) {
     sum +. captured_money_amount(transaction, "amountSet")
+  })
+}
+
+fn total_received_presentment_amount(order: OrderRecord) -> Float {
+  order_transactions(order)
+  |> list.filter(is_successful_payment_capture)
+  |> list.fold(0.0, fn(sum, transaction) {
+    sum +. captured_money_presentment_amount(transaction, "amountSet")
   })
 }
 
@@ -5445,6 +5734,22 @@ fn payment_input_amount(
   }
 }
 
+fn payment_input_money_set(
+  input: Dict(String, root_field.ResolvedValue),
+  order: OrderRecord,
+  fallback_amount: Float,
+) -> CapturedJsonValue {
+  case read_object(input, "amountSet") {
+    Some(amount_set) ->
+      order_money_set_from_input(
+        Some(amount_set),
+        payment_input_currency(input, order_currency_code(order)),
+        fallback_amount,
+      )
+    None -> order_money_set(order, payment_input_amount(input, fallback_amount))
+  }
+}
+
 fn payment_input_currency(
   input: Dict(String, root_field.ResolvedValue),
   fallback: String,
@@ -5490,7 +5795,7 @@ fn serialize_order_capture_payload(
   field: Selection,
   transaction: Option(CapturedJsonValue),
   order: Option(OrderRecord),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   json.object(
@@ -5524,7 +5829,7 @@ fn serialize_order_capture_payload(
 fn serialize_transaction_void_payload(
   field: Selection,
   transaction: Option(CapturedJsonValue),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   json.object(
@@ -5556,7 +5861,7 @@ fn serialize_mandate_payment_payload(
   payment: Option(CapturedJsonValue),
   payment_reference_id: Option(String),
   order: Option(OrderRecord),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   json.object(
@@ -6433,7 +6738,7 @@ type ReturnMutationResult {
     order_return: Option(CapturedJsonValue),
     store: Store,
     identity: SyntheticIdentityRegistry,
-    user_errors: List(#(List(String), String)),
+    user_errors: List(#(List(String), String, Option(String))),
   )
 }
 
@@ -6445,7 +6750,7 @@ type ReverseDeliveryMutationResult {
     reverse_delivery: Option(CapturedJsonValue),
     store: Store,
     identity: SyntheticIdentityRegistry,
-    user_errors: List(#(List(String), String)),
+    user_errors: List(#(List(String), String, Option(String))),
   )
 }
 
@@ -6454,7 +6759,7 @@ type DisposeMutationResult {
     line_items: List(CapturedJsonValue),
     store: Store,
     identity: SyntheticIdentityRegistry,
-    user_errors: List(#(List(String), String)),
+    user_errors: List(#(List(String), String, Option(String))),
   )
 }
 
@@ -6467,19 +6772,19 @@ fn apply_return_create(
   case input {
     None ->
       ReturnMutationResult(None, None, store, identity, [
-        #(["input"], "Input is required."),
+        inferred_user_error(["input"], "Input is required."),
       ])
     Some(input) -> {
       case read_string(input, "orderId") {
         None ->
           ReturnMutationResult(None, None, store, identity, [
-            #(["orderId"], "Order does not exist."),
+            inferred_user_error(["orderId"], "Order does not exist."),
           ])
         Some(order_id) ->
           case store.get_order_by_id(store, order_id) {
             None ->
               ReturnMutationResult(None, None, store, identity, [
-                #(["orderId"], "Order does not exist."),
+                inferred_user_error(["orderId"], "Order does not exist."),
               ])
             Some(order) -> {
               let line_item_result =
@@ -6535,13 +6840,13 @@ fn apply_return_status_update(
   case return_id {
     None ->
       ReturnMutationResult(None, None, store, identity, [
-        #(["id"], "Return does not exist."),
+        inferred_user_error(["id"], "Return does not exist."),
       ])
     Some(return_id) ->
       case find_order_return(store, return_id) {
         None ->
           ReturnMutationResult(None, None, store, identity, [
-            #(["id"], "Return does not exist."),
+            inferred_user_error(["id"], "Return does not exist."),
           ])
         Some(match) -> {
           let #(order, order_return) = match
@@ -6598,27 +6903,27 @@ fn apply_remove_from_return(
   case return_id {
     None ->
       ReturnMutationResult(None, None, store, identity, [
-        #(["returnId"], "Return does not exist."),
+        inferred_user_error(["returnId"], "Return does not exist."),
       ])
     Some(return_id) ->
       case find_order_return(store, return_id) {
         None ->
           ReturnMutationResult(None, None, store, identity, [
-            #(["returnId"], "Return does not exist."),
+            inferred_user_error(["returnId"], "Return does not exist."),
           ])
         Some(match) -> {
           let #(order, order_return) = match
           case raw_return_line_items, raw_exchange_line_items {
             [], [] ->
               ReturnMutationResult(Some(order), None, store, identity, [
-                #(
+                inferred_user_error(
                   ["returnLineItems"],
                   "Return line items or exchange line items are required.",
                 ),
               ])
             _, [_, ..] ->
               ReturnMutationResult(Some(order), None, store, identity, [
-                #(
+                inferred_user_error(
                   ["exchangeLineItems"],
                   "Exchange line item removal is not supported by the local return model yet.",
                 ),
@@ -6686,7 +6991,7 @@ fn apply_remove_from_return(
 fn remove_return_line_items(
   existing_line_items: List(CapturedJsonValue),
   raw_return_line_items: List(Dict(String, root_field.ResolvedValue)),
-) -> #(List(CapturedJsonValue), List(#(List(String), String))) {
+) -> #(List(CapturedJsonValue), List(#(List(String), String, Option(String)))) {
   raw_return_line_items
   |> list.index_fold(#(existing_line_items, []), fn(acc, input, index) {
     let #(line_items, user_errors) = acc
@@ -6699,7 +7004,7 @@ fn remove_return_line_items(
       None, _ -> #(
         line_items,
         list.append(user_errors, [
-          #(
+          inferred_user_error(
             ["returnLineItems", int.to_string(index), "returnLineItemId"],
             "Return line item does not exist.",
           ),
@@ -6708,7 +7013,7 @@ fn remove_return_line_items(
       Some(_), None -> #(
         line_items,
         list.append(user_errors, [
-          #(
+          inferred_user_error(
             ["returnLineItems", int.to_string(index), "returnLineItemId"],
             "Return line item does not exist.",
           ),
@@ -6724,7 +7029,7 @@ fn remove_return_line_items(
           True -> #(
             line_items,
             list.append(user_errors, [
-              #(
+              inferred_user_error(
                 ["returnLineItems", int.to_string(index), "quantity"],
                 "Quantity is not removable from return.",
               ),
@@ -6790,13 +7095,13 @@ fn apply_return_decline_request(
   case return_id {
     None ->
       ReturnMutationResult(None, None, store, identity, [
-        #(["input", "id"], "Return does not exist."),
+        inferred_user_error(["input", "id"], "Return does not exist."),
       ])
     Some(return_id) ->
       case find_order_return(store, return_id) {
         None ->
           ReturnMutationResult(None, None, store, identity, [
-            #(["input", "id"], "Return does not exist."),
+            inferred_user_error(["input", "id"], "Return does not exist."),
           ])
         Some(match) -> {
           let #(order, order_return) = match
@@ -6848,7 +7153,7 @@ fn apply_return_decline_request(
             }
             _ ->
               ReturnMutationResult(Some(order), None, store, identity, [
-                #(
+                inferred_user_error(
                   ["input", "id"],
                   "Return is not declinable. Only non-refunded returns with status REQUESTED can be declined.",
                 ),
@@ -6871,13 +7176,13 @@ fn apply_return_approve_request(
   case return_id {
     None ->
       ReturnMutationResult(None, None, store, identity, [
-        #(["input", "id"], "Return does not exist."),
+        inferred_user_error(["input", "id"], "Return does not exist."),
       ])
     Some(return_id) ->
       case find_order_return(store, return_id) {
         None ->
           ReturnMutationResult(None, None, store, identity, [
-            #(["input", "id"], "Return does not exist."),
+            inferred_user_error(["input", "id"], "Return does not exist."),
           ])
         Some(match) -> {
           let #(order, order_return) = match
@@ -6911,7 +7216,7 @@ fn apply_return_approve_request(
             }
             _ ->
               ReturnMutationResult(Some(order), None, store, identity, [
-                #(
+                inferred_user_error(
                   ["input", "id"],
                   "Return is not approvable. Only returns with status REQUESTED can be approved.",
                 ),
@@ -6931,13 +7236,13 @@ fn apply_return_process(
   case read_string(input_fields, "returnId") {
     None ->
       ReturnMutationResult(None, None, store, identity, [
-        #(["input", "returnId"], "Return does not exist."),
+        inferred_user_error(["input", "returnId"], "Return does not exist."),
       ])
     Some(return_id) ->
       case find_order_return(store, return_id) {
         None ->
           ReturnMutationResult(None, None, store, identity, [
-            #(["input", "returnId"], "Return does not exist."),
+            inferred_user_error(["input", "returnId"], "Return does not exist."),
           ])
         Some(match) -> {
           let #(order, order_return) = match
@@ -6948,7 +7253,7 @@ fn apply_return_process(
               case raw_line_items {
                 [] ->
                   ReturnMutationResult(Some(order), None, store, identity, [
-                    #(
+                    inferred_user_error(
                       ["input", "returnLineItems"],
                       "Return line items are required.",
                     ),
@@ -7053,7 +7358,10 @@ fn apply_return_process(
             }
             _ ->
               ReturnMutationResult(Some(order), None, store, identity, [
-                #(["input", "returnId"], "Only OPEN returns can be processed."),
+                inferred_user_error(
+                  ["input", "returnId"],
+                  "Only OPEN returns can be processed.",
+                ),
               ])
           }
         }
@@ -7064,7 +7372,7 @@ fn apply_return_process(
 fn process_return_line_items(
   existing_line_items: List(CapturedJsonValue),
   raw_return_line_items: List(Dict(String, root_field.ResolvedValue)),
-) -> #(List(CapturedJsonValue), List(#(List(String), String))) {
+) -> #(List(CapturedJsonValue), List(#(List(String), String, Option(String)))) {
   raw_return_line_items
   |> list.index_fold(#(existing_line_items, []), fn(acc, input, index) {
     let #(line_items, user_errors) = acc
@@ -7077,7 +7385,7 @@ fn process_return_line_items(
       None, _ -> #(
         line_items,
         list.append(user_errors, [
-          #(
+          inferred_user_error(
             ["input", "returnLineItems", int.to_string(index), "id"],
             "Return line item does not exist.",
           ),
@@ -7086,7 +7394,7 @@ fn process_return_line_items(
       Some(_), None -> #(
         line_items,
         list.append(user_errors, [
-          #(
+          inferred_user_error(
             ["input", "returnLineItems", int.to_string(index), "id"],
             "Return line item does not exist.",
           ),
@@ -7102,7 +7410,7 @@ fn process_return_line_items(
           True -> #(
             line_items,
             list.append(user_errors, [
-              #(
+              inferred_user_error(
                 ["input", "returnLineItems", int.to_string(index), "quantity"],
                 "Quantity is not processable.",
               ),
@@ -7138,7 +7446,7 @@ fn apply_reverse_delivery_create_with_shipping(
   case read_string(args, "reverseFulfillmentOrderId") {
     None ->
       ReverseDeliveryMutationResult(None, None, None, None, store, identity, [
-        #(
+        inferred_user_error(
           ["reverseFulfillmentOrderId"],
           "Reverse fulfillment order does not exist.",
         ),
@@ -7154,7 +7462,7 @@ fn apply_reverse_delivery_create_with_shipping(
             store,
             identity,
             [
-              #(
+              inferred_user_error(
                 ["reverseFulfillmentOrderId"],
                 "Reverse fulfillment order does not exist.",
               ),
@@ -7197,7 +7505,7 @@ fn apply_reverse_delivery_create_with_shipping(
                     store,
                     identity,
                     [
-                      #(
+                      inferred_user_error(
                         ["reverseDeliveryLineItems"],
                         "Reverse delivery line items are required.",
                       ),
@@ -7267,7 +7575,10 @@ fn apply_reverse_delivery_shipping_update(
   case read_string(args, "reverseDeliveryId") {
     None ->
       ReverseDeliveryMutationResult(None, None, None, None, store, identity, [
-        #(["reverseDeliveryId"], "Reverse delivery does not exist."),
+        inferred_user_error(
+          ["reverseDeliveryId"],
+          "Reverse delivery does not exist.",
+        ),
       ])
     Some(reverse_delivery_id) ->
       case find_order_reverse_delivery(store, reverse_delivery_id) {
@@ -7280,7 +7591,10 @@ fn apply_reverse_delivery_shipping_update(
             store,
             identity,
             [
-              #(["reverseDeliveryId"], "Reverse delivery does not exist."),
+              inferred_user_error(
+                ["reverseDeliveryId"],
+                "Reverse delivery does not exist.",
+              ),
             ],
           )
         Some(match) -> {
@@ -7338,7 +7652,10 @@ fn apply_reverse_fulfillment_order_dispose(
   case inputs {
     [] ->
       DisposeMutationResult([], store, identity, [
-        #(["dispositionInputs"], "Disposition inputs are required."),
+        inferred_user_error(
+          ["dispositionInputs"],
+          "Disposition inputs are required.",
+        ),
       ])
     _ -> {
       let #(next_store, next_identity, line_items, user_errors) =
@@ -7359,7 +7676,7 @@ fn apply_reverse_fulfillment_order_dispose(
               current_identity,
               disposed_items,
               list.append(errors, [
-                #(
+                inferred_user_error(
                   [
                     "dispositionInputs",
                     int.to_string(index),
@@ -7374,7 +7691,7 @@ fn apply_reverse_fulfillment_order_dispose(
               current_identity,
               disposed_items,
               list.append(errors, [
-                #(
+                inferred_user_error(
                   [
                     "dispositionInputs",
                     int.to_string(index),
@@ -7399,7 +7716,7 @@ fn apply_reverse_fulfillment_order_dispose(
                   current_identity,
                   disposed_items,
                   list.append(errors, [
-                    #(
+                    inferred_user_error(
                       ["dispositionInputs", int.to_string(index), "quantity"],
                       "Quantity is not disposable.",
                     ),
@@ -7491,13 +7808,16 @@ fn build_return_line_items(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Result(
   #(List(CapturedJsonValue), SyntheticIdentityRegistry),
-  List(#(List(String), String)),
+  List(#(List(String), String, Option(String))),
 ) {
   let raw_line_items = read_object_list(input, "returnLineItems")
   case raw_line_items {
     [] ->
       Error([
-        #(["returnLineItems"], "Return must include at least one line item."),
+        inferred_user_error(
+          ["returnLineItems"],
+          "Return must include at least one line item.",
+        ),
       ])
     _ -> {
       let #(line_items, user_errors, next_identity) =
@@ -7516,7 +7836,7 @@ fn build_return_line_items(
               None -> #(
                 items,
                 list.append(errors, [
-                  #(
+                  inferred_user_error(
                     [
                       "returnLineItems",
                       int.to_string(index),
@@ -7535,7 +7855,7 @@ fn build_return_line_items(
                   True -> #(
                     items,
                     list.append(errors, [
-                      #(
+                      inferred_user_error(
                         ["returnLineItems", int.to_string(index), "quantity"],
                         "Quantity is not available for return.",
                       ),
@@ -7903,7 +8223,7 @@ fn build_reverse_delivery_line_items(
   raw_line_items: List(Dict(String, root_field.ResolvedValue)),
 ) -> Result(
   #(List(CapturedJsonValue), SyntheticIdentityRegistry),
-  List(#(List(String), String)),
+  List(#(List(String), String, Option(String))),
 ) {
   let #(line_items, user_errors, next_identity) =
     raw_line_items
@@ -7920,7 +8240,7 @@ fn build_reverse_delivery_line_items(
         None, _ -> #(
           items,
           list.append(errors, [
-            #(
+            inferred_user_error(
               [
                 "reverseDeliveryLineItems",
                 int.to_string(index),
@@ -7934,7 +8254,7 @@ fn build_reverse_delivery_line_items(
         Some(_), None -> #(
           items,
           list.append(errors, [
-            #(
+            inferred_user_error(
               [
                 "reverseDeliveryLineItems",
                 int.to_string(index),
@@ -7952,7 +8272,7 @@ fn build_reverse_delivery_line_items(
             True -> #(
               items,
               list.append(errors, [
-                #(
+                inferred_user_error(
                   ["reverseDeliveryLineItems", int.to_string(index), "quantity"],
                   "Quantity is not available for reverse delivery.",
                 ),
@@ -8324,7 +8644,7 @@ fn find_fulfillment_line_item(
 fn return_log_draft(
   root_name: String,
   staged_ids: List(String),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
 ) -> LogDraft {
   let status = case user_errors {
     [] -> store.Staged
@@ -8344,7 +8664,7 @@ fn serialize_return_mutation_payload(
   field: Selection,
   order_return: Option(CapturedJsonValue),
   order: Option(OrderRecord),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -8378,7 +8698,7 @@ fn serialize_reverse_delivery_mutation_payload(
   reverse_order: Option(CapturedJsonValue),
   order_return: Option(CapturedJsonValue),
   order: Option(OrderRecord),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -8423,7 +8743,7 @@ fn serialize_reverse_delivery_mutation_payload(
 fn serialize_reverse_fulfillment_order_dispose_payload(
   field: Selection,
   line_items: List(CapturedJsonValue),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -10251,7 +10571,7 @@ fn order_edit_invalid_user_error(
   OrderEditUserError(
     field_path: field_path,
     message: message,
-    code: Some("INVALID"),
+    code: Some(user_error_codes.invalid),
   )
 }
 
@@ -10723,6 +11043,10 @@ type RequestedFulfillmentLineItem {
   RequestedFulfillmentLineItem(id: String, quantity: Option(Int))
 }
 
+const max_fulfillment_holds_per_api_client = 10
+
+const fulfillment_hold_handle_max_length = 64
+
 fn fulfillment_order_supported_actions(
   fulfillment_order: CapturedJsonValue,
 ) -> List(String) {
@@ -10973,6 +11297,190 @@ fn read_fulfillment_order_line_item_inputs(
   }
 }
 
+fn fulfillment_order_hold_input_from_variables(
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case dict.get(variables, "fulfillmentHold") {
+    Ok(root_field.ObjectVal(input)) -> input
+    _ -> dict.new()
+  }
+}
+
+fn fulfillment_order_hold_handle(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  read_string(input, "handle") |> option.unwrap("")
+}
+
+fn fulfillment_order_hold_line_item_input_objects(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(input, "fulfillmentOrderLineItems") {
+    Ok(root_field.ListVal(items)) ->
+      items
+      |> list.filter_map(fn(item) {
+        case item {
+          root_field.ObjectVal(item) -> Ok(item)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
+}
+
+fn fulfillment_order_hold_validation_errors(
+  fulfillment_order: CapturedJsonValue,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> List(#(Option(List(String)), String)) {
+  let input = fulfillment_order_hold_input_from_variables(variables)
+  let line_item_inputs = fulfillment_order_hold_line_item_input_objects(input)
+  let input_errors =
+    list.append(
+      fulfillment_order_hold_line_item_quantity_errors(line_item_inputs),
+      fulfillment_order_hold_duplicate_line_item_errors(line_item_inputs),
+    )
+  case input_errors {
+    [_, ..] -> input_errors
+    [] -> {
+      let handle = fulfillment_order_hold_handle(input)
+      case string.length(handle) > fulfillment_hold_handle_max_length {
+        True -> [
+          #(
+            Some(["fulfillmentHold", "handle"]),
+            "Handle is too long (maximum is 64 characters)",
+          ),
+        ]
+        False -> {
+          let existing_holds = order_fulfillment_holds(fulfillment_order)
+          case
+            !list.is_empty(line_item_inputs)
+            && captured_string_field(fulfillment_order, "status")
+            == Some("ON_HOLD")
+          {
+            True -> [
+              #(
+                Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
+                "The fulfillment order is not in a splittable state.",
+              ),
+            ]
+            False ->
+              case
+                fulfillment_order_has_duplicate_hold_handle(
+                  existing_holds,
+                  handle,
+                )
+              {
+                True -> [
+                  #(
+                    Some(["fulfillmentHold", "handle"]),
+                    "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
+                  ),
+                ]
+                False ->
+                  case
+                    fulfillment_order_active_requesting_app_holds(
+                      existing_holds,
+                    )
+                    >= max_fulfillment_holds_per_api_client
+                  {
+                    True -> [
+                      #(
+                        Some(["id"]),
+                        "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
+                      ),
+                    ]
+                    False -> []
+                  }
+              }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn fulfillment_order_hold_line_item_quantity_errors(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(#(Option(List(String)), String)) {
+  inputs
+  |> list.index_fold([], fn(errors, input, index) {
+    let invalid_message = case dict.get(input, "quantity") {
+      Ok(root_field.IntVal(quantity)) if quantity <= 0 ->
+        Some("You must select at least one item to place on partial hold.")
+      Ok(root_field.IntVal(_)) -> None
+      _ -> Some("The line item quantity is invalid.")
+    }
+    case invalid_message {
+      Some(message) ->
+        list.append(errors, [
+          #(
+            Some([
+              "fulfillmentHold",
+              "fulfillmentOrderLineItems",
+              int.to_string(index),
+              "quantity",
+            ]),
+            message,
+          ),
+        ])
+      None -> errors
+    }
+  })
+}
+
+fn fulfillment_order_hold_duplicate_line_item_errors(
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(#(Option(List(String)), String)) {
+  let ids =
+    inputs
+    |> list.filter_map(fn(input) {
+      case read_string(input, "id") {
+        Some(id) -> Ok(id)
+        None -> Error(Nil)
+      }
+    })
+  case contains_duplicate_string(ids) {
+    True -> [
+      #(
+        Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
+        "must contain unique line item ids",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn contains_duplicate_string(values: List(String)) -> Bool {
+  case values {
+    [] -> False
+    [first, ..rest] ->
+      list.contains(rest, first) || contains_duplicate_string(rest)
+  }
+}
+
+fn fulfillment_order_has_duplicate_hold_handle(
+  holds: List(CapturedJsonValue),
+  handle: String,
+) -> Bool {
+  holds
+  |> list.any(fn(hold) {
+    fulfillment_hold_held_by_requesting_app(hold)
+    && { captured_string_field(hold, "handle") |> option.unwrap("") } == handle
+  })
+}
+
+fn fulfillment_order_active_requesting_app_holds(
+  holds: List(CapturedJsonValue),
+) -> Int {
+  holds
+  |> list.filter(fulfillment_hold_held_by_requesting_app)
+  |> list.length
+}
+
+fn fulfillment_hold_held_by_requesting_app(hold: CapturedJsonValue) -> Bool {
+  captured_bool_field(hold, "heldByRequestingApp") |> option.unwrap(True)
+}
+
 fn fulfillment_source_line_item_id(line_item: CapturedJsonValue) -> String {
   captured_string_field(line_item, "lineItemId")
   |> option.or({
@@ -11096,7 +11604,7 @@ fn split_fulfillment_order_line_items(
                     #("remainingQuantity", CapturedInt(selected_quantity)),
                     #(
                       "lineItemFulfillableQuantity",
-                      CapturedInt(selected_quantity),
+                      CapturedInt(remaining_quantity),
                     ),
                   ]),
                 ])
@@ -11143,6 +11651,20 @@ fn build_replacement_fulfillment_order(
     synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
   let #(updated_at, next_identity) =
     synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let supported_action_replacements = case
+    find_captured_replacement(replacements, "supportedActions")
+  {
+    Some(_) -> []
+    None -> [
+      #(
+        "supportedActions",
+        captured_supported_actions(computed_fulfillment_order_supported_actions(
+          Some("OPEN"),
+          line_items,
+        )),
+      ),
+    ]
+  }
   let replacement =
     fulfillment_order
     |> replace_fulfillment_order_line_items(line_items)
@@ -11154,7 +11676,7 @@ fn build_replacement_fulfillment_order(
         #("requestStatus", CapturedString("UNSUBMITTED")),
         #("fulfillmentHolds", CapturedArray([])),
       ],
-      replacements,
+      list.append(supported_action_replacements, replacements),
     ))
   #(replacement, next_identity)
 }
@@ -11435,7 +11957,7 @@ fn fulfillment_events_connection(
 fn serialize_fulfillment_create_payload(
   field: Selection,
   fulfillment: Option(CapturedJsonValue),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   serialize_fulfillment_mutation_payload(
@@ -11449,7 +11971,7 @@ fn serialize_fulfillment_create_payload(
 fn serialize_fulfillment_event_create_payload(
   field: Selection,
   event: Option(CapturedJsonValue),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -12285,7 +12807,7 @@ fn option_is_in(value: Option(String), values: List(String)) -> Bool {
 fn serialize_fulfillment_order_split_payload(
   field: Selection,
   results: List(FulfillmentOrderSplitResult),
-  user_errors: List(#(Option(List(String)), String)),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -12342,7 +12864,7 @@ fn serialize_fulfillment_order_split_result(
 fn serialize_fulfillment_order_merge_payload(
   field: Selection,
   results: List(FulfillmentOrderMergeResult),
-  user_errors: List(#(Option(List(String)), String)),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -12379,7 +12901,7 @@ fn serialize_fulfillment_order_merge_payload(
 fn serialize_fulfillment_orders_set_deadline_payload(
   field: Selection,
   success: Bool,
-  user_errors: List(#(Option(List(String)), String)),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
 ) -> Json {
   let entries =
     list.map(selection_children(field), fn(child) {
@@ -12632,7 +13154,7 @@ fn handle_fulfillment_order_request_status(
       serialize_fulfillment_order_mutation_payload(
         field,
         [],
-        [#(None, message)],
+        [nullable_user_error(None, message, None)],
         fragments,
       ),
       store,
@@ -12668,18 +13190,23 @@ fn build_submit_fulfillment_request_result(
   args: Dict(String, root_field.ResolvedValue),
 ) -> Result(
   #(CapturedJsonValue, Option(CapturedJsonValue), SyntheticIdentityRegistry),
-  List(#(Option(List(String)), String)),
+  List(#(Option(List(String)), String, Option(String))),
 ) {
   case captured_string_field(fulfillment_order, "requestStatus") {
     Some(status) if status != "UNSUBMITTED" ->
-      Error([#(None, "Cannot request fulfillment for the fulfillment order.")])
+      Error([
+        inferred_nullable_user_error(
+          None,
+          "Cannot request fulfillment for the fulfillment order.",
+        ),
+      ])
     _ -> {
       let line_items = fulfillment_order_line_items(fulfillment_order)
       let requested = read_fulfillment_order_line_item_inputs(args)
       case fulfillment_request_line_items_are_valid(line_items, requested) {
         False ->
           Error([
-            #(
+            inferred_nullable_user_error(
               Some(["fulfillmentOrderLineItems"]),
               "Quantity must be greater than 0 and less than or equal to the remaining quantity.",
             ),
@@ -13098,7 +13625,12 @@ fn handle_fulfillment_order_lifecycle_mutation(
                 serialize_fulfillment_order_mutation_payload(
                   field,
                   [],
-                  [#(None, "Fulfillment order must be scheduled.")],
+                  [
+                    inferred_nullable_user_error(
+                      None,
+                      "Fulfillment order must be scheduled.",
+                    ),
+                  ],
                   fragments,
                 )
               let draft = fulfillment_order_log_draft(root_name, [id])
@@ -13110,7 +13642,7 @@ fn handle_fulfillment_order_lifecycle_mutation(
                   field,
                   [],
                   [
-                    #(
+                    inferred_nullable_user_error(
                       None,
                       "The fulfillment order's assigned fulfillment service must be of api type",
                     ),
@@ -13143,9 +13675,10 @@ fn handle_fulfillment_order_lifecycle_mutation(
                           field,
                           [],
                           [
-                            #(
+                            nullable_user_error(
                               fulfillment_order_cancel_user_error_field(message),
                               message,
+                              None,
                             ),
                           ],
                           fragments,
@@ -13153,33 +13686,61 @@ fn handle_fulfillment_order_lifecycle_mutation(
                       #(key, payload, store, identity, [], [], [])
                     }
                     _, _ -> {
-                      let #(values, next_order, next_identity) =
-                        apply_fulfillment_order_lifecycle(
-                          root_name,
-                          order,
+                      case
+                        root_name,
+                        fulfillment_order_hold_validation_errors(
                           fulfillment_order,
-                          identity,
-                          field,
                           variables,
                         )
-                      let next_store = store.stage_order(store, next_order)
-                      let payload =
-                        serialize_fulfillment_order_mutation_payload(
-                          field,
-                          values,
-                          [],
-                          fragments,
-                        )
-                      let draft = fulfillment_order_log_draft(root_name, [id])
-                      #(
-                        key,
-                        payload,
-                        next_store,
-                        next_identity,
-                        [next_order.id],
-                        [],
-                        [draft],
-                      )
+                      {
+                        "fulfillmentOrderHold", [_, ..] as user_errors -> {
+                          let payload =
+                            serialize_fulfillment_order_mutation_payload(
+                              field,
+                              [
+                                #("fulfillmentHold", Some(CapturedNull)),
+                                #("fulfillmentOrder", Some(CapturedNull)),
+                                #(
+                                  "remainingFulfillmentOrder",
+                                  Some(CapturedNull),
+                                ),
+                              ],
+                              user_errors,
+                              fragments,
+                            )
+                          #(key, payload, store, identity, [], [], [])
+                        }
+                        _, _ -> {
+                          let #(values, next_order, next_identity) =
+                            apply_fulfillment_order_lifecycle(
+                              root_name,
+                              order,
+                              fulfillment_order,
+                              identity,
+                              field,
+                              variables,
+                            )
+                          let next_store = store.stage_order(store, next_order)
+                          let payload =
+                            serialize_fulfillment_order_mutation_payload(
+                              field,
+                              values,
+                              [],
+                              fragments,
+                            )
+                          let draft =
+                            fulfillment_order_log_draft(root_name, [id])
+                          #(
+                            key,
+                            payload,
+                            next_store,
+                            next_identity,
+                            [next_order.id],
+                            [],
+                            [draft],
+                          )
+                        }
+                      }
                     }
                   }
                 }
@@ -13298,10 +13859,8 @@ fn apply_fulfillment_order_hold(
   OrderRecord,
   SyntheticIdentityRegistry,
 ) {
-  let fulfillment_hold_input = case dict.get(variables, "fulfillmentHold") {
-    Ok(root_field.ObjectVal(input)) -> input
-    _ -> dict.new()
-  }
+  let fulfillment_hold_input =
+    fulfillment_order_hold_input_from_variables(variables)
   let requested =
     read_fulfillment_order_line_item_inputs(fulfillment_hold_input)
   let #(selected_line_items, remaining_line_items, identity_after_split) =
@@ -13318,7 +13877,7 @@ fn apply_fulfillment_order_hold(
       #("id", CapturedString(hold_id)),
       #(
         "handle",
-        optional_captured_string(read_string(fulfillment_hold_input, "handle")),
+        CapturedString(fulfillment_order_hold_handle(fulfillment_hold_input)),
       ),
       #(
         "reason",
@@ -13337,27 +13896,38 @@ fn apply_fulfillment_order_hold(
       #("displayReason", CapturedString("Other")),
       #("heldByRequestingApp", CapturedBool(True)),
     ])
+  let fulfillment_holds =
+    list.append(order_fulfillment_holds(fulfillment_order), [hold])
   let held_fulfillment_order =
     fulfillment_order
     |> replace_fulfillment_order_line_items(selected_line_items)
     |> replace_captured_object_fields([
       #("status", CapturedString("ON_HOLD")),
       #("updatedAt", CapturedString(updated_at)),
-      #("fulfillmentHolds", CapturedArray([hold])),
+      #(
+        "supportedActions",
+        captured_supported_actions(fulfillment_order_hold_supported_actions(
+          fulfillment_holds,
+        )),
+      ),
+      #("fulfillmentHolds", CapturedArray(fulfillment_holds)),
     ])
-  let #(remaining_fulfillment_order, next_identity) = case
-    remaining_line_items
-  {
+  let #(remaining_fulfillment_order, next_identity) = case requested {
     [] -> #(None, identity_after_timestamp)
     [_, ..] -> {
-      let #(replacement, identity_after_replacement) =
-        build_replacement_fulfillment_order(
-          identity_after_timestamp,
-          fulfillment_order,
-          remaining_line_items,
-          [],
-        )
-      #(Some(replacement), identity_after_replacement)
+      case remaining_line_items {
+        [] -> #(None, identity_after_timestamp)
+        [_, ..] -> {
+          let #(replacement, identity_after_replacement) =
+            build_replacement_fulfillment_order(
+              identity_after_timestamp,
+              fulfillment_order,
+              remaining_line_items,
+              [],
+            )
+          #(Some(replacement), identity_after_replacement)
+        }
+      }
     }
   }
   let next_order =
@@ -13372,12 +13942,25 @@ fn apply_fulfillment_order_hold(
     )
   #(
     [
+      #("fulfillmentHold", Some(hold)),
       #("fulfillmentOrder", Some(held_fulfillment_order)),
       #("remainingFulfillmentOrder", remaining_fulfillment_order),
     ],
     next_order,
     next_identity,
   )
+}
+
+fn fulfillment_order_hold_supported_actions(
+  holds: List(CapturedJsonValue),
+) -> List(String) {
+  case
+    fulfillment_order_active_requesting_app_holds(holds)
+    >= max_fulfillment_holds_per_api_client
+  {
+    True -> ["RELEASE_HOLD", "MOVE"]
+    False -> ["RELEASE_HOLD", "HOLD", "MOVE"]
+  }
 }
 
 fn apply_fulfillment_order_release_hold(
@@ -13414,6 +13997,13 @@ fn apply_fulfillment_order_release_hold(
     |> replace_captured_object_fields([
       #("status", CapturedString("OPEN")),
       #("updatedAt", CapturedString(updated_at)),
+      #(
+        "supportedActions",
+        captured_supported_actions(computed_fulfillment_order_supported_actions(
+          Some("OPEN"),
+          merged_line_items,
+        )),
+      ),
       #("fulfillmentHolds", CapturedArray([])),
     ])
   let updated_fulfillment_orders =
@@ -13485,9 +14075,6 @@ fn merge_released_fulfillment_order_line_items(
       captured_int_field(line_item, "totalQuantity") |> option.unwrap(0)
     let remaining_quantity =
       captured_int_field(line_item, "remainingQuantity") |> option.unwrap(0)
-    let fulfillable_quantity =
-      captured_int_field(line_item, "lineItemFulfillableQuantity")
-      |> option.unwrap(remaining_quantity)
     replace_captured_object_fields(line_item, [
       #(
         "totalQuantity",
@@ -13512,10 +14099,10 @@ fn merge_released_fulfillment_order_line_items(
       #(
         "lineItemFulfillableQuantity",
         CapturedInt(
-          fulfillable_quantity
+          remaining_quantity
           + sum_fulfillment_order_line_item_field(
             sibling_line_items,
-            "lineItemFulfillableQuantity",
+            "remainingQuantity",
           ),
         ),
       ),
@@ -13632,16 +14219,43 @@ fn apply_fulfillment_order_status(
       "IN_PROGRESS" -> [
         #("status", CapturedString(status)),
         #("updatedAt", CapturedString(updated_at)),
+        #(
+          "supportedActions",
+          captured_supported_actions(
+            computed_fulfillment_order_supported_actions(
+              Some(status),
+              fulfillment_order_line_items(fulfillment_order),
+            ),
+          ),
+        ),
         #("__draftProxyManuallyReportedProgress", CapturedBool(True)),
       ]
       "OPEN" -> [
         #("status", CapturedString(status)),
         #("updatedAt", CapturedString(updated_at)),
+        #(
+          "supportedActions",
+          captured_supported_actions(
+            computed_fulfillment_order_supported_actions(
+              Some(status),
+              fulfillment_order_line_items(fulfillment_order),
+            ),
+          ),
+        ),
         #("__draftProxyManuallyReportedProgress", CapturedBool(False)),
       ]
       _ -> [
         #("status", CapturedString(status)),
         #("updatedAt", CapturedString(updated_at)),
+        #(
+          "supportedActions",
+          captured_supported_actions(
+            computed_fulfillment_order_supported_actions(
+              Some(status),
+              fulfillment_order_line_items(fulfillment_order),
+            ),
+          ),
+        ),
       ]
     })
   let replacements = case status {
@@ -13708,7 +14322,7 @@ fn apply_fulfillment_order_cancel(
 fn serialize_fulfillment_order_mutation_payload(
   field: Selection,
   values: List(#(String, Option(CapturedJsonValue))),
-  user_errors: List(#(Option(List(String)), String)),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -13724,6 +14338,7 @@ fn serialize_fulfillment_order_mutation_payload(
             | "replacementFulfillmentOrder" -> #(
               key,
               case find_named_captured_value(values, name.value) {
+                Some(CapturedNull) -> json.null()
                 Some(value) ->
                   serialize_order_fulfillment_order(child, value, fragments)
                 None -> json.null()
@@ -13731,14 +14346,24 @@ fn serialize_fulfillment_order_mutation_payload(
             )
             "fulfillmentHold" -> #(
               key,
-              case find_named_captured_value(values, "fulfillmentOrder") {
-                Some(fulfillment_order) ->
-                  case order_fulfillment_holds(fulfillment_order) {
-                    [hold, ..] ->
-                      serialize_captured_selection(child, Some(hold), fragments)
-                    [] -> json.null()
+              case find_named_captured_value(values, "fulfillmentHold") {
+                Some(CapturedNull) -> json.null()
+                Some(hold) ->
+                  serialize_captured_selection(child, Some(hold), fragments)
+                None ->
+                  case find_named_captured_value(values, "fulfillmentOrder") {
+                    Some(fulfillment_order) ->
+                      case order_fulfillment_holds(fulfillment_order) {
+                        [hold, ..] ->
+                          serialize_captured_selection(
+                            child,
+                            Some(hold),
+                            fragments,
+                          )
+                        [] -> json.null()
+                      }
+                    None -> json.null()
                   }
-                None -> json.null()
               },
             )
             "userErrors" -> #(
@@ -13760,7 +14385,7 @@ fn serialize_submit_fulfillment_request_payload(
   original_fulfillment_order: Option(CapturedJsonValue),
   submitted_fulfillment_order: Option(CapturedJsonValue),
   unsubmitted_fulfillment_order: Option(CapturedJsonValue),
-  user_errors: List(#(Option(List(String)), String)),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -13821,18 +14446,18 @@ fn serialize_captured_fulfillment_order_option(
 
 fn serialize_nullable_field_user_error(
   field: Selection,
-  error: #(Option(List(String)), String),
+  error: #(Option(List(String)), String, Option(String)),
 ) -> Json {
-  let #(field_path, message) = error
-  let field_value = case field_path {
-    Some(path) -> SrcList(list.map(path, SrcString))
-    None -> SrcNull
+  let #(field_path, message, code) = error
+  let code_source = case code {
+    Some(code) -> SrcString(code)
+    None -> fulfillment_order_user_error_code(message)
   }
   project_graphql_value(
     src_object([
-      #("field", field_value),
+      #("field", user_error_field_source(field_path)),
       #("message", SrcString(message)),
-      #("code", fulfillment_order_user_error_code(message)),
+      #("code", code_source),
     ]),
     selection_children(field),
     dict.new(),
@@ -13855,6 +14480,19 @@ fn fulfillment_order_user_error_code(message: String) -> SourceValue {
       SrcString("fulfillment_order_has_manually_reported_progress")
     "Fulfillment order is not in cancelable request state and can't be canceled." ->
       SrcString("fulfillment_order_cannot_be_cancelled")
+    "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order." ->
+      SrcString("DUPLICATE_FULFILLMENT_HOLD_HANDLE")
+    "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time." ->
+      SrcString("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED")
+    "The fulfillment order is not in a splittable state." ->
+      SrcString("FULFILLMENT_ORDER_NOT_SPLITTABLE")
+    "You must select at least one item to place on partial hold." ->
+      SrcString("GREATER_THAN_ZERO")
+    "The line item quantity is invalid." ->
+      SrcString("INVALID_LINE_ITEM_QUANTITY")
+    "must contain unique line item ids" ->
+      SrcString("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS")
+    "Handle is too long (maximum is 64 characters)" -> SrcString("TOO_LONG")
     _ -> SrcNull
   }
 }
@@ -14085,7 +14723,7 @@ fn handle_refund_create_mutation(
                   RefundCreateUserError(
                     Some(["orderId"]),
                     "Order does not exist",
-                    Some("NOT_FOUND"),
+                    Some(user_error_codes.not_found),
                   ),
                 ],
                 fragments,
@@ -14140,7 +14778,7 @@ fn handle_refund_create_mutation(
                             RefundCreateUserError(
                               Some(over_refund_field_path(input)),
                               message,
-                              Some("INVALID"),
+                              Some(user_error_codes.invalid),
                             ),
                           ],
                           fragments,
@@ -14272,35 +14910,26 @@ fn build_refund_from_input(
   input: Dict(String, root_field.ResolvedValue),
   identity: SyntheticIdentityRegistry,
 ) -> #(CapturedJsonValue, CapturedJsonValue, SyntheticIdentityRegistry) {
-  let currency_code = order_currency_code(order)
   let #(refund_id, identity_after_refund) =
     synthetic_identity.make_synthetic_gid(identity, "Refund")
   let #(created_at, identity_after_time) =
     synthetic_identity.make_synthetic_timestamp(identity_after_refund)
   let #(refund_line_items, identity_after_lines) =
-    build_refund_line_items(order, input, currency_code, identity_after_time)
+    build_refund_line_items(order, input, identity_after_time)
   let refund_amount = refund_create_requested_amount(input, order)
   let shipping_amount = refund_shipping_amount(input, order)
   let #(transaction, next_identity) =
-    build_refund_transaction(
-      input,
-      refund_amount,
-      currency_code,
-      identity_after_lines,
-    )
+    build_refund_transaction(input, order, refund_amount, identity_after_lines)
   let refund =
     CapturedObject([
       #("id", CapturedString(refund_id)),
       #("note", optional_captured_string(read_string(input, "note"))),
       #("createdAt", CapturedString(created_at)),
       #("updatedAt", CapturedString(created_at)),
-      #(
-        "totalRefundedSet",
-        money_set_string(format_decimal_amount(refund_amount), currency_code),
-      ),
+      #("totalRefundedSet", order_money_set_string(order, refund_amount)),
       #(
         "totalRefundedShippingSet",
-        money_set_string(format_decimal_amount(shipping_amount), currency_code),
+        order_money_set_string(order, shipping_amount),
       ),
       #(
         "refundLineItems",
@@ -14317,7 +14946,6 @@ fn build_refund_from_input(
 fn build_refund_line_items(
   order: OrderRecord,
   input: Dict(String, root_field.ResolvedValue),
-  currency_code: String,
   identity: SyntheticIdentityRegistry,
 ) -> #(List(CapturedJsonValue), SyntheticIdentityRegistry) {
   read_object_list(input, "refundLineItems")
@@ -14355,10 +14983,7 @@ fn build_refund_line_items(
         #("restockType", CapturedString(restock_type)),
         #("restocked", CapturedBool(restocked)),
         #("lineItem", refund_line_item_reference(line_item)),
-        #(
-          "subtotalSet",
-          money_set_string(format_decimal_amount(subtotal), currency_code),
-        ),
+        #("subtotalSet", order_money_set_string(order, subtotal)),
       ])
     #(list.append(items, [item]), next_identity)
   })
@@ -14382,8 +15007,8 @@ fn refund_line_item_reference(
 
 fn build_refund_transaction(
   input: Dict(String, root_field.ResolvedValue),
+  order: OrderRecord,
   fallback_amount: Float,
-  currency_code: String,
   identity: SyntheticIdentityRegistry,
 ) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
   let transaction_input = case read_object_list(input, "transactions") {
@@ -14395,6 +15020,15 @@ fn build_refund_transaction(
   let amount =
     refund_transaction_amount(transaction_input)
     |> nonzero_float(fallback_amount)
+  let amount_set = case read_object(transaction_input, "amountSet") {
+    Some(input_amount_set) ->
+      order_money_set_from_input(
+        Some(input_amount_set),
+        order_currency_code(order),
+        amount,
+      )
+    None -> order_money_set_string(order, amount)
+  }
   let transaction =
     CapturedObject([
       #("id", CapturedString(id)),
@@ -14416,10 +15050,7 @@ fn build_refund_transaction(
           read_string(transaction_input, "gateway") |> option.unwrap("manual"),
         ),
       ),
-      #(
-        "amountSet",
-        money_set_string(format_decimal_amount(amount), currency_code),
-      ),
+      #("amountSet", amount_set),
     ])
   #(transaction, next_identity)
 }
@@ -14437,12 +15068,19 @@ fn apply_refund_to_order(
   refund_transaction: CapturedJsonValue,
 ) -> OrderRecord {
   let currency_code = order_currency_code(order)
+  let presentment_currency_code = order_presentment_currency_code(order)
   let total_refunded =
     sum_order_refunded_amount(order)
     +. captured_money_amount(refund, "totalRefundedSet")
+  let presentment_total_refunded =
+    sum_order_refunded_presentment_amount(order)
+    +. captured_money_presentment_amount(refund, "totalRefundedSet")
   let shipping_refunded =
     sum_order_refunded_shipping_amount(order)
     +. captured_money_amount(refund, "totalRefundedShippingSet")
+  let presentment_shipping_refunded =
+    sum_order_refunded_shipping_presentment_amount(order)
+    +. captured_money_presentment_amount(refund, "totalRefundedShippingSet")
   let total = order_total_price(order)
   let display_status = case total_refunded >=. total && total >. 0.0 {
     True -> "REFUNDED"
@@ -14454,13 +15092,20 @@ fn apply_refund_to_order(
       #("displayFinancialStatus", CapturedString(display_status)),
       #(
         "totalRefundedSet",
-        money_set_string(format_decimal_amount(total_refunded), currency_code),
+        money_set_string_with_presentment(
+          format_decimal_amount(total_refunded),
+          currency_code,
+          format_decimal_amount(presentment_total_refunded),
+          presentment_currency_code,
+        ),
       ),
       #(
         "totalRefundedShippingSet",
-        money_set_string(
+        money_set_string_with_presentment(
           format_decimal_amount(shipping_refunded),
           currency_code,
+          format_decimal_amount(presentment_shipping_refunded),
+          presentment_currency_code,
         ),
       ),
       #(
@@ -14563,7 +15208,7 @@ fn refund_create_line_item_quantity_error(
           RefundCreateUserError(
             Some(["refundLineItems", int.to_string(index), "quantity"]),
             "Quantity cannot refund more items than were purchased",
-            Some("INVALID"),
+            Some(user_error_codes.invalid),
           ),
         ]
         False -> []
@@ -14717,6 +15362,13 @@ fn sum_order_refunded_amount(order: OrderRecord) -> Float {
   })
 }
 
+fn sum_order_refunded_presentment_amount(order: OrderRecord) -> Float {
+  order_refunds(order.data)
+  |> list.fold(0.0, fn(sum, refund) {
+    sum +. captured_money_presentment_amount(refund, "totalRefundedSet")
+  })
+}
+
 fn order_refundable_payment_amount(order: OrderRecord) -> Float {
   let refunded =
     captured_money_amount_field(order.data, "totalRefundedSet")
@@ -14752,6 +15404,13 @@ fn sum_order_refunded_shipping_amount(order: OrderRecord) -> Float {
   order_refunds(order.data)
   |> list.fold(0.0, fn(sum, refund) {
     sum +. captured_money_amount(refund, "totalRefundedShippingSet")
+  })
+}
+
+fn sum_order_refunded_shipping_presentment_amount(order: OrderRecord) -> Float {
+  order_refunds(order.data)
+  |> list.fold(0.0, fn(sum, refund) {
+    sum +. captured_money_presentment_amount(refund, "totalRefundedShippingSet")
   })
 }
 
@@ -15275,7 +15934,7 @@ fn validate_order_create_line_item_presence(
       order_mutation_user_error(
         [UserErrorField("order"), UserErrorField("lineItems")],
         "Line items must have at least one line item",
-        Some("INVALID"),
+        Some(user_error_codes.invalid),
       ),
     ]
     _ -> []
@@ -15297,7 +15956,7 @@ fn validate_order_create_processed_at(
               order_mutation_user_error(
                 [UserErrorField("order"), UserErrorField("processedAt")],
                 "Processed at must not be in the future",
-                Some("PROCESSED_AT_INVALID"),
+                Some(user_error_codes.processed_at_invalid),
               ),
             ]
             False -> []
@@ -15319,7 +15978,7 @@ fn validate_order_create_customer_fields(
       order_mutation_user_error(
         [UserErrorField("order")],
         "Cannot specify both customerId and customer",
-        Some("REDUNDANT_CUSTOMER_FIELDS"),
+        Some(user_error_codes.redundant_customer_fields),
       ),
     ]
     _, _ -> []
@@ -15347,7 +16006,7 @@ fn validate_order_create_tax_line_rates(
               UserErrorField("rate"),
             ],
             "Tax line rate must be provided",
-            Some("TAX_LINE_RATE_MISSING"),
+            Some(user_error_codes.tax_line_rate_missing),
           ),
         ]
       }
@@ -15429,7 +16088,11 @@ fn mutation_user_error(
   field_path: List(String),
   message: String,
 ) -> OrderMutationUserError {
-  order_mutation_user_error(list.map(field_path, UserErrorField), message, None)
+  order_mutation_user_error(
+    list.map(field_path, UserErrorField),
+    message,
+    infer_user_error_code(Some(field_path), message),
+  )
 }
 
 fn order_mutation_user_error(
@@ -15482,14 +16145,39 @@ fn build_order_from_create_input(
     build_order_create_transactions(identity_after_lines, input, currency_code)
   let shipping_lines = build_order_create_shipping_lines(input, currency_code)
   let subtotal = order_line_items_subtotal(line_items)
+  let presentment_subtotal = order_line_items_presentment_subtotal(line_items)
   let shipping_total = order_shipping_lines_total(shipping_lines)
+  let presentment_shipping_total =
+    order_shipping_lines_presentment_total(shipping_lines)
   let tax_total =
     order_create_tax_total(input, line_items, shipping_lines, currency_code)
+  let presentment_tax_total =
+    order_create_presentment_tax_total(
+      input,
+      line_items,
+      shipping_lines,
+      currency_code,
+    )
   let discount =
     order_create_discount(input, currency_code, subtotal, shipping_total)
   let discount_total = captured_money_value(discount.total_discounts_set)
+  let presentment_discount_total =
+    captured_money_presentment_value(discount.total_discounts_set)
   let total = subtotal +. shipping_total
+  let presentment_total = presentment_subtotal +. presentment_shipping_total
   let current_total = max_float(0.0, total +. tax_total -. discount_total)
+  let presentment_current_total =
+    max_float(
+      0.0,
+      presentment_total +. presentment_tax_total -. presentment_discount_total,
+    )
+  let presentment_currency_code =
+    order_create_presentment_currency(
+      line_items,
+      shipping_lines,
+      discount.total_discounts_set,
+      currency_code,
+    )
   let has_paid_transaction = order_transactions_include_paid(transactions)
   let has_authorization = order_transactions_include_authorization(transactions)
   let financial_status = case read_string(input, "financialStatus") {
@@ -15517,8 +16205,20 @@ fn build_order_from_create_input(
       }
     _ -> list.map(payment_gateways, CapturedString)
   }
-  let current_total_set = money_set(current_total, currency_code)
-  let zero_money = money_set(0.0, currency_code)
+  let current_total_set =
+    money_set_with_presentment(
+      current_total,
+      currency_code,
+      presentment_current_total,
+      presentment_currency_code,
+    )
+  let zero_money =
+    money_set_with_presentment(
+      0.0,
+      currency_code,
+      0.0,
+      presentment_currency_code,
+    )
   let total_capturable = case has_authorization {
     True -> current_total
     False -> 0.0
@@ -15568,31 +16268,109 @@ fn build_order_from_create_input(
         "shippingAddress",
         build_draft_order_address(read_object(input, "shippingAddress")),
       ),
-      #("subtotalPriceSet", money_set(subtotal, currency_code)),
-      #("currentSubtotalPriceSet", money_set(subtotal, currency_code)),
+      #(
+        "subtotalPriceSet",
+        money_set_with_presentment(
+          subtotal,
+          currency_code,
+          presentment_subtotal,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "currentSubtotalPriceSet",
+        money_set_with_presentment(
+          subtotal,
+          currency_code,
+          presentment_subtotal,
+          presentment_currency_code,
+        ),
+      ),
       #("currentTotalPriceSet", current_total_set),
       #("currentTotalDiscountsSet", discount.total_discounts_set),
-      #("currentTotalTaxSet", money_set(tax_total, currency_code)),
+      #(
+        "currentTotalTaxSet",
+        money_set_with_presentment(
+          tax_total,
+          currency_code,
+          presentment_tax_total,
+          presentment_currency_code,
+        ),
+      ),
       #("totalPriceSet", current_total_set),
       #(
         "totalOutstandingSet",
-        money_set(
+        money_set_with_presentment(
           case has_paid_transaction {
             True -> 0.0
             False -> current_total
           },
           currency_code,
+          case has_paid_transaction {
+            True -> 0.0
+            False -> presentment_current_total
+          },
+          presentment_currency_code,
         ),
       ),
       #("totalCapturable", CapturedString(float.to_string(total_capturable))),
-      #("totalCapturableSet", money_set(total_capturable, currency_code)),
+      #(
+        "totalCapturableSet",
+        money_set_with_presentment(
+          total_capturable,
+          currency_code,
+          case has_authorization {
+            True -> presentment_current_total
+            False -> 0.0
+          },
+          presentment_currency_code,
+        ),
+      ),
       #("capturable", CapturedBool(has_authorization)),
       #("totalRefundedSet", zero_money),
       #("totalRefundedShippingSet", zero_money),
-      #("totalReceivedSet", money_set(total_received, currency_code)),
-      #("netPaymentSet", money_set(total_received, currency_code)),
-      #("totalShippingPriceSet", money_set(shipping_total, currency_code)),
-      #("totalTaxSet", money_set(tax_total, currency_code)),
+      #(
+        "totalReceivedSet",
+        money_set_with_presentment(
+          total_received,
+          currency_code,
+          case has_paid_transaction {
+            True -> presentment_current_total
+            False -> 0.0
+          },
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "netPaymentSet",
+        money_set_with_presentment(
+          total_received,
+          currency_code,
+          case has_paid_transaction {
+            True -> presentment_current_total
+            False -> 0.0
+          },
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "totalShippingPriceSet",
+        money_set_with_presentment(
+          shipping_total,
+          currency_code,
+          presentment_shipping_total,
+          presentment_currency_code,
+        ),
+      ),
+      #(
+        "totalTaxSet",
+        money_set_with_presentment(
+          tax_total,
+          currency_code,
+          presentment_tax_total,
+          presentment_currency_code,
+        ),
+      ),
       #("totalDiscountsSet", discount.total_discounts_set),
       #(
         "discountCodes",
@@ -15837,40 +16615,25 @@ fn order_money_set_from_input(
       None -> read_string(fields, "currencyCode")
     }
     |> option.unwrap(currency_code)
-  let presentment = case read_object(fields, "presentmentMoney") {
-    Some(money) -> [
-      #(
-        "presentmentMoney",
-        CapturedObject([
-          #(
-            "amount",
-            CapturedString(float.to_string(
-              read_number(money, "amount") |> option.unwrap(0.0),
-            )),
-          ),
-          #(
-            "currencyCode",
-            CapturedString(
-              read_string(money, "currencyCode") |> option.unwrap(shop_currency),
-            ),
-          ),
-        ]),
-      ),
-    ]
-    None -> []
-  }
-  CapturedObject(list.append(
-    [
-      #(
-        "shopMoney",
-        CapturedObject([
-          #("amount", CapturedString(float.to_string(amount))),
-          #("currencyCode", CapturedString(shop_currency)),
-        ]),
-      ),
-    ],
-    presentment,
-  ))
+  let presentment_money = read_object(fields, "presentmentMoney")
+  let presentment_amount =
+    case presentment_money {
+      Some(money) -> read_number(money, "amount")
+      None -> None
+    }
+    |> option.unwrap(amount)
+  let presentment_currency =
+    case presentment_money {
+      Some(money) -> read_string(money, "currencyCode")
+      None -> None
+    }
+    |> option.unwrap(shop_currency)
+  money_set_with_presentment(
+    amount,
+    shop_currency,
+    presentment_amount,
+    presentment_currency,
+  )
 }
 
 fn order_create_tags(
@@ -15892,12 +16655,34 @@ fn order_line_items_subtotal(line_items: List(CapturedJsonValue)) -> Float {
   })
 }
 
+fn order_line_items_presentment_subtotal(
+  line_items: List(CapturedJsonValue),
+) -> Float {
+  line_items
+  |> list.fold(0.0, fn(sum, line_item) {
+    sum
+    +. captured_money_presentment_amount(line_item, "originalUnitPriceSet")
+    *. int.to_float(
+      captured_int_field(line_item, "quantity") |> option.unwrap(0),
+    )
+  })
+}
+
 fn order_shipping_lines_total(
   shipping_lines: List(CapturedJsonValue),
 ) -> Float {
   shipping_lines
   |> list.fold(0.0, fn(sum, shipping_line) {
     sum +. captured_money_amount(shipping_line, "originalPriceSet")
+  })
+}
+
+fn order_shipping_lines_presentment_total(
+  shipping_lines: List(CapturedJsonValue),
+) -> Float {
+  shipping_lines
+  |> list.fold(0.0, fn(sum, shipping_line) {
+    sum +. captured_money_presentment_amount(shipping_line, "originalPriceSet")
   })
 }
 
@@ -15916,6 +16701,24 @@ fn order_create_tax_total(
   })
 }
 
+fn order_create_presentment_tax_total(
+  input: Dict(String, root_field.ResolvedValue),
+  line_items: List(CapturedJsonValue),
+  shipping_lines: List(CapturedJsonValue),
+  currency_code: String,
+) -> Float {
+  sum_captured_tax_lines_presentment(build_order_create_tax_lines(
+    input,
+    currency_code,
+  ))
+  +. list.fold(line_items, 0.0, fn(sum, line_item) {
+    sum +. sum_captured_tax_lines_presentment(captured_tax_lines(line_item))
+  })
+  +. list.fold(shipping_lines, 0.0, fn(sum, shipping_line) {
+    sum +. sum_captured_tax_lines_presentment(captured_tax_lines(shipping_line))
+  })
+}
+
 fn captured_tax_lines(value: CapturedJsonValue) -> List(CapturedJsonValue) {
   case captured_object_field(value, "taxLines") {
     Some(CapturedArray(tax_lines)) -> tax_lines
@@ -15928,6 +16731,42 @@ fn sum_captured_tax_lines(tax_lines: List(CapturedJsonValue)) -> Float {
   |> list.fold(0.0, fn(sum, tax_line) {
     sum +. captured_money_amount(tax_line, "priceSet")
   })
+}
+
+fn sum_captured_tax_lines_presentment(
+  tax_lines: List(CapturedJsonValue),
+) -> Float {
+  tax_lines
+  |> list.fold(0.0, fn(sum, tax_line) {
+    sum +. captured_money_presentment_amount(tax_line, "priceSet")
+  })
+}
+
+fn order_create_presentment_currency(
+  line_items: List(CapturedJsonValue),
+  shipping_lines: List(CapturedJsonValue),
+  discount_total_set: CapturedJsonValue,
+  fallback: String,
+) -> String {
+  let line_item_money_sets =
+    line_items |> money_sets_from_field("originalUnitPriceSet")
+  let shipping_money_sets =
+    shipping_lines |> money_sets_from_field("originalPriceSet")
+  let tax_money_sets =
+    list.append(
+      tax_line_money_sets(line_items),
+      tax_line_money_sets(shipping_lines),
+    )
+  first_money_set_presentment_currency(
+    list.append(
+      line_item_money_sets,
+      list.append(
+        shipping_money_sets,
+        list.append(tax_money_sets, [discount_total_set]),
+      ),
+    ),
+    fallback,
+  )
 }
 
 fn order_create_discount(
@@ -16140,7 +16979,7 @@ fn handle_fulfillment_mutation(
                   field,
                   None,
                   [
-                    #(
+                    inferred_user_error(
                       case root_name {
                         "fulfillmentTrackingInfoUpdate" -> ["fulfillmentId"]
                         _ -> ["id"]
@@ -16781,7 +17620,7 @@ fn update_order_fulfillment(
 fn serialize_fulfillment_mutation_payload(
   field: Selection,
   fulfillment: Option(CapturedJsonValue),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -17036,7 +17875,7 @@ fn handle_draft_order_create_from_order(
                     serialize_draft_order_mutation_payload(
                       field,
                       None,
-                      [#(["orderId"], "Order does not exist")],
+                      [inferred_user_error(["orderId"], "Order does not exist")],
                       fragments,
                     )
                   #(key, payload, store, identity, [], [], [])
@@ -17293,10 +18132,10 @@ fn source_order_line_item_variant(
 fn validate_draft_order_create_input(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   let line_items = read_object_list(input, "lineItems")
   case line_items {
-    [] -> [#(None, "Add at least 1 product")]
+    [] -> [inferred_nullable_user_error(None, "Add at least 1 product")]
     _ -> {
       let line_item_errors =
         line_items
@@ -17316,12 +18155,14 @@ fn validate_draft_order_create_input(
 
 fn validate_draft_order_create_email(
   input: Dict(String, root_field.ResolvedValue),
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   case read_string(input, "email") {
     Some(email) ->
       case valid_email_address(email) {
         True -> []
-        False -> [#(Some(["email"]), "Email is invalid")]
+        False -> [
+          inferred_nullable_user_error(Some(["email"]), "Email is invalid"),
+        ]
       }
     _ -> []
   }
@@ -17341,7 +18182,7 @@ fn valid_email_address(email: String) -> Bool {
 
 fn validate_draft_order_create_reserve(
   input: Dict(String, root_field.ResolvedValue),
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   case read_string(input, "reserveInventoryUntil") {
     Some(value) ->
       case
@@ -17350,7 +18191,12 @@ fn validate_draft_order_create_reserve(
       {
         Ok(reserve_until), Ok(now) ->
           case reserve_until < now {
-            True -> [#(None, "Reserve until can't be in the past")]
+            True -> [
+              inferred_nullable_user_error(
+                None,
+                "Reserve until can't be in the past",
+              ),
+            ]
             False -> []
           }
         _, _ -> []
@@ -17361,12 +18207,22 @@ fn validate_draft_order_create_reserve(
 
 fn validate_draft_order_create_payment_terms(
   input: Dict(String, root_field.ResolvedValue),
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   case read_object(input, "paymentTerms") {
     Some(payment_terms) ->
       case read_string(payment_terms, "paymentTermsTemplateId") {
-        Some(_) -> [#(None, "The user must have access to set payment terms.")]
-        None -> [#(None, "Payment terms template id can not be empty.")]
+        Some(_) -> [
+          inferred_nullable_user_error(
+            None,
+            "The user must have access to set payment terms.",
+          ),
+        ]
+        None -> [
+          inferred_nullable_user_error(
+            None,
+            "Payment terms template id can not be empty.",
+          ),
+        ]
       }
     None -> []
   }
@@ -17376,7 +18232,7 @@ fn validate_draft_order_create_line_item(
   store: Store,
   line_item: Dict(String, root_field.ResolvedValue),
   index: Int,
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   case read_string(line_item, "variantId") {
     Some(variant_id) ->
       case store.get_draft_order_variant_catalog_by_id(store, variant_id) {
@@ -17385,7 +18241,7 @@ fn validate_draft_order_create_line_item(
           case store.get_effective_variant_by_id(store, variant_id) {
             Some(_) -> []
             None -> [
-              #(
+              inferred_nullable_user_error(
                 None,
                 "Product with ID "
                   <> draft_order_gid_tail(variant_id)
@@ -17401,25 +18257,27 @@ fn validate_draft_order_create_line_item(
 fn validate_custom_draft_order_line_item(
   line_item: Dict(String, root_field.ResolvedValue),
   index: Int,
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   case read_string(line_item, "title") {
     Some(title) ->
       case string.trim(title) != "" {
         True -> validate_custom_draft_order_line_item_values(line_item, index)
-        False -> [#(None, "Merchandise title is empty.")]
+        False -> [
+          inferred_nullable_user_error(None, "Merchandise title is empty."),
+        ]
       }
-    _ -> [#(None, "Merchandise title is empty.")]
+    _ -> [inferred_nullable_user_error(None, "Merchandise title is empty.")]
   }
 }
 
 fn validate_custom_draft_order_line_item_values(
   line_item: Dict(String, root_field.ResolvedValue),
   index: Int,
-) -> List(#(Option(List(String)), String)) {
+) -> List(#(Option(List(String)), String, Option(String))) {
   let quantity = read_int(line_item, "quantity", 1)
   case quantity < 1 {
     True -> [
-      #(
+      inferred_nullable_user_error(
         Some(["lineItems", int.to_string(index), "quantity"]),
         "Quantity must be greater than or equal to 1",
       ),
@@ -17430,7 +18288,12 @@ fn validate_custom_draft_order_line_item_values(
         |> option.unwrap("0")
         |> parse_amount
       case amount <. 0.0 {
-        True -> [#(None, "Cannot send negative price for line_item")]
+        True -> [
+          inferred_nullable_user_error(
+            None,
+            "Cannot send negative price for line_item",
+          ),
+        ]
         False -> []
       }
     }
@@ -17440,7 +18303,7 @@ fn validate_custom_draft_order_line_item_values(
 fn serialize_draft_order_nullable_error_payload(
   field: Selection,
   draft_order: Option(DraftOrderRecord),
-  user_errors: List(#(Option(List(String)), String)),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -17471,7 +18334,7 @@ fn serialize_draft_order_nullable_error_payload(
 fn serialize_draft_order_mutation_payload(
   field: Selection,
   draft_order: Option(DraftOrderRecord),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -18545,15 +19408,76 @@ fn captured_attributes(
 }
 
 fn money_set(amount: Float, currency_code: String) -> CapturedJsonValue {
-  CapturedObject([
-    #(
-      "shopMoney",
-      CapturedObject([
-        #("amount", CapturedString(float.to_string(amount))),
-        #("currencyCode", CapturedString(currency_code)),
-      ]),
-    ),
-  ])
+  money_set_with_presentment(amount, currency_code, amount, currency_code)
+}
+
+fn money_set_with_presentment(
+  shop_amount: Float,
+  shop_currency_code: String,
+  presentment_amount: Float,
+  presentment_currency_code: String,
+) -> CapturedJsonValue {
+  money_set_string_with_presentment(
+    float.to_string(shop_amount),
+    shop_currency_code,
+    float.to_string(presentment_amount),
+    presentment_currency_code,
+  )
+}
+
+fn captured_money_presentment_amount(
+  value: CapturedJsonValue,
+  name: String,
+) -> Float {
+  case captured_object_field(value, name) {
+    Some(money) -> captured_money_presentment_value(money)
+    None -> 0.0
+  }
+}
+
+fn captured_money_presentment_value(value: CapturedJsonValue) -> Float {
+  case captured_object_field(value, "presentmentMoney") {
+    Some(presentment_money) ->
+      case captured_object_field(presentment_money, "amount") {
+        Some(CapturedString(amount)) -> parse_amount(amount)
+        _ -> captured_money_value(value)
+      }
+    None -> captured_money_value(value)
+  }
+}
+
+fn first_money_set_presentment_currency(
+  money_sets: List(CapturedJsonValue),
+  fallback: String,
+) -> String {
+  money_sets
+  |> list.find_map(fn(money_set) {
+    case captured_object_field(money_set, "presentmentMoney") {
+      Some(presentment_money) ->
+        captured_string_field(presentment_money, "currencyCode")
+        |> option_to_result
+      None -> Error(Nil)
+    }
+  })
+  |> result.unwrap(fallback)
+}
+
+fn money_sets_from_field(
+  values: List(CapturedJsonValue),
+  field_name: String,
+) -> List(CapturedJsonValue) {
+  values
+  |> list.filter_map(fn(value) {
+    captured_object_field(value, field_name) |> option_to_result
+  })
+}
+
+fn tax_line_money_sets(
+  values: List(CapturedJsonValue),
+) -> List(CapturedJsonValue) {
+  values
+  |> list.flat_map(captured_tax_lines)
+  |> money_sets_from_field("priceSet")
 }
 
 fn captured_money_amount(value: CapturedJsonValue, name: String) -> Float {
@@ -19047,7 +19971,7 @@ fn unknown_abandonment_result(
   List(LogDraft),
 ) {
   let user_errors = [
-    #(["abandonmentId"], "abandonment_not_found"),
+    inferred_user_error(["abandonmentId"], "abandonment_not_found"),
   ]
   let payload =
     serialize_abandonment_mutation_payload(
@@ -19087,7 +20011,7 @@ fn serialize_abandonment_mutation_payload(
   store: Store,
   field: Selection,
   abandonment: Option(AbandonmentRecord),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(#(List(String), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -19117,15 +20041,33 @@ fn serialize_abandonment_mutation_payload(
 
 fn serialize_user_error(
   field: Selection,
-  error: #(List(String), String),
+  error: #(List(String), String, Option(String)),
 ) -> Json {
-  let #(field_path, message) = error
-  let source =
-    src_object([
-      #("field", SrcList(list.map(field_path, SrcString))),
-      #("message", SrcString(message)),
-    ])
+  let #(field_path, message, code) = error
+  let source = user_error_source(Some(field_path), message, code)
   project_graphql_value(source, selection_children(field), dict.new())
+}
+
+fn user_error_source(
+  field_path: Option(List(String)),
+  message: String,
+  code: Option(String),
+) -> SourceValue {
+  src_object([
+    #("field", user_error_field_source(field_path)),
+    #("message", SrcString(message)),
+    #("code", case code {
+      Some(code) -> SrcString(code)
+      None -> SrcNull
+    }),
+  ])
+}
+
+fn user_error_field_source(field_path: Option(List(String))) -> SourceValue {
+  case field_path {
+    Some(path) -> SrcList(list.map(path, SrcString))
+    None -> SrcNull
+  }
 }
 
 fn captured_json_source(value: CapturedJsonValue) -> SourceValue {

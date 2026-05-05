@@ -1,0 +1,36 @@
+mutation MoneyBagPresentmentMarkAsPaid($input: OrderMarkAsPaidInput!) {
+  orderMarkAsPaid(input: $input) {
+    order {
+      id
+      totalOutstandingSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+      transactions {
+        kind
+        status
+        gateway
+        amountSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

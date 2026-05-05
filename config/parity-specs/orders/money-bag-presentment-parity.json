@@ -1,0 +1,102 @@
+{
+  "scenarioId": "money-bag-presentment-parity",
+  "operationNames": ["orderCreate", "orderMarkAsPaid", "refundCreate", "orderEditBegin", "orderEditCommit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "selected-fields", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/orders/money-bag-presentment-parity.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/money-bag-presentment-single-create.graphql",
+    "variablesCapturePath": "$.singleCurrencyCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Executable local-runtime parity coverage for HAR-564 MoneyBag presentment behavior. The scenario stages a single-currency order, a multi-currency order, orderMarkAsPaid, refundCreate, and orderEditBegin/orderEditCommit locally, with strict selected MoneyBag comparisons and an empty upstream cassette to prove supported mutations are not passed through at runtime.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "single-currency-create",
+        "capturePath": "$.singleCurrencyCreate.expected",
+        "proxyPath": "$"
+      },
+      {
+        "name": "multi-currency-create",
+        "capturePath": "$.multiCurrencyCreate.expected",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/money-bag-presentment-multi-create.graphql",
+          "variablesCapturePath": "$.multiCurrencyCreate.variables"
+        }
+      },
+      {
+        "name": "mark-as-paid-money-bag",
+        "capturePath": "$.markAsPaid.expected",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/money-bag-presentment-mark-as-paid.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "refund-money-bag",
+        "capturePath": "$.refund.expected",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/money-bag-presentment-refund.graphql",
+          "variables": {
+            "input": {
+              "orderId": {
+                "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+              },
+              "allowOverRefunding": true,
+              "transactions": [
+                {
+                  "amount": "5.00",
+                  "gateway": "manual",
+                  "kind": "REFUND",
+                  "orderId": {
+                    "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "order-edit-begin-money-bag",
+        "capturePath": "$.orderEditBegin.expected.data.orderEditBegin.calculatedOrder.totalPriceSet",
+        "proxyPath": "$.data.orderEditBegin.calculatedOrder.totalPriceSet",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/money-bag-presentment-order-edit-begin.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "order-edit-commit-money-bag",
+        "capturePath": "$.orderEditCommit.expected",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/money-bag-presentment-order-edit-commit.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "order-edit-begin-money-bag",
+              "path": "$.data.orderEditBegin.calculatedOrder.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}
