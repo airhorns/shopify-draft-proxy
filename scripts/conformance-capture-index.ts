@@ -906,6 +906,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-lifecycle-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-lifecycle-validation-conformance.mts',
+    purpose:
+      'Safe Markets lifecycle validation branches for blank marketCreate input and unknown marketUpdate/marketDelete IDs.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-lifecycle-validation.json`,
+      'config/parity-specs/markets/market-create-blank-name-validation.json',
+      'config/parity-specs/markets/market-update-not-found.json',
+      'config/parity-specs/markets/market-delete-unknown-id-validation.json',
+    ],
+    cleanupBehavior:
+      'Validation-only mutations reject before changing market state; no setup or cleanup records are created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'product-contextual-pricing',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-contextual-pricing-conformance.ts',
