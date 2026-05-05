@@ -2340,6 +2340,130 @@ fn count_object_values(input: Dict(String, root_field.ResolvedValue)) -> Int {
   |> list.length
 }
 
+fn remote_reference_gateway_errors(
+  remote_reference: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case count_object_values(remote_reference) == 1 {
+    False -> [
+      UserError(
+        field: ["remote_reference"],
+        message: "Remote reference must contain exactly one payment method.",
+        code: Some("INVALID"),
+      ),
+    ]
+    True -> {
+      let gateway_errors =
+        list.flatten([
+          validate_remote_reference_gateway(
+            remote_reference,
+            "stripePaymentMethod",
+            "stripe_payment_method",
+            [
+              #("customerId", "customer_id", "STRIPE_CUSTOMER_ID_BLANK"),
+            ],
+          ),
+          validate_remote_reference_gateway(
+            remote_reference,
+            "paypalPaymentMethod",
+            "paypal_payment_method",
+            [
+              #(
+                "billingAgreementId",
+                "billing_agreement_id",
+                "BILLING_AGREEMENT_ID_BLANK",
+              ),
+            ],
+          ),
+          validate_remote_reference_gateway(
+            remote_reference,
+            "braintreePaymentMethod",
+            "braintree_payment_method",
+            [
+              #("customerId", "customer_id", "BRAINTREE_CUSTOMER_ID_BLANK"),
+              #(
+                "paymentMethodToken",
+                "payment_method_token",
+                "PAYMENT_METHOD_TOKEN_BLANK",
+              ),
+            ],
+          ),
+          validate_remote_reference_gateway(
+            remote_reference,
+            "authorizeNetCustomerPaymentProfile",
+            "authorize_net_customer_payment_profile",
+            [
+              #(
+                "customerProfileId",
+                "customer_profile_id",
+                "AUTHORIZE_NET_CUSTOMER_PROFILE_ID_BLANK",
+              ),
+            ],
+          ),
+          validate_remote_reference_gateway(
+            remote_reference,
+            "adyenPaymentMethod",
+            "adyen_payment_method",
+            [
+              #(
+                "shopperReference",
+                "shopper_reference",
+                "ADYEN_SHOPPER_REFERENCE_BLANK",
+              ),
+              #(
+                "storedPaymentMethodId",
+                "stored_payment_method_id",
+                "ADYEN_STORED_PAYMENT_METHOD_ID_BLANK",
+              ),
+            ],
+          ),
+        ])
+      case gateway_errors {
+        [] -> []
+        _ -> gateway_errors
+      }
+    }
+  }
+}
+
+fn validate_remote_reference_gateway(
+  remote_reference: Dict(String, root_field.ResolvedValue),
+  gateway_key: String,
+  gateway_field: String,
+  required_fields: List(#(String, String, String)),
+) -> List(UserError) {
+  case dict.get(remote_reference, gateway_key) {
+    Ok(root_field.ObjectVal(gateway)) ->
+      required_fields
+      |> list.filter_map(fn(required) {
+        let #(input_key, field_key, code) = required
+        case has_nonblank_remote_reference_field(gateway, input_key) {
+          True -> Error(Nil)
+          False ->
+            Ok(UserError(
+              field: ["remote_reference", gateway_field, field_key],
+              message: remote_reference_blank_message(field_key),
+              code: Some(code),
+            ))
+        }
+      })
+    _ -> []
+  }
+}
+
+fn has_nonblank_remote_reference_field(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> Bool {
+  case dict.get(input, key) {
+    Ok(root_field.StringVal(value)) -> string.trim(value) != ""
+    _ -> False
+  }
+}
+
+fn remote_reference_blank_message(field: String) -> String {
+  field <> " can't be blank"
+}
+
 fn create_remote_payment_method(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
   case
@@ -2364,8 +2488,8 @@ fn create_remote_payment_method(store, identity, field, fragments, variables) {
       let remote_reference =
         graphql_helpers.read_arg_object(args, "remoteReference")
         |> option.unwrap(dict.new())
-      case count_object_values(remote_reference) == 1 {
-        False ->
+      case remote_reference_gateway_errors(remote_reference) {
+        [_, ..] as errors ->
           payment_method_result(
             store,
             identity,
@@ -2373,16 +2497,10 @@ fn create_remote_payment_method(store, identity, field, fragments, variables) {
             fragments,
             "customerPaymentMethodRemoteCreate",
             None,
-            [
-              UserError(
-                field: ["remoteReference"],
-                message: "Exactly one remote reference is required",
-                code: Some("EXACTLY_ONE_REMOTE_REFERENCE_REQUIRED"),
-              ),
-            ],
+            errors,
             [],
           )
-        True -> {
+        [] -> {
           let #(record, next_identity) =
             create_payment_method_record(identity, customer.id, None)
           payment_method_result(
