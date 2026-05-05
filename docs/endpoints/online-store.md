@@ -57,8 +57,8 @@ The local proxy does not fetch remote image bytes during staging, so synthetic a
 Implemented local staging:
 
 - `blogCreate` / `blogUpdate` / `blogDelete` stage blog title, handle, template suffix, and comment policy changes
-- `pageCreate` / `pageUpdate` / `pageDelete` stage page title, handle, body/body summary, template suffix, and publication fields; new pages default to published with a local `publishedAt` timestamp when `isPublished` and `publishDate` are both omitted
-- `articleCreate` / `articleUpdate` / `articleDelete` stage article title, handle, body, summary, tags, author, publication fields, image fields, ARTICLE-owned metafields, and blog membership; `articleCreate` can also stage an inline blog from the optional `blog` argument
+- `pageCreate` / `pageUpdate` / `pageDelete` stage page title, handle, minimally scrubbed body/body summary, template suffix, and publication fields; new pages default to published with a local `publishedAt` timestamp when `isPublished` and `publishDate` are both omitted
+- `articleCreate` / `articleUpdate` / `articleDelete` stage article title, handle, minimally scrubbed body, summary, tags, author, publication fields, image fields, ARTICLE-owned metafields, and blog membership; `articleCreate` can also stage an inline blog from the optional `blog` argument
 - `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` stage moderation or tombstones for comments that already exist in hydrated/snapshot local state; approval sets `status: "PUBLISHED"`, `isPublished: true`, and a local `publishedAt` timestamp when the comment did not already have one
 
 `pageCreate`, `blogCreate`, and `articleCreate` reject missing or blank `title` inputs before staging any local content. The local resolver returns a title `userErrors` payload with `field: ["page" | "blog" | "article", "title"]` and `code: "BLANK"` for both omitted and blank title values so tests get a stable mutation payload instead of staging empty-title records.
