@@ -3529,7 +3529,7 @@ fn handle_assign_main_contact(
               ..empty_payload([
                 user_error(
                   Some(["companyContactId"]),
-                  "Company contact does not match company.",
+                  "The company contact does not belong to the company.",
                   user_error_code.invalid_input,
                 ),
               ]),

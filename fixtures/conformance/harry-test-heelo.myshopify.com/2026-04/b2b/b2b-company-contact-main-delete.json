@@ -1,14 +1,15 @@
 {
   "scenarioId": "b2b-company-contact-main-delete",
-  "capturedAt": "2026-04-28T22:55:22.792Z",
+  "capturedAt": "2026-05-05T18:28:11.110Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
+  "upstreamCalls": [],
   "intent": {
-    "ticket": "HAR-445",
-    "plan": "Create disposable B2B companies and a customer; record company update, customer-as-contact assignment, main-contact assignment/revocation, bulk delete, explicit delete, and post-delete empty reads."
+    "tickets": ["HAR-445", "HAR-618"],
+    "plan": "Create disposable B2B companies and a customer; record company update, customer-as-contact assignment, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads."
   },
   "proxyVariables": {
-    "mainCompanyQuery": "name:\"HAR-445 main company 1777416920020\""
+    "mainCompanyQuery": "name:\"HAR-445 main company 1778005687709\""
   },
   "companyCreate": {
     "request": {
@@ -16,18 +17,18 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-445 main company 1777416920020",
+            "name": "HAR-445 main company 1778005687709",
             "note": "HAR-445 B2B lifecycle parity",
-            "externalId": "har-445-main-1777416920020"
+            "externalId": "har-445-main-1778005687709"
           },
           "companyContact": {
             "firstName": "Har",
             "lastName": "Main",
-            "email": "har-445-main-1777416920020@example.com",
+            "email": "har-445-main-1778005687709@example.com",
             "title": "Buyer"
           },
           "companyLocation": {
-            "name": "HAR-445 main company 1777416920020 HQ",
+            "name": "HAR-445 main company 1778005687709 HQ",
             "phone": "+16135550101",
             "billingAddress": {
               "address1": "1 B2B Way",
@@ -43,10 +44,10 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5428740402",
-            "name": "HAR-445 main company 1777416920020",
+            "id": "gid://shopify/Company/5437292850",
+            "name": "HAR-445 main company 1778005687709",
             "note": "HAR-445 B2B lifecycle parity",
-            "externalId": "har-445-main-1777416920020",
+            "externalId": "har-445-main-1778005687709",
             "contactsCount": {
               "count": 1
             },
@@ -54,14 +55,14 @@
               "count": 1
             },
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10139107634",
+              "id": "gid://shopify/CompanyContact/10147889458",
               "title": "Buyer",
               "isMainContact": true
             },
             "contacts": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContact/10139107634",
+                  "id": "gid://shopify/CompanyContact/10147889458",
                   "title": "Buyer",
                   "isMainContact": true
                 }
@@ -70,19 +71,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8235647282",
-                  "name": "HAR-445 main company 1777416920020 HQ"
+                  "id": "gid://shopify/CompanyLocation/8245772594",
+                  "name": "HAR-445 main company 1778005687709 HQ"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10649239858",
+                  "id": "gid://shopify/CompanyContactRole/10666017074",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10649272626",
+                  "id": "gid://shopify/CompanyContactRole/10666049842",
                   "name": "Ordering only"
                 }
               ]
@@ -108,11 +109,11 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company { id name note externalId }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5428740402",
+        "companyId": "gid://shopify/Company/5437292850",
         "input": {
-          "name": "HAR-445 main company 1777416920020 updated",
+          "name": "HAR-445 main company 1778005687709 updated",
           "note": "HAR-445 B2B lifecycle parity updated",
-          "externalId": "har-445-main-updated-1777416920020"
+          "externalId": "har-445-main-updated-1778005687709"
         }
       }
     },
@@ -121,10 +122,10 @@
       "data": {
         "companyUpdate": {
           "company": {
-            "id": "gid://shopify/Company/5428740402",
-            "name": "HAR-445 main company 1777416920020 updated",
+            "id": "gid://shopify/Company/5437292850",
+            "name": "HAR-445 main company 1778005687709 updated",
             "note": "HAR-445 B2B lifecycle parity updated",
-            "externalId": "har-445-main-updated-1777416920020"
+            "externalId": "har-445-main-updated-1778005687709"
           },
           "userErrors": []
         }
@@ -147,7 +148,7 @@
       "query": "#graphql\n  mutation B2BCompanyLifecycleCustomerCreate($input: CustomerInput!) {\n    customerCreate(input: $input) {\n      customer { id email }\n      userErrors { field message }\n    }\n  }\n",
       "variables": {
         "input": {
-          "email": "har-445-b2b-1777416920020@example.com",
+          "email": "har-445-b2b-1778005687709@example.com",
           "firstName": "Har",
           "lastName": "Assigned",
           "tags": ["har-445-b2b-lifecycle"]
@@ -159,8 +160,8 @@
       "data": {
         "customerCreate": {
           "customer": {
-            "id": "gid://shopify/Customer/10551261004082",
-            "email": "har-445-b2b-1777416920020@example.com"
+            "id": "gid://shopify/Customer/10582467969330",
+            "email": "har-445-b2b-1778005687709@example.com"
           },
           "userErrors": []
         }
@@ -182,9 +183,9 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact { id title isMainContact company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5428740402",
+        "companyId": "gid://shopify/Company/5437292850",
         "input": {
-          "email": "har-445-secondary-1777416920020@example.com",
+          "email": "har-445-secondary-1778005687709@example.com",
           "firstName": "Har",
           "lastName": "Secondary",
           "title": "Approver"
@@ -196,12 +197,12 @@
       "data": {
         "companyContactCreate": {
           "companyContact": {
-            "id": "gid://shopify/CompanyContact/10139140402",
+            "id": "gid://shopify/CompanyContact/10147922226",
             "title": "Approver",
             "isMainContact": false,
             "company": {
-              "id": "gid://shopify/Company/5428740402",
-              "name": "HAR-445 main company 1777416920020 updated"
+              "id": "gid://shopify/Company/5437292850",
+              "name": "HAR-445 main company 1778005687709 updated"
             }
           },
           "userErrors": []
@@ -224,8 +225,8 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleAssignCustomer($companyId: ID!, $customerId: ID!) {\n    companyAssignCustomerAsContact(companyId: $companyId, customerId: $customerId) {\n      companyContact { id isMainContact customer { id } company { id name } }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5428740402",
-        "customerId": "gid://shopify/Customer/10551261004082"
+        "companyId": "gid://shopify/Company/5437292850",
+        "customerId": "gid://shopify/Customer/10582467969330"
       }
     },
     "response": {
@@ -233,14 +234,14 @@
       "data": {
         "companyAssignCustomerAsContact": {
           "companyContact": {
-            "id": "gid://shopify/CompanyContact/10139173170",
+            "id": "gid://shopify/CompanyContact/10147954994",
             "isMainContact": false,
             "customer": {
-              "id": "gid://shopify/Customer/10551261004082"
+              "id": "gid://shopify/Customer/10582467969330"
             },
             "company": {
-              "id": "gid://shopify/Company/5428740402",
-              "name": "HAR-445 main company 1777416920020 updated"
+              "id": "gid://shopify/Company/5437292850",
+              "name": "HAR-445 main company 1778005687709 updated"
             }
           },
           "userErrors": []
@@ -263,8 +264,8 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleAssignMainContact($companyId: ID!, $companyContactId: ID!) {\n    companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {\n      company {\n        id\n        mainContact { id title isMainContact }\n        contacts(first: 5) { nodes { id title isMainContact } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5428740402",
-        "companyContactId": "gid://shopify/CompanyContact/10139140402"
+        "companyId": "gid://shopify/Company/5437292850",
+        "companyContactId": "gid://shopify/CompanyContact/10147922226"
       }
     },
     "response": {
@@ -272,26 +273,26 @@
       "data": {
         "companyAssignMainContact": {
           "company": {
-            "id": "gid://shopify/Company/5428740402",
+            "id": "gid://shopify/Company/5437292850",
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10139140402",
+              "id": "gid://shopify/CompanyContact/10147922226",
               "title": "Approver",
               "isMainContact": true
             },
             "contacts": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContact/10139107634",
+                  "id": "gid://shopify/CompanyContact/10147889458",
                   "title": "Buyer",
                   "isMainContact": false
                 },
                 {
-                  "id": "gid://shopify/CompanyContact/10139140402",
+                  "id": "gid://shopify/CompanyContact/10147922226",
                   "title": "Approver",
                   "isMainContact": true
                 },
                 {
-                  "id": "gid://shopify/CompanyContact/10139173170",
+                  "id": "gid://shopify/CompanyContact/10147954994",
                   "title": null,
                   "isMainContact": false
                 }
@@ -318,7 +319,7 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleRevokeMainContact($companyId: ID!) {\n    companyRevokeMainContact(companyId: $companyId) {\n      company {\n        id\n        mainContact { id title isMainContact }\n        contacts(first: 5) { nodes { id title isMainContact } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5428740402"
+        "companyId": "gid://shopify/Company/5437292850"
       }
     },
     "response": {
@@ -326,22 +327,22 @@
       "data": {
         "companyRevokeMainContact": {
           "company": {
-            "id": "gid://shopify/Company/5428740402",
+            "id": "gid://shopify/Company/5437292850",
             "mainContact": null,
             "contacts": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContact/10139107634",
+                  "id": "gid://shopify/CompanyContact/10147889458",
                   "title": "Buyer",
                   "isMainContact": false
                 },
                 {
-                  "id": "gid://shopify/CompanyContact/10139140402",
+                  "id": "gid://shopify/CompanyContact/10147922226",
                   "title": "Approver",
                   "isMainContact": false
                 },
                 {
-                  "id": "gid://shopify/CompanyContact/10139173170",
+                  "id": "gid://shopify/CompanyContact/10147954994",
                   "title": null,
                   "isMainContact": false
                 }
@@ -357,7 +358,7 @@
           "actualQueryCost": 15,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1983,
             "restoreRate": 100
           }
         }
@@ -368,17 +369,17 @@
     "request": {
       "query": "#graphql\n  query B2BCompanyLifecycleReadAfterMainContact($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contactsCount { count }\n      locationsCount { count }\n      mainContact { id title isMainContact }\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          isMainContact\n          customer { id }\n        }\n      }\n      locations(first: 5) { nodes { id name } }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5428740402"
+        "companyId": "gid://shopify/Company/5437292850"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "company": {
-          "id": "gid://shopify/Company/5428740402",
-          "name": "HAR-445 main company 1777416920020 updated",
+          "id": "gid://shopify/Company/5437292850",
+          "name": "HAR-445 main company 1778005687709 updated",
           "note": "HAR-445 B2B lifecycle parity updated",
-          "externalId": "har-445-main-updated-1777416920020",
+          "externalId": "har-445-main-updated-1778005687709",
           "contactsCount": {
             "count": 3
           },
@@ -389,27 +390,27 @@
           "contacts": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyContact/10139107634",
+                "id": "gid://shopify/CompanyContact/10147889458",
                 "title": "Buyer",
                 "isMainContact": false,
                 "customer": {
-                  "id": "gid://shopify/Customer/10551260971314"
+                  "id": "gid://shopify/Customer/10582467871026"
                 }
               },
               {
-                "id": "gid://shopify/CompanyContact/10139140402",
+                "id": "gid://shopify/CompanyContact/10147922226",
                 "title": "Approver",
                 "isMainContact": false,
                 "customer": {
-                  "id": "gid://shopify/Customer/10551261036850"
+                  "id": "gid://shopify/Customer/10582468002098"
                 }
               },
               {
-                "id": "gid://shopify/CompanyContact/10139173170",
+                "id": "gid://shopify/CompanyContact/10147954994",
                 "title": null,
                 "isMainContact": false,
                 "customer": {
-                  "id": "gid://shopify/Customer/10551261004082"
+                  "id": "gid://shopify/Customer/10582467969330"
                 }
               }
             ]
@@ -417,8 +418,8 @@
           "locations": {
             "nodes": [
               {
-                "id": "gid://shopify/CompanyLocation/8235647282",
-                "name": "HAR-445 main company 1777416920020 HQ"
+                "id": "gid://shopify/CompanyLocation/8245772594",
+                "name": "HAR-445 main company 1778005687709 HQ"
               }
             ]
           }
@@ -430,7 +431,155 @@
           "actualQueryCost": 13,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1984,
+            "currentlyAvailable": 1983,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "assignMainContactBeforeDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyLifecycleAssignMainContact($companyId: ID!, $companyContactId: ID!) {\n    companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {\n      company {\n        id\n        mainContact { id title isMainContact }\n        contacts(first: 5) { nodes { id title isMainContact } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5437292850",
+        "companyContactId": "gid://shopify/CompanyContact/10147922226"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAssignMainContact": {
+          "company": {
+            "id": "gid://shopify/Company/5437292850",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10147922226",
+              "title": "Approver",
+              "isMainContact": true
+            },
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10147889458",
+                  "title": "Buyer",
+                  "isMainContact": false
+                },
+                {
+                  "id": "gid://shopify/CompanyContact/10147922226",
+                  "title": "Approver",
+                  "isMainContact": true
+                },
+                {
+                  "id": "gid://shopify/CompanyContact/10147954994",
+                  "title": null,
+                  "isMainContact": false
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 15,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "deleteMainContact": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyLifecycleContactDelete($companyContactId: ID!) {\n    companyContactDelete(companyContactId: $companyContactId) {\n      deletedCompanyContactId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10147922226"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactDelete": {
+          "deletedCompanyContactId": "gid://shopify/CompanyContact/10147922226",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1982,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterMainContactDelete": {
+    "request": {
+      "query": "#graphql\n  query B2BCompanyLifecycleReadAfterMainContact($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contactsCount { count }\n      locationsCount { count }\n      mainContact { id title isMainContact }\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          isMainContact\n          customer { id }\n        }\n      }\n      locations(first: 5) { nodes { id name } }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5437292850"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5437292850",
+          "name": "HAR-445 main company 1778005687709 updated",
+          "note": "HAR-445 B2B lifecycle parity updated",
+          "externalId": "har-445-main-updated-1778005687709",
+          "contactsCount": {
+            "count": 2
+          },
+          "locationsCount": {
+            "count": 1
+          },
+          "mainContact": null,
+          "contacts": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContact/10147889458",
+                "title": "Buyer",
+                "isMainContact": false,
+                "customer": {
+                  "id": "gid://shopify/Customer/10582467871026"
+                }
+              },
+              {
+                "id": "gid://shopify/CompanyContact/10147954994",
+                "title": null,
+                "isMainContact": false,
+                "customer": {
+                  "id": "gid://shopify/Customer/10582467969330"
+                }
+              }
+            ]
+          },
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8245772594",
+                "name": "HAR-445 main company 1778005687709 HQ"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 17,
+          "actualQueryCost": 12,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1988,
             "restoreRate": 100
           }
         }
@@ -443,8 +592,8 @@
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-445 bulk company 1777416920020",
-            "externalId": "har-445-bulk-1777416920020"
+            "name": "HAR-445 bulk company 1778005687709",
+            "externalId": "har-445-bulk-1778005687709"
           }
         }
       }
@@ -454,10 +603,10 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5428773170",
-            "name": "HAR-445 bulk company 1777416920020",
+            "id": "gid://shopify/Company/5437325618",
+            "name": "HAR-445 bulk company 1778005687709",
             "note": null,
-            "externalId": "har-445-bulk-1777416920020",
+            "externalId": "har-445-bulk-1778005687709",
             "contactsCount": {
               "count": 0
             },
@@ -471,19 +620,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8235680050",
-                  "name": "HAR-445 bulk company 1777416920020"
+                  "id": "gid://shopify/CompanyLocation/8245805362",
+                  "name": "HAR-445 bulk company 1778005687709"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10649305394",
+                  "id": "gid://shopify/CompanyContactRole/10666082610",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10649338162",
+                  "id": "gid://shopify/CompanyContactRole/10666115378",
                   "name": "Ordering only"
                 }
               ]
@@ -498,7 +647,42 @@
           "actualQueryCost": 25,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1971,
+            "currentlyAvailable": 1975,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "wrongCompanyAssignMainContact": {
+    "request": {
+      "query": "#graphql\n  mutation B2BCompanyLifecycleAssignMainContact($companyId: ID!, $companyContactId: ID!) {\n    companyAssignMainContact(companyId: $companyId, companyContactId: $companyContactId) {\n      company {\n        id\n        mainContact { id title isMainContact }\n        contacts(first: 5) { nodes { id title isMainContact } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5437325618",
+        "companyContactId": "gid://shopify/CompanyContact/10147889458"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyAssignMainContact": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": ["companyContactId"],
+              "message": "The company contact does not belong to the company.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 16,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -509,14 +693,14 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleCompaniesDelete($companyIds: [ID!]!) {\n    companiesDelete(companyIds: $companyIds) {\n      deletedCompanyIds\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyIds": ["gid://shopify/Company/5428773170"]
+        "companyIds": ["gid://shopify/Company/5437325618"]
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companiesDelete": {
-          "deletedCompanyIds": ["gid://shopify/Company/5428773170"],
+          "deletedCompanyIds": ["gid://shopify/Company/5437325618"],
           "userErrors": []
         }
       },
@@ -526,7 +710,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1983,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -537,8 +721,8 @@
     "request": {
       "query": "#graphql\n  query B2BCompanyLifecycleReadAfterDelete($companyId: ID!, $companyQuery: String!) {\n    company(id: $companyId) { id }\n    companies(first: 5, query: $companyQuery) {\n      nodes { id name }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5428773170",
-        "companyQuery": "name:\"HAR-445 bulk company 1777416920020\""
+        "companyId": "gid://shopify/Company/5437325618",
+        "companyQuery": "name:\"HAR-445 bulk company 1778005687709\""
       }
     },
     "response": {
@@ -572,14 +756,14 @@
     "request": {
       "query": "#graphql\n  mutation B2BCompanyLifecycleCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Company/5428740402"
+        "id": "gid://shopify/Company/5437292850"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyDelete": {
-          "deletedCompanyId": "gid://shopify/Company/5428740402",
+          "deletedCompanyId": "gid://shopify/Company/5437292850",
           "userErrors": []
         }
       },
@@ -600,8 +784,8 @@
     "request": {
       "query": "#graphql\n  query B2BCompanyLifecycleReadAfterDelete($companyId: ID!, $companyQuery: String!) {\n    company(id: $companyId) { id }\n    companies(first: 5, query: $companyQuery) {\n      nodes { id name }\n      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5428740402",
-        "companyQuery": "name:\"HAR-445 main company 1777416920020\""
+        "companyId": "gid://shopify/Company/5437292850",
+        "companyQuery": "name:\"HAR-445 main company 1778005687709\""
       }
     },
     "response": {
@@ -637,7 +821,7 @@
         "query": "#graphql\n  mutation B2BCompanyLifecycleCustomerDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors { field message }\n    }\n  }\n",
         "variables": {
           "input": {
-            "id": "gid://shopify/Customer/10551261004082"
+            "id": "gid://shopify/Customer/10582467969330"
           }
         }
       },
@@ -645,7 +829,7 @@
         "status": 200,
         "data": {
           "customerDelete": {
-            "deletedCustomerId": "gid://shopify/Customer/10551261004082",
+            "deletedCustomerId": "gid://shopify/Customer/10582467969330",
             "userErrors": []
           }
         },
@@ -662,6 +846,5 @@
         }
       }
     }
-  },
-  "upstreamCalls": []
+  }
 }

@@ -114,6 +114,7 @@ fn proxy_with_company_at_contact_cap(
         #("name", StorePropertyString("HAR 606 Cap")),
       ]),
       contact_ids: contact_ids(10_000),
+      main_contact_id: None,
       location_ids: [],
       contact_role_ids: [],
     )
