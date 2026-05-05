@@ -2,11 +2,17 @@
 
 import gleam/dict
 import gleam/json
+import gleam/list
+import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/proxy/discounts
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
+import shopify_draft_proxy/state/types.{
+  type CapturedJsonValue, type DiscountRecord, CapturedNull, CapturedObject,
+  CapturedString, DiscountRecord,
+}
 
 fn run_mutation(document: String) -> mutation_helpers.MutationOutcome {
   run_mutation_from(store.new(), synthetic_identity.new(), document)
@@ -184,4 +190,167 @@ pub fn inline_null_input_returns_top_level_error_test() {
 
   assert json.to_string(outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'basicCodeDiscount' on Field 'discountCodeBasicCreate' has an invalid value (null). Expected type 'DiscountCodeBasicInput!'.\",\"locations\":[{\"line\":1,\"column\":51}],\"path\":[\"mutation DiscountCodeBasicCreateInlineNullInput\",\"discountCodeBasicCreate\",\"basicCodeDiscount\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"basicCodeDiscount\"}}]}"
+}
+
+pub fn activate_expired_code_discount_rewrites_stale_dates_test() {
+  let id = "gid://shopify/DiscountCodeNode/expired"
+  let record =
+    code_discount_record(
+      id,
+      "DiscountCodeBasic",
+      "SCHEDULED",
+      "2030-01-01T00:00:00Z",
+      Some("2023-01-01T00:00:00Z"),
+      None,
+    )
+  let #(_, seeded_store) = store.stage_discount(store.new(), record)
+  let outcome =
+    run_mutation_from(
+      seeded_store,
+      synthetic_identity.new(),
+      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/expired\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status } } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-01-01T00:00:00.000Z\",\"endsAt\":null,\"status\":\"ACTIVE\"}},\"userErrors\":[]}}}"
+}
+
+pub fn activate_already_active_code_discount_preserves_dates_test() {
+  let id = "gid://shopify/DiscountCodeNode/active"
+  let record =
+    code_discount_record(
+      id,
+      "DiscountCodeBasic",
+      "ACTIVE",
+      "2024-02-01T00:00:00Z",
+      Some("2030-01-01T00:00:00Z"),
+      None,
+    )
+  let #(_, seeded_store) = store.stage_discount(store.new(), record)
+  let outcome =
+    run_mutation_from(
+      seeded_store,
+      synthetic_identity.new(),
+      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/active\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status } } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-02-01T00:00:00Z\",\"endsAt\":\"2030-01-01T00:00:00Z\",\"status\":\"ACTIVE\"}},\"userErrors\":[]}}}"
+}
+
+pub fn deactivate_code_discount_rewrites_future_start_and_end_test() {
+  let id = "gid://shopify/DiscountCodeNode/deactivate"
+  let record =
+    code_discount_record(
+      id,
+      "DiscountCodeBasic",
+      "SCHEDULED",
+      "2030-01-01T00:00:00Z",
+      None,
+      None,
+    )
+  let #(_, seeded_store) = store.stage_discount(store.new(), record)
+  let outcome =
+    run_mutation_from(
+      seeded_store,
+      synthetic_identity.new(),
+      "mutation { discountCodeDeactivate(id: \"gid://shopify/DiscountCodeNode/deactivate\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status } } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeDeactivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-01-01T00:00:00.000Z\",\"endsAt\":\"2024-01-01T00:00:00.000Z\",\"status\":\"EXPIRED\"}},\"userErrors\":[]}}}"
+}
+
+pub fn activate_missing_app_function_returns_internal_error_test() {
+  let id = "gid://shopify/DiscountCodeNode/app-missing"
+  let function_id = "gid://shopify/ShopifyFunction/missing"
+  let record =
+    code_discount_record(
+      id,
+      "DiscountCodeApp",
+      "EXPIRED",
+      "2023-01-01T00:00:00Z",
+      Some("2023-02-01T00:00:00Z"),
+      Some(function_id),
+    )
+  let #(_, seeded_store) = store.stage_discount(store.new(), record)
+  let outcome =
+    run_mutation_from(
+      seeded_store,
+      synthetic_identity.new(),
+      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/app-missing\") { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount could not be activated.\",\"code\":\"INTERNAL_ERROR\"}]}}}"
+}
+
+pub fn activate_unknown_discount_uses_invalid_error_code_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/0\") { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\"}]}}}"
+}
+
+fn code_discount_record(
+  id: String,
+  typename: String,
+  status: String,
+  starts_at: String,
+  ends_at: Option(String),
+  function_id: Option(String),
+) -> DiscountRecord {
+  DiscountRecord(
+    id: id,
+    owner_kind: "code",
+    discount_type: case typename {
+      "DiscountCodeApp" -> "app"
+      _ -> "basic"
+    },
+    title: Some("Test discount"),
+    status: status,
+    code: Some("TEST"),
+    payload: CapturedObject([
+      #("id", CapturedString(id)),
+      #(
+        "codeDiscount",
+        CapturedObject(
+          [
+            #("__typename", CapturedString(typename)),
+            #("title", CapturedString("Test discount")),
+            #("status", CapturedString(status)),
+            #("startsAt", CapturedString(starts_at)),
+            #("endsAt", case ends_at {
+              Some(value) -> CapturedString(value)
+              None -> CapturedNull
+            }),
+          ]
+          |> with_app_discount_type(function_id),
+        ),
+      ),
+    ]),
+    cursor: None,
+  )
+}
+
+fn with_app_discount_type(
+  fields: List(#(String, CapturedJsonValue)),
+  function_id: Option(String),
+) -> List(#(String, CapturedJsonValue)) {
+  case function_id {
+    Some(id) ->
+      list.append(fields, [
+        #(
+          "appDiscountType",
+          CapturedObject([
+            #("functionId", CapturedString(id)),
+            #("title", CapturedString("Test app discount")),
+          ]),
+        ),
+      ])
+    None -> fields
+  }
 }

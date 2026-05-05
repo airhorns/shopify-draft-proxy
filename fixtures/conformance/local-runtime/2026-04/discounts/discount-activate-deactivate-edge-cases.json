@@ -1,0 +1,122 @@
+{
+  "fixtureKind": "local-runtime-discount-activate-deactivate-edge-cases",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T00:00:00.000Z",
+  "summary": "Executable local-runtime fixture for HAR-600 discount activate/deactivate timestamp rewrites and unknown-id INVALID userErrors. App-discount activation failure is covered by runtime tests because the generic parity runner cannot revoke a staged Shopify Function without banned seed-state setup.",
+  "upstreamCalls": [],
+  "variables": {
+    "code": "HAR600EDGE"
+  },
+  "create": {
+    "variables": {
+      "input": {
+        "title": "HAR-600 edge basic",
+        "code": "HAR600EDGE",
+        "startsAt": "2030-01-01T00:00:00.000Z",
+        "combinesWith": {
+          "productDiscounts": false,
+          "orderDiscounts": true,
+          "shippingDiscounts": false
+        },
+        "context": {
+          "all": "ALL"
+        },
+        "customerGets": {
+          "value": {
+            "percentage": 0.1
+          },
+          "items": {
+            "all": true
+          }
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "discountCodeBasicCreate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "HAR-600 edge basic",
+              "startsAt": "2030-01-01T00:00:00.000Z",
+              "endsAt": null,
+              "status": "ACTIVE"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "deactivate": {
+    "response": {
+      "data": {
+        "discountCodeDeactivate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "startsAt": "2024-01-01T00:00:01.000Z",
+              "endsAt": "2024-01-01T00:00:01.000Z",
+              "status": "EXPIRED"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "activate": {
+    "response": {
+      "data": {
+        "discountCodeActivate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "startsAt": "2024-01-01T00:00:01.000Z",
+              "endsAt": null,
+              "status": "ACTIVE"
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "readAfterActivate": {
+    "response": {
+      "data": {
+        "codeDiscountNode": {
+          "id": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
+          "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "startsAt": "2024-01-01T00:00:01.000Z",
+            "endsAt": null,
+            "status": "ACTIVE"
+          }
+        },
+        "codeDiscountNodeByCode": {
+          "id": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic"
+        }
+      }
+    }
+  },
+  "unknownActivate": {
+    "response": {
+      "data": {
+        "discountCodeActivate": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Discount does not exist",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
