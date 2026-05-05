@@ -985,8 +985,12 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',
     requiredAuthScopes: ['read_content', 'write_content or policy-management access'],
-    fixtureOutputs: [`${CAPTURE_ROOT}shop-policy-*.json`],
-    cleanupBehavior: 'Restores prior policy content when a write branch is captured.',
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shop-policy-*.json`,
+      'config/parity-specs/store-properties/shop-policy-update-title-url-and-body-rendering.json',
+    ],
+    cleanupBehavior:
+      'Restores prior policy content when a write branch is captured. Newly created policy rows may remain on shops where Shopify does not expose deletion, but their bodies are reset to the prior empty fallback.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
