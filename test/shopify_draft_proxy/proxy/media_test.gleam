@@ -405,3 +405,52 @@ pub fn file_update_preserves_ready_status_after_success_test() {
   assert json.to_string(body)
     == "{\"data\":{\"fileUpdate\":{\"files\":[{\"id\":\"gid://shopify/MediaImage/1\",\"fileStatus\":\"READY\",\"alt\":\"Updated alt\",\"__typename\":\"MediaImage\"}],\"userErrors\":[]}}}"
 }
+
+pub fn staged_uploads_create_requires_video_file_size_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: VIDEO, filename: \"x.mp4\", mimeType: \"video/mp4\" }]) { stagedTargets { url resourceUrl parameters { name } } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"url\":null,\"resourceUrl\":null,\"parameters\":[]}],\"userErrors\":[{\"field\":[\"input\",\"0\",\"fileSize\"],\"message\":\"file size is required for video resources\",\"code\":\"REQUIRED\"}]}}}"
+}
+
+pub fn staged_uploads_create_rejects_image_unsupported_mime_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { stagedUploadsCreate(input: [{ resource: IMAGE, filename: \"x.exe\", mimeType: \"application/x-msdownload\" }]) { stagedTargets { url resourceUrl parameters { name } } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"stagedUploadsCreate\":{\"stagedTargets\":[{\"url\":null,\"resourceUrl\":null,\"parameters\":[]}],\"userErrors\":[{\"field\":[\"input\",\"0\",\"mimeType\"],\"message\":\"x.exe: (application/x-msdownload) is not a recognized format\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn staged_uploads_create_rejects_unknown_resource_variable_test() {
+  let query =
+    "mutation Repro($input: [StagedUploadInput!]!) { stagedUploadsCreate(input: $input) { stagedTargets { url } userErrors { field message } } }"
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2026-04/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\""
+        <> escape(query)
+        <> "\",\"variables\":{\"input\":[{\"resource\":\"BANANA\",\"filename\":\"x\",\"mimeType\":\"x/x\"}]}}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(registry_proxy(), request)
+
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    body_json,
+    "Expected \\\"BANANA\\\" to be one of: COLLECTION_IMAGE, FILE, IMAGE, MODEL_3D, PRODUCT_IMAGE, SHOP_IMAGE, VIDEO, BULK_MUTATION_VARIABLES, RETURN_LABEL, URL_REDIRECT_IMPORT, DISPUTE_FILE_UPLOAD",
+  )
+  assert !string.contains(body_json, "\"stagedTargets\"")
+}
