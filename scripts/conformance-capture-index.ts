@@ -247,7 +247,11 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     scriptPath: 'scripts/capture-file-mutation-conformance.mts',
     purpose: 'fileCreate/fileUpdate/fileDelete and staged upload interactions.',
     requiredAuthScopes: ['read_files', 'write_files'],
-    fixtureOutputs: [`${CAPTURE_ROOT}file-mutation-*.json`, `${LOCAL_RUNTIME_ROOT}files-upload-local-runtime.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}file-mutation-*.json`,
+      `${CAPTURE_ROOT}media-file-*.json`,
+      `${LOCAL_RUNTIME_ROOT}files-upload-local-runtime.json`,
+    ],
     cleanupBehavior:
       'Deletes created files when Shopify returns file IDs; local-runtime fixtures need no Shopify cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

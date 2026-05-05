@@ -1,0 +1,54 @@
+{
+  "scenarioId": "media-file-delete-typed-gid-roundtrip",
+  "operationNames": ["fileCreate", "fileDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-delete-typed-gid-roundtrip.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-delete-typed-gid-roundtrip-create.graphql",
+    "variablesCapturePath": "$.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-708 captures Shopify rebuilding fileDelete.deletedFileIds through the stored file's resolved type. In the wrong-type branch, Shopify accepted a Video GID carrying a MediaImage numeric id and returned a MediaImage GID in deletedFileIds.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.fileDelete.deletedFileIds[0]",
+        "matcher": "shopify-gid:MediaImage",
+        "reason": "The proxy returns the local staged MediaImage GID; Shopify returns the dev-store MediaImage GID."
+      }
+    ],
+    "targets": [
+      {
+        "name": "delete-actual-media-image-gid",
+        "capturePath": "$.deleteActual.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileDelete-parity.graphql",
+          "variables": {
+            "fileIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "name": "delete-wrong-typed-video-gid",
+        "capturePath": "$.deleteWrongType.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/fileDelete-parity.graphql",
+          "variables": {
+            "fileIds": ["gid://shopify/Video/3"]
+          }
+        }
+      }
+    ]
+  }
+}
