@@ -959,8 +959,11 @@ pub fn b2b_contact_delete_rejects_contacts_with_associated_orders_test() {
   let delete_json = json.to_string(delete_body)
   assert string.contains(delete_json, "\"deletedCompanyContactId\":null")
   assert string.contains(delete_json, "\"field\":[\"companyContactId\"]")
-  assert string.contains(delete_json, "\"code\":\"INVALID_INPUT\"")
-  assert string.contains(delete_json, "existing_orders")
+  assert string.contains(delete_json, "\"code\":\"FAILED_TO_DELETE\"")
+  assert string.contains(
+    delete_json,
+    "Cannot delete a company contact with existing orders or draft orders.",
+  )
 
   let read =
     "query { companyContact(id: \""
@@ -1032,9 +1035,12 @@ pub fn b2b_contact_assign_role_rejects_duplicate_contact_location_test() {
   assert assign_status == 200
   let assign_json = json.to_string(assign_body)
   assert string.contains(assign_json, "\"companyContactRoleAssignment\":null")
-  assert string.contains(assign_json, "\"field\":[\"companyContactId\"]")
-  assert string.contains(assign_json, "\"code\":\"INVALID_INPUT\"")
-  assert string.contains(assign_json, "one_role_already_assigned")
+  assert string.contains(assign_json, "\"field\":null")
+  assert string.contains(assign_json, "\"code\":\"LIMIT_REACHED\"")
+  assert string.contains(
+    assign_json,
+    "Company contact has already been assigned a role in that company location.",
+  )
 }
 
 pub fn b2b_contact_assign_role_rejects_missing_and_cross_company_resources_test() {
@@ -1070,7 +1076,10 @@ pub fn b2b_contact_assign_role_rejects_missing_and_cross_company_resources_test(
     "\"field\":[\"companyContactRoleId\"]",
   )
   assert string.contains(foreign_role_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
-  assert string.contains(foreign_role_json, "company_role_not_found")
+  assert string.contains(
+    foreign_role_json,
+    "The company contact role doesn't exist.",
+  )
 
   let #(
     Response(status: foreign_location_status, body: foreign_location_body, ..),
@@ -1094,7 +1103,10 @@ pub fn b2b_contact_assign_role_rejects_missing_and_cross_company_resources_test(
     foreign_location_json,
     "\"code\":\"RESOURCE_NOT_FOUND\"",
   )
-  assert string.contains(foreign_location_json, "company_location_not_found")
+  assert string.contains(
+    foreign_location_json,
+    "The company location doesn't exist.",
+  )
 
   let #(Response(status: missing_role_status, body: missing_role_body, ..), _) =
     graphql(
@@ -1108,7 +1120,10 @@ pub fn b2b_contact_assign_role_rejects_missing_and_cross_company_resources_test(
     "\"field\":[\"companyContactRoleId\"]",
   )
   assert string.contains(missing_role_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
-  assert string.contains(missing_role_json, "company_role_not_found")
+  assert string.contains(
+    missing_role_json,
+    "The company contact role doesn't exist.",
+  )
 }
 
 pub fn b2b_assign_customer_as_contact_rejects_unknown_customer_test() {
@@ -1252,6 +1267,7 @@ pub fn b2b_business_customer_user_error_code_snapshot_test() {
     "CUSTOMER_EMAIL_MUST_EXIST",
     "COMPANY_CONTACT_MAX_CAP_REACHED",
     "ROLE_ASSIGNMENTS_MAX_CAP_REACHED",
+    "FAILED_TO_DELETE",
     "ONE_ROLE_ALREADY_ASSIGNED",
     "CONTACT_DOES_NOT_MATCH_COMPANY",
     "EXISTING_ORDERS",

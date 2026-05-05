@@ -30,9 +30,10 @@ import parity/diff.{type Mismatch}
 import parity/json_value.{type JsonValue, JArray, JObject, JString}
 import parity/jsonpath
 import parity/spec.{
-  type LocalSetup, type Spec, type Target, NoVariables, OverrideRequest,
-  ProxyLog, ProxyResponse, ProxyState, ReusePrimary, SeedSegments,
-  VariablesFromCapture, VariablesFromFile, VariablesInline,
+  type LocalSetup, type Spec, type Target, MarkB2BContactsWithOrders,
+  NoVariables, OverrideRequest, ProxyLog, ProxyResponse, ProxyState,
+  ReusePrimary, SeedSegments, VariablesFromCapture, VariablesFromFile,
+  VariablesInline,
 }
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
@@ -44,7 +45,9 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, Config, DraftProxy, LiveHybrid, Request,
 }
 import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/types.{SegmentRecord}
+import shopify_draft_proxy/state/types.{
+  B2BCompanyContactRecord, SegmentRecord, StorePropertyInt,
+}
 import simplifile
 
 pub type RunError {
@@ -569,8 +572,25 @@ fn apply_local_setups(
   list.fold(local_setups, proxy, fn(acc, setup) {
     case setup {
       SeedSegments(count) -> seed_staged_segments(acc, count)
+      MarkB2BContactsWithOrders -> mark_b2b_contacts_with_orders(acc)
     }
   })
+}
+
+fn mark_b2b_contacts_with_orders(proxy: DraftProxy) -> DraftProxy {
+  let updated_store =
+    store.list_effective_b2b_company_contacts(proxy.store)
+    |> list.fold(proxy.store, fn(acc_store, contact) {
+      let marked =
+        B2BCompanyContactRecord(
+          ..contact,
+          data: dict.insert(contact.data, "ordersCount", StorePropertyInt(1)),
+        )
+      let #(_, next_store) =
+        store.upsert_staged_b2b_company_contact(acc_store, marked)
+      next_store
+    })
+  DraftProxy(..proxy, store: updated_store)
 }
 
 fn seed_staged_segments(proxy: DraftProxy, count: Int) -> DraftProxy {

@@ -44,6 +44,7 @@ import parity/json_value.{type JsonValue}
 
 pub type LocalSetup {
   SeedSegments(count: Int)
+  MarkB2BContactsWithOrders
 }
 
 pub type ParityVariables {
@@ -216,6 +217,7 @@ fn local_setup_decoder() -> Decoder(LocalSetup) {
       use count <- decode.field("count", decode.int)
       decode.success(SeedSegments(count: count))
     }
+    "markB2BContactsWithOrders" -> decode.success(MarkB2BContactsWithOrders)
     _ -> decode.failure(SeedSegments(count: 0), "unsupported local setup kind")
   }
 }

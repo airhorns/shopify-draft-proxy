@@ -1794,7 +1794,7 @@ fn resource_not_found(field: List(String)) {
 fn company_role_not_found() {
   user_error(
     Some(["companyContactRoleId"]),
-    "company_role_not_found",
+    "The company contact role doesn't exist.",
     user_error_code.resource_not_found,
   )
 }
@@ -1802,24 +1802,24 @@ fn company_role_not_found() {
 fn company_location_not_found() {
   user_error(
     Some(["companyLocationId"]),
-    "company_location_not_found",
+    "The company location doesn't exist.",
     user_error_code.resource_not_found,
   )
 }
 
 fn one_role_already_assigned() {
   user_error(
-    Some(["companyContactId"]),
-    "one_role_already_assigned",
-    user_error_code.invalid_input,
+    None,
+    "Company contact has already been assigned a role in that company location.",
+    user_error_code.limit_reached,
   )
 }
 
 fn existing_orders_error() {
   user_error(
     Some(["companyContactId"]),
-    "existing_orders",
-    user_error_code.invalid_input,
+    "Cannot delete a company contact with existing orders or draft orders.",
+    user_error_code.failed_to_delete,
   )
 }
 
