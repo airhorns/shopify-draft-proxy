@@ -2018,6 +2018,7 @@ fn handle_mutation_fields(
                 store: store,
                 identity: identity,
                 staged_resource_ids: [],
+                log_drafts: [],
               )
             None ->
               handle_validated_mutation_fields(
