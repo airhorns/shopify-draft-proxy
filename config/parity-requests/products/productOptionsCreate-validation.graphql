@@ -1,0 +1,16 @@
+mutation ProductOptionsCreateValidation(
+  $productId: ID!
+  $options: [OptionCreateInput!]!
+  $variantStrategy: ProductOptionCreateVariantStrategy
+) {
+  productOptionsCreate(productId: $productId, options: $options, variantStrategy: $variantStrategy) {
+    product {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

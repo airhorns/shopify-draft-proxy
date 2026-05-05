@@ -64,6 +64,15 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: Online-store body scrubber evidence conflicts with live Admin capture
+
+HAR-561 implements the ticketed local page/article body scrubber behavior, but the live conformance probe is a fidelity trap: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned a `pageCreate` body containing a script block verbatim, and the immediate `page(id:)` read returned the same verbatim body and body summary text.
+
+Practical rule:
+
+- do not add `online-store/page-body-script-scrubbed` as a captured parity spec until the Shopify behavior/source-of-truth disagreement is resolved; checking in the live fixture would assert the opposite of the ticketed behavior, while adding expected differences for `body` / `bodySummary` would mask the field under test.
+- keep local scrubber coverage in runtime tests, and re-probe Shopify before using this scenario as live fidelity evidence.
+
 ## Current: B2B same-as-shipping exposes separate public address IDs in 2026-04
 
 HAR-623 captured B2B location/address management on Admin GraphQL 2026-04. A
@@ -2140,6 +2149,8 @@ Live evidence refreshed on this host:
 - custom collections return `ruleSet: null`; the captured smart collection returns a `ruleSet` with `appliedDisjunctively: false` and a `TITLE CONTAINS VANS` rule
 - both captured custom and smart collections currently return `sortOrder: BEST_SELLING`; the custom collection's blank description comes back as empty strings for both `description` and `descriptionHtml`, not `null`
 - the catalog fixture now selects the same rich metadata fields so `collections` parity covers the captured null/empty shapes alongside nested product connection shape
+- HAR-594 live probes against Admin GraphQL 2025-01 accepted collection titles that looked reserved from older Rails model notes. `Frontpage`, `All`, `Types`, `Vendors`, `Products`, and `Collections` all created collections successfully with empty `userErrors`; `Frontpage` deduped to `frontpage-2` when the shop already had the homepage collection handle. Do not add local reserved-title rejection unless a newer capture proves the GraphQL mutation surface rejects it.
+- The same HAR-594 capture showed `collectionAddProducts` and `collectionRemoveProducts` against a smart collection return `collection/job: null` with an `id`-scoped user error using the wording `Can't manually add products to a smart collection` / `Can't manually remove products from a smart collection`. A successful `collectionAddProducts` payload can still show `productsCount.count: 0` while the selected `products.nodes` includes the added product; the immediate downstream `collection(id:)` read returns the recomputed non-zero `productsCount`.
 
 ### 45a. Collection catalog filters should run over the effective collection graph
 
@@ -2280,14 +2291,17 @@ Live evidence refreshed on this host:
 - `location-activate-deactivate-with-idempotency-directive` is the executable location lifecycle parity spec for field-level `@idempotent(key:)`; sibling inventory idempotency specs prove the same parser/directive shape across other documented idempotent mutation fields
 - Admin GraphQL 2026-01 accepts `locationDeactivate` without `@idempotent` for the same disposable location shape
 - deactivating and reactivating a disposable non-online-fulfilling, unstocked location keeps `activatable: true`, `deactivatable: true`, and `shipsInventory: false` while flipping `isActive` and `deletable`
-- deleting an active stocked location returns both `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` userErrors without mutating the location
+- deleting an active unstocked location returns only `LOCATION_IS_ACTIVE`; deleting an active stocked location returns `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` without mutating the location
+- deleting the captured primary stocked location returned `LOCATION_IS_ACTIVE`, `LOCATION_HAS_INVENTORY`, and `LOCATION_HAS_PENDING_ORDERS`; it did not include `LOCATION_IS_PRIMARY` while those earlier guards applied
+- deleting a fulfillment-service-managed location through `locationDelete` is scoped out and returned `LOCATION_NOT_FOUND`
+- the public Admin API did not allow constructing an inactive stocked location during HAR-663 capture: `inventoryActivate` rejected a deactivated location, and `locationDeactivate` required inventory relocation before deactivation
 
 Practical rule for the proxy:
 
 - keep lifecycle success paths local and never proxy them upstream at runtime
 - require field-level `@idempotent(key: "...")` before activate/deactivate staging only on numeric Admin API routes `>= 2026-04`
 - require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
-- tombstone successful `locationDelete` results so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
+- compute `locationDelete` guard userErrors from the effective local `Location` record and tombstone only successful deletes so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
 
 ### 47b. `location` detail reads should reuse the effective inventory graph
 
@@ -2700,7 +2714,7 @@ Capture prerequisites and safety constraints:
 - HAR-221 captured `paymentTermsTemplates` against `harry-test-heelo.myshopify.com` on 2026-04-27. The standard catalog order is receipt, fulfillment, net 7/15/30/45/60/90, then fixed; `paymentTermsType: NET` filters to only the six net templates while preserving ids, names, descriptions, due-day values, and translated names.
 - HAR-222 locally stages `paymentTermsCreate`, `paymentTermsUpdate`, and `paymentTermsDelete` against the order/draft-order graph using the captured template catalog and Shopify-documented standalone mutation input shapes. The 2026-04 disposable-draft live lifecycle capture confirms NET templates compute `dueAt` from `issuedAt` plus template due days, FIXED updates replace the `PaymentSchedule` id, `PaymentSchedule.completed` is not selectable on this API surface, and downstream `draftOrder(id:)` returns `paymentTerms: null` after delete. Rejected local guardrails cover unknown targets, missing/unknown template ids, NET schedules without `issuedAt`, FIXED schedules without `dueAt`, missing update ids, and duplicate deletes without appending staged-write log entries.
 - customer payment method live captures remain blocked on `read_customer_payment_methods` / `write_customer_payment_methods` even though `read_customers`, `write_customers`, and `write_orders` are present on the 2026-04-28 probe. Root introspection confirms the HAR-365 mutations exist on the configured 2025-01 API, but live success paths still need isolated test payment methods and no-recipient/customer-safe email coverage before real captures can be checked in.
-- HAR-365 local runtime support stages customer payment-method writes without runtime Shopify calls: credit-card and PayPal roots store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a non-secret proxy token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, revoke marks local methods with `CUSTOMER_REVOKED`, and payment reminders record a local intent only.
+- HAR-365 local runtime support stages customer payment-method writes without runtime Shopify calls: credit-card and PayPal roots store scrubbed instrument shells, remote create stores an incomplete `instrument: null` method, duplication uses a non-secret proxy token, update-url returns a non-deliverable `shopify-draft-proxy.local` URL, revoke blocks methods with local subscription-contract links, marks contract-free active methods with `CUSTOMER_REVOKED`, treats already-revoked methods idempotently, and payment reminders record a local intent only.
 - Duplication data and update URLs must remain local/synthetic in runtime support; do not fetch real encrypted duplication data or expiring customer payment update links unless recording an intentional scrubbed conformance fixture with suitable scopes and cleanup.
 - Revoked payment methods must stay hidden from root and customer-owned lookups unless `showRevoked: true` is supplied. `customerPaymentMethodSendUpdateEmail` and `paymentReminderSend` are locally buffered/staged customer-visible side effects; the runtime must not deliver customer email upstream outside explicit commit replay.
 - order payment captures and voids require order write scopes plus merchant permissions (`capture_payments_for_orders` for capture and cancel-order permission for void) and an isolated authorized transaction because successful paths capture or void real payment authorization

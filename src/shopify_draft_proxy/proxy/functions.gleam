@@ -43,6 +43,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, fetch_sync,
 }
+import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -1016,6 +1017,40 @@ fn not_found_error(field_name: String, id: String) -> UserError {
   )
 }
 
+fn validation_delete_not_found_error(id: String) -> UserError {
+  let _canonical_id = canonical_validation_id(id)
+  UserError(
+    field: ["id"],
+    message: "Extension not found.",
+    code: Some("NOT_FOUND"),
+  )
+}
+
+fn cart_transform_delete_not_found_error(id: String) -> UserError {
+  let canonical_id = canonical_cart_transform_id(id)
+  UserError(
+    field: ["id"],
+    message: "Could not find cart transform with id: " <> canonical_id,
+    code: Some("NOT_FOUND"),
+  )
+}
+
+fn unauthorized_app_scope_error() -> UserError {
+  UserError(
+    field: ["base"],
+    message: "The app is not authorized to access this Function resource.",
+    code: Some("UNAUTHORIZED_APP_SCOPE"),
+  )
+}
+
+fn canonical_validation_id(id: String) -> String {
+  resource_ids.canonical_shopify_resource_gid("Validation", id)
+}
+
+fn canonical_cart_transform_id(id: String) -> String {
+  resource_ids.canonical_shopify_resource_gid("CartTransform", id)
+}
+
 fn handle_validation_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -1288,13 +1323,15 @@ fn handle_validation_delete(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let id = case graphql_helpers.read_arg_string(args, "id") {
-    Some(s) -> s
-    None -> ""
+    Some(s) -> canonical_validation_id(s)
+    None -> canonical_validation_id("")
   }
   case store.get_effective_validation_by_id(store, id) {
     None -> {
       let payload =
-        delete_payload(field, fragments, None, [not_found_error("id", id)])
+        delete_payload(field, fragments, None, [
+          validation_delete_not_found_error(id),
+        ])
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store,
@@ -1462,30 +1499,85 @@ fn handle_cart_transform_delete(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let id = case graphql_helpers.read_arg_string(args, "id") {
-    Some(s) -> s
-    None -> ""
+    Some(s) -> canonical_cart_transform_id(s)
+    None -> canonical_cart_transform_id("")
   }
   case store.get_effective_cart_transform_by_id(store, id) {
     None -> {
       let payload =
-        delete_payload(field, fragments, None, [not_found_error("id", id)])
+        delete_payload(field, fragments, None, [
+          cart_transform_delete_not_found_error(id),
+        ])
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
         store,
         identity,
       )
     }
-    Some(_) -> {
-      let next_store = store.delete_staged_cart_transform(store, id)
-      let payload = delete_payload(field, fragments, Some(id), [])
-      #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-          id,
-        ]),
-        next_store,
-        identity,
-      )
+    Some(record) -> {
+      case cart_transform_delete_authorization_error(store, record) {
+        Some(error) -> {
+          let payload = delete_payload(field, fragments, None, [error])
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+            ),
+            store,
+            identity,
+          )
+        }
+        None -> {
+          let next_store = store.delete_staged_cart_transform(store, id)
+          let payload = delete_payload(field, fragments, Some(id), [])
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [id],
+            ),
+            next_store,
+            identity,
+          )
+        }
+      }
     }
+  }
+}
+
+fn cart_transform_delete_authorization_error(
+  store: Store,
+  record: CartTransformRecord,
+) -> Option(UserError) {
+  use function_id <- option.then(record.shopify_function_id)
+  use function_record <- option.then(store.get_effective_shopify_function_by_id(
+    store,
+    function_id,
+  ))
+  use function_app_key <- option.then(shopify_function_app_key(function_record))
+  use current_installation <- option.then(store.get_current_app_installation(
+    store,
+  ))
+  use current_app <- option.then(store.get_effective_app_by_id(
+    store,
+    current_installation.app_id,
+  ))
+  use current_app_key <- option.then(current_app.api_key)
+  case function_app_key == current_app_key {
+    True -> None
+    False -> Some(unauthorized_app_scope_error())
+  }
+}
+
+fn shopify_function_app_key(record: ShopifyFunctionRecord) -> Option(String) {
+  case record.app_key {
+    Some(key) -> Some(key)
+    None ->
+      case record.app {
+        Some(app) -> app.api_key
+        None -> None
+      }
   }
 }
 

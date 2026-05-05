@@ -2501,11 +2501,10 @@ fn make_content(
       input_string(input, "title"),
       source_string_field(prior, "title", ""),
     )
-  let body =
-    option_string(
-      input_string(input, "body"),
-      source_string_field(prior, "body", ""),
-    )
+  let body = case input_string(input, "body") {
+    Some(value) -> scrub_body_html(value)
+    None -> source_string_field(prior, "body", "")
+  }
   let is_published =
     option_bool(
       input_bool(input, "isPublished"),
@@ -4413,6 +4412,295 @@ fn strip_html_loop(
           }
       }
   }
+}
+
+fn scrub_body_html(value: String) -> String {
+  scrub_body_html_loop(string.to_graphemes(value), [])
+}
+
+fn scrub_body_html_loop(chars: List(String), acc: List(String)) -> String {
+  case chars {
+    [] -> string.join(list.reverse(acc), "")
+    ["<", ..rest] -> {
+      let #(tag, after_tag, found_end) = read_html_tag(rest, [])
+      case found_end {
+        False -> string.join(list.reverse(acc), "") <> "<" <> tag
+        True -> {
+          let tag_name = html_tag_name(tag)
+          case is_disallowed_body_tag(tag_name), is_closing_html_tag(tag) {
+            True, False ->
+              drop_disallowed_body_element(after_tag, tag_name, 1)
+              |> scrub_body_html_loop(acc)
+            _, _ -> {
+              let scrubbed_tag = strip_event_handler_attributes(tag)
+              scrub_body_html_loop(after_tag, [">", scrubbed_tag, "<", ..acc])
+            }
+          }
+        }
+      }
+    }
+    [first, ..rest] -> scrub_body_html_loop(rest, [first, ..acc])
+  }
+}
+
+fn read_html_tag(
+  chars: List(String),
+  acc: List(String),
+) -> #(String, List(String), Bool) {
+  case chars {
+    [] -> #(string.join(list.reverse(acc), ""), [], False)
+    [">", ..rest] -> #(string.join(list.reverse(acc), ""), rest, True)
+    [first, ..rest] -> read_html_tag(rest, [first, ..acc])
+  }
+}
+
+fn drop_disallowed_body_element(
+  chars: List(String),
+  tag_name: String,
+  depth: Int,
+) -> List(String) {
+  case chars {
+    [] -> []
+    ["<", ..rest] -> {
+      let #(tag, after_tag, found_end) = read_html_tag(rest, [])
+      case found_end {
+        False -> []
+        True -> {
+          let nested_name = html_tag_name(tag)
+          case nested_name == tag_name {
+            True ->
+              case is_closing_html_tag(tag), is_self_closing_html_tag(tag) {
+                True, _ ->
+                  case depth <= 1 {
+                    True -> after_tag
+                    False ->
+                      drop_disallowed_body_element(
+                        after_tag,
+                        tag_name,
+                        depth - 1,
+                      )
+                  }
+                False, True ->
+                  drop_disallowed_body_element(after_tag, tag_name, depth)
+                False, False ->
+                  drop_disallowed_body_element(after_tag, tag_name, depth + 1)
+              }
+            False -> drop_disallowed_body_element(after_tag, tag_name, depth)
+          }
+        }
+      }
+    }
+    [_, ..rest] -> drop_disallowed_body_element(rest, tag_name, depth)
+  }
+}
+
+fn html_tag_name(tag: String) -> String {
+  tag
+  |> string.trim_start
+  |> drop_leading_slash
+  |> string.trim_start
+  |> take_html_name
+  |> string.lowercase
+}
+
+fn drop_leading_slash(value: String) -> String {
+  case string.starts_with(value, "/") {
+    True -> string.drop_start(value, 1)
+    False -> value
+  }
+}
+
+fn take_html_name(value: String) -> String {
+  take_html_name_loop(string.to_graphemes(value), [])
+}
+
+fn take_html_name_loop(chars: List(String), acc: List(String)) -> String {
+  case chars {
+    [] -> string.join(list.reverse(acc), "")
+    [first, ..rest] ->
+      case is_html_name_stop(first) {
+        True -> string.join(list.reverse(acc), "")
+        False -> take_html_name_loop(rest, [first, ..acc])
+      }
+  }
+}
+
+fn is_html_name_stop(char: String) -> Bool {
+  is_html_space(char) || char == "/" || char == "="
+}
+
+fn is_disallowed_body_tag(tag_name: String) -> Bool {
+  tag_name == "script" || tag_name == "iframe"
+}
+
+fn is_closing_html_tag(tag: String) -> Bool {
+  string.starts_with(string.trim_start(tag), "/")
+}
+
+fn is_self_closing_html_tag(tag: String) -> Bool {
+  case list.reverse(string.to_graphemes(string.trim(tag))) {
+    ["/", ..] -> True
+    _ -> False
+  }
+}
+
+fn strip_event_handler_attributes(tag: String) -> String {
+  case is_closing_html_tag(tag) || is_special_html_tag(tag) {
+    True -> tag
+    False -> {
+      let #(prefix, rest) = split_html_tag_prefix(string.to_graphemes(tag), [])
+      prefix <> strip_event_attrs_loop(rest, [])
+    }
+  }
+}
+
+fn is_special_html_tag(tag: String) -> Bool {
+  let trimmed = string.trim_start(tag)
+  string.starts_with(trimmed, "!") || string.starts_with(trimmed, "?")
+}
+
+fn split_html_tag_prefix(
+  chars: List(String),
+  acc: List(String),
+) -> #(String, List(String)) {
+  case chars {
+    [] -> #(string.join(list.reverse(acc), ""), [])
+    [first, ..rest] ->
+      case is_html_space(first) {
+        True -> #(string.join(list.reverse(acc), ""), chars)
+        False -> split_html_tag_prefix(rest, [first, ..acc])
+      }
+  }
+}
+
+fn strip_event_attrs_loop(chars: List(String), acc: List(String)) -> String {
+  case chars {
+    [] -> string.join(list.reverse(acc), "")
+    _ -> {
+      let #(spaces, rest) = take_html_spaces(chars, [])
+      case rest {
+        [] -> string.join(list.reverse(list.append(spaces, acc)), "")
+        ["/", ..] ->
+          string.join(list.reverse(acc), "")
+          <> string.join(spaces, "")
+          <> string.join(rest, "")
+        _ -> {
+          let #(name, after_name) = take_attr_name(rest, [])
+          case name {
+            "" ->
+              string.join(list.reverse(acc), "")
+              <> string.join(spaces, "")
+              <> string.join(rest, "")
+            _ -> {
+              let #(suffix, after_attr) = take_attr_suffix(after_name, [])
+              let segment =
+                list.append(
+                  spaces,
+                  list.append(string.to_graphemes(name), suffix),
+                )
+              case string.starts_with(string.lowercase(name), "on") {
+                True -> strip_event_attrs_loop(after_attr, acc)
+                False ->
+                  strip_event_attrs_loop(
+                    after_attr,
+                    list.append(list.reverse(segment), acc),
+                  )
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn take_html_spaces(
+  chars: List(String),
+  acc: List(String),
+) -> #(List(String), List(String)) {
+  case chars {
+    [first, ..rest] ->
+      case is_html_space(first) {
+        True -> take_html_spaces(rest, list.append(acc, [first]))
+        False -> #(acc, chars)
+      }
+    [] -> #(acc, [])
+  }
+}
+
+fn take_attr_name(
+  chars: List(String),
+  acc: List(String),
+) -> #(String, List(String)) {
+  case chars {
+    [] -> #(string.join(acc, ""), [])
+    [first, ..rest] ->
+      case is_attr_name_stop(first) {
+        True -> #(string.join(acc, ""), chars)
+        False -> take_attr_name(rest, list.append(acc, [first]))
+      }
+  }
+}
+
+fn is_attr_name_stop(char: String) -> Bool {
+  is_html_space(char) || char == "=" || char == "/"
+}
+
+fn take_attr_suffix(
+  chars: List(String),
+  acc: List(String),
+) -> #(List(String), List(String)) {
+  let #(spaces, rest) = take_html_spaces(chars, [])
+  let acc = list.append(acc, spaces)
+  case rest {
+    ["=", ..after_equals] -> {
+      let acc = list.append(acc, ["="])
+      let #(value_spaces, value_start) = take_html_spaces(after_equals, [])
+      let acc = list.append(acc, value_spaces)
+      let #(value, after_value) = take_attr_value(value_start, [])
+      #(list.append(acc, value), after_value)
+    }
+    _ -> #(acc, rest)
+  }
+}
+
+fn take_attr_value(
+  chars: List(String),
+  acc: List(String),
+) -> #(List(String), List(String)) {
+  case chars {
+    [] -> #(acc, [])
+    ["\"", ..rest] -> take_quoted_attr_value(rest, "\"", ["\"", ..acc])
+    ["'", ..rest] -> take_quoted_attr_value(rest, "'", ["'", ..acc])
+    [first, ..rest] ->
+      case is_html_space(first) || first == "/" {
+        True -> #(acc, chars)
+        False -> take_attr_value(rest, list.append(acc, [first]))
+      }
+  }
+}
+
+fn take_quoted_attr_value(
+  chars: List(String),
+  quote: String,
+  acc: List(String),
+) -> #(List(String), List(String)) {
+  case chars {
+    [] -> #(list.reverse(acc), [])
+    [first, ..rest] ->
+      case first == quote {
+        True -> #(list.reverse([first, ..acc]), rest)
+        False -> take_quoted_attr_value(rest, quote, [first, ..acc])
+      }
+  }
+}
+
+fn is_html_space(char: String) -> Bool {
+  char == " "
+  || char == "\n"
+  || char == "\t"
+  || char == "\r"
+  || char == "\u{000C}"
 }
 
 fn value_after(query: String, prefix: String) -> String {

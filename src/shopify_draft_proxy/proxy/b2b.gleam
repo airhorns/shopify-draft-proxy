@@ -1538,6 +1538,83 @@ fn external_id_char_allowed(char: String) -> Bool {
   )
 }
 
+fn value_is_present(value: root_field.ResolvedValue) -> Bool {
+  case value {
+    root_field.NullVal -> False
+    root_field.StringVal(value) -> string.trim(value) != ""
+    root_field.ListVal(items) -> list.any(items, value_is_present)
+    root_field.ObjectVal(fields) ->
+      fields
+      |> dict.to_list
+      |> list.any(fn(entry) { value_is_present(entry.1) })
+    _ -> True
+  }
+}
+
+fn has_non_empty_object_field(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+) -> Bool {
+  case dict.get(input, field) {
+    Ok(root_field.ObjectVal(fields)) ->
+      fields
+      |> dict.to_list
+      |> list.any(fn(entry) { value_is_present(entry.1) })
+    _ -> False
+  }
+}
+
+fn has_explicit_null_field(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+) -> Bool {
+  case dict.get(input, field) {
+    Ok(root_field.NullVal) -> True
+    _ -> False
+  }
+}
+
+fn validate_billing_same_as_shipping(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(UserError) {
+  let billing_address_present =
+    has_non_empty_object_field(input, "billingAddress")
+  case read_bool(input, "billingSameAsShipping") {
+    Some(True) if billing_address_present -> [
+      user_error(
+        Some(field_path(prefix, "billingAddress")),
+        "Invalid input.",
+        user_error_code.invalid_input,
+      ),
+    ]
+    Some(False) if !billing_address_present -> [
+      user_error(
+        Some(field_path(prefix, "billingAddress")),
+        "Billing address can't be blank when billingSameAsShipping is false",
+        user_error_code.invalid_input,
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_tax_exempt_input(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(UserError) {
+  case has_explicit_null_field(input, "taxExempt") {
+    True -> [
+      user_error(
+        Some(field_path(prefix, "taxExempt")),
+        "Invalid input.",
+        user_error_code.invalid_input,
+      ),
+    ]
+    False -> []
+  }
+}
+
 fn sanitize_name_field(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Dict(String, root_field.ResolvedValue) {
@@ -1635,6 +1712,8 @@ fn validate_location_input(
       notes_max_length,
       True,
     ))
+    |> list.append(validate_billing_same_as_shipping(input, prefix))
+    |> list.append(validate_tax_exempt_input(input, prefix))
     |> list.append(validate_external_id_field(input, prefix))
   #(input, errors)
 }

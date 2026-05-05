@@ -37,15 +37,17 @@ The product-owner lifecycle slice stages these roots locally without runtime Sho
 - `metafieldDefinitionUpdate(definition:)`
 - `metafieldDefinitionDelete(id:|identifier:, deleteAllAssociatedMetafields:)`
 
-Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, empty constraints, and `validationStatus: ALL_VALID`.
+Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, empty constraints, and `validationStatus: ALL_VALID`. Product-owner creates reject Shopify-incompatible namespace/key lengths and characters, overlong `name` / `description`, unsupported custom-data type names, and protected or Shopify-reserved namespaces before staging any local definition.
 
 Update resolves the existing definition by immutable identity (`ownerType`, `namespace`, `key`). It preserves `type`, `ownerType`, `namespace`, and `key`, and locally updates `name`, `description`, `validations`, selected `access`, and selected `capabilities`. The local `validationJob` payload is currently `null`.
 
 Delete resolves by Shopify's preferred `identifier` input or by global `id`, hides the definition from singular and catalog reads with a staged tombstone, and compacts owner-type pin positions when deleting a pinned definition. When `deleteAllAssociatedMetafields: true`, the local effect conservatively removes matching product-owned metafields from the in-memory graph; it does not invent broad async job state.
 
+Shopify Admin 2026-04 does not reject product-owned definition deletion when associated product metafields exist and `deleteAllAssociatedMetafields` is omitted or explicitly `false`: it deletes the definition, returns empty `userErrors`, and leaves the product metafields in place without a definition. The `true` flag removes those associated product metafields. 2026-04 `MetafieldDefinitionUpdateInput` is identifier-shaped (`namespace`, `key`, `ownerType`) and does not accept `id` or `type`; namespace/key/owner-type changes therefore resolve as `NOT_FOUND` for the supplied identifier rather than an immutable-field user error.
+
 Definition-backed `metafieldsSet` support now consults effective staged definitions for product, product variant, and collection owners. When the input omits `type`, the matching definition supplies it. When the input supplies a mismatched type, local validation rejects the write. Fixture-backed basic validations currently cover `max` string length and `regex`.
 
-Live evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-lifecycle-mutations.json`, captured with `corepack pnpm conformance:capture-metafield-definition-lifecycle`, covers product-owner create, downstream definition/metafield reads, update, delete with `deleteAllAssociatedMetafields: true`, and immediate downstream no-data reads after delete. The Gleam port preserves a minimal product shell when deleting associated product metafields through a definition delete, so a downstream `product(id:) { metafield(...) }` read returns the product object with `metafield: null` rather than collapsing the product root to `null`.
+Live evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-lifecycle-mutations.json`, captured with `corepack pnpm conformance:capture-metafield-definition-lifecycle`, covers product-owner create, downstream definition/metafield reads, update, delete with `deleteAllAssociatedMetafields: true`, and immediate downstream no-data reads after delete. `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-update-delete-preconditions.json` covers the 2026-04 delete flag and update identifier preconditions. The Gleam port preserves a minimal product shell when deleting associated product metafields through a definition delete, so a downstream `product(id:) { metafield(...) }` read returns the product object with `metafield: null` rather than collapsing the product root to `null`.
 
 HAR-351 promotes that fixture from runtime-test-backed fixture evidence into `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json` as a strict generic proxy-vs-recording parity scenario. The parity runner seeds the recorded setup product, replays create, definition-backed `metafieldsSet`, downstream definition/product reads, update, delete, and post-delete no-data reads against the local proxy harness. Accepted differences are limited to local synthetic GIDs and the pinned-position offset caused by unrelated pinned definitions already present in the live capture shop.
 
@@ -100,6 +102,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 
 Validation entry points:
 
+- `config/parity-specs/metafields/metafield-definition-create-input-validation.json`
 - `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
 - `config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json`
 - `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`

@@ -224,6 +224,16 @@ pub fn segment_create_mints_record_test() {
     store.get_effective_segment_by_id(outcome.store, "gid://shopify/Segment/1")
 }
 
+pub fn segment_create_returns_payload_defaults_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { segmentCreate(name: \"VIPs\", query: \"number_of_orders >= 5\") { segment { id tagMigrated valid percentageSnapshot percentageSnapshotUpdatedAt translation author { name } } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"tagMigrated\":false,\"valid\":true,\"percentageSnapshot\":null,\"percentageSnapshotUpdatedAt\":null,\"translation\":null,\"author\":null},\"userErrors\":[]}}}"
+}
+
 pub fn segment_create_customer_tags_contains_test() {
   let body =
     run_mutation(
@@ -336,6 +346,19 @@ pub fn segment_update_happy_path_test() {
   assert body
     == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"id\":\"gid://shopify/Segment/100\",\"name\":\"Top VIPs\",\"query\":\"number_of_orders >= 10\",\"lastEditDate\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == ["gid://shopify/Segment/100"]
+}
+
+pub fn segment_update_returns_payload_defaults_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/100", "VIPs", "number_of_orders >= 5")
+  let s = seed(store.new(), existing)
+  let body =
+    run_mutation(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/100\", name: \"Top VIPs\") { segment { id tagMigrated valid percentageSnapshot percentageSnapshotUpdatedAt translation author { name } } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"id\":\"gid://shopify/Segment/100\",\"tagMigrated\":false,\"valid\":true,\"percentageSnapshot\":null,\"percentageSnapshotUpdatedAt\":null,\"translation\":null,\"author\":null},\"userErrors\":[]}}}"
 }
 
 pub fn segment_update_name_only_preserves_query_test() {

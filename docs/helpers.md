@@ -39,6 +39,7 @@ Shared custom-data value normalization helpers for metafields and metaobject fie
 
 - Shopify-like `jsonValue` projection for scalar, JSON, measurement, rating, date-time, decimal, reference-list, and list custom-data field types
 - canonicalization for staged custom-data value strings where Shopify rewrites input values
+- Shopify-like metaobject field input validation for scalar, measurement, rating, URL/color/date/time, reference, text min/max, and list custom-data field values
 - measurement type predicates for serializers that need measurement-specific display behavior
 
 Use this module before adding resource-local custom-data parsers or serializers.
@@ -48,6 +49,16 @@ Use this module before adding resource-local custom-data parsers or serializers.
 Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversal, term-list guards, and primitive term matching.
 
 Endpoint modules should provide only the domain-specific positive term matcher and documented Shopify quirks. Do not add new resource-local query parsers or duplicated query-tree traversal helpers.
+
+## `src/shopify_draft_proxy/shopify/resource_ids.gleam`
+
+Shared helpers for Shopify resource ID handling.
+
+- canonical Shopify GID construction from full GIDs, numeric tails, and opaque tails
+- GID tail extraction with query suffixes ignored
+- stable Shopify resource ID sorting that compares numeric tails when available
+
+Use this module before adding resource-local GID tail parsers, canonical ID builders, or Shopify resource ID comparators.
 
 ## `src/shopify_draft_proxy/proxy/upstream_query.gleam`
 

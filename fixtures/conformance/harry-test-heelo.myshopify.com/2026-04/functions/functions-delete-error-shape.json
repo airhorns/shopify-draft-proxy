@@ -1,0 +1,177 @@
+{
+  "scenarioId": "functions-delete-error-shape",
+  "capturedAt": "2026-05-05T10:47:18.841Z",
+  "source": "live-shopify-and-cassette-backed-local-runtime",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "Delete error-shape evidence for validationDelete and cartTransformDelete plus cassette-backed cartTransformCreate/delete local lifecycle.",
+  "cartTransformDeleteMissing": {
+    "query": "mutation CartTransformDeleteMissing($id: ID!) {\n  cartTransformDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/CartTransform/999999999999"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "cartTransformDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Could not find cart transform with id: gid://shopify/CartTransform/999999999999",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "validationDeleteMissing": {
+    "query": "mutation ValidationDeleteMissing($id: ID!) {\n  validationDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+    "variables": {
+      "id": "gid://shopify/Validation/999999999999"
+    },
+    "response": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "validationDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Extension not found.",
+                "code": "NOT_FOUND"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cartTransformCreateThenDelete": {
+    "create": {
+      "response": {
+        "data": {
+          "cartTransformCreate": {
+            "cartTransform": {
+              "id": "gid://shopify/CartTransform/3"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "delete": {
+      "response": {
+        "data": {
+          "cartTransformDelete": {
+            "deletedId": "gid://shopify/CartTransform/3",
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "postDeleteRead": {
+      "response": {
+        "data": {
+          "cartTransforms": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": null,
+              "endCursor": null
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "cart-transform-delete-shape",
+        "apiType": "CART_TRANSFORM"
+      },
+      "query": "cassette-backed CART_TRANSFORM ShopifyFunction lookup for local delete-shape lifecycle",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/cart-transform-delete-shape",
+                  "title": "Cart Transform Delete Shape",
+                  "handle": "cart-transform-delete-shape",
+                  "apiType": "CART_TRANSFORM",
+                  "description": null,
+                  "appKey": null,
+                  "app": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "FunctionHydrateByHandle",
+      "variables": {
+        "handle": "validation-delete-shape",
+        "apiType": "VALIDATION"
+      },
+      "query": "cassette-backed VALIDATION ShopifyFunction lookup reserved for this delete-shape fixture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopifyFunctions": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/ShopifyFunction/validation-delete-shape",
+                  "title": "Validation Delete Shape",
+                  "handle": "validation-delete-shape",
+                  "apiType": "VALIDATION",
+                  "description": null,
+                  "appKey": null,
+                  "app": null
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": {
+    "liveMissingDeleteEvidence": "cartTransformDelete and validationDelete missing-id userErrors are captured live from Shopify.",
+    "successPathEvidence": "The current conformance shop has a valid token but no released validation/cart-transform Function handles. The create/delete leg uses a deterministic cassette-backed ShopifyFunction read to prove local lifecycle and canonical deletedId behavior without runtime Shopify writes."
+  }
+}

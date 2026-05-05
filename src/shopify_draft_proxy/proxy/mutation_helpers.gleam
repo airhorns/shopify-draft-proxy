@@ -1088,9 +1088,9 @@ fn collect_value_problems_inner(
         _ -> []
       }
     mutation_schema.NamedType(name: type_name) ->
-      case type_name {
-        "CountryCode" -> country_code_value_problems(resolved, path)
-        _ ->
+      case enum_value_problems(type_name, resolved, path) {
+        [_, ..] as problems -> problems
+        [] ->
           case mutation_schema_lookup.get_input_object(schema, type_name) {
             None -> []
             Some(io) ->
@@ -1184,13 +1184,14 @@ fn build_unknown_input_object_field_error(
   )
 }
 
-fn country_code_value_problems(
+fn enum_value_problems(
+  type_name: String,
   resolved: root_field.ResolvedValue,
   path: List(PathSegment),
 ) -> List(ValueProblem) {
-  case resolved {
-    root_field.StringVal(value) ->
-      case list.contains(country_code_values(), value) {
+  case dict.get(enum_value_sets(), type_name), resolved {
+    Ok(allowed), root_field.StringVal(value) ->
+      case list.contains(allowed, value) {
         True -> []
         False -> [
           ValueProblem(
@@ -1198,12 +1199,28 @@ fn country_code_value_problems(
             explanation: "Expected \""
               <> value
               <> "\" to be one of: "
-              <> country_code_values_message(),
+              <> string.join(allowed, ", "),
           ),
         ]
       }
-    _ -> []
+    _, _ -> []
   }
+}
+
+fn enum_value_sets() -> Dict(String, List(String)) {
+  dict.from_list([
+    #("CollectionSortOrder", [
+      "ALPHA_ASC",
+      "ALPHA_DESC",
+      "BEST_SELLING",
+      "CREATED",
+      "CREATED_DESC",
+      "MANUAL",
+      "PRICE_ASC",
+      "PRICE_DESC",
+    ]),
+    #("CountryCode", country_code_values()),
+  ])
 }
 
 fn country_code_values() -> List(String) {

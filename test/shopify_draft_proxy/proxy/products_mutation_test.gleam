@@ -2,23 +2,25 @@ import gleam/dict
 import gleam/int
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy.{type Request}
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type InventoryLevelRecord, type InventoryQuantityRecord,
-  type MetafieldDefinitionCapabilitiesRecord,
+  type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
+  type InventoryQuantityRecord, type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductRecord,
-  type ProductVariantRecord, InventoryItemRecord, InventoryLevelRecord,
+  type ProductVariantRecord, CollectionRecord, CollectionRuleRecord,
+  CollectionRuleSetRecord, InventoryItemRecord, InventoryLevelRecord,
   InventoryLocationRecord, InventoryQuantityRecord,
   MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
   MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, ProductMetafieldRecord,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  MetafieldDefinitionValidationRecord, ProductCollectionRecord,
+  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord,
 }
 
 fn empty_headers() -> dict.Dict(String, String) {
@@ -32,6 +34,38 @@ fn graphql_request(query: String) -> Request {
     headers: empty_headers(),
     body: "{\"query\":\"" <> query <> "\"}",
   )
+}
+
+fn graphql_request_body(body: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: empty_headers(),
+    body: body,
+  )
+}
+
+fn run_product_mutation(initial_store: store.Store, query: String) {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: initial_store)
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  #(status, json.to_string(body), next_proxy)
+}
+
+fn assert_product_option_user_error(
+  initial_store: store.Store,
+  query: String,
+  code: String,
+  field_json: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(initial_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store.Failed
 }
 
 fn graphql_document_request(query: String) -> Request {
@@ -69,6 +103,119 @@ pub fn product_options_create_stages_default_product_options_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_options_create_rejects_invalid_option_inputs_test() {
+  let long_name = repeated_text("N", 256)
+  let long_value = repeated_text("V", 256)
+
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }] }, { name: \\\"Color\\\", values: [{ name: \\\"Blue\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "DUPLICATED_OPTION_NAME",
+    "[\"options\",\"1\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }, { name: \\\"Red\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "DUPLICATED_OPTION_VALUE",
+    "[\"options\",\"0\",\"values\",\"1\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUES_MISSING",
+    "[\"options\",\"0\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"\\\", values: [{ name: \\\"Red\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_NAME_MISSING",
+    "[\"options\",\"0\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\""
+      <> long_name
+      <> "\\\", values: [{ name: \\\"Red\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_NAME_TOO_LONG",
+    "[\"options\",\"0\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\""
+      <> long_value
+      <> "\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUE_NAME_TOO_LONG",
+    "[\"options\",\"0\",\"values\",\"0\",\"name\"]",
+  )
+}
+
+pub fn product_options_create_rejects_product_level_constraints_test() {
+  assert_product_option_user_error(
+    three_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Finish\\\", values: [{ name: \\\"Matte\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTIONS_OVER_LIMIT",
+    "[\"options\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\"Blue\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_ALREADY_EXISTS",
+    "[\"options\",\"0\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Material\\\" }]) { product { id } userErrors { field message code } } }",
+    "NEW_OPTION_WITHOUT_VALUE_FOR_EXISTING_VARIANTS",
+    "[\"options\",\"0\",\"values\"]",
+  )
+  assert_product_option_user_error(
+    variant_cap_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", variantStrategy: CREATE, options: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }, { name: \\\"Blue\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "TOO_MANY_VARIANTS_CREATED",
+    "[\"options\"]",
+  )
+}
+
+pub fn product_option_update_rejects_invalid_option_inputs_test() {
+  let long_value = repeated_text("V", 256)
+
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Size\\\" }) { product { id } userErrors { field message code } } }",
+    "OPTION_ALREADY_EXISTS",
+    "[\"option\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\" }, optionValuesToAdd: [{ name: \\\"Blue\\\" }, { name: \\\"Blue\\\" }]) { product { id } userErrors { field message code } } }",
+    "DUPLICATED_OPTION_VALUE",
+    "[\"optionValuesToAdd\",\"1\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\" }, optionValuesToAdd: [{ name: \\\"red\\\" }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUE_ALREADY_EXISTS",
+    "[\"optionValuesToAdd\",\"0\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\" }, optionValuesToUpdate: [{ id: \\\"gid://shopify/ProductOptionValue/red\\\", name: \\\""
+      <> long_value
+      <> "\\\" }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUE_NAME_TOO_LONG",
+    "[\"optionValuesToUpdate\",\"0\",\"name\"]",
+  )
+}
+
+pub fn product_options_delete_reports_option_codes_for_unknown_ids_test() {
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionsDelete(productId: \\\"gid://shopify/Product/optioned\\\", options: [\\\"gid://shopify/ProductOption/missing\\\"]) { deletedOptionsIds product { id } userErrors { field message code } } }",
+    "OPTION_DOES_NOT_EXIST",
+    "[\"options\",\"0\"]",
+  )
 }
 
 pub fn product_option_update_repositions_values_and_variants_test() {
@@ -892,6 +1039,226 @@ pub fn product_create_validation_branches_return_user_errors_test() {
   assert json.to_string(variant_body)
     == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"variants\",\"0\",\"price\"],\"message\":\"Price must be greater than or equal to 0\",\"code\":\"GREATER_THAN_OR_EQUAL_TO\"}]}}}"
   assert store.list_effective_products(variant_proxy.store) == []
+}
+
+pub fn collection_create_rejects_long_title_and_handle_test() {
+  let long_title = string.repeat("T", times: 256)
+  let title_query =
+    "mutation { collectionCreate(input: { title: \\\""
+    <> long_title
+    <> "\\\" }) { collection { id } userErrors { field message code } } }"
+  let #(Response(status: title_status, body: title_body, ..), title_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(title_query))
+
+  assert title_status == 200
+  assert json.to_string(title_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\",\"code\":\"INVALID\"}]}}}"
+  assert store.get_log(title_proxy.store)
+    |> list.length
+    == 1
+
+  let long_handle = string.repeat("h", times: 256)
+  let handle_query =
+    "mutation { collectionCreate(input: { title: \\\"Handle Probe\\\", handle: \\\""
+    <> long_handle
+    <> "\\\" }) { collection { id } userErrors { field message code } } }"
+  let #(Response(status: handle_status, body: handle_body, ..), handle_proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(handle_query),
+    )
+
+  assert handle_status == 200
+  assert json.to_string(handle_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":null,\"userErrors\":[{\"field\":[\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\",\"code\":\"INVALID\"}]}}}"
+  assert store.get_log(handle_proxy.store)
+    |> list.length
+    == 1
+}
+
+pub fn collection_create_allows_reserved_like_titles_from_live_probe_test() {
+  let create_query =
+    "mutation { collectionCreate(input: { title: \\\"Frontpage\\\" }) { collection { id title handle } userErrors { field message code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(create_query),
+    )
+
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"id\":\"gid://shopify/Collection/1\",\"title\":\"Frontpage\",\"handle\":\"frontpage\"},\"userErrors\":[]}}}"
+  assert store.get_log(proxy.store)
+    |> list.length
+    == 1
+
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: collection_membership_store(),
+    )
+  let update_query =
+    "mutation { collectionUpdate(input: { id: \\\"gid://shopify/Collection/custom\\\", title: \\\"Vendors\\\" }) { collection { id title } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(update_query))
+
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"collectionUpdate\":{\"collection\":{\"id\":\"gid://shopify/Collection/custom\",\"title\":\"Vendors\"},\"userErrors\":[]}}}"
+}
+
+pub fn collection_create_rejects_invalid_sort_order_as_graphql_error_test() {
+  let body =
+    "{\"query\":\"mutation($input: CollectionInput!) { collectionCreate(input: $input) { collection { id } userErrors { field message } } }\",\"variables\":{\"input\":{\"title\":\"Sort Probe\",\"sortOrder\":\"INVALID_VALUE\"}}}"
+
+  let #(Response(status: status, body: response_body, ..), next_proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request_body(body))
+
+  assert status == 200
+  let serialized = json.to_string(response_body)
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"sortOrder\"]")
+  assert string.contains(serialized, "\"title\":\"Sort Probe\"")
+  assert string.contains(serialized, "\"sortOrder\":\"INVALID_VALUE\"")
+  assert string.contains(
+    serialized,
+    "Variable $input of type CollectionInput! was provided invalid value for sortOrder",
+  )
+  assert string.contains(
+    serialized,
+    "Expected \\\"INVALID_VALUE\\\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC",
+  )
+  assert store.get_log(next_proxy.store) == []
+}
+
+pub fn collection_create_stages_rule_set_and_unique_handles_test() {
+  let first =
+    "mutation { collectionCreate(input: { title: \\\"Dedup Probe\\\" }) { collection { id handle sortOrder } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(first))
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"id\":\"gid://shopify/Collection/1\",\"handle\":\"dedup-probe\",\"sortOrder\":\"BEST_SELLING\"},\"userErrors\":[]}}}"
+
+  let second =
+    "mutation { collectionCreate(input: { title: \\\"Dedup Probe\\\" }) { collection { id handle } userErrors { field message } } }"
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(second))
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"id\":\"gid://shopify/Collection/3\",\"handle\":\"dedup-probe-1\"},\"userErrors\":[]}}}"
+
+  let third =
+    "mutation { collectionCreate(input: { title: \\\"Dedup Probe\\\" }) { collection { id handle } userErrors { field message } } }"
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(third))
+  assert third_status == 200
+  assert json.to_string(third_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"id\":\"gid://shopify/Collection/5\",\"handle\":\"dedup-probe-2\"},\"userErrors\":[]}}}"
+
+  let smart =
+    "mutation { collectionCreate(input: { title: \\\"Smart Probe\\\", ruleSet: { appliedDisjunctively: false, rules: [{ column: TITLE, relation: CONTAINS, condition: \\\"Probe\\\" }] } }) { collection { id ruleSet { appliedDisjunctively rules { column relation condition } } } userErrors { field message } } }"
+  let #(Response(status: smart_status, body: smart_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(smart))
+  assert smart_status == 200
+  assert json.to_string(smart_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"id\":\"gid://shopify/Collection/7\",\"ruleSet\":{\"appliedDisjunctively\":false,\"rules\":[{\"column\":\"TITLE\",\"relation\":\"CONTAINS\",\"condition\":\"Probe\"}]}},\"userErrors\":[]}}}"
+}
+
+pub fn collection_add_remove_products_updates_count_and_rejects_smart_collections_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: collection_membership_store(),
+    )
+  let add_query =
+    "mutation { collectionAddProducts(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/second\\\"]) { collection { id products(first: 10) { nodes { id } } } userErrors { field message } } }"
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_query))
+
+  assert add_status == 200
+  assert json.to_string(add_body)
+    == "{\"data\":{\"collectionAddProducts\":{\"collection\":{\"id\":\"gid://shopify/Collection/custom\",\"products\":{\"nodes\":[{\"id\":\"gid://shopify/Product/optioned\"},{\"id\":\"gid://shopify/Product/second\"}]}},\"userErrors\":[]}}}"
+
+  let remove_query =
+    "mutation { collectionRemoveProducts(id: \\\"gid://shopify/Collection/custom\\\", productIds: [\\\"gid://shopify/Product/optioned\\\"]) { job { id done } userErrors { field message } } }"
+  let #(Response(status: remove_status, body: remove_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(remove_query))
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"collectionRemoveProducts\":{\"job\":{\"id\":\"gid://shopify/Job/2\",\"done\":false},\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { collection(id: \\\"gid://shopify/Collection/custom\\\") { id productsCount { count precision } products(first: 10) { nodes { id } } } }"
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"collection\":{\"id\":\"gid://shopify/Collection/custom\",\"productsCount\":{\"count\":1,\"precision\":\"EXACT\"},\"products\":{\"nodes\":[{\"id\":\"gid://shopify/Product/second\"}]}}}}"
+
+  let smart_add =
+    "mutation { collectionAddProducts(id: \\\"gid://shopify/Collection/smart\\\", productIds: [\\\"gid://shopify/Product/second\\\"]) { collection { id } userErrors { field message } } }"
+  let #(Response(status: smart_add_status, body: smart_add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(smart_add))
+  assert smart_add_status == 200
+  assert json.to_string(smart_add_body)
+    == "{\"data\":{\"collectionAddProducts\":{\"collection\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Can't manually add products to a smart collection\"}]}}}"
+
+  let smart_add_v2 =
+    "mutation { collectionAddProductsV2(id: \\\"gid://shopify/Collection/smart\\\", productIds: [\\\"gid://shopify/Product/second\\\"]) { job { id done } userErrors { field message } } }"
+  let #(
+    Response(status: smart_add_v2_status, body: smart_add_v2_body, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(smart_add_v2))
+  assert smart_add_v2_status == 200
+  assert json.to_string(smart_add_v2_body)
+    == "{\"data\":{\"collectionAddProductsV2\":{\"job\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Can't manually add products to a smart collection\"}]}}}"
+
+  let smart_remove =
+    "mutation { collectionRemoveProducts(id: \\\"gid://shopify/Collection/smart\\\", productIds: [\\\"gid://shopify/Product/optioned\\\"]) { job { id done } userErrors { field message } } }"
+  let #(Response(status: smart_remove_status, body: smart_remove_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(smart_remove))
+  assert smart_remove_status == 200
+  assert json.to_string(smart_remove_body)
+    == "{\"data\":{\"collectionRemoveProducts\":{\"job\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Can't manually remove products from a smart collection\"}]}}}"
+}
+
+pub fn collection_update_rejects_invalid_fields_and_custom_to_smart_switch_test() {
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: collection_membership_store(),
+    )
+  let long_title = string.repeat("T", times: 256)
+  let title_query =
+    "mutation { collectionUpdate(input: { id: \\\"gid://shopify/Collection/custom\\\", title: \\\""
+    <> long_title
+    <> "\\\" }) { collection { id } userErrors { field message } } }"
+  let #(Response(status: title_status, body: title_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(title_query))
+  assert title_status == 200
+  assert json.to_string(title_body)
+    == "{\"data\":{\"collectionUpdate\":{\"collection\":null,\"userErrors\":[{\"field\":[\"title\"],\"message\":\"Title is too long (maximum is 255 characters)\"}]}}}"
+
+  let long_handle = string.repeat("h", times: 256)
+  let handle_query =
+    "mutation { collectionUpdate(input: { id: \\\"gid://shopify/Collection/custom\\\", handle: \\\""
+    <> long_handle
+    <> "\\\" }) { collection { id } userErrors { field message } } }"
+  let #(Response(status: handle_status, body: handle_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(handle_query))
+  assert handle_status == 200
+  assert json.to_string(handle_body)
+    == "{\"data\":{\"collectionUpdate\":{\"collection\":null,\"userErrors\":[{\"field\":[\"handle\"],\"message\":\"Handle is too long (maximum is 255 characters)\"}]}}}"
+
+  let switch_query =
+    "mutation { collectionUpdate(input: { id: \\\"gid://shopify/Collection/custom\\\", ruleSet: { appliedDisjunctively: false, rules: [{ column: TITLE, relation: CONTAINS, condition: \\\"Probe\\\" }] } }) { collection { id ruleSet { appliedDisjunctively } } userErrors { field message } } }"
+  let #(Response(status: switch_status, body: switch_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(switch_query))
+  assert switch_status == 200
+  assert json.to_string(switch_body)
+    == "{\"data\":{\"collectionUpdate\":{\"collection\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot update rule set of a custom collection\"}]}}}"
 }
 
 pub fn product_set_rejects_duplicate_variant_option_tuples_test() {
@@ -1838,6 +2205,83 @@ fn suspended_product_store() -> store.Store {
   ])
 }
 
+fn collection_membership_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([
+    default_product(),
+    ProductRecord(
+      ..default_product(),
+      id: "gid://shopify/Product/second",
+      title: "Second Product",
+      handle: "second-product",
+    ),
+  ])
+  |> store.upsert_base_collections([
+    collection_record(
+      "gid://shopify/Collection/custom",
+      "Custom",
+      "custom",
+      None,
+    ),
+    collection_record(
+      "gid://shopify/Collection/smart",
+      "Smart",
+      "smart",
+      Some(
+        CollectionRuleSetRecord(applied_disjunctively: False, rules: [
+          CollectionRuleRecord(
+            column: "TITLE",
+            relation: "CONTAINS",
+            condition: "Product",
+          ),
+        ]),
+      ),
+    ),
+  ])
+  |> store.upsert_base_product_collections([
+    ProductCollectionRecord(
+      collection_id: "gid://shopify/Collection/custom",
+      product_id: "gid://shopify/Product/optioned",
+      position: 0,
+      cursor: None,
+    ),
+    ProductCollectionRecord(
+      collection_id: "gid://shopify/Collection/smart",
+      product_id: "gid://shopify/Product/optioned",
+      position: 0,
+      cursor: None,
+    ),
+  ])
+}
+
+fn collection_record(
+  id: String,
+  title: String,
+  handle: String,
+  rule_set: Option(CollectionRuleSetRecord),
+) -> CollectionRecord {
+  CollectionRecord(
+    id: id,
+    legacy_resource_id: None,
+    title: title,
+    handle: handle,
+    publication_ids: [],
+    updated_at: None,
+    description: None,
+    description_html: Some(""),
+    image: None,
+    sort_order: Some("BEST_SELLING"),
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    rule_set: rule_set,
+    products_count: Some(1),
+    is_smart: option.is_some(rule_set),
+    cursor: None,
+    title_cursor: None,
+    updated_at_cursor: None,
+  )
+}
+
 fn inventory_quantity(name: String, quantity: Int) -> InventoryQuantityRecord {
   InventoryQuantityRecord(name: name, quantity: quantity, updated_at: None)
 }
@@ -1928,6 +2372,51 @@ fn option_update_store() -> store.Store {
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/small",
           name: "Small",
+          has_variants: True,
+        ),
+      ],
+    ),
+  ])
+}
+
+fn three_option_store() -> store.Store {
+  option_update_store()
+  |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/color",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Color",
+      position: 1,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/red",
+          name: "Red",
+          has_variants: True,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/size",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Size",
+      position: 2,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/small",
+          name: "Small",
+          has_variants: True,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/material",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Material",
+      position: 3,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/cotton",
+          name: "Cotton",
           has_variants: True,
         ),
       ],

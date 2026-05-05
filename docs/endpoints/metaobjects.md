@@ -126,6 +126,8 @@ The recorder splits the field set across three disposable definitions because Sh
 
 The local entry model shares the metafield custom-data normalization helper for field `value` / `jsonValue` projection. Metaobject `displayName` for measurement display keys follows the captured Shopify behavior by formatting the measurement `jsonValue` form rather than the stored canonical `value` string.
 
+HAR-685 adds strict create/update userError parity for invalid metaobject field values in `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-field-validation-matrix.json`, replayed by `config/parity-specs/metaobjects/metaobject-field-validation-matrix.json`. The matrix covers scalar numbers, boolean create/update behavior, date/date-time, measurement, rating, color, URL, text max, product/variant/collection/customer/company/metaobject references, and list variants for those types. Captured 2026-04 behavior is asymmetric for scalar boolean input: `metaobjectCreate` coerces `"hello"` to `true`, while `metaobjectUpdate` rejects the same value with `INVALID_VALUE`.
+
 ### Coverage boundaries
 
 - Registry entries in this group are declared gaps unless they are marked implemented and have executable runtime tests, parity inventory, and documented field behavior.
