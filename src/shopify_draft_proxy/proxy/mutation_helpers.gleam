@@ -479,6 +479,14 @@ pub fn validate_mutation_field_against_schema(
           source_body,
           schema,
         )
+      let literal_input_errors =
+        validate_literal_input_object_fields(
+          mutation,
+          arguments,
+          operation_name,
+          operation_path,
+          schema,
+        )
       let literal_errors =
         validate_literal_bound_args(
           mutation,
@@ -491,8 +499,203 @@ pub fn validate_mutation_field_against_schema(
       top_level_errors
       |> list.append(variable_errors)
       |> list.append(literal_errors)
+      |> list.append(literal_input_errors)
     }
   }
+}
+
+fn validate_literal_input_object_fields(
+  mutation: SchemaMutation,
+  arguments: List(Argument),
+  operation_name: String,
+  operation_path: String,
+  schema: MutationSchema,
+) -> List(Json) {
+  case operation_name {
+    // Most Shopify mutations are resolver-lenient for missing fields
+    // inside top-level inline inputs. Live locationAdd is stricter for
+    // LocationAddInput.name/address, so mirror that targeted parser
+    // behavior without broadening this validator across all inputs.
+    "locationAdd" ->
+      validate_direct_literal_input_fields(
+        mutation,
+        arguments,
+        "input",
+        "LocationAddInput",
+        operation_name,
+        operation_path,
+        schema,
+      )
+    _ -> []
+  }
+}
+
+fn validate_direct_literal_input_fields(
+  mutation: SchemaMutation,
+  arguments: List(Argument),
+  argument_name: String,
+  input_object_name: String,
+  operation_name: String,
+  operation_path: String,
+  schema: MutationSchema,
+) -> List(Json) {
+  case find_argument(arguments, argument_name) {
+    Some(Argument(value: ast.ObjectValue(fields: fields, ..), ..)) ->
+      case
+        find_schema_arg(mutation.args, argument_name),
+        mutation_schema_lookup.get_input_object(schema, input_object_name)
+      {
+        Some(_), Some(input_object) ->
+          list.flat_map(input_object.input_fields, fn(input_field) {
+            case
+              mutation_schema.is_non_null(input_field.type_),
+              input_field.default_value
+            {
+              True, None ->
+                validate_direct_literal_input_field(
+                  fields,
+                  argument_name,
+                  input_object_name,
+                  input_field.name,
+                  mutation_schema.render_signature(input_field.type_),
+                  operation_name,
+                  operation_path,
+                )
+              _, _ -> []
+            }
+          })
+        _, _ -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_direct_literal_input_field(
+  fields: List(ast.ObjectField),
+  argument_name: String,
+  input_object_name: String,
+  input_field_name: String,
+  input_field_type: String,
+  operation_name: String,
+  operation_path: String,
+) -> List(Json) {
+  case find_object_field(fields, input_field_name) {
+    None -> [
+      build_missing_required_input_object_attribute_error(
+        operation_path,
+        operation_name,
+        argument_name,
+        input_object_name,
+        input_field_name,
+        input_field_type,
+      ),
+    ]
+    Some(ast.ObjectField(value: ast.NullValue(..), ..)) -> [
+      build_null_input_object_attribute_error(
+        operation_path,
+        operation_name,
+        argument_name,
+        input_object_name,
+        input_field_name,
+        input_field_type,
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn find_object_field(
+  fields: List(ast.ObjectField),
+  name: String,
+) -> Option(ast.ObjectField) {
+  case fields {
+    [] -> None
+    [first, ..rest] -> {
+      let ast.ObjectField(name: field_name, ..) = first
+      case field_name.value == name {
+        True -> Some(first)
+        False -> find_object_field(rest, name)
+      }
+    }
+  }
+}
+
+fn build_missing_required_input_object_attribute_error(
+  operation_path: String,
+  operation_name: String,
+  argument_name: String,
+  input_object_name: String,
+  input_field_name: String,
+  input_field_type: String,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Argument '"
+        <> input_field_name
+        <> "' on InputObject '"
+        <> input_object_name
+        <> "' is required. Expected type "
+        <> input_field_type,
+      ),
+    ),
+    #(
+      "path",
+      json.array(
+        [operation_path, operation_name, argument_name, input_field_name],
+        json.string,
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("missingRequiredInputObjectAttribute")),
+        #("argumentName", json.string(input_field_name)),
+        #("argumentType", json.string(input_field_type)),
+        #("inputObjectType", json.string(input_object_name)),
+      ]),
+    ),
+  ])
+}
+
+fn build_null_input_object_attribute_error(
+  operation_path: String,
+  operation_name: String,
+  argument_name: String,
+  input_object_name: String,
+  input_field_name: String,
+  input_field_type: String,
+) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Argument '"
+        <> input_field_name
+        <> "' on InputObject '"
+        <> input_object_name
+        <> "' has an invalid value (null). Expected type '"
+        <> input_field_type
+        <> "'.",
+      ),
+    ),
+    #(
+      "path",
+      json.array(
+        [operation_path, operation_name, argument_name, input_field_name],
+        json.string,
+      ),
+    ),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("argumentLiteralsIncompatible")),
+        #("typeName", json.string("InputObject")),
+        #("argumentName", json.string(input_field_name)),
+      ]),
+    ),
+  ])
 }
 
 fn validate_top_level_args(

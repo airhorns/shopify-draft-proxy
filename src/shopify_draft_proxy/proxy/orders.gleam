@@ -11469,14 +11469,17 @@ fn fulfillment_order_hold_line_item_quantity_errors(
 ) -> List(#(Option(List(String)), String, Option(String))) {
   inputs
   |> list.index_fold([], fn(errors, input, index) {
-    let invalid_message = case dict.get(input, "quantity") {
+    let invalid = case dict.get(input, "quantity") {
       Ok(root_field.IntVal(quantity)) if quantity <= 0 ->
-        Some("You must select at least one item to place on partial hold.")
+        Some(#(
+          "You must select at least one item to place on partial hold.",
+          "GREATER_THAN_ZERO",
+        ))
       Ok(root_field.IntVal(_)) -> None
-      _ -> Some("The line item quantity is invalid.")
+      _ -> Some(#("The line item quantity is invalid.", "INVALID"))
     }
-    case invalid_message {
-      Some(message) ->
+    case invalid {
+      Some(#(message, code)) ->
         list.append(errors, [
           nullable_user_error(
             Some([
@@ -11486,7 +11489,7 @@ fn fulfillment_order_hold_line_item_quantity_errors(
               "quantity",
             ]),
             message,
-            Some("GREATER_THAN_ZERO"),
+            Some(code),
           ),
         ])
       None -> errors
