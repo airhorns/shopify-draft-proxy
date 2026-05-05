@@ -1541,17 +1541,17 @@ fn admin_platform_mutation_handler(
 
 fn online_store_mutation_handler(
   proxy: DraftProxy,
-  request_path: String,
+  _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-  _upstream: upstream_query.UpstreamContext,
+  upstream: upstream_query.UpstreamContext,
 ) -> mutation_helpers.MutationOutcome {
-  online_store.process_mutation(
+  online_store.process_mutation_with_upstream(
     proxy.store,
     proxy.synthetic_identity,
-    request_path,
     document,
     variables,
+    upstream,
   )
 }
 

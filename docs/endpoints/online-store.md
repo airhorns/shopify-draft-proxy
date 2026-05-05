@@ -59,11 +59,12 @@ Implemented local staging:
 - `blogCreate` / `blogUpdate` / `blogDelete` stage blog title, handle, template suffix, and comment policy changes
 - `pageCreate` / `pageUpdate` / `pageDelete` stage page title, handle, body/body summary, template suffix, and publication fields; new pages default to published with a local `publishedAt` timestamp when `isPublished` and `publishDate` are both omitted
 - `articleCreate` / `articleUpdate` / `articleDelete` stage article title, handle, body, summary, tags, author, publication fields, image fields, ARTICLE-owned metafields, and blog membership; `articleCreate` can also stage an inline blog from the optional `blog` argument
-- `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` stage moderation or tombstones for comments that already exist in hydrated/snapshot local state; approval sets `status: "PUBLISHED"`, `isPublished: true`, and a local `publishedAt` timestamp when the comment did not already have one
+- `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` stage moderation for comments that already exist in hydrated/snapshot local state, or hydrate the existing comment through a narrow upstream read before staging when needed. Moderation persists only Core `CommentStatus` values: approval sets `status: "PUBLISHED"`, spam sets `status: "SPAM"`, not-spam sets `status: "UNAPPROVED"`, and delete sets `status: "REMOVED"` while returning `deletedCommentId`.
+- Removed comments keep their ID for idempotent `commentDelete`, while `commentApprove` and `commentSpam` return an `INVALID` `userErrors` entry without changing the removed status. Approval also sets `isPublished: true` and a local `publishedAt` timestamp when the comment did not already have one.
 
 `pageCreate`, `blogCreate`, and `articleCreate` reject missing or blank `title` inputs before staging any local content. The local resolver returns a title `userErrors` payload with `field: ["page" | "blog" | "article", "title"]` and `code: "BLANK"` for both omitted and blank title values so tests get a stable mutation payload instead of staging empty-title records.
 
-Unknown content IDs return local `userErrors` for supported mutations instead of proxying upstream. Delete mutations stage tombstones so downstream detail reads return `null` and catalog/nested connections omit the deleted row.
+Unknown content IDs return local `userErrors` for supported mutations instead of proxying upstream. Blog, page, and article delete mutations stage tombstones so downstream detail reads return `null` and catalog/nested connections omit the deleted row. Comment delete is modeled as a moderation transition to `REMOVED` so subsequent moderation roots can preserve Shopify's removed-comment guardrails.
 
 Comment creation is not part of the Admin GraphQL root set captured for this ticket, so comment moderation support is intentionally limited to comments supplied by snapshot or hydrated upstream reads.
 

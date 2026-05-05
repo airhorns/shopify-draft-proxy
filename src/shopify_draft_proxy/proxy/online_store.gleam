@@ -43,6 +43,8 @@ const online_store_blogs_count_query: String = "query OnlineStoreBlogsCountHydra
 
 const online_store_pages_count_query: String = "query OnlineStorePagesCountHydrate { pagesCount { count precision } }"
 
+const online_store_comment_hydrate_query: String = "query OnlineStoreCommentHydrate($id: ID!) { comment(id: $id) { __typename id status body bodyHtml isPublished publishedAt createdAt updatedAt article { id } } }"
+
 pub type OnlineStoreError {
   ParseFailed(root_field.RootFieldError)
 }
@@ -297,6 +299,22 @@ pub fn process_mutation(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> MutationOutcome {
+  process_mutation_with_upstream(
+    store,
+    identity,
+    document,
+    variables,
+    empty_upstream_context(),
+  )
+}
+
+pub fn process_mutation_with_upstream(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
@@ -313,7 +331,13 @@ pub fn process_mutation(
         list.fold(fields, #([], initial), fn(acc, field) {
           let #(pairs, current) = acc
           let #(key, payload, next) =
-            handle_mutation_field(current, field, fragments, variables)
+            handle_mutation_field(
+              current,
+              field,
+              fragments,
+              variables,
+              upstream,
+            )
           let merged =
             MutationOutcome(
               ..next,
@@ -338,6 +362,7 @@ fn handle_mutation_field(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   case field {
@@ -423,8 +448,8 @@ fn handle_mutation_field(
             "deletedArticleId",
           )
         "commentApprove" | "commentSpam" | "commentNotSpam" ->
-          moderate_comment(outcome, field, variables, root)
-        "commentDelete" -> delete_comment(outcome, field, variables)
+          moderate_comment(outcome, field, variables, root, upstream)
+        "commentDelete" -> delete_comment(outcome, field, variables, upstream)
         "themeCreate" -> create_theme(outcome, field, fragments, variables)
         "themeUpdate" ->
           update_theme(outcome, field, fragments, variables, "themeUpdate")
@@ -1067,39 +1092,52 @@ fn moderate_comment(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
   root: String,
+  upstream: UpstreamContext,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let id = input_string(graphql_helpers.field_args(field, variables), "id")
-  let status = case root {
-    "commentApprove" -> "PUBLISHED"
-    "commentSpam" -> "SPAM"
-    _ -> "PENDING"
-  }
-  let #(comment, errors, store) = case id {
+  let target_status = comment_target_status(root)
+  let #(comment, errors, store, identity) = case id {
     Some(id) ->
-      case store.get_effective_online_store_content_by_id(outcome.store, id) {
-        Some(existing) if existing.kind == "comment" -> {
-          let data =
-            captured_object_insert(
-              existing.data,
-              "status",
-              CapturedString(status),
+      case get_effective_or_hydrated_comment(outcome.store, upstream, id) {
+        #(Some(existing), hydrated_store) -> {
+          case comment_status(existing) == "REMOVED" {
+            True -> #(
+              SrcNull,
+              [comment_removed_user_error()],
+              hydrated_store,
+              outcome.identity,
             )
-          let record = OnlineStoreContentRecord(..existing, data: data)
-          let #(_, next_store) =
-            store.upsert_staged_online_store_content(outcome.store, record)
-          #(content_payload_source(next_store, record), [], next_store)
+            False -> {
+              let #(record, identity) =
+                comment_record_with_status(
+                  existing,
+                  target_status,
+                  outcome.identity,
+                )
+              let #(_, next_store) =
+                store.upsert_staged_online_store_content(hydrated_store, record)
+              #(
+                content_payload_source(next_store, record),
+                [],
+                next_store,
+                identity,
+              )
+            }
+          }
         }
-        _ -> #(
+        #(None, hydrated_store) -> #(
           SrcNull,
-          [user_error(["id"], "Comment does not exist")],
-          outcome.store,
+          [comment_not_found_user_error()],
+          hydrated_store,
+          outcome.identity,
         )
       }
     None -> #(
       SrcNull,
-      [user_error(["id"], "Comment does not exist")],
+      [comment_not_found_user_error()],
       outcome.store,
+      outcome.identity,
     )
   }
   let payload =
@@ -1111,35 +1149,43 @@ fn moderate_comment(
       ]),
       dict.new(),
     )
-  #(key, payload, mutation_outcome(outcome, store, outcome.identity, root, []))
+  #(key, payload, mutation_outcome(outcome, store, identity, root, []))
 }
 
 fn delete_comment(
   outcome: MutationOutcome,
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(String, Json, MutationOutcome) {
   let key = get_field_response_key(field)
   let id = input_string(graphql_helpers.field_args(field, variables), "id")
   let #(deleted, errors, store) = case id {
     Some(id) ->
-      case store.get_effective_online_store_content_by_id(outcome.store, id) {
-        Some(existing) if existing.kind == "comment" -> #(
-          SrcString(id),
-          [],
-          store.delete_staged_online_store_content(outcome.store, id),
-        )
-        _ -> #(
+      case get_effective_or_hydrated_comment(outcome.store, upstream, id) {
+        #(Some(existing), hydrated_store) -> {
+          case comment_status(existing) == "REMOVED" {
+            True -> #(SrcString(id), [], hydrated_store)
+            False -> {
+              let #(record, _) =
+                comment_record_with_status(
+                  existing,
+                  "REMOVED",
+                  outcome.identity,
+                )
+              let #(_, next_store) =
+                store.upsert_staged_online_store_content(hydrated_store, record)
+              #(SrcString(id), [], next_store)
+            }
+          }
+        }
+        #(None, hydrated_store) -> #(
           SrcNull,
-          [user_error(["id"], "Comment does not exist")],
-          outcome.store,
+          [comment_not_found_user_error()],
+          hydrated_store,
         )
       }
-    None -> #(
-      SrcNull,
-      [user_error(["id"], "Comment does not exist")],
-      outcome.store,
-    )
+    None -> #(SrcNull, [comment_not_found_user_error()], outcome.store)
   }
   let payload =
     project_payload_source(
@@ -1153,8 +1199,175 @@ fn delete_comment(
   #(
     key,
     payload,
-    mutation_outcome(outcome, store, outcome.identity, "commentDelete", []),
+    mutation_outcome(
+      outcome,
+      store,
+      outcome.identity,
+      "commentDelete",
+      case errors {
+        [] -> option_list(id)
+        _ -> []
+      },
+    ),
   )
+}
+
+fn get_effective_or_hydrated_comment(
+  store_in: Store,
+  upstream: UpstreamContext,
+  id: String,
+) -> #(Option(OnlineStoreContentRecord), Store) {
+  case store.get_effective_online_store_content_by_id(store_in, id) {
+    Some(existing) if existing.kind == "comment" -> #(Some(existing), store_in)
+    _ ->
+      case hydrate_comment(store_in, upstream, id) {
+        Some(next_store) -> #(
+          store.get_effective_online_store_content_by_id(next_store, id),
+          next_store,
+        )
+        None -> #(None, store_in)
+      }
+  }
+}
+
+fn hydrate_comment(
+  store_in: Store,
+  upstream: UpstreamContext,
+  id: String,
+) -> Option(Store) {
+  let variables = json.object([#("id", json.string(id))])
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "OnlineStoreCommentHydrate",
+      online_store_comment_hydrate_query,
+      variables,
+    )
+  {
+    Ok(value) ->
+      json_get(value, "data")
+      |> option.then(json_get(_, "comment"))
+      |> option.then(comment_record_from_commit)
+      |> option.map(fn(record) {
+        store.upsert_base_online_store_content(store_in, [record])
+      })
+    Error(_) -> None
+  }
+}
+
+fn comment_record_from_commit(
+  value: commit.JsonValue,
+) -> Option(OnlineStoreContentRecord) {
+  case json_get_string(value, "id") {
+    Some(id) ->
+      Some(OnlineStoreContentRecord(
+        id: id,
+        kind: "comment",
+        cursor: None,
+        parent_id: comment_parent_article_id(value),
+        created_at: json_get_string(value, "createdAt"),
+        updated_at: json_get_string(value, "updatedAt"),
+        data: captured_json_from_commit(value),
+      ))
+    None -> None
+  }
+}
+
+fn comment_parent_article_id(value: commit.JsonValue) -> Option(String) {
+  json_get(value, "article")
+  |> option.then(json_get_string(_, "id"))
+}
+
+fn comment_target_status(root: String) -> String {
+  case root {
+    "commentApprove" -> "PUBLISHED"
+    "commentSpam" -> "SPAM"
+    "commentNotSpam" -> "UNAPPROVED"
+    _ -> "UNAPPROVED"
+  }
+}
+
+fn comment_status(record: OnlineStoreContentRecord) -> String {
+  source_string_field(captured_to_source(record.data), "status", "")
+}
+
+fn comment_record_with_status(
+  existing: OnlineStoreContentRecord,
+  status: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(OnlineStoreContentRecord, SyntheticIdentityRegistry) {
+  let #(data, identity) =
+    comment_data_with_status(existing.data, status, identity)
+  #(OnlineStoreContentRecord(..existing, data: data), identity)
+}
+
+fn comment_data_with_status(
+  data: CapturedJsonValue,
+  status: String,
+  identity: SyntheticIdentityRegistry,
+) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
+  let source = captured_to_source(data)
+  let data = captured_object_insert(data, "status", CapturedString(status))
+  case status {
+    "PUBLISHED" -> {
+      let data = captured_object_insert(data, "isPublished", CapturedBool(True))
+      case source_optional_string_field(source, "publishedAt") {
+        Some(_) -> #(data, identity)
+        None -> {
+          let #(timestamp, identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          #(
+            captured_object_insert(
+              data,
+              "publishedAt",
+              CapturedString(timestamp),
+            ),
+            identity,
+          )
+        }
+      }
+    }
+    "REMOVED" | "SPAM" | "UNAPPROVED" -> #(
+      captured_object_insert(data, "isPublished", CapturedBool(False)),
+      identity,
+    )
+    _ -> #(data, identity)
+  }
+}
+
+fn comment_not_found_user_error() -> graphql_helpers.SourceValue {
+  user_error(["id"], "Comment does not exist")
+}
+
+fn comment_removed_user_error() -> graphql_helpers.SourceValue {
+  user_error_with_code(["id"], "Comment has been removed", "INVALID")
+}
+
+fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
+  case json_get(value, key) {
+    Some(commit.JsonString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn captured_json_from_commit(value: commit.JsonValue) -> CapturedJsonValue {
+  case value {
+    commit.JsonNull -> CapturedNull
+    commit.JsonBool(value) -> CapturedBool(value)
+    commit.JsonInt(value) -> CapturedInt(value)
+    commit.JsonFloat(value) -> CapturedFloat(value)
+    commit.JsonString(value) -> CapturedString(value)
+    commit.JsonArray(items) ->
+      CapturedArray(list.map(items, captured_json_from_commit))
+    commit.JsonObject(fields) ->
+      CapturedObject(
+        list.map(fields, fn(pair) {
+          #(pair.0, captured_json_from_commit(pair.1))
+        }),
+      )
+  }
 }
 
 fn create_theme(
