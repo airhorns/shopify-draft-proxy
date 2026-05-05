@@ -1,0 +1,94 @@
+{
+  "scenarioId": "functions-validation-update-shape",
+  "operationNames": ["validationCreate", "validationUpdate", "validations"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "functions-validation-update"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/functions/functions-validation-update-shape.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-validation-update-shape-stage.graphql",
+    "variables": {}
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-validations-data",
+        "capturePath": "$.primary.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.rebindSubject.validation.enable",
+          "$.rebindSubject.validation.blockOnFailure",
+          "$.rebindSubject.validation.functionId",
+          "$.rebindSubject.userErrors",
+          "$.active10.validation.enable",
+          "$.active10.validation.blockOnFailure",
+          "$.active10.validation.functionId",
+          "$.active10.userErrors",
+          "$.inactiveCapSubject.validation.enable",
+          "$.inactiveCapSubject.validation.blockOnFailure",
+          "$.inactiveCapSubject.validation.functionId",
+          "$.inactiveCapSubject.userErrors"
+        ]
+      },
+      {
+        "name": "validation-update-rebind-errors",
+        "capturePath": "$.rebind.response",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-shape-rebind.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.rebindSubject.validation.id"
+            },
+            "functionId": "gid://shopify/ShopifyFunction/validation-beta"
+          }
+        }
+      },
+      {
+        "name": "validation-update-max-active-data",
+        "capturePath": "$.maxActive.response.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-shape-max-active.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inactiveCapSubject.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "validation-update-metafields-data",
+        "capturePath": "$.metafields.response.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-shape-metafields.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.rebindSubject.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "validations-connection-metafields-data",
+        "capturePath": "$.validationsConnection.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-shape-read.graphql",
+          "variables": {}
+        }
+      }
+    ]
+  },
+  "notes": "HAR-703 executable parity coverage for validationUpdate shape fidelity. The local-runtime cassette grounds Function lookup through a shopifyFunctions upstream read containing two VALIDATION functions; the scenario verifies update rejects rebind-only input fields, enforces the active-validation cap when re-enabling with the updated validation excluded, persists validation metafields, and exposes those metafields through a downstream validations connection without runtime Shopify writes."
+}

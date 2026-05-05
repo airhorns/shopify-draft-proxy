@@ -1,0 +1,50 @@
+{
+  "scenarioId": "bulk-operation-run-query-user-error-codes",
+  "operationNames": ["bulkOperationRunQuery"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-user-error-codes.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-with-code.graphql",
+    "variablesCapturePath": "$.validations.noConnectionWithCode.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-733 captures Shopify Admin GraphQL 2026-04 bulkOperationRunQuery userErrors when the client selects BulkOperationUserError.code. Current live evidence returns code INVALID for both the no-connection analysis branch and the empty-query malformed-query branch; this supersedes the ticket's stale null-code premise.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "no-connection-with-code.userErrors",
+        "capturePath": "$.validations.noConnectionWithCode.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors"
+      },
+      {
+        "name": "no-connection-with-code.bulkOperation",
+        "capturePath": "$.validations.noConnectionWithCode.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation"
+      },
+      {
+        "name": "empty-query.userErrors",
+        "capturePath": "$.validations.emptyQuery.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-with-code.graphql",
+          "variablesCapturePath": "$.validations.emptyQuery.variables"
+        }
+      },
+      {
+        "name": "empty-query.bulkOperation",
+        "capturePath": "$.validations.emptyQuery.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-with-code.graphql",
+          "variablesCapturePath": "$.validations.emptyQuery.variables"
+        }
+      }
+    ]
+  }
+}

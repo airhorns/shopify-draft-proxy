@@ -1,0 +1,110 @@
+{
+  "scenarioId": "location-add-required-address-and-defaults",
+  "operationNames": ["locationAdd", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "downstream-read-parity",
+    "user-errors-parity",
+    "schema-validation-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-add-required-address-and-defaults.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-add-required-address-and-defaults.graphql",
+    "variablesCapturePath": "$.cases.defaultAdd.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-654 captures Admin GraphQL 2026-04 locationAdd address/default validation and immediate read-after-write behavior against disposable locations. The live capture creates default-online and explicit-non-online locations, reads each immediately, then deactivates/deletes them in cleanup. Capability echo, broader address-field persistence, and the local non-ISO country-code guardrail are additionally runtime-test-backed because Shopify's location capabilities and country-validation branches are app/store-topology dependent.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "default-add-payload",
+        "capturePath": "$.cases.defaultAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "default-read-after-add",
+        "capturePath": "$.cases.defaultRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-read-after-add.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.name", "$.fulfillsOnlineOrders", "$.address"]
+      },
+      {
+        "name": "explicit-false-add-payload",
+        "capturePath": "$.cases.explicitFalseAdd.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-required-address-and-defaults.graphql",
+          "variablesCapturePath": "$.cases.explicitFalseAdd.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.id",
+            "matcher": "shopify-gid:Location",
+            "reason": "The proxy creates a stable synthetic Location ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "explicit-false-read-after-add",
+        "capturePath": "$.cases.explicitFalseRead.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-read-after-add.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "explicit-false-add-payload",
+              "path": "$.data.locationAdd.location.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.name", "$.fulfillsOnlineOrders", "$.address"]
+      },
+      {
+        "name": "blank-name-user-error-code",
+        "capturePath": "$.cases.blankName.response.payload.data.locationAdd",
+        "proxyPath": "$.data.locationAdd",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-blank-name-code.graphql",
+          "variablesCapturePath": "$.cases.blankName.variables"
+        },
+        "selectedPaths": ["$.location", "$.userErrors[0].field", "$.userErrors[0].code"]
+      },
+      {
+        "name": "missing-address-top-level-error-code",
+        "capturePath": "$.cases.missingAddress.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-add-missing-address.graphql"
+        },
+        "selectedPaths": ["$.errors[0].extensions.code"]
+      }
+    ]
+  }
+}

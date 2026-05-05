@@ -1,0 +1,15 @@
+mutation CustomerPaymentMethodRemoteCreateStripeBlank {
+  customerPaymentMethodRemoteCreate(
+    customerId: "gid://shopify/Customer/1"
+    remoteReference: { stripePaymentMethod: { customerId: null, paymentMethodId: "pm_x" } }
+  ) {
+    customerPaymentMethod {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

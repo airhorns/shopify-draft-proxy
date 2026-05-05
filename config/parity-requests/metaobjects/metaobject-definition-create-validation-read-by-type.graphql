@@ -1,0 +1,24 @@
+query MetaobjectDefinitionCreateValidationReadByType($type: String!) {
+  metaobjectDefinitionByType(type: $type) {
+    id
+    type
+    name
+    description
+    displayNameKey
+    access {
+      admin
+      storefront
+    }
+    fieldDefinitions {
+      key
+      name
+      required
+      type {
+        name
+        category
+      }
+    }
+    createdAt
+    updatedAt
+  }
+}

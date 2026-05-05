@@ -1,0 +1,71 @@
+{
+  "scenarioId": "customer-payment-method-remote-create-validation",
+  "capturedAt": "2026-05-05T15:10:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "storeDomain": "shopify-draft-proxy.local",
+  "apiVersion": "2026-04",
+  "notes": "Executable local-runtime parity fixture for customerPaymentMethodRemoteCreate validation. Live success capture remains blocked by payment-method credential/safety constraints; this fixture records the Shopify Core-derived validation contract for blank gateway fields and exactly-one remote-reference cardinality without storing gateway secrets or sending supported mutations upstream.",
+  "operations": {
+    "seedCustomer": {
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/1"
+            },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "stripeBlankCustomerId": {
+      "response": {
+        "data": {
+          "customerPaymentMethodRemoteCreate": {
+            "customerPaymentMethod": null,
+            "userErrors": [
+              {
+                "field": ["remote_reference", "stripe_payment_method", "customer_id"],
+                "code": "STRIPE_CUSTOMER_ID_BLANK",
+                "message": "customer_id can't be blank"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "paypalBlankBillingAgreementId": {
+      "response": {
+        "data": {
+          "customerPaymentMethodRemoteCreate": {
+            "customerPaymentMethod": null,
+            "userErrors": [
+              {
+                "field": ["remote_reference", "paypal_payment_method", "billing_agreement_id"],
+                "code": "BILLING_AGREEMENT_ID_BLANK",
+                "message": "billing_agreement_id can't be blank"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "twoGatewayObjects": {
+      "response": {
+        "data": {
+          "customerPaymentMethodRemoteCreate": {
+            "customerPaymentMethod": null,
+            "userErrors": [
+              {
+                "field": ["remote_reference"],
+                "code": "INVALID",
+                "message": "Remote reference must contain exactly one payment method."
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

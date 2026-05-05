@@ -1,0 +1,12 @@
+mutation MarketingActivityImmutableUpsert($input: MarketingActivityUpsertExternalInput!) {
+  marketingActivityUpsertExternal(input: $input) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

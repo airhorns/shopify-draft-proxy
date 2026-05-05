@@ -1,0 +1,415 @@
+{
+  "capturedAt": "2026-05-05T10:07:32.891Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "scenarioId": "payment-reminder-send-eligibility",
+  "notes": "HAR-671 live capture on disposable payment-terms orders. Success uses an overdue payment-pending order schedule; unknown and paid branches confirm Shopify returns success null with PAYMENT_REMINDER_SEND_UNSUCCESSFUL for ineligible schedules. Runtime replay uses hydrate cassettes only; supported paymentReminderSend never writes upstream at runtime.",
+  "requestDocument": "mutation PaymentReminderSendEligibility($paymentScheduleId: ID!) {\n  paymentReminderSend(paymentScheduleId: $paymentScheduleId) { success userErrors { field code message } }\n}",
+  "hydrateDocument": "query PaymentScheduleReminderHydrate($id: ID!) {\n  paymentSchedule: node(id: $id) {\n    ... on PaymentSchedule {\n      id dueAt issuedAt completedAt\n      paymentTerms {\n        id overdue dueInDays paymentTermsName paymentTermsType translatedName\n        order { id closed closedAt cancelledAt displayFinancialStatus }\n        draftOrder { id status completedAt }\n        paymentSchedules(first: 10) { nodes { id dueAt issuedAt completedAt } }\n      }\n    }\n  }\n}",
+  "setup": {
+    "success": {
+      "draftOrderCreate": {
+        "variables": {
+          "input": {
+            "email": "har671-success-1777975647489-81078@example.com",
+            "note": "HAR-671 payment reminder success",
+            "tags": ["har-671", "payment-reminder", "success"],
+            "lineItems": [
+              {
+                "title": "HAR-671 success",
+                "quantity": 1,
+                "originalUnitPrice": "18.50"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "draftOrderCreate": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1250543632690",
+                "name": "#D79",
+                "status": "OPEN",
+                "email": "har671-success-1777975647489-81078@example.com"
+              },
+              "userErrors": []
+            }
+          }
+        }
+      },
+      "draftOrderComplete": {
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1250543632690"
+        },
+        "response": {
+          "data": {
+            "draftOrderComplete": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1250543632690",
+                "status": "COMPLETED",
+                "order": {
+                  "id": "gid://shopify/Order/8729095504178",
+                  "name": "#1134",
+                  "displayFinancialStatus": "PENDING",
+                  "cancelledAt": null,
+                  "closedAt": null,
+                  "closed": false
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      },
+      "paymentTermsCreate": {
+        "variables": {
+          "referenceId": "gid://shopify/Order/8729095504178",
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+            "paymentSchedules": [
+              {
+                "issuedAt": "2025-01-01T00:00:00Z"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsCreate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/145644388658",
+                "overdue": true,
+                "dueInDays": 30,
+                "paymentTermsName": "Net 30",
+                "paymentTermsType": "NET",
+                "translatedName": "Net 30",
+                "order": {
+                  "id": "gid://shopify/Order/8729095504178",
+                  "displayFinancialStatus": "PENDING"
+                },
+                "draftOrder": null,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/177609146674",
+                      "dueAt": "2025-01-31T00:00:00Z",
+                      "issuedAt": "2025-01-01T00:00:00Z",
+                      "completedAt": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "paid": {
+      "draftOrderCreate": {
+        "variables": {
+          "input": {
+            "email": "har671-paid-1777975649793-41503@example.com",
+            "note": "HAR-671 payment reminder paid",
+            "tags": ["har-671", "payment-reminder", "paid"],
+            "lineItems": [
+              {
+                "title": "HAR-671 paid",
+                "quantity": 1,
+                "originalUnitPrice": "18.50"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "draftOrderCreate": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1250543665458",
+                "name": "#D80",
+                "status": "OPEN",
+                "email": "har671-paid-1777975649793-41503@example.com"
+              },
+              "userErrors": []
+            }
+          }
+        }
+      },
+      "draftOrderComplete": {
+        "variables": {
+          "id": "gid://shopify/DraftOrder/1250543665458"
+        },
+        "response": {
+          "data": {
+            "draftOrderComplete": {
+              "draftOrder": {
+                "id": "gid://shopify/DraftOrder/1250543665458",
+                "status": "COMPLETED",
+                "order": {
+                  "id": "gid://shopify/Order/8729095536946",
+                  "name": "#1135",
+                  "displayFinancialStatus": "PENDING",
+                  "cancelledAt": null,
+                  "closedAt": null,
+                  "closed": false
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      },
+      "paymentTermsCreate": {
+        "variables": {
+          "referenceId": "gid://shopify/Order/8729095536946",
+          "attrs": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+            "paymentSchedules": [
+              {
+                "issuedAt": "2025-01-01T00:00:00Z"
+              }
+            ]
+          }
+        },
+        "response": {
+          "data": {
+            "paymentTermsCreate": {
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/145644421426",
+                "overdue": true,
+                "dueInDays": 30,
+                "paymentTermsName": "Net 30",
+                "paymentTermsType": "NET",
+                "translatedName": "Net 30",
+                "order": {
+                  "id": "gid://shopify/Order/8729095536946",
+                  "displayFinancialStatus": "PENDING"
+                },
+                "draftOrder": null,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/177609179442",
+                      "dueAt": "2025-01-31T00:00:00Z",
+                      "issuedAt": "2025-01-01T00:00:00Z",
+                      "completedAt": null
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          }
+        }
+      },
+      "orderMarkAsPaid": {
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Order/8729095536946"
+          }
+        },
+        "response": {
+          "data": {
+            "orderMarkAsPaid": {
+              "order": {
+                "id": "gid://shopify/Order/8729095536946",
+                "displayFinancialStatus": "PAID"
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "success": {
+      "request": {
+        "variables": {
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/177609146674"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentReminderSend": {
+            "success": true,
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "unknown": {
+      "request": {
+        "variables": {
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/9999999999"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentReminderSend": {
+            "success": null,
+            "userErrors": [
+              {
+                "field": null,
+                "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL",
+                "message": "Payment schedule does not exist"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "paid": {
+      "request": {
+        "variables": {
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/177609179442"
+        }
+      },
+      "response": {
+        "data": {
+          "paymentReminderSend": {
+            "success": null,
+            "userErrors": [
+              {
+                "field": null,
+                "code": "PAYMENT_REMINDER_SEND_UNSUCCESSFUL",
+                "message": "Payment schedule is already completed"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "successOrderCancel": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/bd41d3d7-cb67-4b8a-bb4d-a7799aee5535"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "paidOrderCancel": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/bd41d3d7-cb67-4b8a-bb4d-a7799aee5535"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "PaymentScheduleReminderHydrate",
+      "variables": {
+        "id": "gid://shopify/PaymentSchedule/177609146674"
+      },
+      "query": "captured live hydrate for eligible overdue order schedule",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentSchedule": {
+              "id": "gid://shopify/PaymentSchedule/177609146674",
+              "dueAt": "2025-01-31T00:00:00Z",
+              "issuedAt": "2025-01-01T00:00:00Z",
+              "completedAt": null,
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/145644388658",
+                "overdue": true,
+                "dueInDays": 30,
+                "paymentTermsName": "Net 30",
+                "paymentTermsType": "NET",
+                "translatedName": "Net 30",
+                "order": {
+                  "id": "gid://shopify/Order/8729095504178",
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "displayFinancialStatus": "PENDING"
+                },
+                "draftOrder": null,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/177609146674",
+                      "dueAt": "2025-01-31T00:00:00Z",
+                      "issuedAt": "2025-01-01T00:00:00Z",
+                      "completedAt": null
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentScheduleReminderHydrate",
+      "variables": {
+        "id": "gid://shopify/PaymentSchedule/9999999999"
+      },
+      "query": "captured live hydrate for unknown schedule",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentSchedule": null
+          }
+        }
+      }
+    },
+    {
+      "operationName": "PaymentScheduleReminderHydrate",
+      "variables": {
+        "id": "gid://shopify/PaymentSchedule/177609179442"
+      },
+      "query": "captured live hydrate for paid order schedule",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "paymentSchedule": {
+              "id": "gid://shopify/PaymentSchedule/177609179442",
+              "dueAt": "2025-01-31T00:00:00Z",
+              "issuedAt": "2025-01-01T00:00:00Z",
+              "completedAt": "2026-05-05T10:07:32Z",
+              "paymentTerms": {
+                "id": "gid://shopify/PaymentTerms/145644421426",
+                "overdue": false,
+                "dueInDays": 30,
+                "paymentTermsName": "Net 30",
+                "paymentTermsType": "NET",
+                "translatedName": "Net 30",
+                "order": {
+                  "id": "gid://shopify/Order/8729095536946",
+                  "closed": false,
+                  "closedAt": null,
+                  "cancelledAt": null,
+                  "displayFinancialStatus": "PAID"
+                },
+                "draftOrder": null,
+                "paymentSchedules": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/PaymentSchedule/177609179442",
+                      "dueAt": "2025-01-31T00:00:00Z",
+                      "issuedAt": "2025-01-01T00:00:00Z",
+                      "completedAt": "2026-05-05T10:07:32Z"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "scenarioId": "gift-card-transaction-validation",
+  "operationNames": ["giftCardCredit", "giftCardDebit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-transaction-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-transaction-validation.graphql",
+    "variablesCapturePath": "$.proxyVariables.transactionValidation"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-690 captures giftCardCredit/giftCardDebit validation branches for expired, deactivated, mismatched-currency, future processedAt, pre-epoch processedAt, and the typed credit transaction success payload. The capture creates disposable gift cards, deactivates them during cleanup, and relies on runtime tests for local no-mutation state preservation.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "expired credit userErrors match",
+        "capturePath": "$.operations.expiredCredit.response.payload.data.giftCardCredit.userErrors",
+        "proxyPath": "$.data.expiredCredit.userErrors"
+      },
+      {
+        "name": "deactivated credit userErrors match",
+        "capturePath": "$.operations.deactivatedCredit.response.payload.data.giftCardCredit.userErrors",
+        "proxyPath": "$.data.deactivatedCredit.userErrors"
+      },
+      {
+        "name": "currency mismatch userErrors match",
+        "capturePath": "$.operations.mismatchCredit.response.payload.data.giftCardCredit.userErrors",
+        "proxyPath": "$.data.mismatchCredit.userErrors"
+      },
+      {
+        "name": "future processedAt userErrors match",
+        "capturePath": "$.operations.futureCredit.response.payload.data.giftCardCredit.userErrors",
+        "proxyPath": "$.data.futureCredit.userErrors"
+      },
+      {
+        "name": "pre-epoch processedAt userErrors match",
+        "capturePath": "$.operations.preEpochCredit.response.payload.data.giftCardCredit.userErrors",
+        "proxyPath": "$.data.preEpochCredit.userErrors"
+      },
+      {
+        "name": "deactivated debit userErrors match",
+        "capturePath": "$.operations.deactivatedDebit.response.payload.data.giftCardDebit.userErrors",
+        "proxyPath": "$.data.deactivatedDebit.userErrors"
+      },
+      {
+        "name": "successful credit typed transaction shape matches",
+        "capturePath": "$.operations.successCredit.response.payload.data.giftCardCredit",
+        "proxyPath": "$.data.successCredit",
+        "selectedPaths": [
+          "$.giftCardCreditTransaction.__typename",
+          "$.giftCardCreditTransaction.amount",
+          "$.userErrors"
+        ]
+      }
+    ]
+  }
+}

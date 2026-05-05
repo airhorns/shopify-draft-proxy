@@ -1,0 +1,98 @@
+{
+  "scenarioId": "app-subscription-trial-extend-validation",
+  "operationNames": ["appSubscriptionCreate", "appSubscriptionTrialExtend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-subscription-trial-extend-validation.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appSubscriptionCreate-pending-local-lifecycle.graphql",
+    "variables": {
+      "lineItems": [
+        {
+          "plan": {
+            "appUsagePricingDetails": {
+              "cappedAmount": {
+                "amount": 100,
+                "currencyCode": "USD"
+              },
+              "terms": "usage terms"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "subscription-create-status",
+        "capturePath": "$.evidence.parity.expected.subscriptionCreate.data.appSubscriptionCreate",
+        "proxyPath": "$.data.appSubscriptionCreate",
+        "selectedPaths": ["$.appSubscription.status", "$.userErrors"]
+      },
+      {
+        "name": "days-zero-user-error",
+        "capturePath": "$.evidence.parity.expected.daysZero.data.appSubscriptionTrialExtend",
+        "proxyPath": "$.data.appSubscriptionTrialExtend",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionTrialExtend-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            },
+            "days": 0
+          }
+        }
+      },
+      {
+        "name": "days-too-large-user-error",
+        "capturePath": "$.evidence.parity.expected.daysTooLarge.data.appSubscriptionTrialExtend",
+        "proxyPath": "$.data.appSubscriptionTrialExtend",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionTrialExtend-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            },
+            "days": 1001
+          }
+        }
+      },
+      {
+        "name": "unknown-id-user-error",
+        "capturePath": "$.evidence.parity.expected.unknownId.data.appSubscriptionTrialExtend",
+        "proxyPath": "$.data.appSubscriptionTrialExtend",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionTrialExtend-validation.graphql",
+          "variables": {
+            "id": "gid://shopify/AppSubscription/unknown",
+            "days": 5
+          }
+        }
+      },
+      {
+        "name": "pending-subscription-user-error",
+        "capturePath": "$.evidence.parity.expected.pendingSubscription.data.appSubscriptionTrialExtend",
+        "proxyPath": "$.data.appSubscriptionTrialExtend",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionTrialExtend-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            },
+            "days": 5
+          }
+        }
+      }
+    ]
+  },
+  "notes": "The generic parity runner covers days bounds, unknown id, and PENDING subscription validation by creating an explicit non-test subscription without upstream calls. Runtime tests cover test-charge ACTIVE success and ACTIVE expired-trial branches because test subscriptions auto-activate locally for HAR-653."
+}

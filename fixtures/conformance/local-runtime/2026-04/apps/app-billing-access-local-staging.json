@@ -129,11 +129,13 @@
         "trialExtend": {
           "data": {
             "appSubscriptionTrialExtend": {
-              "appSubscription": {
-                "id": "gid://shopify/AppSubscription/expected",
-                "trialDays": 10
-              },
-              "userErrors": []
+              "appSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The trial can't be extended after expiration."
+                }
+              ]
             }
           }
         },
@@ -143,7 +145,7 @@
               "appSubscription": {
                 "id": "gid://shopify/AppSubscription/expected",
                 "status": "CANCELLED",
-                "trialDays": 10
+                "trialDays": 7
               },
               "userErrors": []
             }
@@ -172,7 +174,7 @@
                   {
                     "id": "gid://shopify/AppSubscription/expected",
                     "status": "CANCELLED",
-                    "trialDays": 10,
+                    "trialDays": 7,
                     "lineItems": [
                       {
                         "id": "gid://shopify/AppSubscriptionLineItem/expected",
@@ -216,13 +218,7 @@
                   "description": null
                 }
               ],
-              "userErrors": [
-                {
-                  "field": ["scopes"],
-                  "message": "Access scope 'write_orders' is not granted.",
-                  "code": "UNKNOWN_SCOPES"
-                }
-              ]
+              "userErrors": []
             }
           }
         },
@@ -314,7 +310,7 @@
         "appPurchaseOneTimeCreate returns an ACTIVE staged test one-time purchase, empty userErrors, and a synthetic confirmationUrl.",
         "appSubscriptionLineItemUpdate returns the staged subscription and a synthetic confirmationUrl.",
         "appUsageRecordCreate returns a staged usage record linked to the staged usage line item.",
-        "appSubscriptionTrialExtend updates staged trialDays.",
+        "appSubscriptionTrialExtend rejects the expired active staged subscription with TRIAL_NOT_ACTIVE semantics.",
         "appSubscriptionCancel returns the staged subscription with status CANCELLED.",
         "Repeating appSubscriptionCancel on that CANCELLED subscription returns an InvalidTransitionError-shaped userError."
       ],
@@ -326,7 +322,7 @@
     },
     "accessAndInstall": {
       "mutationPayloads": [
-        "appRevokeAccessScopes returns revoked access scope handles plus userErrors for unknown/not-granted scopes.",
+        "appRevokeAccessScopes returns revoked access scope handles for granted optional scopes.",
         "appUninstall returns the staged app object."
       ],
       "downstreamReads": [
