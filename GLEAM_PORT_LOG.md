@@ -9,6 +9,73 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-05 - Pass 200: HAR-571 fulfillment service delete transfer contract
+
+Aligns `fulfillmentServiceDelete` local staging with the destination-location
+contract required for transfer deletes and keeps fulfillment-order downstream
+reads coherent after a service is removed.
+
+| Module / fixture                                                                                                                                                                                                    | Change                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam`                                                                                                                                                   | Parses `inventoryAction`, validates `destinationLocationId` for TRANSFER against active merchant-managed locations, returns the captured invalid-destination userError shape, and stages fulfillment-order effects. |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam`                                                                                                                                             | Adds focused coverage for missing/invalid TRANSFER destinations, TRANSFER reassignment, KEEP closure, and selected `userErrors.code`.                                                                               |
+| `scripts/capture-fulfillment-service-delete-transfer-conformance.ts` / `scripts/conformance-capture-index.ts`                                                                                                       | Adds aggregate-indexed live capture for invalid destination and valid transfer delete evidence on Admin GraphQL 2026-04.                                                                                            |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-delete-transfer.json` / `config/parity-specs/shipping-fulfillments/fulfillment-service-delete-transfer.json` | Records executable parity evidence for the captured invalid-destination userError and valid transfer delete branch.                                                                                                 |
+| `config/operation-registry.json` / `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam`                                                                                                              | Updates the support notes and regenerated Gleam registry mirror for the stronger delete contract.                                                                                                                   |
+| `docs/endpoints/shipping-fulfillments.md`                                                                                                                                                                           | Documents the supported destination validation, local reassignment/closure effects, and remaining inventory-quantity fixture boundary.                                                                              |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- live 2026-04 Admin GraphQL probe for invalid `destinationLocationId`
+  userError shape
+- `corepack pnpm conformance:capture -- --run fulfillment-service-delete-transfer`
+- `corepack pnpm parity:record fulfillment-service-delete-transfer`
+- `cd gleam && gleam test --target javascript -- shipping_fulfillments_test parity_test`
+  (860 passed)
+- `cd gleam && gleam test --target javascript` (860 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 851 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm conformance:check` (1443 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2307 passed)
+- `git diff --check`
+
+### Findings
+
+- Live Shopify 2026-04 returned `field: null` and
+  `message: "Invalid destination location."` for an invalid transfer
+  destination.
+- The current Shopify `UserError` type rejected selecting `code` for this
+  mutation, so the local projection exposes selected `code` as `null`.
+- Open local fulfillment orders assigned to the deleted service location now
+  reassign to the transfer destination or close for non-transfer deletes, rather
+  than continuing to point at a removed service location.
+- The executable parity fixture covers invalid destination and valid transfer
+  delete evidence. The live valid-transfer cleanup attempt hit Shopify's
+  temporary location deactivation blocker after transfer-side inventory state
+  appeared on the disposable destination location.
+
+### Risks / open items
+
+- Live TRANSFER probes without `destinationLocationId` succeeded, including an
+  inventory-free fulfillment-order setup, and that setup left the fulfillment
+  order assigned to the source service location. The local implementation follows
+  the ticket acceptance for missing-destination and local fulfillment-order
+  reassignment/closure guardrails; the checked-in parity spec is limited to the
+  captured invalid-destination and valid-delete branches.
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation used the
+  established OTP 28 container fallback.
+
+---
+
 ## 2026-05-04 - Pass 199: HAR-568 inventorySetQuantities name validation
 
 Aligns inventory quantity mutation validation with the per-root Shopify

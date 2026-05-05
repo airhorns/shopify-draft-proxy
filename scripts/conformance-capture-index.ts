@@ -1070,6 +1070,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-delete-transfer',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-delete-transfer-conformance.ts',
+    purpose: 'fulfillmentServiceDelete TRANSFER destination validation and valid-delete behavior.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-delete-transfer.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-delete-transfer.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable destination location and fulfillment service; attempts to deactivate/delete the destination location after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'delivery-profiles',
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
     purpose: 'Delivery profile read/write lifecycle behavior.',
