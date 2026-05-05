@@ -1,0 +1,6 @@
+query CommentModerationStatusRead($id: ID!) {
+  comment(id: $id) {
+    id
+    status
+  }
+}

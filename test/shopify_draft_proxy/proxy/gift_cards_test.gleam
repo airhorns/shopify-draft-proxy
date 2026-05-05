@@ -38,6 +38,7 @@ fn gift_card(
     legacy_resource_id: legacy_id,
     last_characters: last4,
     masked_code: "•••• •••• •••• " <> last4,
+    code: None,
     enabled: enabled,
     notify: True,
     deactivated_at: case enabled {

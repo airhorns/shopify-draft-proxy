@@ -1,0 +1,47 @@
+{
+  "scenarioId": "shipping-user-error-codes",
+  "operationNames": ["carrierServiceCreate", "carrierServiceUpdate", "carrierServiceDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/shipping-user-error-codes.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/shipping-user-error-codes-carrier-create.graphql",
+    "variablesCapturePath": "$.captures.blankCarrierCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-578 captures live Admin 2026-04 typed carrier-service userError.code values for blank-create and unknown-id update/delete validation branches. Live introspection for the same API version shows several other shipping-fulfillment payloads still expose generic UserError without a selectable code field, so this code-specific scenario is limited to roots whose schema exposes typed carrier-service error codes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "carrier-create-blank-code",
+        "capturePath": "$.captures.blankCarrierCreate.response.payload.data.carrierServiceCreate",
+        "proxyPath": "$.data.carrierServiceCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "carrier-update-unknown-code",
+        "capturePath": "$.captures.unknownCarrierUpdate.response.payload.data.carrierServiceUpdate",
+        "proxyPath": "$.data.carrierServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-user-error-codes-carrier-update.graphql",
+          "variablesCapturePath": "$.captures.unknownCarrierUpdate.variables"
+        }
+      },
+      {
+        "name": "carrier-delete-unknown-code",
+        "capturePath": "$.captures.unknownCarrierDelete.response.payload.data.carrierServiceDelete",
+        "proxyPath": "$.data.carrierServiceDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/shipping-user-error-codes-carrier-delete.graphql",
+          "variablesCapturePath": "$.captures.unknownCarrierDelete.variables"
+        }
+      }
+    ]
+  }
+}

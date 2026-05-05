@@ -1,0 +1,579 @@
+{
+  "capturedAt": "2026-05-05T06:20:26.769Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "summary": "HAR-673 metaobjectDefinitionCreate/Update validation capture for type format/length, app namespace resolution, case-insensitive duplicates, and field key validation.",
+  "seed": {
+    "runId": "1777962025194",
+    "appTypeInput": "$app:har_673_app_1777962025194",
+    "appTypeResolved": "app--347082227713--har_673_app_1777962025194",
+    "successTypeInput": "HAR_673_CASE_1777962025194",
+    "successTypeResolved": "har_673_case_1777962025194",
+    "appDefinitionId": "gid://shopify/MetaobjectDefinition/17844437298",
+    "successDefinitionId": "gid://shopify/MetaobjectDefinition/17844470066"
+  },
+  "tooShort": {
+    "name": "too-short-type",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateValidation($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "ab",
+          "name": "HAR 673 Too Short 1777962025194",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "description": "Title field for HAR-673 validation capture.",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "type"],
+              "message": "Type is too short (minimum is 3 characters)",
+              "code": "TOO_SHORT",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidFormat": {
+    "name": "invalid-format-type",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateValidation($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "Has Spaces!",
+          "name": "HAR 673 Invalid 1777962025194",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "description": "Title field for HAR-673 validation capture.",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "type"],
+              "message": "Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
+              "code": "INVALID",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "appPrefixed": {
+    "name": "app-prefixed-type",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateValidation($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "$app:har_673_app_1777962025194",
+          "name": "HAR 673 App 1777962025194",
+          "access": {
+            "admin": "MERCHANT_READ_WRITE"
+          },
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "description": "Title field for HAR-673 validation capture.",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17844437298",
+            "type": "app--347082227713--har_673_app_1777962025194",
+            "name": "HAR 673 App 1777962025194",
+            "description": null,
+            "displayNameKey": "title",
+            "access": {
+              "admin": "MERCHANT_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Title field for HAR-673 validation capture.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 0,
+            "standardTemplate": null,
+            "createdAt": "2026-05-05T06:20:25Z",
+            "updatedAt": "2026-05-05T06:20:25Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "appReadByType": {
+    "name": "app-read-by-type",
+    "request": {
+      "query": "query MetaobjectDefinitionCreateValidationReadByType($type: String!) {\n  metaobjectDefinitionByType(type: $type) {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    fieldDefinitions {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n    createdAt\n    updatedAt\n  }\n}\n",
+      "variables": {
+        "type": "$app:har_673_app_1777962025194"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionByType": {
+          "id": "gid://shopify/MetaobjectDefinition/17844437298",
+          "type": "app--347082227713--har_673_app_1777962025194",
+          "name": "HAR 673 App 1777962025194",
+          "description": null,
+          "displayNameKey": "title",
+          "access": {
+            "admin": "MERCHANT_READ_WRITE",
+            "storefront": "NONE"
+          },
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              }
+            }
+          ],
+          "createdAt": "2026-05-05T06:20:25Z",
+          "updatedAt": "2026-05-05T06:20:25Z"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "successfulCreate": {
+    "name": "successful-create",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateValidation($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "HAR_673_CASE_1777962025194",
+          "name": "HAR 673 Case 1777962025194",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "description": "Title field for HAR-673 validation capture.",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17844470066",
+            "type": "har_673_case_1777962025194",
+            "name": "HAR 673 Case 1777962025194",
+            "description": null,
+            "displayNameKey": "title",
+            "access": {
+              "admin": "PUBLIC_READ_WRITE",
+              "storefront": "NONE"
+            },
+            "capabilities": {
+              "publishable": {
+                "enabled": false
+              },
+              "translatable": {
+                "enabled": false
+              },
+              "renderable": {
+                "enabled": false
+              },
+              "onlineStore": {
+                "enabled": false
+              }
+            },
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title",
+                "description": "Title field for HAR-673 validation capture.",
+                "required": true,
+                "type": {
+                  "name": "single_line_text_field",
+                  "category": "TEXT"
+                },
+                "validations": []
+              }
+            ],
+            "hasThumbnailField": false,
+            "metaobjectsCount": 0,
+            "standardTemplate": null,
+            "createdAt": "2026-05-05T06:20:26Z",
+            "updatedAt": "2026-05-05T06:20:26Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1980,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "successReadByType": {
+    "name": "success-read-by-type",
+    "request": {
+      "query": "query MetaobjectDefinitionCreateValidationReadByType($type: String!) {\n  metaobjectDefinitionByType(type: $type) {\n    id\n    type\n    name\n    description\n    displayNameKey\n    access {\n      admin\n      storefront\n    }\n    fieldDefinitions {\n      key\n      name\n      required\n      type {\n        name\n        category\n      }\n    }\n    createdAt\n    updatedAt\n  }\n}\n",
+      "variables": {
+        "type": "har_673_case_1777962025194"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionByType": {
+          "id": "gid://shopify/MetaobjectDefinition/17844470066",
+          "type": "har_673_case_1777962025194",
+          "name": "HAR 673 Case 1777962025194",
+          "description": null,
+          "displayNameKey": "title",
+          "access": {
+            "admin": "PUBLIC_READ_WRITE",
+            "storefront": "NONE"
+          },
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "required": true,
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              }
+            }
+          ],
+          "createdAt": "2026-05-05T06:20:26Z",
+          "updatedAt": "2026-05-05T06:20:26Z"
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "duplicateCase": {
+    "name": "duplicate-case-create",
+    "request": {
+      "query": "mutation MetaobjectDefinitionCreateValidation($definition: MetaobjectDefinitionCreateInput!) {\n  metaobjectDefinitionCreate(definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      access {\n        admin\n        storefront\n      }\n      capabilities {\n        publishable {\n          enabled\n        }\n        translatable {\n          enabled\n        }\n        renderable {\n          enabled\n        }\n        onlineStore {\n          enabled\n        }\n      }\n      fieldDefinitions {\n        key\n        name\n        description\n        required\n        type {\n          name\n          category\n        }\n        validations {\n          name\n          value\n        }\n      }\n      hasThumbnailField\n      metaobjectsCount\n      standardTemplate {\n        type\n        name\n      }\n      createdAt\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "definition": {
+          "type": "har_673_case_1777962025194",
+          "name": "HAR 673 Duplicate 1777962025194",
+          "displayNameKey": "title",
+          "fieldDefinitions": [
+            {
+              "key": "title",
+              "name": "Title",
+              "description": "Title field for HAR-673 validation capture.",
+              "type": "single_line_text_field",
+              "required": true
+            }
+          ]
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionCreate": {
+          "metaobjectDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition", "type"],
+              "message": "Type has already been taken",
+              "code": "TAKEN",
+              "elementKey": null,
+              "elementIndex": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "validUpdate": {
+    "name": "valid-update",
+    "request": {
+      "query": "mutation MetaobjectDefinitionUpdateValidation($id: ID!, $definition: MetaobjectDefinitionUpdateInput!) {\n  metaobjectDefinitionUpdate(id: $id, definition: $definition) {\n    metaobjectDefinition {\n      id\n      type\n      name\n      description\n      displayNameKey\n      fieldDefinitions {\n        key\n        name\n      }\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n      code\n      elementKey\n      elementIndex\n    }\n  }\n}\n",
+      "variables": {
+        "id": "gid://shopify/MetaobjectDefinition/17844437298",
+        "definition": {
+          "name": "HAR 673 App Updated 1777962025194"
+        }
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "metaobjectDefinitionUpdate": {
+          "metaobjectDefinition": {
+            "id": "gid://shopify/MetaobjectDefinition/17844437298",
+            "type": "app--347082227713--har_673_app_1777962025194",
+            "name": "HAR 673 App Updated 1777962025194",
+            "description": null,
+            "displayNameKey": "title",
+            "fieldDefinitions": [
+              {
+                "key": "title",
+                "name": "Title"
+              }
+            ],
+            "updatedAt": "2026-05-05T06:20:26Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17844437298"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17844437298",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanup-metaobject-definition-delete",
+      "request": {
+        "query": "#graphql\n  mutation DeleteMetaobjectDefinition($id: ID!) {\n    metaobjectDefinitionDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n        elementKey\n        elementIndex\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetaobjectDefinition/17844470066"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metaobjectDefinitionDelete": {
+            "deletedId": "gid://shopify/MetaobjectDefinition/17844470066",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "MetaobjectDefinitionHydrateByType",
+      "variables": {
+        "type": "har_673_case_1777962025194"
+      },
+      "query": "sha:hand-synthesized-from-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "metaobjectDefinitionByType": {
+              "id": "gid://shopify/MetaobjectDefinition/17844470066",
+              "type": "har_673_case_1777962025194",
+              "name": "HAR 673 Case 1777962025194",
+              "description": null,
+              "displayNameKey": "title",
+              "access": {
+                "admin": "PUBLIC_READ_WRITE",
+                "storefront": "NONE"
+              },
+              "fieldDefinitions": [
+                {
+                  "key": "title",
+                  "name": "Title",
+                  "required": true,
+                  "type": {
+                    "name": "single_line_text_field",
+                    "category": "TEXT"
+                  }
+                }
+              ],
+              "createdAt": "2026-05-05T06:20:26Z",
+              "updatedAt": "2026-05-05T06:20:26Z"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

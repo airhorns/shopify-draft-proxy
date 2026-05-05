@@ -4,6 +4,7 @@ import gleam/dict
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/proxy/discounts
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
@@ -48,6 +49,150 @@ pub fn code_basic_create_is_readable_by_code_test() {
 
   assert json.to_string(data)
     == "{\"codeDiscountNodeByCode\":{\"codeDiscount\":{\"title\":\"Launch\",\"codes\":{\"nodes\":[{\"code\":\"LAUNCH10\"}]}}}}"
+}
+
+pub fn code_basic_timestamps_use_synthetic_clock_and_sort_by_recency_test() {
+  let first =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"First\", code: \"FIRST\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { title createdAt updatedAt } } userErrors { message } } }",
+    )
+  let second =
+    run_mutation_from(
+      first.store,
+      first.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Second\", code: \"SECOND\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { title createdAt updatedAt } } userErrors { message } } }",
+    )
+  let updated =
+    run_mutation_from(
+      second.store,
+      second.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"First Updated\", code: \"FIRST\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.2 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { title createdAt updatedAt } } userErrors { message } } }",
+    )
+
+  assert json.to_string(first.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"title\":\"First\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
+  assert json.to_string(second.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/3?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"title\":\"Second\",\"createdAt\":\"2024-01-01T00:00:01.000Z\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\"}},\"userErrors\":[]}}}"
+  assert json.to_string(updated.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"codeDiscount\":{\"title\":\"First Updated\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:02.000Z\"}},\"userErrors\":[]}}}"
+
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      updated.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { title createdAt updatedAt } } discountNodes(first: 2, sortKey: UPDATED_AT, reverse: true) { nodes { id discount { title updatedAt } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"title\":\"First Updated\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:02.000Z\"}},\"discountNodes\":{\"nodes\":[{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"discount\":{\"title\":\"First Updated\",\"updatedAt\":\"2024-01-01T00:00:02.000Z\"}},{\"id\":\"gid://shopify/DiscountCodeNode/3?shopify-draft-proxy=synthetic\",\"discount\":{\"title\":\"Second\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\"}}]}}"
+}
+
+pub fn redeem_code_bulk_mutations_bump_discount_updated_at_test() {
+  let created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Bulk\", code: \"BULK\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { updatedAt codes(first: 5) { nodes { id code } } } } userErrors { message } } }",
+    )
+  let added =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codes: [\"EXTRA\"]) { bulkCreation { codesCount } userErrors { message } } }",
+    )
+
+  let assert Ok(after_add) =
+    discounts.handle_discount_query(
+      added.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { updatedAt codes(first: 5) { nodes { code } } } } }",
+      dict.new(),
+    )
+
+  let deleted =
+    run_mutation_from(
+      added.store,
+      added.identity,
+      "mutation { discountCodeRedeemCodeBulkDelete(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", ids: [\"gid://shopify/DiscountRedeemCode/2?shopify-draft-proxy=synthetic\"]) { job { done } userErrors { message } } }",
+    )
+
+  let assert Ok(after_delete) =
+    discounts.handle_discount_query(
+      deleted.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { updatedAt codes(first: 5) { nodes { code } } } } }",
+      dict.new(),
+    )
+
+  assert string.contains(
+    json.to_string(created.data),
+    "\"updatedAt\":\"2024-01-01T00:00:00.000Z\"",
+  )
+  assert json.to_string(added.data)
+    == "{\"data\":{\"discountRedeemCodeBulkAdd\":{\"bulkCreation\":{\"codesCount\":1},\"userErrors\":[]}}}"
+  assert json.to_string(after_add)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"updatedAt\":\"2024-01-01T00:00:01.000Z\",\"codes\":{\"nodes\":[{\"code\":\"BULK\"},{\"code\":\"EXTRA\"}]}}}}"
+  assert json.to_string(deleted.data)
+    == "{\"data\":{\"discountCodeRedeemCodeBulkDelete\":{\"job\":{\"done\":true},\"userErrors\":[]}}}"
+  assert json.to_string(after_delete)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"updatedAt\":\"2024-01-01T00:00:02.000Z\",\"codes\":{\"nodes\":[{\"code\":\"EXTRA\"}]}}}}"
+}
+
+pub fn code_discount_creates_reject_missing_and_blank_codes_test() {
+  let missing_basic =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let blank_bxgy =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let whitespace_free_shipping =
+    run_mutation(
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Free ship\", code: \"   \", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let missing_app =
+    run_mutation(
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(missing_basic.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"code\"],\"message\":\"Code can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(blank_bxgy.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"code\"],\"message\":\"Code is too short (minimum is 1 character)\",\"code\":\"TOO_SHORT\",\"extraInfo\":null}]}}}"
+  assert json.to_string(whitespace_free_shipping.data)
+    == "{\"data\":{\"discountCodeFreeShippingCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"freeShippingCodeDiscount\",\"code\"],\"message\":\"Code can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(missing_app.data)
+    == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"code\"],\"message\":\"Code can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_discount_creates_reject_code_format_constraints_test() {
+  let long_code = string.repeat("x", times: 256)
+  let long_basic =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Long\", code: \""
+      <> long_code
+      <> "\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let newline_basic =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Newline\", code: \"abc\\ndef\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(long_basic.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"code\"],\"message\":\"Code is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"extraInfo\":null}]}}}"
+  assert json.to_string(newline_basic.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"code\"],\"message\":\"Code cannot contain newline characters.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn automatic_discount_creates_do_not_require_codes_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"automaticDiscountNode\":{\"id\":\"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\"}",
+  )
+  assert string.contains(body, "\"userErrors\":[]")
 }
 
 pub fn code_basic_rejects_cart_line_tag_settings_for_order_class_test() {
@@ -208,11 +353,11 @@ pub fn activate_expired_code_discount_rewrites_stale_dates_test() {
     run_mutation_from(
       seeded_store,
       synthetic_identity.new(),
-      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/expired\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status } } } userErrors { field message code } } }",
+      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/expired\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status updatedAt } } } userErrors { field message code } } }",
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-01-01T00:00:00.000Z\",\"endsAt\":null,\"status\":\"ACTIVE\"}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-01-01T00:00:00.000Z\",\"endsAt\":null,\"status\":\"ACTIVE\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
 }
 
 pub fn activate_already_active_code_discount_preserves_dates_test() {
@@ -231,11 +376,11 @@ pub fn activate_already_active_code_discount_preserves_dates_test() {
     run_mutation_from(
       seeded_store,
       synthetic_identity.new(),
-      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/active\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status } } } userErrors { field message code } } }",
+      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/active\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status updatedAt } } } userErrors { field message code } } }",
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-02-01T00:00:00Z\",\"endsAt\":\"2030-01-01T00:00:00Z\",\"status\":\"ACTIVE\"}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-02-01T00:00:00Z\",\"endsAt\":\"2030-01-01T00:00:00Z\",\"status\":\"ACTIVE\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
 }
 
 pub fn deactivate_code_discount_rewrites_future_start_and_end_test() {
@@ -254,11 +399,11 @@ pub fn deactivate_code_discount_rewrites_future_start_and_end_test() {
     run_mutation_from(
       seeded_store,
       synthetic_identity.new(),
-      "mutation { discountCodeDeactivate(id: \"gid://shopify/DiscountCodeNode/deactivate\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status } } } userErrors { field message code } } }",
+      "mutation { discountCodeDeactivate(id: \"gid://shopify/DiscountCodeNode/deactivate\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status updatedAt } } } userErrors { field message code } } }",
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"discountCodeDeactivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-01-01T00:00:00.000Z\",\"endsAt\":\"2024-01-01T00:00:00.000Z\",\"status\":\"EXPIRED\"}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"discountCodeDeactivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-01-01T00:00:00.000Z\",\"endsAt\":\"2024-01-01T00:00:00.000Z\",\"status\":\"EXPIRED\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
 }
 
 pub fn activate_missing_app_function_returns_internal_error_test() {

@@ -818,6 +818,110 @@
   },
   "upstreamCalls": [
     {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522"]
+      },
+      "query": "hand-synthesized from checked-in createdProduct for HAR-591 inventoryDeactivate hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+                "isActive": true,
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 7
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 7
+                  },
+                  {
+                    "name": "incoming",
+                    "quantity": 0
+                  }
+                ],
+                "item": {
+                  "id": "gid://shopify/InventoryItem/53214089609522",
+                  "tracked": true,
+                  "requiresShipping": true,
+                  "inventoryLevels": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=53214089609522",
+                        "isActive": true,
+                        "location": {
+                          "id": "gid://shopify/Location/106318430514",
+                          "name": "Shop location"
+                        },
+                        "quantities": [
+                          {
+                            "name": "available",
+                            "quantity": 5
+                          },
+                          {
+                            "name": "on_hand",
+                            "quantity": 5
+                          },
+                          {
+                            "name": "incoming",
+                            "quantity": 0
+                          }
+                        ]
+                      },
+                      {
+                        "id": "gid://shopify/InventoryLevel/143273034034?inventory_item_id=53214089609522",
+                        "isActive": true,
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        },
+                        "quantities": [
+                          {
+                            "name": "available",
+                            "quantity": 7
+                          },
+                          {
+                            "name": "on_hand",
+                            "quantity": 7
+                          },
+                          {
+                            "name": "incoming",
+                            "quantity": 0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "variant": {
+                    "id": "gid://shopify/ProductVariant/51111189479730",
+                    "title": "Default Title",
+                    "inventoryQuantity": 12,
+                    "product": {
+                      "id": "gid://shopify/Product/10173439443250",
+                      "title": "hermes-inventory-inactive-lifecycle-1777455181697",
+                      "handle": "hermes-inventory-inactive-lifecycle-1777455181697",
+                      "status": "ACTIVE",
+                      "totalInventory": 0,
+                      "tracksInventory": true
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
       "operationName": "InventoryInactiveLifecycleRead",
       "variables": {
         "inventoryItemId": "gid://shopify/InventoryItem/53214089609522",

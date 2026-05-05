@@ -1,0 +1,25 @@
+mutation B2BLocationAddressManagementLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+  companyLocationCreate(companyId: $companyId, input: $input) {
+    companyLocation {
+      id
+      name
+      billingAddress {
+        id
+        address1
+      }
+      shippingAddress {
+        id
+        address1
+      }
+      company {
+        id
+        name
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

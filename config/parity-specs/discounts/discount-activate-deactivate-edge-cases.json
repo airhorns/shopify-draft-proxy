@@ -32,6 +32,18 @@
         "name": "code-basic-deactivate-rewrites-dates",
         "capturePath": "$.deactivate.response.data",
         "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.discountCodeDeactivate.codeDiscountNode.codeDiscount.startsAt",
+            "matcher": "iso-timestamp",
+            "reason": "Synthetic timestamps are sourced from the proxy clock and move independently from the recorded Shopify capture."
+          },
+          {
+            "path": "$.discountCodeDeactivate.codeDiscountNode.codeDiscount.endsAt",
+            "matcher": "iso-timestamp",
+            "reason": "Synthetic timestamps are sourced from the proxy clock and move independently from the recorded Shopify capture."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-edge-deactivate.graphql",
           "apiVersion": "2026-04",
@@ -46,6 +58,13 @@
         "name": "code-basic-activate-clears-stale-ends-at",
         "capturePath": "$.activate.response.data",
         "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.discountCodeActivate.codeDiscountNode.codeDiscount.startsAt",
+            "matcher": "iso-timestamp",
+            "reason": "Synthetic timestamps are sourced from the proxy clock and move independently from the recorded Shopify capture."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-edge-activate.graphql",
           "apiVersion": "2026-04",
@@ -60,6 +79,13 @@
         "name": "code-basic-read-after-activate",
         "capturePath": "$.readAfterActivate.response.data",
         "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.codeDiscountNode.codeDiscount.startsAt",
+            "matcher": "iso-timestamp",
+            "reason": "Synthetic timestamps are sourced from the proxy clock and move independently from the recorded Shopify capture."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-edge-read.graphql",
           "apiVersion": "2026-04",

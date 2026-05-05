@@ -1,0 +1,973 @@
+{
+  "scenarioId": "localization-translations-error-codes",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T10:51:36.606Z",
+  "setup": {
+    "productCreate": {
+      "variables": {
+        "product": {
+          "title": "HAR-710 translation errors 1777978294598",
+          "handle": "har-710-translation-errors-1777978294598",
+          "status": "DRAFT"
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10177127055666",
+              "handle": "har-710-translation-errors-1777978294598",
+              "title": "HAR-710 translation errors 1777978294598",
+              "status": "DRAFT"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "localeSetup": {
+      "data": {
+        "shopLocaleEnable": {
+          "shopLocale": {
+            "locale": "fr",
+            "name": "French",
+            "primary": false,
+            "published": false
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setupRead": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10177127055666"
+    },
+    "response": {
+      "data": {
+        "shopLocales": [
+          {
+            "locale": "de",
+            "name": "German",
+            "primary": false,
+            "published": true
+          },
+          {
+            "locale": "en",
+            "name": "English",
+            "primary": true,
+            "published": true
+          },
+          {
+            "locale": "fr",
+            "name": "French",
+            "primary": false,
+            "published": false
+          }
+        ],
+        "translatableResource": {
+          "resourceId": "gid://shopify/Product/10177127055666",
+          "translatableContent": [
+            {
+              "key": "title",
+              "value": "HAR-710 translation errors 1777978294598",
+              "digest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            },
+            {
+              "key": "handle",
+              "value": "har-710-translation-errors-1777978294598",
+              "digest": "e7b6047a034fd85acb43de17e1fa7e2a219a9f3bc7e36ec841e1236e9bb594c5",
+              "locale": "en",
+              "type": "URI"
+            },
+            {
+              "key": "product_type",
+              "value": "",
+              "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "locale": "en",
+              "type": "SINGLE_LINE_TEXT_FIELD"
+            }
+          ],
+          "translations": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 5,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "emptyRegister": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10177127055666",
+      "translations": []
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "blankValue": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10177127055666",
+      "translations": [
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": [],
+          "userErrors": [
+            {
+              "field": ["translations", "0", "value"],
+              "message": "Value can't be blank",
+              "code": "FAILS_RESOURCE_VALIDATION"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "tooManyKeys": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10177127055666",
+      "translations": [
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        },
+        {
+          "locale": "fr",
+          "key": "title",
+          "value": "Titre HAR-710 1777978294598",
+          "translatableContentDigest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "translationsRegister": {
+          "translations": null,
+          "userErrors": [
+            {
+              "field": ["resourceId"],
+              "message": "Too many keys for resource - maximum 100 per mutation",
+              "code": "TOO_MANY_KEYS_FOR_RESOURCE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "removeEmptyLocales": {
+    "variables": {
+      "resourceId": "gid://shopify/Product/10177127055666",
+      "keys": ["title"],
+      "locales": []
+    },
+    "response": {
+      "data": {
+        "translationsRemove": {
+          "translations": null,
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "productDelete": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10177127055666",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    "shopLocaleDisable": {
+      "data": {
+        "shopLocaleDisable": {
+          "locale": "fr",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "LocalizationTranslationsErrorCodesSetupRead",
+      "variables": {
+        "resourceId": "gid://shopify/Product/10177127055666"
+      },
+      "query": "#graphql\n  query LocalizationTranslationsErrorCodesSetupRead($resourceId: ID!) {\n    shopLocales {\n      locale\n      name\n      primary\n      published\n    }\n    translatableResource(resourceId: $resourceId) {\n      resourceId\n      translatableContent {\n        key\n        value\n        digest\n        locale\n        type\n      }\n      translations(locale: \"fr\") {\n        key\n        value\n        locale\n        outdated\n        market {\n          id\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shopLocales": [
+              {
+                "locale": "de",
+                "name": "German",
+                "primary": false,
+                "published": true
+              },
+              {
+                "locale": "en",
+                "name": "English",
+                "primary": true,
+                "published": true
+              },
+              {
+                "locale": "fr",
+                "name": "French",
+                "primary": false,
+                "published": false
+              }
+            ],
+            "translatableResource": {
+              "resourceId": "gid://shopify/Product/10177127055666",
+              "translatableContent": [
+                {
+                  "key": "title",
+                  "value": "HAR-710 translation errors 1777978294598",
+                  "digest": "6a905926f2bcdec55ac008995566c057dfbda6411835f477d99fc11e1d0ba871",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                },
+                {
+                  "key": "handle",
+                  "value": "har-710-translation-errors-1777978294598",
+                  "digest": "e7b6047a034fd85acb43de17e1fa7e2a219a9f3bc7e36ec841e1236e9bb594c5",
+                  "locale": "en",
+                  "type": "URI"
+                },
+                {
+                  "key": "product_type",
+                  "value": "",
+                  "digest": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+                  "locale": "en",
+                  "type": "SINGLE_LINE_TEXT_FIELD"
+                }
+              ],
+              "translations": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 5,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

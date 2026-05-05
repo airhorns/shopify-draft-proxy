@@ -1,0 +1,119 @@
+{
+  "scenarioId": "webhook-subscription-topic-format-name-validation",
+  "operationNames": ["webhookSubscriptionCreate", "webhookSubscriptionUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-topic-format-name-validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/webhooks_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+    "variablesCapturePath": "$.validation.createDuplicateSetup.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-727 captures Shopify 2026-04 webhookSubscriptionCreate topic/format, cloud format, name, and duplicate active registration validation. Live evidence showed PRODUCTS_UPDATE accepts XML on the conformance shop, so the JSON-only topic branch uses RETURNS_APPROVE, which returned the captured allowed-format userError. Exact duplicate active registration returned the model address uniqueness userError rather than the stale unique-topic message from the ticket text.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-duplicate-setup-succeeds",
+        "capturePath": "$.validation.createDuplicateSetup.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      },
+      {
+        "name": "create-xml-on-json-only-topic-rejected",
+        "capturePath": "$.validation.createXmlOnJsonOnlyTopicRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+          "variablesCapturePath": "$.validation.createXmlOnJsonOnlyTopicRejected.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-xml-on-cloud-delivery-rejected",
+        "capturePath": "$.validation.createXmlOnCloudDeliveryRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+          "variablesCapturePath": "$.validation.createXmlOnCloudDeliveryRejected.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-empty-name-rejected",
+        "capturePath": "$.validation.createEmptyNameRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+          "variablesCapturePath": "$.validation.createEmptyNameRejected.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-bad-name-format-rejected",
+        "capturePath": "$.validation.createBadNameFormatRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+          "variablesCapturePath": "$.validation.createBadNameFormatRejected.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-duplicate-topic-rejected",
+        "capturePath": "$.validation.createDuplicateRejected.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+          "variablesCapturePath": "$.validation.createDuplicateRejected.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "update-bad-name-format-rejected",
+        "capturePath": "$.validation.updateBadNameFormatRejected.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.validation.updateBadNameFormatRejected.variables.webhookSubscription"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

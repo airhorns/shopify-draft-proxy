@@ -1,0 +1,393 @@
+{
+  "variables": {
+    "firstId": "gid://shopify/DiscountCodeNode/1640392130866",
+    "secondId": "gid://shopify/DiscountCodeNode/1640392163634",
+    "firstCode": "HAR603A1777990267935",
+    "secondCode": "HAR603B1777990267935"
+  },
+  "requests": {
+    "firstCreate": {
+      "query": "#graphql\n  mutation DiscountTimestampsMonotonicCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        createdAt\n        updatedAt\n        codes(first: 1) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "HAR-603 first 1777990267935",
+          "code": "HAR603A1777990267935",
+          "startsAt": "2026-05-05T14:10:07.935Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "secondCreate": {
+      "query": "#graphql\n  mutation DiscountTimestampsMonotonicCreate($input: DiscountCodeBasicInput!) {\n    discountCodeBasicCreate(basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        createdAt\n        updatedAt\n        codes(first: 1) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": "HAR-603 second 1777990267935",
+          "code": "HAR603B1777990267935",
+          "startsAt": "2026-05-05T14:10:07.935Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.1
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "updateFirst": {
+      "query": "#graphql\n  mutation DiscountTimestampsMonotonicUpdate($id: ID!, $input: DiscountCodeBasicInput!) {\n    discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {\n      #graphql\n  codeDiscountNode {\n    id\n    codeDiscount {\n      __typename\n      ... on DiscountCodeBasic {\n        title\n        createdAt\n        updatedAt\n        codes(first: 1) {\n          nodes {\n            code\n          }\n        }\n      }\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640392130866",
+        "input": {
+          "title": "HAR-603 first updated 1777990267935",
+          "code": "HAR603A1777990267935",
+          "startsAt": "2026-05-05T14:10:07.935Z",
+          "context": {
+            "all": "ALL"
+          },
+          "customerGets": {
+            "value": {
+              "percentage": 0.2
+            },
+            "items": {
+              "all": true
+            }
+          }
+        }
+      }
+    },
+    "read": {
+      "query": "#graphql\n  query DiscountTimestampsMonotonicRead(\n    $firstId: ID!\n    $secondId: ID!\n    $firstCode: String!\n    $secondCode: String!\n  ) {\n    first: codeDiscountNode(id: $firstId) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    second: codeDiscountNode(id: $secondId) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    firstByCode: codeDiscountNodeByCode(code: $firstCode) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          createdAt\n          updatedAt\n        }\n      }\n    }\n    secondByCode: codeDiscountNodeByCode(code: $secondCode) {\n      id\n      codeDiscount {\n        __typename\n        ... on DiscountCodeBasic {\n          title\n          createdAt\n          updatedAt\n        }\n      }\n    }\n  }\n"
+    },
+    "delete": {
+      "query": "#graphql\n  mutation DiscountTimestampsMonotonicDelete($id: ID!) {\n    discountCodeDelete(id: $id) {\n      deletedCodeDiscountId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n"
+    }
+  },
+  "scopeProbe": {
+    "availableScopes": [
+      "read_assigned_fulfillment_orders",
+      "read_cart_transforms",
+      "read_cash_tracking",
+      "read_content",
+      "read_customer_data_erasure",
+      "read_customer_merge",
+      "read_customers",
+      "read_delivery_customizations",
+      "read_discounts",
+      "read_draft_orders",
+      "read_files",
+      "read_fulfillment_constraint_rules",
+      "read_fulfillments",
+      "read_gift_card_transactions",
+      "read_gift_cards",
+      "read_inventory",
+      "read_inventory_shipments",
+      "read_inventory_transfers",
+      "read_legal_policies",
+      "read_locales",
+      "read_locations",
+      "read_marketing_events",
+      "read_markets",
+      "read_merchant_managed_fulfillment_orders",
+      "read_metaobject_definitions",
+      "read_metaobjects",
+      "read_online_store_navigation",
+      "read_order_edits",
+      "read_orders",
+      "read_payment_customizations",
+      "read_payment_terms",
+      "read_privacy_settings",
+      "read_product_listings",
+      "read_products",
+      "read_publications",
+      "read_purchase_options",
+      "read_returns",
+      "read_shipping",
+      "read_shopify_payments_disputes",
+      "read_shopify_payments_payouts",
+      "read_store_credit_account_transactions",
+      "read_store_credit_accounts",
+      "read_themes",
+      "read_third_party_fulfillment_orders",
+      "read_translations",
+      "read_validations",
+      "write_assigned_fulfillment_orders",
+      "write_cart_transforms",
+      "write_cash_tracking",
+      "write_content",
+      "write_customer_data_erasure",
+      "write_customer_merge",
+      "write_customers",
+      "write_delivery_customizations",
+      "write_discounts",
+      "write_draft_orders",
+      "write_files",
+      "write_fulfillment_constraint_rules",
+      "write_fulfillments",
+      "write_gift_card_transactions",
+      "write_gift_cards",
+      "write_inventory",
+      "write_inventory_shipments",
+      "write_inventory_transfers",
+      "write_legal_policies",
+      "write_locales",
+      "write_locations",
+      "write_marketing_events",
+      "write_markets",
+      "write_merchant_managed_fulfillment_orders",
+      "write_metaobject_definitions",
+      "write_metaobjects",
+      "write_online_store_navigation",
+      "write_order_edits",
+      "write_orders",
+      "write_payment_customizations",
+      "write_payment_terms",
+      "write_privacy_settings",
+      "write_products",
+      "write_publications",
+      "write_purchase_options",
+      "write_returns",
+      "write_shipping",
+      "write_store_credit_account_transactions",
+      "write_third_party_fulfillment_orders",
+      "write_translations",
+      "write_validations"
+    ],
+    "requiredScopes": [
+      {
+        "handle": "read_discounts",
+        "present": true
+      },
+      {
+        "handle": "write_discounts",
+        "present": true
+      }
+    ],
+    "missingScopes": [],
+    "hasRequiredScopes": true
+  },
+  "firstCreate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicCreate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640392130866",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "HAR-603 first 1777990267935",
+              "createdAt": "2026-05-05T14:11:08Z",
+              "updatedAt": "2026-05-05T14:11:08Z",
+              "codes": {
+                "nodes": [
+                  {
+                    "code": "HAR603A1777990267935"
+                  }
+                ]
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondCreate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicCreate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640392163634",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "HAR-603 second 1777990267935",
+              "createdAt": "2026-05-05T14:11:09Z",
+              "updatedAt": "2026-05-05T14:11:09Z",
+              "codes": {
+                "nodes": [
+                  {
+                    "code": "HAR603B1777990267935"
+                  }
+                ]
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "updateFirst": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeBasicUpdate": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/1640392130866",
+            "codeDiscount": {
+              "__typename": "DiscountCodeBasic",
+              "title": "HAR-603 first updated 1777990267935",
+              "createdAt": "2026-05-05T14:11:08Z",
+              "updatedAt": "2026-05-05T14:11:10Z",
+              "codes": {
+                "nodes": [
+                  {
+                    "code": "HAR603A1777990267935"
+                  }
+                ]
+              }
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 14,
+          "actualQueryCost": 14,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1986,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterUpdate": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "first": {
+          "id": "gid://shopify/DiscountCodeNode/1640392130866",
+          "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-603 first updated 1777990267935",
+            "createdAt": "2026-05-05T14:11:08Z",
+            "updatedAt": "2026-05-05T14:11:10Z"
+          }
+        },
+        "second": {
+          "id": "gid://shopify/DiscountCodeNode/1640392163634",
+          "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-603 second 1777990267935",
+            "createdAt": "2026-05-05T14:11:09Z",
+            "updatedAt": "2026-05-05T14:11:09Z"
+          }
+        },
+        "firstByCode": {
+          "id": "gid://shopify/DiscountCodeNode/1640392130866",
+          "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-603 first updated 1777990267935",
+            "createdAt": "2026-05-05T14:11:08Z",
+            "updatedAt": "2026-05-05T14:11:10Z"
+          }
+        },
+        "secondByCode": {
+          "id": "gid://shopify/DiscountCodeNode/1640392163634",
+          "codeDiscount": {
+            "__typename": "DiscountCodeBasic",
+            "title": "HAR-603 second 1777990267935",
+            "createdAt": "2026-05-05T14:11:09Z",
+            "updatedAt": "2026-05-05T14:11:09Z"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 8,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "firstCleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeDelete": {
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640392130866",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondCleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeDelete": {
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640392163634",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

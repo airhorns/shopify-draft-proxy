@@ -1,0 +1,68 @@
+{
+  "scenarioId": "inventoryDeactivate-only-location-parity",
+  "operationNames": ["inventoryDeactivate", "inventoryActivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "route-version-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-deactivate-validation-2026-04.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventoryDeactivate-validation.graphql",
+    "variablesCapturePath": "$.inventoryDeactivateOnlyLocation.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "only-location-user-errors",
+        "capturePath": "$.inventoryDeactivateOnlyLocation.response.data.inventoryDeactivate.userErrors",
+        "proxyPath": "$.data.inventoryDeactivate.userErrors"
+      },
+      {
+        "name": "missing-item-user-errors",
+        "capturePath": "$.inventoryDeactivateMissingLevel.response.data.inventoryDeactivate.userErrors",
+        "proxyPath": "$.data.inventoryDeactivate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryDeactivate-validation.graphql",
+          "variablesCapturePath": "$.inventoryDeactivateMissingLevel.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "activate-active-available-user-errors",
+        "capturePath": "$.inventoryActivateActiveAvailable.response.data.inventoryActivate",
+        "proxyPath": "$.data.inventoryActivate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryActivate-available-validation.graphql",
+          "variablesCapturePath": "$.inventoryActivateActiveAvailable.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "deactivate-before-reactivate-user-errors",
+        "capturePath": "$.inventoryDeactivateBeforeReactivate.response.data.inventoryDeactivate.userErrors",
+        "proxyPath": "$.data.inventoryDeactivate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryDeactivate-validation.graphql",
+          "variablesCapturePath": "$.inventoryDeactivateBeforeReactivate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "activate-inactive-available-user-errors",
+        "capturePath": "$.inventoryActivateInactiveAvailable.response.data.inventoryActivate",
+        "proxyPath": "$.data.inventoryActivate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventoryActivate-available-validation.graphql",
+          "variablesCapturePath": "$.inventoryActivateInactiveAvailable.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-591 2026-04 live capture covers inventoryDeactivate only-location and missing-item base userErrors plus inventoryActivate available conflict behavior. The inactive reactivation branch proves `available:` is accepted when the level is not already active."
+}

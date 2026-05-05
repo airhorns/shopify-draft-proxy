@@ -10,16 +10,18 @@
 import gleam/dict
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type AppInstallationRecord, type AppRecord, type AppSubscriptionRecord,
-  type Money, AccessScopeRecord, AppInstallationRecord, AppRecord,
-  AppSubscriptionLineItemPlan, AppSubscriptionLineItemRecord,
-  AppSubscriptionRecord, AppUsagePricing, DelegatedAccessTokenRecord, Money,
+  type AccessScopeRecord, type AppInstallationRecord, type AppRecord,
+  type AppSubscriptionRecord, type Money, AccessScopeRecord,
+  AppInstallationRecord, AppRecord, AppSubscriptionLineItemPlan,
+  AppSubscriptionLineItemRecord, AppSubscriptionRecord, AppUsagePricing,
+  DelegatedAccessTokenRecord, Money,
 }
 
 // ----------- Helpers -----------
@@ -28,7 +30,20 @@ fn money(amount: String, code: String) -> Money {
   Money(amount: amount, currency_code: code)
 }
 
+fn scope(handle: String) -> AccessScopeRecord {
+  AccessScopeRecord(handle: handle, description: None)
+}
+
 fn app(id: String, handle: String, api_key: String) -> AppRecord {
+  app_with_scopes(id, handle, api_key, [scope("read_products")])
+}
+
+fn app_with_scopes(
+  id: String,
+  handle: String,
+  api_key: String,
+  requested_access_scopes: List(AccessScopeRecord),
+) -> AppRecord {
   AppRecord(
     id: id,
     api_key: Some(api_key),
@@ -37,23 +52,28 @@ fn app(id: String, handle: String, api_key: String) -> AppRecord {
     developer_name: Some("test-dev"),
     embedded: Some(True),
     previously_installed: Some(False),
-    requested_access_scopes: [
-      AccessScopeRecord(handle: "read_products", description: None),
-      AccessScopeRecord(handle: "write_products", description: None),
-    ],
+    requested_access_scopes: requested_access_scopes,
   )
 }
 
 fn installation(id: String, app_id: String) -> AppInstallationRecord {
+  installation_with_scopes(id, app_id, [
+    scope("read_products"),
+    scope("write_products"),
+  ])
+}
+
+fn installation_with_scopes(
+  id: String,
+  app_id: String,
+  access_scopes: List(AccessScopeRecord),
+) -> AppInstallationRecord {
   AppInstallationRecord(
     id: id,
     app_id: app_id,
     launch_url: Some("https://launch"),
     uninstall_url: None,
-    access_scopes: [
-      AccessScopeRecord(handle: "read_products", description: None),
-      AccessScopeRecord(handle: "write_products", description: None),
-    ],
+    access_scopes: access_scopes,
     active_subscription_ids: [],
     all_subscription_ids: [],
     one_time_purchase_ids: [],
@@ -71,9 +91,13 @@ fn run_mutation_outcome(
       store_in,
       identity,
       "/admin/api/2025-01/graphql.json",
-      "https://shopify.example",
       document,
       dict.new(),
+      upstream_query.UpstreamContext(
+        transport: None,
+        origin: "https://shopify.example",
+        headers: dict.new(),
+      ),
     )
   outcome
 }
@@ -96,6 +120,24 @@ fn subscription(id: String, status: String) -> AppSubscriptionRecord {
     is_test: False,
     trial_days: None,
     current_period_end: None,
+    created_at: "2024-12-01T00:00:00Z",
+    line_item_ids: [],
+  )
+}
+
+fn subscription_with_trial(
+  id: String,
+  status: String,
+  trial_days: Option(Int),
+  current_period_end: Option(String),
+) -> AppSubscriptionRecord {
+  AppSubscriptionRecord(
+    id: id,
+    name: "Pro",
+    status: status,
+    is_test: False,
+    trial_days: trial_days,
+    current_period_end: current_period_end,
     created_at: "2024-12-01T00:00:00Z",
     line_item_ids: [],
   )
@@ -176,27 +218,125 @@ pub fn revoke_access_scopes_removes_granted_test() {
   let outcome =
     run_mutation_outcome(
       seeded_with_installation(),
-      "mutation { appRevokeAccessScopes(scopes: [\"read_products\"]) { revoked { handle } userErrors { field message code } } }",
+      "mutation { appRevokeAccessScopes(scopes: [\"write_products\"]) { revoked { handle } userErrors { field message code } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[{\"handle\":\"read_products\"}],\"userErrors\":[]}}}"
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[{\"handle\":\"write_products\"}],\"userErrors\":[]}}}"
   let assert Some(install) =
     store.get_effective_app_installation_by_id(
       outcome.store,
       "gid://shopify/AppInstallation/100",
     )
   assert list.map(install.access_scopes, fn(s) { s.handle })
-    == ["write_products"]
+    == ["read_products"]
 }
 
 pub fn revoke_access_scopes_unknown_emits_user_error_test() {
   let body =
     run_mutation(
       seeded_with_installation(),
-      "mutation { appRevokeAccessScopes(scopes: [\"admin_secrets\"]) { revoked { handle } userErrors { field message code } } }",
+      "mutation { appRevokeAccessScopes(scopes: [\"unicorn_dust\"]) { revoked { handle } userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"Access scope 'admin_secrets' is not granted.\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"The requested list of scopes to revoke includes invalid handles.\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
+}
+
+pub fn revoke_access_scopes_not_granted_known_scope_is_undeclared_test() {
+  let outcome =
+    run_mutation_outcome(
+      seeded_with_installation(),
+      "mutation { appRevokeAccessScopes(scopes: [\"read_orders\"]) { revoked { handle } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"Scopes that are not declared cannot be revoked.\",\"code\":\"CANNOT_REVOKE_UNDECLARED_SCOPES\"}]}}}"
+  let assert Some(install) =
+    store.get_effective_app_installation_by_id(
+      outcome.store,
+      "gid://shopify/AppInstallation/100",
+    )
+  assert list.map(install.access_scopes, fn(s) { s.handle })
+    == ["read_products", "write_products"]
+  let assert [
+    mutation_helpers.LogDraft(
+      status: store.Failed,
+      staged_resource_ids: ["gid://shopify/AppInstallation/100"],
+      ..,
+    ),
+  ] = outcome.log_drafts
+}
+
+pub fn revoke_access_scopes_required_scope_is_not_revoked_test() {
+  let outcome =
+    run_mutation_outcome(
+      seeded_with_installation(),
+      "mutation { appRevokeAccessScopes(scopes: [\"read_products\"]) { revoked { handle } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"Scopes that are declared as required cannot be revoked.\",\"code\":\"CANNOT_REVOKE_REQUIRED_SCOPES\"}]}}}"
+  let assert Some(install) =
+    store.get_effective_app_installation_by_id(
+      outcome.store,
+      "gid://shopify/AppInstallation/100",
+    )
+  assert list.map(install.access_scopes, fn(s) { s.handle })
+    == ["read_products", "write_products"]
+}
+
+pub fn revoke_access_scopes_implied_scope_is_not_revoked_test() {
+  let a =
+    app_with_scopes("gid://shopify/App/101", "shopify-draft-proxy", "key-101", [
+      scope("write_products"),
+    ])
+  let i =
+    installation_with_scopes("gid://shopify/AppInstallation/101", a.id, [
+      scope("write_products"),
+      scope("read_products"),
+    ])
+  let outcome =
+    run_mutation_outcome(
+      store.upsert_base_app_installation(store.new(), i, a),
+      "mutation { appRevokeAccessScopes(scopes: [\"read_products\"]) { revoked { handle } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"scopes\"],\"message\":\"Scopes that are implied by other granted scopes cannot be revoked.\",\"code\":\"CANNOT_REVOKE_IMPLIED_SCOPES\"}]}}}"
+}
+
+pub fn revoke_access_scopes_missing_source_app_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { appRevokeAccessScopes(scopes: [\"write_products\"]) { revoked { handle } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Source app is missing.\",\"code\":\"MISSING_SOURCE_APP\"}]}}}"
+}
+
+pub fn revoke_access_scopes_application_cannot_be_found_test() {
+  let i =
+    installation(
+      "gid://shopify/AppInstallation/102",
+      "gid://shopify/App/missing",
+    )
+  let #(_, s) = store.stage_app_installation(store.new(), i)
+  let body =
+    run_mutation(
+      s,
+      "mutation { appRevokeAccessScopes(scopes: [\"write_products\"]) { revoked { handle } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Application cannot be found.\",\"code\":\"APPLICATION_CANNOT_BE_FOUND\"}]}}}"
+}
+
+pub fn revoke_access_scopes_app_not_installed_test() {
+  let a = app("gid://shopify/App/103", "shopify-draft-proxy", "key-103")
+  let #(_, s) = store.stage_app(store.new(), a)
+  let body =
+    run_mutation(
+      s,
+      "mutation { appRevokeAccessScopes(scopes: [\"write_products\"]) { revoked { handle } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appRevokeAccessScopes\":{\"revoked\":[],\"userErrors\":[{\"field\":[\"base\"],\"message\":\"App is not installed on this shop.\",\"code\":\"APP_NOT_INSTALLED\"}]}}}"
 }
 
 // ----------- delegateAccessTokenCreate / Destroy -----------
@@ -267,13 +407,13 @@ pub fn purchase_create_returns_confirmation_url_test() {
   let outcome =
     run_mutation_outcome(
       seeded_with_installation(),
-      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id name status price { amount currencyCode } test } confirmationUrl userErrors { field message } } }",
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", returnUrl: \"https://app.example.test/return\", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id name status createdAt price { amount currencyCode } test } confirmationUrl userErrors { field message } } }",
     )
   let body = json.to_string(outcome.data)
   // The synthetic gid for the purchase is #1. Confirmation url uses the
   // trailing segment + "ApplicationCharge" + signature.
   assert body
-    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":{\"id\":\"gid://shopify/AppPurchaseOneTime/1\",\"name\":\"Pro\",\"status\":\"PENDING\",\"price\":{\"amount\":\"19.00\",\"currencyCode\":\"USD\"},\"test\":true},\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/1/ApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"userErrors\":[]}}}"
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":{\"id\":\"gid://shopify/AppPurchaseOneTime/1\",\"name\":\"Pro\",\"status\":\"PENDING\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"price\":{\"amount\":\"19.00\",\"currencyCode\":\"USD\"},\"test\":true},\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/1/ApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"userErrors\":[]}}}"
   // The installation tracks the new purchase id.
   let assert Some(install) =
     store.get_effective_app_installation_by_id(
@@ -281,6 +421,48 @@ pub fn purchase_create_returns_confirmation_url_test() {
       "gid://shopify/AppInstallation/100",
     )
   assert install.one_time_purchase_ids == ["gid://shopify/AppPurchaseOneTime/1"]
+}
+
+pub fn purchase_create_requires_return_url_test() {
+  let outcome =
+    run_mutation_outcome(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"returnUrl\"],\"message\":\"Return URL is required.\",\"code\":null}]}}}"
+  assert dict.size(outcome.store.staged_state.app_one_time_purchases) == 0
+}
+
+pub fn purchase_create_rejects_blank_return_url_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", returnUrl: \"   \", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"returnUrl\"],\"message\":\"Return URL must be a valid URL.\",\"code\":null}]}}}"
+}
+
+pub fn purchase_create_rejects_blank_name_and_low_price_test() {
+  let outcome =
+    run_mutation_outcome(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"  \", returnUrl: \"https://app.example.test/return\", price: { amount: \"0.49\", currencyCode: USD }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name can't be blank\",\"code\":null},{\"field\":[\"price\"],\"message\":\"Price must be at least 0.50 USD.\",\"code\":\"PRICE_TOO_LOW\"}]}}}"
+  assert dict.size(outcome.store.staged_state.app_one_time_purchases) == 0
+}
+
+pub fn purchase_create_rejects_currency_mismatch_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", returnUrl: \"https://app.example.test/return\", price: { amount: \"5.00\", currencyCode: EUR }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"price\"],\"message\":\"Price currency must match shop billing currency USD.\",\"code\":null}]}}}"
 }
 
 // ----------- appSubscriptionCreate -----------
@@ -481,7 +663,7 @@ pub fn trial_extend_adds_days_test() {
       status: "ACTIVE",
       is_test: False,
       trial_days: Some(7),
-      current_period_end: None,
+      current_period_end: Some("2099-01-01T00:00:00Z"),
       created_at: "2024-12-01T00:00:00Z",
       line_item_ids: [],
     )
@@ -497,6 +679,94 @@ pub fn trial_extend_adds_days_test() {
       "gid://shopify/AppSubscription/40",
     )
   assert updated.trial_days == Some(21)
+}
+
+pub fn trial_extend_rejects_days_outside_shopify_range_test() {
+  let sub_id = "gid://shopify/AppSubscription/range"
+  let sub =
+    subscription_with_trial(
+      sub_id,
+      "ACTIVE",
+      Some(7),
+      Some("2099-01-01T00:00:00Z"),
+    )
+  let #(_, s) = store.stage_app_subscription(seeded_with_installation(), sub)
+
+  let zero_outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/range\", days: 0) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert json.to_string(zero_outcome.data)
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"days\"],\"message\":\"Days must be greater than 0\",\"code\":null}]}}}"
+  let assert Some(after_zero) =
+    store.get_effective_app_subscription_by_id(zero_outcome.store, sub_id)
+  assert after_zero.trial_days == Some(7)
+
+  let too_large_outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/range\", days: 1001) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert json.to_string(too_large_outcome.data)
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"days\"],\"message\":\"Days must be less than or equal to 1000\",\"code\":null}]}}}"
+  let assert Some(after_too_large) =
+    store.get_effective_app_subscription_by_id(too_large_outcome.store, sub_id)
+  assert after_too_large.trial_days == Some(7)
+}
+
+pub fn trial_extend_unknown_id_sets_subscription_not_found_code_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/missing\", days: 5) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The app subscription wasn't found.\",\"code\":\"SUBSCRIPTION_NOT_FOUND\"}]}}}"
+}
+
+pub fn trial_extend_rejects_inactive_subscription_without_mutating_test() {
+  let sub_id = "gid://shopify/AppSubscription/pending"
+  let sub =
+    subscription_with_trial(
+      sub_id,
+      "PENDING",
+      Some(7),
+      Some("2099-01-01T00:00:00Z"),
+    )
+  let #(_, s) = store.stage_app_subscription(seeded_with_installation(), sub)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/pending\", days: 5) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The trial can't be extended on inactive app subscriptions.\",\"code\":\"SUBSCRIPTION_NOT_ACTIVE\"}]}}}"
+  let assert Some(updated) =
+    store.get_effective_app_subscription_by_id(outcome.store, sub_id)
+  assert updated.trial_days == Some(7)
+}
+
+pub fn trial_extend_rejects_expired_active_trial_without_mutating_test() {
+  let sub_id = "gid://shopify/AppSubscription/expired"
+  let sub =
+    subscription_with_trial(
+      sub_id,
+      "ACTIVE",
+      Some(7),
+      Some("2024-01-01T00:00:00Z"),
+    )
+  let #(_, s) = store.stage_app_subscription(seeded_with_installation(), sub)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/expired\", days: 5) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The trial can't be extended after expiration.\",\"code\":\"TRIAL_NOT_ACTIVE\"}]}}}"
+  let assert Some(updated) =
+    store.get_effective_app_subscription_by_id(outcome.store, sub_id)
+  assert updated.trial_days == Some(7)
 }
 
 // ----------- appUsageRecordCreate -----------
