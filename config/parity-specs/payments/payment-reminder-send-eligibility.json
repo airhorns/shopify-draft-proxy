@@ -1,0 +1,48 @@
+{
+  "scenarioId": "payment-reminder-send-eligibility",
+  "operationNames": ["paymentReminderSend"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/payments/payment-reminder-send-eligibility.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-reminder-send.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.cases.success.request.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "eligible-overdue-order-schedule",
+        "capturePath": "$.cases.success.response.data.paymentReminderSend",
+        "proxyPath": "$.data.paymentReminderSend"
+      },
+      {
+        "name": "unknown-schedule",
+        "capturePath": "$.cases.unknown.response.data.paymentReminderSend",
+        "proxyPath": "$.data.paymentReminderSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-send.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.unknown.request.variables"
+        }
+      },
+      {
+        "name": "paid-schedule",
+        "capturePath": "$.cases.paid.response.data.paymentReminderSend",
+        "proxyPath": "$.data.paymentReminderSend",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-reminder-send.graphql",
+          "apiVersion": "2025-01",
+          "variablesCapturePath": "$.cases.paid.request.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-671 executable parity for paymentReminderSend eligibility. The live fixture uses disposable payment-pending orders with order-owned Net 30 payment terms, then captures success, unknown schedule, and paid schedule responses. Runtime replay hydrates the schedule context from cassette reads only; supported paymentReminderSend still stages locally and never sends the mutation upstream."
+}

@@ -1,0 +1,179 @@
+{
+  "scenarioId": "bulk-operation-run-query-validators",
+  "capturedAt": "2026-05-05T05:06:13.676Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "validations": {
+    "nodesInsteadOfEdges": {
+      "operationName": "BulkOperationRunQueryValidatorCapture",
+      "query": "#graphql\n  mutation BulkOperationRunQueryValidatorCapture($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "query": "#graphql\n{\n  products {\n    nodes {\n      id\n      title\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'products'.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "topLevelNode": {
+      "operationName": "BulkOperationRunQueryValidatorCapture",
+      "query": "#graphql\n  mutation BulkOperationRunQueryValidatorCapture($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "query": "#graphql\n{\n  node(id: \"gid://shopify/Product/0\") {\n    id\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "Bulk queries cannot contain a top level `node` field.",
+                "code": "INVALID"
+              },
+              {
+                "field": ["query"],
+                "message": "Bulk queries must contain at least one connection.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1980,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "depthThreeNesting": {
+      "operationName": "BulkOperationRunQueryValidatorCapture",
+      "query": "#graphql\n  mutation BulkOperationRunQueryValidatorCapture($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "query": "#graphql\n{\n  collections {\n    edges {\n      node {\n        id\n        products {\n          edges {\n            node {\n              id\n              variants {\n                edges {\n                  node {\n                    id\n                    metafields {\n                      edges {\n                        node {\n                          id\n                        }\n                      }\n                    }\n                  }\n                }\n              }\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "Bulk queries cannot contain connections with a nesting depth greater than 2.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1971,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "sixConnections": {
+      "operationName": "BulkOperationRunQueryValidatorCapture",
+      "query": "#graphql\n  mutation BulkOperationRunQueryValidatorCapture($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        id\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        metafields {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        collections {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        media {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n        sellingPlanGroups {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "Bulk queries cannot contain more than 5 connections.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1954,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "nestedWithoutParentId": {
+      "operationName": "BulkOperationRunQueryValidatorCapture",
+      "query": "#graphql\n  mutation BulkOperationRunQueryValidatorCapture($query: String!) {\n    bulkOperationRunQuery(query: $query) {\n      bulkOperation {\n        id\n        status\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "query": "#graphql\n{\n  products {\n    edges {\n      node {\n        title\n        variants {\n          edges {\n            node {\n              id\n            }\n          }\n        }\n      }\n    }\n  }\n}"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "The parent 'node' field for a nested connection must select the 'id' field without an alias and must be of 'ID' return type. Connection fields without 'id': products.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1963,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

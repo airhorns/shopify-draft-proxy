@@ -1,0 +1,254 @@
+{
+  "scenarioId": "b2b-location-address-management",
+  "operationNames": [
+    "companyAddressDelete",
+    "companyContact",
+    "companyCreate",
+    "companyLocation",
+    "companyLocationAssignAddress",
+    "companyLocationCreate",
+    "companyLocationDelete"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "read-after-write",
+    "address-lifecycle",
+    "relationship-normalization"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-location-address-management-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity coverage for HAR-623 B2B location address management: location-name fallback from shipping address1, duplicate addressTypes validation, shared billing/shipping address delete readback, and companyLocationDelete cleanup of contact role assignments.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-payload",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.company.mainContact.roleAssignments.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different automatic role assignment IDs."
+          },
+          {
+            "path": "$.company.mainContact.roleAssignments.nodes[*].companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different default location IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[*].roleAssignments.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different automatic role assignment IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[*].roleAssignments.nodes[*].companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different default location IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-name-fallback-payload",
+        "capturePath": "$.locationNameFallback.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-address-management-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.locationNameFallback.request.variables.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.shippingAddress.id",
+            "matcher": "shopify-gid:CompanyAddress",
+            "reason": "Live Shopify and local staging allocate different address IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "duplicate-address-types-payload",
+        "capturePath": "$.duplicateAddressTypes.response.data.companyLocationAssignAddress",
+        "proxyPath": "$.data.companyLocationAssignAddress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-address-management-assign-address.graphql",
+          "variables": {
+            "locationId": {
+              "fromProxyResponse": "location-name-fallback-payload",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "address": { "fromCapturePath": "$.duplicateAddressTypes.request.variables.address" },
+            "addressTypes": { "fromCapturePath": "$.duplicateAddressTypes.request.variables.addressTypes" }
+          }
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "shared-location-create-payload",
+        "capturePath": "$.sharedLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-address-management-location-create.graphql",
+          "variables": {
+            "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
+            "input": { "fromCapturePath": "$.sharedLocationCreate.request.variables.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.billingAddress.id",
+            "matcher": "shopify-gid:CompanyAddress",
+            "reason": "Live Shopify and local staging allocate different shared address IDs."
+          },
+          {
+            "path": "$.companyLocation.shippingAddress.id",
+            "matcher": "shopify-gid:CompanyAddress",
+            "reason": "Live Shopify and local staging allocate different shared address IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "shared-address-delete-payload",
+        "capturePath": "$.sharedAddressDelete.response.data.companyAddressDelete",
+        "proxyPath": "$.data.companyAddressDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-address-management-address-delete.graphql",
+          "variables": {
+            "addressId": {
+              "fromProxyResponse": "shared-location-create-payload",
+              "path": "$.data.companyLocationCreate.companyLocation.shippingAddress.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedAddressId",
+            "matcher": "shopify-gid:CompanyAddress",
+            "reason": "The proxy deletes the locally staged shared address ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-shared-address-delete",
+        "capturePath": "$.readAfterSharedAddressDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-address-management-read-shared-delete.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "shared-location-create-payload",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy read targets the locally staged shared-address location ID."
+          },
+          {
+            "path": "$.companyLocation.billingAddress",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Live Admin API 2026-04 materializes separate public billing and shipping CompanyAddress IDs for billingSameAsShipping input, so deleting the captured shipping-side ID leaves the billing-side public address visible. The local model stores the shared anchor as one address ID to preserve the HAR-623 invariant that deleting the shared anchor detaches both sides and clears the internal flag; that invariant is covered by the focused Gleam runtime test."
+          }
+        ]
+      },
+      {
+        "name": "location-delete-payload",
+        "capturePath": "$.locationDelete.response.data.companyLocationDelete",
+        "proxyPath": "$.data.companyLocationDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-address-management-location-delete.graphql",
+          "variables": {
+            "companyLocationId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.deletedCompanyLocationId",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "The proxy deletes the locally staged default location ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-location-delete",
+        "capturePath": "$.readAfterLocationDelete.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-location-address-management-read-location-delete.graphql",
+          "variables": {
+            "companyContactId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id" },
+            "companyLocationId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "The proxy read targets the locally staged contact ID."
+          }
+        ]
+      }
+    ]
+  }
+}

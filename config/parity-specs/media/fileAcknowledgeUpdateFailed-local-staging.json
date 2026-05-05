@@ -13,7 +13,7 @@
     "variablesCapturePath": "$.create.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Executable local parity covers the staged `fileAcknowledgeUpdateFailed(fileIds:)` lifecycle after a local Files API record reaches READY through `fileUpdate`, including downstream `files` reads. The paired live capture records Shopify Admin GraphQL 2026-04 success, unknown/deleted ID, and non-ready FAILED-file validation behavior; external upload byte-transfer failure generation remains outside the local proxy boundary.",
+  "notes": "HAR-702 updates this local-runtime scenario so `fileUpdate` no longer acts as a readiness shortcut: a locally staged UPLOADED file is rejected with NON_READY_STATE, `fileAcknowledgeUpdateFailed` also rejects it, and downstream `files` reads preserve the UPLOADED record. The paired live capture continues to cover acknowledgement behavior for READY and FAILED files.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

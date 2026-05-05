@@ -8,11 +8,16 @@ import shopify_draft_proxy/proxy/draft_proxy.{type Request}
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type ProductRecord, type ProductVariantRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
-  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord,
+  type MetafieldDefinitionCapabilitiesRecord,
+  type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
+  type MetafieldDefinitionValidationRecord, type ProductRecord,
+  type ProductVariantRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryQuantityRecord,
+  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
+  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
+  MetafieldDefinitionValidationRecord, ProductMetafieldRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
 }
 
 fn empty_headers() -> dict.Dict(String, String) {
@@ -25,6 +30,15 @@ fn graphql_request(query: String) -> Request {
     path: "/admin/api/2025-01/graphql.json",
     headers: empty_headers(),
     body: "{\"query\":\"" <> query <> "\"}",
+  )
+}
+
+fn graphql_document_request(query: String) -> Request {
+  Request(
+    method: "POST",
+    path: "/admin/api/2025-01/graphql.json",
+    headers: empty_headers(),
+    body: json.to_string(json.object([#("query", json.string(query))])),
   )
 }
 
@@ -239,6 +253,175 @@ pub fn metafield_delete_unknown_id_keeps_compatibility_payload_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn metafields_set_rejects_invalid_input_shape_and_values_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let owner_id = "gid://shopify/Product/optioned"
+  let long_namespace = string.repeat("n", times: 256)
+  let long_key = string.repeat("k", times: 65)
+  let query =
+    "mutation { metafieldsSet(metafields: ["
+    <> metafields_set_input(owner_id, "ab", "x", "single_line_text_field", "v")
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      long_namespace,
+      "long_namespace",
+      "single_line_text_field",
+      "v",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      long_key,
+      "single_line_text_field",
+      "v",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "bad namespace",
+      "good_key",
+      "single_line_text_field",
+      "v",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      "bad.key",
+      "single_line_text_field",
+      "v",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "shopify_standard",
+      "title",
+      "single_line_text_field",
+      "x",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "protected",
+      "title",
+      "single_line_text_field",
+      "x",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "shopify-l10n-fields",
+      "title",
+      "single_line_text_field",
+      "x",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      "tier",
+      "number_integer",
+      "not a number",
+    )
+    <> ","
+    <> metafields_set_input(owner_id, "loyalty", "flag", "boolean", "yes")
+    <> ","
+    <> metafields_set_input(owner_id, "loyalty", "color", "color", "blue")
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      "published",
+      "date_time",
+      "tomorrow",
+    )
+    <> ","
+    <> metafields_set_input(owner_id, "loyalty", "data", "json", "{nope")
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      "related",
+      "product_reference",
+      "gid://shopify/Product/missing",
+    )
+    <> "]) { metafields { id } userErrors { field code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_document_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metafieldsSet\":{\"metafields\":[],\"userErrors\":[{\"field\":[\"metafields\",\"0\",\"namespace\"],\"code\":\"TOO_SHORT\"},{\"field\":[\"metafields\",\"0\",\"key\"],\"code\":\"TOO_SHORT\"},{\"field\":[\"metafields\",\"1\",\"namespace\"],\"code\":\"TOO_LONG\"},{\"field\":[\"metafields\",\"2\",\"key\"],\"code\":\"TOO_LONG\"},{\"field\":[\"metafields\",\"3\",\"namespace\"],\"code\":\"INVALID\"},{\"field\":[\"metafields\",\"4\",\"key\"],\"code\":\"INVALID\"},{\"field\":[\"metafields\",\"5\",\"namespace\"],\"code\":null},{\"field\":[\"metafields\",\"6\",\"namespace\"],\"code\":null},{\"field\":[\"metafields\",\"7\",\"namespace\"],\"code\":null},{\"field\":[\"metafields\",\"8\",\"value\"],\"code\":\"INVALID_VALUE\"},{\"field\":[\"metafields\",\"9\",\"value\"],\"code\":\"INVALID_VALUE\"},{\"field\":[\"metafields\",\"10\",\"value\"],\"code\":\"INVALID_VALUE\"},{\"field\":[\"metafields\",\"11\",\"value\"],\"code\":\"INVALID_VALUE\"},{\"field\":[\"metafields\",\"12\",\"value\"],\"code\":\"INVALID_VALUE\"},{\"field\":[\"metafields\",\"13\",\"value\"],\"code\":\"INVALID_VALUE\"}]}}}"
+  assert store.get_effective_metafields_by_owner_id(next_proxy.store, owner_id)
+    |> list.length
+    == 0
+}
+
+pub fn metafields_set_rejects_invalid_list_structured_and_definition_values_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: definition_validation_store())
+  let owner_id = "gid://shopify/Product/optioned"
+  let query =
+    "mutation { metafieldsSet(metafields: ["
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      "scores",
+      "list.number_integer",
+      "not-json",
+    )
+    <> ","
+    <> metafields_set_input(owner_id, "loyalty", "weight", "weight", "heavy")
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      "min_tier",
+      "number_integer",
+      "1",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      "max_tier",
+      "number_integer",
+      "10",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      "sku_code",
+      "single_line_text_field",
+      "abc123",
+    )
+    <> ","
+    <> metafields_set_input(
+      owner_id,
+      "loyalty",
+      "plan",
+      "single_line_text_field",
+      "bronze",
+    )
+    <> "]) { metafields { id } userErrors { field code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_document_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"metafieldsSet\":{\"metafields\":null,\"userErrors\":[{\"field\":[\"metafields\",\"0\",\"value\"],\"code\":\"INVALID_VALUE\"},{\"field\":[\"metafields\",\"1\",\"value\"],\"code\":\"INVALID_VALUE\"},{\"field\":[\"metafields\",\"2\",\"value\"],\"code\":\"GREATER_THAN_OR_EQUAL_TO\"},{\"field\":[\"metafields\",\"3\",\"value\"],\"code\":\"LESS_THAN_OR_EQUAL_TO\"},{\"field\":[\"metafields\",\"4\",\"value\"],\"code\":\"INVALID_VALUE\"},{\"field\":[\"metafields\",\"5\",\"value\"],\"code\":\"INCLUSION\"}]}}}"
+  assert store.get_effective_metafields_by_owner_id(next_proxy.store, owner_id)
+    |> list.length
+    == 0
 }
 
 pub fn metafields_delete_stages_product_owned_deletions_test() {
@@ -507,6 +690,165 @@ pub fn product_create_stages_product_default_variant_and_inventory_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn generated_product_handles_increment_numeric_suffixes_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Red shirt\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: fourth_status, body: fourth_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert third_status == 200
+  assert fourth_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-1\"},\"userErrors\":[]}}}"
+  assert json.to_string(third_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(fourth_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn generated_product_handles_increment_existing_numeric_suffix_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Red shirt 2\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_set_generated_handles_increment_numeric_suffixes_test() {
+  let query =
+    "mutation { productSet(input: { title: \\\"Red shirt\\\" }, synchronous: true) { product { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: fourth_status, body: fourth_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert third_status == 200
+  assert fourth_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt-1\"},\"userErrors\":[]}}}"
+  assert json.to_string(third_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(fourth_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_duplicate_generated_handles_increment_numeric_suffixes_test() {
+  let source_query =
+    "mutation { productCreate(product: { title: \\\"Red shirt\\\" }) { product { id handle } userErrors { field message } } }"
+  let copy_query =
+    "mutation { productCreate(product: { title: \\\"Red shirt Copy\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: source_status, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(source_query),
+    )
+  let #(Response(status: first_copy_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(copy_query))
+  let #(Response(status: second_copy_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(copy_query))
+  let duplicate_query =
+    "mutation { productDuplicate(productId: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\", newTitle: \\\"Red shirt Copy\\\", synchronous: true) { newProduct { title handle } userErrors { field message } } }"
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+
+  assert source_status == 200
+  assert first_copy_status == 200
+  assert second_copy_status == 200
+  assert duplicate_status == 200
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"productDuplicate\":{\"newProduct\":{\"title\":\"Red shirt Copy\",\"handle\":\"red-shirt-copy-2\"},\"userErrors\":[]}}}"
+}
+
+pub fn collection_create_generated_handles_increment_numeric_suffixes_test() {
+  let query =
+    "mutation { collectionCreate(input: { title: \\\"Red shirt\\\" }) { collection { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: fourth_status, body: fourth_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert third_status == 200
+  assert fourth_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-1\"},\"userErrors\":[]}}}"
+  assert json.to_string(third_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(fourth_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn collection_create_generated_handles_increment_existing_numeric_suffix_test() {
+  let query =
+    "mutation { collectionCreate(input: { title: \\\"Red shirt 2\\\" }) { collection { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn explicit_product_handle_collisions_return_user_errors_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let create_query =
+    "mutation { productCreate(product: { title: \\\"Explicit Collision\\\", handle: \\\"optioned-board\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: create_status, body: create_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"handle\"],\"message\":\"Handle 'optioned-board' already in use. Please provide a new handle.\"}]}}}"
+
+  let set_query =
+    "mutation { productSet(input: { title: \\\"Explicit Collision\\\", handle: \\\"optioned-board\\\" }, synchronous: true) { product { handle } userErrors { field message } } }"
+  let #(Response(status: set_status, body: set_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(set_query))
+
+  assert set_status == 200
+  assert json.to_string(set_body)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"handle\"],\"message\":\"Handle 'optioned-board' already in use. Please provide a new handle.\"}]}}}"
 }
 
 pub fn product_create_validation_branches_return_user_errors_test() {
@@ -1186,6 +1528,89 @@ fn metafield_store() -> store.Store {
       owner_type: Some("PRODUCT"),
     ),
   ])
+}
+
+fn definition_validation_store() -> store.Store {
+  default_option_store()
+  |> store.upsert_base_metafield_definitions([
+    metafield_definition("loyalty", "min_tier", "number_integer", [
+      MetafieldDefinitionValidationRecord(name: "min", value: Some("2")),
+    ]),
+    metafield_definition("loyalty", "max_tier", "number_integer", [
+      MetafieldDefinitionValidationRecord(name: "max", value: Some("5")),
+    ]),
+    metafield_definition("loyalty", "sku_code", "single_line_text_field", [
+      MetafieldDefinitionValidationRecord(
+        name: "regex",
+        value: Some("^[A-Z]+$"),
+      ),
+    ]),
+    metafield_definition("loyalty", "plan", "single_line_text_field", [
+      MetafieldDefinitionValidationRecord(
+        name: "allowed_list",
+        value: Some("[\"gold\",\"silver\"]"),
+      ),
+    ]),
+  ])
+}
+
+fn metafield_definition(
+  namespace: String,
+  key: String,
+  type_name: String,
+  validations: List(MetafieldDefinitionValidationRecord),
+) -> MetafieldDefinitionRecord {
+  MetafieldDefinitionRecord(
+    id: "gid://shopify/MetafieldDefinition/" <> namespace <> "-" <> key,
+    name: key,
+    namespace: namespace,
+    key: key,
+    owner_type: "PRODUCT",
+    type_: MetafieldDefinitionTypeRecord(name: type_name, category: None),
+    description: None,
+    validations: validations,
+    access: dict.new(),
+    capabilities: default_metafield_definition_capabilities(),
+    constraints: None,
+    pinned_position: None,
+    validation_status: "ALL_VALID",
+  )
+}
+
+fn default_metafield_definition_capabilities() -> MetafieldDefinitionCapabilitiesRecord {
+  MetafieldDefinitionCapabilitiesRecord(
+    admin_filterable: default_metafield_definition_capability(),
+    smart_collection_condition: default_metafield_definition_capability(),
+    unique_values: default_metafield_definition_capability(),
+  )
+}
+
+fn default_metafield_definition_capability() -> MetafieldDefinitionCapabilityRecord {
+  MetafieldDefinitionCapabilityRecord(
+    enabled: False,
+    eligible: True,
+    status: None,
+  )
+}
+
+fn metafields_set_input(
+  owner_id: String,
+  namespace: String,
+  key: String,
+  type_name: String,
+  value: String,
+) -> String {
+  "{ ownerId: \""
+  <> owner_id
+  <> "\", namespace: \""
+  <> namespace
+  <> "\", key: \""
+  <> key
+  <> "\", type: \""
+  <> type_name
+  <> "\", value: \""
+  <> value
+  <> "\" }"
 }
 
 fn variant_cap_store() -> store.Store {

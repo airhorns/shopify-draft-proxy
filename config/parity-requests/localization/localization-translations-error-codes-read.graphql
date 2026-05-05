@@ -1,0 +1,27 @@
+query LocalizationTranslationsErrorCodesSetupRead($resourceId: ID!) {
+  shopLocales {
+    locale
+    name
+    primary
+    published
+  }
+  translatableResource(resourceId: $resourceId) {
+    resourceId
+    translatableContent {
+      key
+      value
+      digest
+      locale
+      type
+    }
+    translations(locale: "fr") {
+      key
+      value
+      locale
+      outdated
+      market {
+        id
+      }
+    }
+  }
+}

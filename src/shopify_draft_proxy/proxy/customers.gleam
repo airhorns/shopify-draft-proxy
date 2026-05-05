@@ -164,7 +164,8 @@ fn should_passthrough_in_live_hybrid(
     parse_operation.QueryOperation, "customerByIdentifier" -> True
     parse_operation.QueryOperation, "customer" ->
       !local_has_customer_id(proxy, variables)
-    parse_operation.QueryOperation, "customers" -> True
+    parse_operation.QueryOperation, "customers" ->
+      list.is_empty(store.list_effective_customers(proxy.store))
     _, _ -> False
   }
 }
@@ -3707,6 +3708,10 @@ fn validate_customer_create(
 ) -> List(UserError) {
   let email = read_obj_string(input, "email")
   let phone = read_obj_string(input, "phone")
+  let id_errors = case dict.get(input, "id") {
+    Ok(root_field.NullVal) | Error(_) -> []
+    Ok(_) -> [UserError(["id"], "Cannot specify ID on creation", None)]
+  }
   let presence_errors = case email, phone {
     None, None -> [
       UserError(
@@ -3719,7 +3724,7 @@ fn validate_customer_create(
   }
   let local_errors = validate_customer_input_fields(store, input, None)
   list.append(
-    list.append(presence_errors, local_errors),
+    list.append(list.append(id_errors, presence_errors), local_errors),
     validate_upstream_duplicate_customer(input, local_errors, None, upstream),
   )
 }

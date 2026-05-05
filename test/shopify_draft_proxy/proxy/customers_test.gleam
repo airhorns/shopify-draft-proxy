@@ -204,6 +204,30 @@ pub fn customer_create_readback_and_log_test() {
   )
 }
 
+pub fn customer_create_rejects_client_supplied_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { id: \"gid://shopify/Customer/999\", email: \"client-id@example.com\" }) { customer { id email } userErrors { field message } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"customer\":null")
+  assert string.contains(
+    create_json,
+    "\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot specify ID on creation\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customersCount { count precision } }")
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customersCount\":{\"count\":0,\"precision\":\"EXACT\"}",
+  )
+}
+
 pub fn customer_address_lifecycle_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, ..), proxy) =
