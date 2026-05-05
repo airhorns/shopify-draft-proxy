@@ -96,7 +96,8 @@ HAR-446 captured a fidelity trap in the company-create path: when
 Shopify automatically assigns that contact the `Ordering only` role for that
 location. The local staged graph now creates the same normalized role
 assignment, rejects attempts to assign a second role to the same contact/location
-pair with Shopify's `LIMIT_REACHED` userError, and resolves nested
+pair with Shopify's `INVALID_INPUT` / `one_role_already_assigned` userError,
+and resolves nested
 `CompanyContactRoleAssignment.companyContact` / `.companyLocation` fields from
 the current normalized contact/location records so later contact or location
 updates are reflected in downstream assignment reads. Generic Admin
@@ -104,6 +105,18 @@ updates are reflected in downstream assignment reads. Generic Admin
 `CompanyContactRoleAssignment` IDs through the same assignment serializer and
 `CompanyAddress` IDs from effective company-location billing/shipping address
 payloads.
+
+HAR-620 tightens B2B contact deletion and role-assignment guardrails from the
+Business Customers implementation. Company contacts can carry local associated
+order evidence in their normalized data (`ordersCount`,
+`associatedOrdersCount`, `hasAssociatedOrders`, or an `orders` list). When that
+marker indicates one or more orders, `companyContactDelete` returns
+`INVALID_INPUT` / `existing_orders` and retains the contact. Successful deletion
+continues to remove the contact from the company contact list, so downstream
+`Company.mainContact` reads clear when the deleted contact was the main contact.
+Role-assignment mutation roots now reject missing or cross-company locations and
+roles with `RESOURCE_NOT_FOUND` / `company_location_not_found` or
+`company_role_not_found` instead of a generic `rolesToAssign` error.
 
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current

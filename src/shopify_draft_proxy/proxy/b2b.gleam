@@ -1545,6 +1545,38 @@ fn resource_not_found(field: List(String)) {
   )
 }
 
+fn company_role_not_found() {
+  user_error(
+    Some(["companyContactRoleId"]),
+    "company_role_not_found",
+    user_error_code.resource_not_found,
+  )
+}
+
+fn company_location_not_found() {
+  user_error(
+    Some(["companyLocationId"]),
+    "company_location_not_found",
+    user_error_code.resource_not_found,
+  )
+}
+
+fn one_role_already_assigned() {
+  user_error(
+    Some(["companyContactId"]),
+    "one_role_already_assigned",
+    user_error_code.invalid_input,
+  )
+}
+
+fn existing_orders_error() {
+  user_error(
+    Some(["companyContactId"]),
+    "existing_orders",
+    user_error_code.invalid_input,
+  )
+}
+
 fn dispatch_mutation_root(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -2726,6 +2758,25 @@ fn delete_contact(store: Store, contact_id: String) -> #(Store, List(String)) {
   }
 }
 
+fn contact_has_associated_orders(contact: B2BCompanyContactRecord) -> Bool {
+  case data_get(contact.data, "ordersCount") {
+    SrcInt(count) if count > 0 -> True
+    _ ->
+      case data_get(contact.data, "associatedOrdersCount") {
+        SrcInt(count) if count > 0 -> True
+        _ ->
+          case data_get(contact.data, "hasAssociatedOrders") {
+            SrcBool(True) -> True
+            _ ->
+              case data_get(contact.data, "orders") {
+                SrcList([_, ..]) -> True
+                _ -> False
+              }
+          }
+      }
+  }
+}
+
 fn handle_contact_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -2734,15 +2785,31 @@ fn handle_contact_delete(
   case read_string(args, "companyContactId") {
     Some(id) ->
       case store.get_effective_b2b_company_contact_by_id(store, id) {
-        Some(_) -> {
-          let #(store, ids) = delete_contact(store, id)
-          RootResult(
-            Payload(..empty_payload([]), deleted_company_contact_id: Some(id)),
-            store,
-            identity,
-            ids,
-          )
-        }
+        Some(contact) ->
+          case contact_has_associated_orders(contact) {
+            True ->
+              RootResult(
+                Payload(
+                  ..empty_payload([existing_orders_error()]),
+                  deleted_company_contact_id: None,
+                ),
+                store,
+                identity,
+                [],
+              )
+            False -> {
+              let #(store, ids) = delete_contact(store, id)
+              RootResult(
+                Payload(
+                  ..empty_payload([]),
+                  deleted_company_contact_id: Some(id),
+                ),
+                store,
+                identity,
+                ids,
+              )
+            }
+          }
         None ->
           RootResult(
             Payload(
@@ -2791,15 +2858,24 @@ fn handle_contacts_delete(
       fn(acc, id) {
         let #(current_store, deleted, staged, errors) = acc
         case store.get_effective_b2b_company_contact_by_id(current_store, id) {
-          Some(_) -> {
-            let #(next_store, ids) = delete_contact(current_store, id)
-            #(
-              next_store,
-              list.append(deleted, [id]),
-              list.append(staged, ids),
-              errors,
-            )
-          }
+          Some(contact) ->
+            case contact_has_associated_orders(contact) {
+              True -> #(
+                current_store,
+                deleted,
+                staged,
+                list.append(errors, [existing_orders_error()]),
+              )
+              False -> {
+                let #(next_store, ids) = delete_contact(current_store, id)
+                #(
+                  next_store,
+                  list.append(deleted, [id]),
+                  list.append(staged, ids),
+                  errors,
+                )
+              }
+            }
           None -> #(
             current_store,
             deleted,
@@ -3454,8 +3530,8 @@ fn resolve_role_assignments(
   contact_fallback: Option(String),
   location_fallback: Option(String),
 ) -> #(List(SourceValue), List(UserError), SyntheticIdentityRegistry) {
-  list.fold(inputs, #([], [], identity), fn(acc, input) {
-    let #(assignments, errors, current_identity) = acc
+  list.fold(inputs, #([], [], identity, []), fn(acc, input) {
+    let #(assignments, errors, current_identity, planned_pairs) = acc
     let contact_id =
       read_string(input, "companyContactId") |> option_or(contact_fallback)
     let role_id = read_string(input, "companyContactRoleId")
@@ -3468,26 +3544,91 @@ fn resolve_role_assignments(
           store.get_effective_b2b_company_contact_role_by_id(store, role_id),
           store.get_effective_b2b_company_location_by_id(store, location_id)
         {
-          Some(contact), Some(role), Some(location)
-            if contact.company_id == role.company_id
-            && contact.company_id == location.company_id
-          -> {
-            let #(assignment, next_identity) =
-              build_role_assignment(current_identity, contact, role, location)
-            #(list.append(assignments, [assignment]), errors, next_identity)
-          }
-          _, _, _ -> #(
+          None, _, _ -> #(
             assignments,
-            list.append(errors, [resource_not_found(["rolesToAssign"])]),
+            list.append(errors, [resource_not_found(["companyContactId"])]),
             current_identity,
+            planned_pairs,
           )
+          _, None, _ -> #(
+            assignments,
+            list.append(errors, [company_role_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          Some(contact), Some(role), _
+            if role.company_id != contact.company_id
+          -> #(
+            assignments,
+            list.append(errors, [company_role_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          _, _, None -> #(
+            assignments,
+            list.append(errors, [company_location_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          Some(contact), _, Some(location)
+            if location.company_id != contact.company_id
+          -> #(
+            assignments,
+            list.append(errors, [company_location_not_found()]),
+            current_identity,
+            planned_pairs,
+          )
+          Some(contact), Some(role), Some(location) -> {
+            let pair = #(contact.id, location.id)
+            case
+              contact_has_role_assignment_for_location(contact, location.id)
+              || list.contains(planned_pairs, pair)
+            {
+              True -> #(
+                assignments,
+                list.append(errors, [one_role_already_assigned()]),
+                current_identity,
+                planned_pairs,
+              )
+              False -> {
+                let #(assignment, next_identity) =
+                  build_role_assignment(
+                    current_identity,
+                    contact,
+                    role,
+                    location,
+                  )
+                #(
+                  list.append(assignments, [assignment]),
+                  errors,
+                  next_identity,
+                  list.append(planned_pairs, [pair]),
+                )
+              }
+            }
+          }
         }
       _, _, _ -> #(
         assignments,
         list.append(errors, [resource_not_found(["rolesToAssign"])]),
         current_identity,
+        planned_pairs,
       )
     }
+  })
+  |> fn(result) {
+    let #(assignments, errors, identity, _) = result
+    #(assignments, errors, identity)
+  }
+}
+
+fn contact_has_role_assignment_for_location(
+  contact: B2BCompanyContactRecord,
+  location_id: String,
+) -> Bool {
+  read_object_sources(data_get(contact.data, "roleAssignments"))
+  |> list.any(fn(assignment) {
+    assignment_ref(assignment, "companyLocationId") == Some(location_id)
   })
 }
 
@@ -3527,8 +3668,10 @@ fn handle_contact_assign_role(
   RootResult(
     Payload(
       ..empty_payload(errors),
-      company_contact_role_assignment: list.first(assignments)
-        |> option_from_result,
+      company_contact_role_assignment: case errors {
+        [] -> list.first(assignments) |> option_from_result
+        _ -> None
+      },
     ),
     store,
     identity,
@@ -3558,7 +3701,10 @@ fn handle_contact_assign_roles(
     _ -> #(store, [])
   }
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: assignments),
+    Payload(..empty_payload(errors), role_assignments: case errors {
+      [] -> assignments
+      _ -> []
+    }),
     store,
     identity,
     staged,
@@ -3583,7 +3729,10 @@ fn handle_location_assign_roles(
     _ -> #(store, [])
   }
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: assignments),
+    Payload(..empty_payload(errors), role_assignments: case errors {
+      [] -> assignments
+      _ -> []
+    }),
     store,
     identity,
     staged,

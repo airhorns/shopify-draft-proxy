@@ -13702,8 +13702,8 @@ fn handle_fulfillment_order_lifecycle_mutation(
                         "fulfillmentOrderHold", [_, ..] as user_errors -> {
                           let nullable_user_errors =
                             list.map(user_errors, fn(error) {
-                              let #(field, message) = error
-                              nullable_user_error(field, message, None)
+                              let #(field, message, code) = error
+                              nullable_user_error(field, message, code)
                             })
                           let payload =
                             serialize_fulfillment_order_mutation_payload(
