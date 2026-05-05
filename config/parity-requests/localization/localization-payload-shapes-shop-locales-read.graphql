@@ -1,0 +1,12 @@
+query LocalizationPayloadShapesShopLocalesRead {
+  shopLocales {
+    locale
+    marketWebPresences {
+      id
+      __typename
+      defaultLocale {
+        locale
+      }
+    }
+  }
+}

@@ -1,0 +1,317 @@
+{
+  "capturedAt": "2026-05-05T11:25:15.679Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "HAR-727 captures webhookSubscriptionCreate topic/format, cloud format, name validation, and duplicate active registration userErrors.",
+    "The duplicate branch creates one temporary SHOP_UPDATE HTTP subscription and deletes it during cleanup.",
+    "The script does not trigger webhook delivery."
+  ],
+  "deliveryPolicy": {
+    "deliveriesTriggeredByScript": false,
+    "topicUsedForDuplicateSetup": "SHOP_UPDATE",
+    "endpointHost": "example.com"
+  },
+  "validation": {
+    "createXmlOnJsonOnlyTopicRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+      "variables": {
+        "topic": "RETURNS_APPROVE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1777980313687-returns-xml",
+          "format": "XML"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "format"],
+                  "message": "Format 'xml' is invalid for this webhook topic. Allowed formats: json"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createXmlOnCloudDeliveryRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "pubsub://valid-project:topic",
+          "format": "XML"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "format"],
+                  "message": "Format can only be used with format: 'json'"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createEmptyNameRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1777980313687-empty-name",
+          "name": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "name"],
+                  "message": "Name is too short (minimum is 1 character)"
+                },
+                {
+                  "field": ["webhookSubscription", "name"],
+                  "message": "Name name field can only contain alphanumeric characters, underscores, and hyphens"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createBadNameFormatRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1777980313687-bad-name",
+          "name": "has spaces"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "name"],
+                  "message": "Name name field can only contain alphanumeric characters, underscores, and hyphens"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createDuplicateSetup": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1777980313687",
+          "format": "JSON",
+          "filter": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": {
+                "id": "gid://shopify/WebhookSubscription/1928261534002",
+                "topic": "SHOP_UPDATE",
+                "format": "JSON",
+                "filter": "",
+                "createdAt": "2026-05-05T11:25:14Z",
+                "updatedAt": "2026-05-05T11:25:14Z",
+                "endpoint": {
+                  "__typename": "WebhookHttpEndpoint",
+                  "callbackUrl": "https://example.com/hermes-webhook-topic-format-name-1777980313687"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "createDuplicateRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-create.graphql",
+      "variables": {
+        "topic": "SHOP_UPDATE",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1777980313687",
+          "format": "JSON",
+          "filter": ""
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionCreate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "callbackUrl"],
+                  "message": "Address for this topic has already been taken"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "updateBadNameFormatRejected": {
+      "documentPath": "config/parity-requests/webhooks/webhook-subscription-topic-format-name-update.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928261534002",
+        "webhookSubscription": {
+          "uri": "https://example.com/hermes-webhook-topic-format-name-1777980313687",
+          "name": "has spaces"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionUpdate": {
+              "webhookSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["webhookSubscription", "name"],
+                  "message": "Name name field can only contain alphanumeric characters, underscores, and hyphens"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "documentPath": "config/parity-requests/webhooks/webhookSubscriptionDelete-parity.graphql",
+      "variables": {
+        "id": "gid://shopify/WebhookSubscription/1928261534002"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "webhookSubscriptionDelete": {
+              "deletedWebhookSubscriptionId": "gid://shopify/WebhookSubscription/1928261534002",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

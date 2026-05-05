@@ -8,6 +8,7 @@ import shopify_draft_proxy/proxy/draft_proxy.{type Request}
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
+  type InventoryLevelRecord, type InventoryQuantityRecord,
   type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductRecord,
@@ -1434,6 +1435,161 @@ pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
     == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"on_hand\",\"delta\":2,\"ledgerDocumentUri\":\"ledger://har-568/on-hand\",\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
 }
 
+pub fn inventory_deactivate_unknown_level_returns_item_error_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryDeactivate(inventoryLevelId: \\\"gid://shopify/InventoryLevel/999999999999?inventory_item_id=999999999998\\\") { userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryDeactivate\":{\"userErrors\":[{\"field\":null,\"message\":\"The product couldn't be unstocked because the product was deleted.\"}]}}}"
+}
+
+pub fn inventory_deactivate_known_item_missing_level_returns_location_deleted_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryDeactivate(inventoryLevelId: \\\"gid://shopify/InventoryLevel/deleted-location?inventory_item_id=tracked\\\") { userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryDeactivate\":{\"userErrors\":[{\"field\":null,\"message\":\"The product couldn't be unstocked because the location was deleted.\"}]}}}"
+}
+
+pub fn inventory_deactivate_allows_non_zero_quantities_test() {
+  let target_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked",
+      "gid://shopify/Location/1",
+      "Shop location",
+      True,
+      [
+        inventory_quantity("available", 1),
+        inventory_quantity("on_hand", 10),
+        inventory_quantity("committed", 2),
+        inventory_quantity("incoming", 3),
+        inventory_quantity("reserved", 4),
+      ],
+    )
+  let alternate_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/alternate?inventory_item_id=tracked",
+      "gid://shopify/Location/2",
+      "Second location",
+      True,
+      [
+        inventory_quantity("available", 1),
+        inventory_quantity("on_hand", 1),
+      ],
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_levels([
+        target_level,
+        alternate_level,
+      ]),
+    )
+  let query =
+    "mutation { inventoryDeactivate(inventoryLevelId: \\\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\\\") { userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryDeactivate\":{\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { inventoryLevel(id: \\\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\\\") { id isActive } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\",\"isActive\":false}}}"
+}
+
+pub fn inventory_deactivate_only_location_stays_active_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryDeactivate(inventoryLevelId: \\\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\\\") { userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryDeactivate\":{\"userErrors\":[{\"field\":null,\"message\":\"The product couldn't be unstocked from Shop location because products need to be stocked at a minimum of 1 location.\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { inventoryLevel(id: \\\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\\\") { id isActive } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\",\"isActive\":true}}}"
+}
+
+pub fn inventory_activate_available_conflict_requires_active_level_test() {
+  let active_proxy = draft_proxy.new()
+  let active_proxy =
+    proxy_state.DraftProxy(..active_proxy, store: tracked_inventory_store())
+  let active_query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", available: 7) { inventoryLevel { id isActive } userErrors { field message } } }"
+
+  let #(Response(status: active_status, body: active_body, ..), _) =
+    draft_proxy.process_request(active_proxy, graphql_request(active_query))
+
+  assert active_status == 200
+  assert json.to_string(active_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\",\"isActive\":true},\"userErrors\":[{\"field\":[\"available\"],\"message\":\"Not allowed to set available quantity when the item is already active at the location.\"}]}}}"
+
+  let inactive_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked",
+      "gid://shopify/Location/2",
+      "Second location",
+      False,
+      [
+        inventory_quantity("available", 0),
+        inventory_quantity("on_hand", 0),
+      ],
+    )
+  let inactive_proxy = draft_proxy.new()
+  let inactive_proxy =
+    proxy_state.DraftProxy(
+      ..inactive_proxy,
+      store: tracked_inventory_store_with_levels([
+        tracked_inventory_level(),
+        inactive_level,
+      ]),
+    )
+  let inactive_query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/2\\\", available: 7) { inventoryLevel { id isActive } userErrors { field message } } }"
+
+  let #(Response(status: inactive_status, body: inactive_body, ..), _) =
+    draft_proxy.process_request(inactive_proxy, graphql_request(inactive_query))
+
+  assert inactive_status == 200
+  assert json.to_string(inactive_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked\",\"isActive\":true},\"userErrors\":[]}}}"
+}
+
 pub fn inventory_transfer_edit_and_duplicate_stage_locally_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
@@ -1682,7 +1838,48 @@ fn suspended_product_store() -> store.Store {
   ])
 }
 
+fn inventory_quantity(name: String, quantity: Int) -> InventoryQuantityRecord {
+  InventoryQuantityRecord(name: name, quantity: quantity, updated_at: None)
+}
+
+fn inventory_level(
+  id: String,
+  location_id: String,
+  location_name: String,
+  is_active: Bool,
+  quantities: List(InventoryQuantityRecord),
+) -> InventoryLevelRecord {
+  InventoryLevelRecord(
+    id: id,
+    cursor: None,
+    is_active: Some(is_active),
+    location: InventoryLocationRecord(id: location_id, name: location_name),
+    quantities: quantities,
+  )
+}
+
+fn tracked_inventory_level() -> InventoryLevelRecord {
+  inventory_level(
+    "gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked",
+    "gid://shopify/Location/1",
+    "Shop location",
+    True,
+    [
+      inventory_quantity("available", 1),
+      inventory_quantity("on_hand", 1),
+      inventory_quantity("incoming", 0),
+      inventory_quantity("reserved", 0),
+    ],
+  )
+}
+
 fn tracked_inventory_store() -> store.Store {
+  tracked_inventory_store_with_levels([tracked_inventory_level()])
+}
+
+fn tracked_inventory_store_with_levels(
+  levels: List(InventoryLevelRecord),
+) -> store.Store {
   store.new()
   |> store.upsert_base_products([
     ProductRecord(
@@ -1694,7 +1891,9 @@ fn tracked_inventory_store() -> store.Store {
       tracks_inventory: Some(True),
     ),
   ])
-  |> store.upsert_base_product_variants([tracked_inventory_variant()])
+  |> store.upsert_base_product_variants([
+    tracked_inventory_variant_with_levels(levels),
+  ])
 }
 
 fn option_update_store() -> store.Store {
@@ -1736,7 +1935,9 @@ fn option_update_store() -> store.Store {
   ])
 }
 
-fn tracked_inventory_variant() -> ProductVariantRecord {
+fn tracked_inventory_variant_with_levels(
+  levels: List(InventoryLevelRecord),
+) -> ProductVariantRecord {
   ProductVariantRecord(
     id: "gid://shopify/ProductVariant/tracked",
     product_id: "gid://shopify/Product/tracked",
@@ -1752,50 +1953,16 @@ fn tracked_inventory_variant() -> ProductVariantRecord {
       ProductVariantSelectedOptionRecord(name: "Title", value: "Default Title"),
     ],
     media_ids: [],
-    inventory_item: Some(
-      InventoryItemRecord(
-        id: "gid://shopify/InventoryItem/tracked",
-        tracked: Some(True),
-        requires_shipping: Some(True),
-        measurement: None,
-        country_code_of_origin: None,
-        province_code_of_origin: None,
-        harmonized_system_code: None,
-        inventory_levels: [
-          InventoryLevelRecord(
-            id: "gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked",
-            cursor: None,
-            is_active: Some(True),
-            location: InventoryLocationRecord(
-              id: "gid://shopify/Location/1",
-              name: "Shop location",
-            ),
-            quantities: [
-              InventoryQuantityRecord(
-                name: "available",
-                quantity: 1,
-                updated_at: None,
-              ),
-              InventoryQuantityRecord(
-                name: "on_hand",
-                quantity: 1,
-                updated_at: None,
-              ),
-              InventoryQuantityRecord(
-                name: "incoming",
-                quantity: 0,
-                updated_at: None,
-              ),
-              InventoryQuantityRecord(
-                name: "reserved",
-                quantity: 0,
-                updated_at: None,
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
+    inventory_item: Some(InventoryItemRecord(
+      id: "gid://shopify/InventoryItem/tracked",
+      tracked: Some(True),
+      requires_shipping: Some(True),
+      measurement: None,
+      country_code_of_origin: None,
+      province_code_of_origin: None,
+      harmonized_system_code: None,
+      inventory_levels: levels,
+    )),
     contextual_pricing: None,
     cursor: None,
   )
