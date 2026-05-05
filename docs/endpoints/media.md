@@ -54,7 +54,16 @@ Local staged mutations:
   bulk-mutation variable JSONL handoff; it does not model Shopify storage or
   media processing side effects.
 - File mutations stage local `FileRecord` state and do not proxy supported roots upstream at runtime.
-- `fileCreate` validates original source URLs and alt text length, derives a filename from the source when no filename is supplied, creates stable synthetic Shopify GIDs by content type, and returns uploaded file status. IMAGE files sourced from a usable URL keep that URL available through `MediaImage.image` and `preview.image` immediately; the proxy does not suppress the image payload solely because the staged file is still `UPLOADED`.
+- `fileCreate` validates original source URL presence/length, non-http(s)
+  schemes, filename/originalSource extension mismatches, duplicate-resolution
+  mode compatibility, and the private-core `referencesToAdd` cardinality
+  guardrail before staging. It derives a filename from the source when no
+  filename is supplied, creates stable synthetic Shopify GIDs by content type,
+  and returns uploaded file status. IMAGE files sourced from a usable URL keep
+  that URL available through `MediaImage.image` and `preview.image`
+  immediately; the proxy does not suppress the image payload solely because the
+  staged file is still `UPLOADED`. The proxy does not apply the older fabricated
+  512-character `alt` ceiling on `fileCreate`.
 - `fileUpdate` validates file ids, URL fields, alt text length, product references, and Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule before updating staged records. `referencesToAdd` can attach a locally staged file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Captured parity covers successful updates after ready-state polling; richer non-ready/locked failure-state behavior remains future work.
 - In LiveHybrid mode, `fileUpdate.referencesToAdd` may issue a narrow product read before validation when the referenced product is not already local. The read hydrates only the product identity/metadata needed for local product-media attachment; the supported mutation still stages locally and does not write upstream at runtime.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.
