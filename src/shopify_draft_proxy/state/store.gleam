@@ -5407,6 +5407,146 @@ pub fn get_effective_shop(store: Store) -> Option(ShopRecord) {
   }
 }
 
+pub fn shop_sells_subscriptions(store: Store) -> Bool {
+  case get_effective_shop(store) {
+    Some(shop) -> shop.features.sells_subscriptions
+    None -> False
+  }
+}
+
+pub fn set_shop_sells_subscriptions(
+  store: Store,
+  sells_subscriptions: Bool,
+) -> Store {
+  case store.staged_state.shop {
+    Some(shop) -> {
+      let shop = shop_with_sells_subscriptions(shop, sells_subscriptions)
+      Store(
+        ..store,
+        staged_state: StagedState(..store.staged_state, shop: Some(shop)),
+      )
+    }
+    None -> {
+      let shop =
+        store.base_state.shop
+        |> option.unwrap(default_synthetic_shop())
+        |> shop_with_sells_subscriptions(sells_subscriptions)
+      Store(
+        ..store,
+        base_state: BaseState(..store.base_state, shop: Some(shop)),
+      )
+    }
+  }
+}
+
+fn shop_with_sells_subscriptions(
+  shop: ShopRecord,
+  sells_subscriptions: Bool,
+) -> ShopRecord {
+  let features = shop.features
+  types_mod.ShopRecord(
+    ..shop,
+    features: types_mod.ShopFeaturesRecord(
+      ..features,
+      sells_subscriptions: sells_subscriptions,
+    ),
+  )
+}
+
+fn default_synthetic_shop() -> ShopRecord {
+  types_mod.ShopRecord(
+    id: "gid://shopify/Shop/1?shopify-draft-proxy=synthetic",
+    name: "Shopify Draft Proxy",
+    myshopify_domain: "shopify-draft-proxy.myshopify.com",
+    url: "https://shopify-draft-proxy.myshopify.com",
+    primary_domain: types_mod.ShopDomainRecord(
+      id: "gid://shopify/Domain/1?shopify-draft-proxy=synthetic",
+      host: "shopify-draft-proxy.myshopify.com",
+      url: "https://shopify-draft-proxy.myshopify.com",
+      ssl_enabled: True,
+    ),
+    contact_email: "",
+    email: "",
+    currency_code: "USD",
+    enabled_presentment_currencies: ["USD"],
+    iana_timezone: "UTC",
+    timezone_abbreviation: "UTC",
+    timezone_offset: "+0000",
+    timezone_offset_minutes: 0,
+    taxes_included: False,
+    tax_shipping: False,
+    unit_system: "IMPERIAL_SYSTEM",
+    weight_unit: "POUNDS",
+    shop_address: types_mod.ShopAddressRecord(
+      id: "gid://shopify/ShopAddress/1?shopify-draft-proxy=synthetic",
+      address1: None,
+      address2: None,
+      city: None,
+      company: None,
+      coordinates_validated: False,
+      country: None,
+      country_code_v2: None,
+      formatted: [],
+      formatted_area: None,
+      latitude: None,
+      longitude: None,
+      phone: None,
+      province: None,
+      province_code: None,
+      zip: None,
+    ),
+    plan: types_mod.ShopPlanRecord(
+      partner_development: False,
+      public_display_name: "",
+      shopify_plus: False,
+    ),
+    resource_limits: types_mod.ShopResourceLimitsRecord(
+      location_limit: 0,
+      max_product_options: 0,
+      max_product_variants: 0,
+      redirect_limit_reached: False,
+    ),
+    features: default_shop_features(),
+    payment_settings: types_mod.PaymentSettingsRecord(
+      supported_digital_wallets: [],
+    ),
+    shop_policies: [],
+  )
+}
+
+fn default_shop_features() -> types_mod.ShopFeaturesRecord {
+  types_mod.ShopFeaturesRecord(
+    avalara_avatax: False,
+    branding: "SHOPIFY",
+    bundles: types_mod.ShopBundlesFeatureRecord(
+      eligible_for_bundles: False,
+      ineligibility_reason: None,
+      sells_bundles: False,
+    ),
+    captcha: False,
+    cart_transform: types_mod.ShopCartTransformFeatureRecord(
+      eligible_operations: types_mod.ShopCartTransformEligibleOperationsRecord(
+        expand_operation: False,
+        merge_operation: False,
+        update_operation: False,
+      ),
+    ),
+    dynamic_remarketing: False,
+    eligible_for_subscription_migration: False,
+    eligible_for_subscriptions: False,
+    gift_cards: False,
+    harmonized_system_code: False,
+    legacy_subscription_gateway_enabled: False,
+    live_view: False,
+    paypal_express_subscription_gateway_status: "DISABLED",
+    reports: False,
+    sells_subscriptions: False,
+    show_metrics: False,
+    storefront: False,
+    unified_markets: False,
+  )
+}
+
 // ---------------------------------------------------------------------------
 // B2B company slice
 // ---------------------------------------------------------------------------

@@ -1,0 +1,22 @@
+mutation DiscountSubscriptionFieldsFreeShippingUpdate($id: ID!) {
+  freeShippingUpdate: discountCodeFreeShippingUpdate(
+    id: $id
+    freeShippingCodeDiscount: {
+      title: "Setup shipping"
+      code: "SETUP-SHIP-SUB"
+      startsAt: "2026-04-25T00:00:00Z"
+      destination: { all: true }
+      appliesOnOneTimePurchase: false
+    }
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

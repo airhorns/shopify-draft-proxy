@@ -1,0 +1,92 @@
+{
+  "scenarioId": "discount-subscription-fields-not-permitted",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBasicUpdate",
+    "discountCodeFreeShippingCreate",
+    "discountCodeFreeShippingUpdate",
+    "discountAutomaticBasicCreate",
+    "discountAutomaticBasicUpdate",
+    "discountAutomaticFreeShippingCreate",
+    "discountAutomaticFreeShippingUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "mutation-lifecycle", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/discounts/discount-subscription-fields-not-permitted.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/discounts_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-subscription-fields-not-permitted.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-roots-and-automatic-free-shipping-carveout",
+        "capturePath": "$.expected.primary",
+        "proxyPath": "$"
+      },
+      {
+        "name": "code-basic-update-not-permitted",
+        "capturePath": "$.expected.basicUpdate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-subscription-fields-basic-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.setupBasic.codeDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "code-free-shipping-update-not-permitted",
+        "capturePath": "$.expected.freeShippingUpdate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-subscription-fields-free-shipping-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.setupFreeShipping.codeDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-basic-update-not-permitted",
+        "capturePath": "$.expected.automaticBasicUpdate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-subscription-fields-automatic-basic-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.setupAutomaticBasic.automaticDiscountNode.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "automatic-free-shipping-update-carveout",
+        "capturePath": "$.expected.automaticFreeShippingUpdate",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-subscription-fields-automatic-free-shipping-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.automaticFreeShippingSkip.automaticDiscountNode.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-781 executable local-runtime parity for the default synthetic non-subscription shop. The active live conformance credential is valid but targets a shop with shop.features.sellsSubscriptions=true, so non-subscription _not_permitted branches cannot be captured from that store in-session. The runtime tests cover subscription-enabled overrides and explicit-null blank behavior; the existing discount-free-shipping-lifecycle capture now carries a cassette-backed shop capability read proving subscription-shop success behavior remains supported."
+}
