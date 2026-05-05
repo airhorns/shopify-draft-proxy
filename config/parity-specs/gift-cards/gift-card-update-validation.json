@@ -1,6 +1,6 @@
 {
   "scenarioId": "gift-card-update-validation",
-  "operationNames": ["giftCardUpdate"],
+  "operationNames": ["customerCreate", "giftCardCreate", "giftCardDeactivate", "giftCardUpdate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
   "liveCaptureFiles": [
@@ -8,9 +8,8 @@
   ],
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
   "proxyRequest": {
-    "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation.graphql",
-    "variablesCapturePath": "$.proxyVariables.updateValidation",
-    "localSetups": [{ "kind": "seedGiftCardUpdateValidation" }]
+    "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation-customer-create.graphql",
+    "variablesCapturePath": "$.setup[0].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
   "notes": "HAR-694 captures giftCardUpdate validation branches for deactivated-card protected fields, missing update arguments, changed customerId existence, recipient text length caps, and success. The public Admin API exposes giftCardUpdate.userErrors as generic UserError in 2025-01, and public recipient length validators surface as top-level INVALID_FIELD_ARGUMENTS, so the live fixture records Shopify field/message evidence and the expected replay payload adds the typed code values required by the internal GiftCardErrorCode contract.",
@@ -19,42 +18,91 @@
     "expectedDifferences": [],
     "targets": [
       {
-        "name": "deactivated card rejects expiresOn update",
-        "capturePath": "$.expected.data.deactivatedExpiresOn.userErrors",
-        "proxyPath": "$.data.deactivatedExpiresOn.userErrors"
+        "name": "create-customer-a-user-errors",
+        "capturePath": "$.setup[0].response.payload.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors"
       },
       {
-        "name": "empty input returns missing optional arguments error",
-        "capturePath": "$.expected.data.emptyInput.userErrors",
-        "proxyPath": "$.data.emptyInput.userErrors"
+        "name": "create-customer-b-user-errors",
+        "capturePath": "$.setup[1].response.payload.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation-customer-create.graphql",
+          "variablesCapturePath": "$.setup[1].variables"
+        }
       },
       {
-        "name": "changed missing customerId returns CUSTOMER_NOT_FOUND",
-        "capturePath": "$.expected.data.missingCustomer.userErrors",
-        "proxyPath": "$.data.missingCustomer.userErrors"
+        "name": "create-active-card-user-errors",
+        "capturePath": "$.setup[2].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation-gift-card-create.graphql",
+          "variables": {
+            "input": {
+              "initialValue": { "fromCapturePath": "$.setup[2].variables.input.initialValue" },
+              "code": { "fromCapturePath": "$.setup[2].variables.input.code" },
+              "note": { "fromCapturePath": "$.setup[2].variables.input.note" },
+              "customerId": { "fromPrimaryProxyPath": "$.data.customerCreate.customer.id" }
+            }
+          }
+        }
       },
       {
-        "name": "recipient preferredName length returns TOO_LONG",
-        "capturePath": "$.expected.data.longRecipientName.userErrors",
-        "proxyPath": "$.data.longRecipientName.userErrors"
+        "name": "create-deactivated-card-user-errors",
+        "capturePath": "$.setup[3].response.payload.data.giftCardCreate.userErrors",
+        "proxyPath": "$.data.giftCardCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation-gift-card-create.graphql",
+          "variablesCapturePath": "$.setup[3].variables"
+        }
       },
       {
-        "name": "recipient message length returns TOO_LONG",
-        "capturePath": "$.expected.data.longRecipientMessage.userErrors",
-        "proxyPath": "$.data.longRecipientMessage.userErrors"
+        "name": "deactivate-card-user-errors",
+        "capturePath": "$.setup[4].response.payload.data.giftCardDeactivate.userErrors",
+        "proxyPath": "$.data.giftCardDeactivate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation-gift-card-deactivate.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-deactivated-card-user-errors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            }
+          }
+        }
       },
       {
-        "name": "valid note update succeeds",
-        "capturePath": "$.expected.data.success",
-        "proxyPath": "$.data.success",
+        "name": "giftCardUpdate validation branches",
+        "capturePath": "$.expected.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-update-validation.graphql",
+          "variables": {
+            "activeId": {
+              "fromProxyResponse": "create-active-card-user-errors",
+              "path": "$.data.giftCardCreate.giftCard.id"
+            },
+            "deactivatedId": {
+              "fromProxyResponse": "deactivate-card-user-errors",
+              "path": "$.data.giftCardDeactivate.giftCard.id"
+            },
+            "missingCustomerId": { "fromCapturePath": "$.proxyVariables.updateValidation.missingCustomerId" },
+            "recipientId": {
+              "fromProxyResponse": "create-customer-b-user-errors",
+              "path": "$.data.customerCreate.customer.id"
+            },
+            "tooLongPreferredName": { "fromCapturePath": "$.proxyVariables.updateValidation.tooLongPreferredName" },
+            "tooLongMessage": { "fromCapturePath": "$.proxyVariables.updateValidation.tooLongMessage" },
+            "successNote": { "fromCapturePath": "$.proxyVariables.updateValidation.successNote" }
+          }
+        },
         "expectedDifferences": [
           {
-            "path": "$.giftCard.id",
+            "path": "$.success.giftCard.id",
             "matcher": "shopify-gid:GiftCard",
             "reason": "The proxy stages giftCardUpdate locally against a synthetic GiftCard GID."
           },
           {
-            "path": "$.giftCard.updatedAt",
+            "path": "$.success.giftCard.updatedAt",
             "matcher": "iso-timestamp",
             "reason": "The proxy uses deterministic synthetic timestamps instead of Shopify's live clock."
           }

@@ -44,7 +44,6 @@ import parity/json_value.{type JsonValue}
 
 pub type LocalSetup {
   SeedSegments(count: Int)
-  SeedGiftCardUpdateValidation
 }
 
 pub type ParityVariables {
@@ -217,8 +216,6 @@ fn local_setup_decoder() -> Decoder(LocalSetup) {
       use count <- decode.field("count", decode.int)
       decode.success(SeedSegments(count: count))
     }
-    "seedGiftCardUpdateValidation" ->
-      decode.success(SeedGiftCardUpdateValidation)
     _ -> decode.failure(SeedSegments(count: 0), "unsupported local setup kind")
   }
 }

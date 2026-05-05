@@ -31,9 +31,8 @@ import parity/json_value.{type JsonValue, JArray, JObject, JString}
 import parity/jsonpath
 import parity/spec.{
   type LocalSetup, type Spec, type Target, NoVariables, OverrideRequest,
-  ProxyLog, ProxyResponse, ProxyState, ReusePrimary,
-  SeedGiftCardUpdateValidation, SeedSegments, VariablesFromCapture,
-  VariablesFromFile, VariablesInline,
+  ProxyLog, ProxyResponse, ProxyState, ReusePrimary, SeedSegments,
+  VariablesFromCapture, VariablesFromFile, VariablesInline,
 }
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, MutationOperation, ParsedOperation, QueryOperation,
@@ -46,11 +45,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   PassthroughUnsupportedMutations, Request,
 }
 import shopify_draft_proxy/state/store
-import shopify_draft_proxy/state/types.{
-  type CustomerRecord, type GiftCardRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerRecord, GiftCardRecord, Money,
-  SegmentRecord,
-}
+import shopify_draft_proxy/state/types.{SegmentRecord}
 import simplifile
 
 pub type RunError {
@@ -576,111 +571,8 @@ fn apply_local_setups(
   list.fold(local_setups, proxy, fn(acc, setup) {
     case setup {
       SeedSegments(count) -> seed_staged_segments(acc, count)
-      SeedGiftCardUpdateValidation -> seed_gift_card_update_validation(acc)
     }
   })
-}
-
-fn seed_gift_card_update_validation(proxy: DraftProxy) -> DraftProxy {
-  let customer_a_id = "gid://shopify/Customer/har694-a"
-  let customer_b_id = "gid://shopify/Customer/har694-b"
-  let active_card_id = "gid://shopify/GiftCard/har694-active"
-  let deactivated_card_id = "gid://shopify/GiftCard/har694-deactivated"
-  let seeded_store =
-    proxy.store
-    |> store.upsert_base_customers([
-      parity_customer(customer_a_id, "har694-a@example.com"),
-      parity_customer(customer_b_id, "har694-b@example.com"),
-    ])
-    |> store.upsert_base_gift_cards([
-      parity_gift_card(
-        active_card_id,
-        True,
-        None,
-        Some(customer_a_id),
-        "HAR-694 active update validation card.",
-      ),
-      parity_gift_card(
-        deactivated_card_id,
-        False,
-        Some("2024-01-02T00:00:00.000Z"),
-        None,
-        "HAR-694 deactivated update validation card.",
-      ),
-    ])
-  DraftProxy(..proxy, store: seeded_store)
-}
-
-fn parity_customer(id: String, email: String) -> CustomerRecord {
-  CustomerRecord(
-    id: id,
-    first_name: Some("HAR694"),
-    last_name: Some("Customer"),
-    display_name: Some("HAR694 Customer"),
-    email: Some(email),
-    legacy_resource_id: None,
-    locale: Some("en"),
-    note: None,
-    can_delete: Some(True),
-    verified_email: Some(True),
-    data_sale_opt_out: False,
-    tax_exempt: Some(False),
-    tax_exemptions: [],
-    state: Some("DISABLED"),
-    tags: [],
-    number_of_orders: Some("0"),
-    amount_spent: Some(Money(amount: "0.0", currency_code: "CAD")),
-    default_email_address: Some(CustomerDefaultEmailAddressRecord(
-      email_address: Some(email),
-      marketing_state: None,
-      marketing_opt_in_level: None,
-      marketing_updated_at: None,
-    )),
-    default_phone_number: Some(CustomerDefaultPhoneNumberRecord(
-      phone_number: None,
-      marketing_state: None,
-      marketing_opt_in_level: None,
-      marketing_updated_at: None,
-      marketing_collected_from: None,
-    )),
-    email_marketing_consent: None,
-    sms_marketing_consent: None,
-    default_address: None,
-    account_activation_token: None,
-    created_at: Some("2024-01-01T00:00:00.000Z"),
-    updated_at: Some("2024-01-01T00:00:00.000Z"),
-  )
-}
-
-fn parity_gift_card(
-  id: String,
-  enabled: Bool,
-  deactivated_at: Option(String),
-  customer_id: Option(String),
-  note: String,
-) -> GiftCardRecord {
-  GiftCardRecord(
-    id: id,
-    legacy_resource_id: id,
-    last_characters: "4694",
-    masked_code: "**** **** **** 4694",
-    code: None,
-    enabled: enabled,
-    notify: True,
-    deactivated_at: deactivated_at,
-    expires_on: None,
-    note: Some(note),
-    template_suffix: None,
-    created_at: "2024-01-01T00:00:00.000Z",
-    updated_at: "2024-01-01T00:00:00.000Z",
-    initial_value: Money(amount: "5.0", currency_code: "CAD"),
-    balance: Money(amount: "5.0", currency_code: "CAD"),
-    customer_id: customer_id,
-    recipient_id: None,
-    source: Some("api_client"),
-    recipient_attributes: None,
-    transactions: [],
-  )
 }
 
 fn seed_staged_segments(proxy: DraftProxy, count: Int) -> DraftProxy {
