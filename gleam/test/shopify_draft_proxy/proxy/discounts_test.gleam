@@ -43,6 +43,36 @@ pub fn code_basic_create_is_readable_by_code_test() {
     == "{\"codeDiscountNodeByCode\":{\"codeDiscount\":{\"title\":\"Launch\",\"codes\":{\"nodes\":[{\"code\":\"LAUNCH10\"}]}}}}"
 }
 
+pub fn code_basic_rejects_cart_line_tag_settings_for_order_class_test() {
+  let outcome =
+    run_mutation(
+      "mutation { orderTagStacking: discountCodeBasicCreate(basicCodeDiscount: { title: \"Order tags invalid\", code: \"ORDER-TAGS\", startsAt: \"2026-05-05T00:00:00Z\", combinesWith: { productDiscounts: true, productDiscountsWithTagsOnSameCartLine: { add: [\"vip\"] } }, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderTagStacking\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"combinesWith\",\"productDiscountsWithTagsOnSameCartLine\"],\"message\":\"The shop's plan does not allow setting `productDiscountsWithTagsOnSameCartLine`.\",\"code\":\"PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_NOT_ENTITLED\",\"extraInfo\":null},{\"field\":[\"basicCodeDiscount\",\"combinesWith\",\"productDiscountsWithTagsOnSameCartLine\"],\"message\":\"Combines with product discounts with tags on same cart line is only valid for discounts with the PRODUCT discount class\",\"code\":\"INVALID_PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_FOR_DISCOUNT_CLASS\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_basic_product_class_tag_settings_skip_class_error_test() {
+  let outcome =
+    run_mutation(
+      "mutation { productTagStacking: discountCodeBasicCreate(basicCodeDiscount: { title: \"Product tags invalid\", code: \"PRODUCT-TAGS\", startsAt: \"2026-05-05T00:00:00Z\", combinesWith: { productDiscountsWithTagsOnSameCartLine: { add: [\"vip\"] } }, customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"productTagStacking\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"combinesWith\",\"productDiscountsWithTagsOnSameCartLine\"],\"message\":\"The shop's plan does not allow setting `productDiscountsWithTagsOnSameCartLine`.\",\"code\":\"PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_NOT_ENTITLED\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_basic_rejects_cart_line_tag_overlap_as_bad_request_test() {
+  let outcome =
+    run_mutation(
+      "mutation { tagOverlap: discountCodeBasicCreate(basicCodeDiscount: { title: \"Overlap invalid\", code: \"TAG-OVERLAP\", startsAt: \"2026-05-05T00:00:00Z\", combinesWith: { productDiscountsWithTagsOnSameCartLine: { add: [\"same\"], remove: [\"same\"] } }, customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"errors\":[{\"message\":\"The same tag is present in both `add` and `remove` fields of `productDiscountsWithTagsOnSameCartLine`.\",\"locations\":[{\"line\":1,\"column\":12}],\"extensions\":{\"code\":\"BAD_REQUEST\"},\"path\":[\"tagOverlap\"]}],\"data\":{\"tagOverlap\":null}}"
+}
+
 pub fn blank_bxgy_returns_captured_user_errors_test() {
   let outcome =
     run_mutation(

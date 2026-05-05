@@ -1,0 +1,12 @@
+mutation ProductTagNormalizationCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      tags
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

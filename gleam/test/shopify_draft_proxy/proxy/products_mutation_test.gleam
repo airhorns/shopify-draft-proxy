@@ -325,6 +325,29 @@ pub fn tags_remove_stages_tags_and_keeps_removed_tag_searchable_test() {
     == 1
 }
 
+pub fn tags_add_and_remove_use_shopify_tag_identity_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tagged_product_store())
+  let add_query =
+    "mutation { tagsAdd(id: \\\"gid://shopify/Product/optioned\\\", tags: [\\\" Sale \\\", \\\"SALE\\\", \\\"blue\\\", \\\"Blue\\\"]) { node { ... on Product { id tags } } userErrors { field message } } }"
+
+  let #(Response(status: add_status, body: add_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(add_query))
+
+  assert add_status == 200
+  assert json.to_string(add_body)
+    == "{\"data\":{\"tagsAdd\":{\"node\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"blue\",\"existing\",\"sale\",\"summer\"]},\"userErrors\":[]}}}"
+
+  let remove_query =
+    "mutation { tagsRemove(id: \\\"gid://shopify/Product/optioned\\\", tags: [\\\"SALE\\\", \\\"BLUE\\\"]) { node { ... on Product { id tags } } userErrors { field message } } }"
+  let #(Response(status: remove_status, body: remove_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(remove_query))
+
+  assert remove_status == 200
+  assert json.to_string(remove_body)
+    == "{\"data\":{\"tagsRemove\":{\"node\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\",\"summer\"]},\"userErrors\":[]}}}"
+}
+
 pub fn product_update_stages_fields_and_downstream_reads_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
@@ -353,6 +376,74 @@ pub fn product_update_stages_fields_and_downstream_reads_test() {
     == 1
 }
 
+pub fn product_update_normalizes_tags_like_shopify_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", tags: [\\\" Red \\\", \\\"red\\\", \\\"RED\\\", \\\" big   sale \\\"] }) { product { id tags } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"big   sale\",\"Red\"]},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id tags } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"big   sale\",\"Red\"]}}}"
+}
+
+pub fn product_update_rejects_invalid_product_tags_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let long_tag = string.repeat("x", times: 256)
+  let long_query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", tags: [\\\""
+    <> long_tag
+    <> "\\\"] }) { product { id tags } userErrors { field message } } }"
+
+  let #(Response(status: long_status, body: long_body, ..), long_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(long_query))
+
+  assert long_status == 200
+  assert json.to_string(long_body)
+    == "{\"data\":{\"productUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\"]},\"userErrors\":[{\"field\":[\"tags\"],\"message\":\"Product tags is invalid\"}]}}}"
+  assert store.get_log(long_proxy.store)
+    |> list.length
+    == 1
+
+  let too_many_tags = string.repeat("\\\"tag\\\",", times: 251)
+  let too_many_query =
+    "mutation { productUpdate(product: { id: \\\"gid://shopify/Product/optioned\\\", tags: ["
+    <> too_many_tags
+    <> "] }) { product { id tags } userErrors { field message } } }"
+  let #(
+    Response(status: too_many_status, body: too_many_body, ..),
+    too_many_proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(too_many_query))
+  let too_many_json = json.to_string(too_many_body)
+  assert too_many_status == 200
+  assert !string.contains(too_many_json, "\"data\"")
+  assert string.contains(
+    too_many_json,
+    "\"message\":\"The input array size of 251 is greater than the maximum allowed of 250.\"",
+  )
+  assert string.contains(
+    too_many_json,
+    "\"path\":[\"productUpdate\",\"product\",\"tags\"]",
+  )
+  assert string.contains(too_many_json, "\"code\":\"MAX_INPUT_SIZE_EXCEEDED\"")
+  assert store.get_log(too_many_proxy.store) == []
+}
+
 pub fn product_update_blank_title_returns_existing_product_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
@@ -368,6 +459,27 @@ pub fn product_update_blank_title_returns_existing_product_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_create_and_set_normalize_tags_like_shopify_test() {
+  let create_query =
+    "mutation { productCreate(product: { title: \\\"Created Board\\\", status: DRAFT, tags: [\\\"Red\\\", \\\"blue\\\", \\\"red\\\"] }) { product { id tags } userErrors { field message } } }"
+  let #(Response(status: create_status, body: create_body, ..), _) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(create_query),
+    )
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"tags\":[\"blue\",\"Red\"]},\"userErrors\":[]}}}"
+
+  let set_query =
+    "mutation { productSet(input: { title: \\\"Set Board\\\", status: DRAFT, tags: [\\\"Red\\\", \\\"blue\\\", \\\"red\\\"] }, synchronous: true) { product { id tags } userErrors { field message } } }"
+  let #(Response(status: set_status, body: set_body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(set_query))
+  assert set_status == 200
+  assert json.to_string(set_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"tags\":[\"blue\",\"Red\"]},\"userErrors\":[]}}}"
 }
 
 pub fn product_create_stages_product_default_variant_and_inventory_test() {
