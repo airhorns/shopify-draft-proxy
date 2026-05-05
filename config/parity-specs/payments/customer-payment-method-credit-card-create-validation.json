@@ -1,0 +1,70 @@
+{
+  "scenarioId": "customer-payment-method-credit-card-create-validation",
+  "operationNames": ["customerPaymentMethod", "customerPaymentMethodCreditCardCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-credit-card-create-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/customer-payment-method-credit-card-create-validation-blank.graphql",
+    "variablesCapturePath": "$.variables.blankBilling"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-billing-address",
+        "capturePath": "$.expected.blankBilling",
+        "proxyPath": "$"
+      },
+      {
+        "name": "missing-session-id",
+        "capturePath": "$.expected.missingSession",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/customer-payment-method-credit-card-create-validation-missing-session.graphql",
+          "variablesCapturePath": "$.variables.missingSession"
+        }
+      },
+      {
+        "name": "processing-state",
+        "capturePath": "$.expected.processing",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/customer-payment-method-credit-card-create-validation-processing.graphql",
+          "variablesCapturePath": "$.variables.processing"
+        }
+      },
+      {
+        "name": "successful-create",
+        "capturePath": "$.expected.success",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/customer-payment-method-credit-card-create-validation-success.graphql",
+          "variablesCapturePath": "$.variables.success"
+        }
+      },
+      {
+        "name": "read-after-create",
+        "capturePath": "$.expected.readAfter",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/customer-payment-method-credit-card-create-validation-read.graphql",
+          "variablesCapturePath": "$.variables.readAfter"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for HAR-642. The fixture covers blank billing-address validation, missing sessionId GraphQL validation, opt-in processing state via the local `shopify-draft-proxy:processing` session sentinel, successful scrubbed credit-card creation, and downstream instrument.billingAddress read-after-write behavior."
+}

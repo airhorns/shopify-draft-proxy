@@ -1,0 +1,21 @@
+mutation CustomerPaymentMethodCreditCardCreateProcessing(
+  $customerId: ID!
+  $billingAddress: MailingAddressInput!
+  $sessionId: String!
+) {
+  customerPaymentMethodCreditCardCreate(
+    customerId: $customerId
+    billingAddress: $billingAddress
+    sessionId: $sessionId
+  ) {
+    customerPaymentMethod {
+      id
+    }
+    processing
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
