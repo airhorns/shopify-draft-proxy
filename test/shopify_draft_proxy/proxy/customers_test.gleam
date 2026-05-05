@@ -380,6 +380,58 @@ pub fn customer_create_rejects_client_supplied_id_test() {
   )
 }
 
+pub fn customer_create_rejects_nested_client_supplied_ids_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"nested-client-id@example.com\", addresses: [{ id: \"gid://shopify/MailingAddress/999\", address1: \"1 Spear St\" }], metafields: [{ id: \"gid://shopify/Metafield/999\", namespace: \"ns\", key: \"k\", value: \"v\", type: \"single_line_text_field\" }] }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"customer\":null")
+  assert string.contains(
+    create_json,
+    "\"userErrors\":[{\"field\":[\"addresses\",\"0\",\"id\"],\"message\":\"Cannot specify address ID on creation\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customersCount { count precision } }")
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customersCount\":{\"count\":0,\"precision\":\"EXACT\"}",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_create_rejects_nested_metafield_client_supplied_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"nested-metafield-client-id@example.com\", metafields: [{ id: \"gid://shopify/Metafield/999\", namespace: \"ns\", key: \"k\", value: \"v\", type: \"single_line_text_field\" }] }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"customer\":null")
+  assert string.contains(
+    create_json,
+    "\"userErrors\":[{\"field\":[\"metafields\",\"0\",\"id\"],\"message\":\"Cannot specify metafield ID on creation\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customersCount { count precision } }")
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customersCount\":{\"count\":0,\"precision\":\"EXACT\"}",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
 pub fn customer_address_lifecycle_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, ..), proxy) =
