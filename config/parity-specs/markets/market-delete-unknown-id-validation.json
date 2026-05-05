@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.cases[2].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Safe Shopify Markets validation branch for Admin GraphQL 2026-04. Unknown marketDelete ID returns MarketUserError code DEFINITION_NOT_FOUND without mutating market state.",
+  "notes": "Safe Shopify Markets validation branch for Admin GraphQL 2026-04. Unknown marketDelete ID returns MarketUserError code MARKET_NOT_FOUND without mutating market state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],

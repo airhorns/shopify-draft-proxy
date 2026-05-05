@@ -1,5 +1,5 @@
 {
-  "capturedAt": "2026-04-25T15:43:05.058Z",
+  "capturedAt": "2026-05-05T15:21:08.509Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "cases": [
@@ -30,6 +30,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -53,9 +64,20 @@
                 {
                   "field": ["id"],
                   "message": "Market does not exist",
-                  "code": "DEFINITION_NOT_FOUND"
+                  "code": "MARKET_NOT_FOUND"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -77,9 +99,20 @@
                 {
                   "field": ["id"],
                   "message": "Market does not exist",
-                  "code": "DEFINITION_NOT_FOUND"
+                  "code": "MARKET_NOT_FOUND"
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
             }
           }
         }
