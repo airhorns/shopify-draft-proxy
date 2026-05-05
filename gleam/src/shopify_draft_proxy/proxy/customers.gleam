@@ -26,6 +26,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
+}
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/payments
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -60,15 +63,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type CustomersError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-  )
 }
 
 type UserError {
@@ -1942,30 +1936,20 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, CustomersError) {
-  process_mutation_with_upstream(
-    proxy,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
-
-pub fn process_mutation_with_upstream(
-  proxy: DraftProxy,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, CustomersError) {
+) -> MutationOutcome {
   let store = proxy.store
   let identity = proxy.synthetic_identity
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) ->
+      mutation_helpers.parse_failed_outcome(
+        proxy.store,
+        proxy.synthetic_identity,
+        err,
+      )
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         request_path,
@@ -1974,7 +1958,7 @@ pub fn process_mutation_with_upstream(
         fragments,
         variables,
         upstream,
-      ))
+      )
     }
   }
 }
@@ -1989,16 +1973,31 @@ fn handle_mutation_fields(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationOutcome {
-  case first_customer_merge_missing_argument_error(fields, variables) {
-    Some(error_json) ->
+  case
+    first_disallowed_marketing_consent_update_state_error(
+      fields,
+      variables,
+      document,
+    )
+  {
+    Some(#(root_name, error_json, include_null_data)) -> {
+      let entries = case include_null_data {
+        True -> [
+          #("errors", json.array([error_json], fn(x) { x })),
+          #("data", json.object([#(root_name, json.null())])),
+        ]
+        False -> [#("errors", json.array([error_json], fn(x) { x }))]
+      }
       MutationOutcome(
-        data: json.object([#("errors", json.array([error_json], fn(x) { x }))]),
+        data: json.object(entries),
         store: store,
         identity: identity,
         staged_resource_ids: [],
+        log_drafts: [],
       )
+    }
     None ->
-      case first_invalid_tax_exemption_error(fields, variables) {
+      case first_customer_merge_missing_argument_error(fields, variables) {
         Some(error_json) ->
           MutationOutcome(
             data: json.object([
@@ -2007,20 +2006,205 @@ fn handle_mutation_fields(
             store: store,
             identity: identity,
             staged_resource_ids: [],
+            log_drafts: [],
           )
         None ->
-          handle_validated_mutation_fields(
-            store,
-            identity,
-            request_path,
-            document,
-            fields,
-            fragments,
+          case first_invalid_tax_exemption_error(fields, variables) {
+            Some(error_json) ->
+              MutationOutcome(
+                data: json.object([
+                  #("errors", json.array([error_json], fn(x) { x })),
+                ]),
+                store: store,
+                identity: identity,
+                staged_resource_ids: [],
+              )
+            None ->
+              handle_validated_mutation_fields(
+                store,
+                identity,
+                request_path,
+                document,
+                fields,
+                fragments,
+                variables,
+                upstream,
+              )
+          }
+      }
+  }
+}
+
+fn first_disallowed_marketing_consent_update_state_error(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  document: String,
+) -> Option(#(String, Json, Bool)) {
+  case fields {
+    [] -> None
+    [field, ..rest] ->
+      case field {
+        Field(name: name, ..) as selected_field ->
+          case marketing_consent_input_key(name.value) {
+            Some(consent_key) -> {
+              let args = graphql_helpers.field_args(selected_field, variables)
+              let input =
+                graphql_helpers.read_arg_object(args, "input")
+                |> option.unwrap(dict.new())
+              let consent = read_nested_object(input, consent_key)
+              case read_obj_string(consent, "marketingState") {
+                Some(value) ->
+                  case is_allowed_marketing_consent_update_state(value) {
+                    True ->
+                      first_disallowed_marketing_consent_update_state_error(
+                        rest,
+                        variables,
+                        document,
+                      )
+                    False -> {
+                      let #(error_json, include_null_data) =
+                        marketing_consent_update_state_error(
+                          name.value,
+                          consent_key,
+                          value,
+                          input,
+                          selected_field,
+                          document,
+                        )
+                      Some(#(name.value, error_json, include_null_data))
+                    }
+                  }
+                None ->
+                  first_disallowed_marketing_consent_update_state_error(
+                    rest,
+                    variables,
+                    document,
+                  )
+              }
+            }
+            None ->
+              first_disallowed_marketing_consent_update_state_error(
+                rest,
+                variables,
+                document,
+              )
+          }
+        _ ->
+          first_disallowed_marketing_consent_update_state_error(
+            rest,
             variables,
-            upstream,
+            document,
           )
       }
   }
+}
+
+fn marketing_consent_input_key(root_name: String) -> Option(String) {
+  case root_name {
+    "customerEmailMarketingConsentUpdate" -> Some("emailMarketingConsent")
+    "customerSmsMarketingConsentUpdate" -> Some("smsMarketingConsent")
+    _ -> None
+  }
+}
+
+fn is_allowed_marketing_consent_update_state(state: String) -> Bool {
+  case state {
+    "SUBSCRIBED" | "UNSUBSCRIBED" | "PENDING" -> True
+    _ -> False
+  }
+}
+
+fn marketing_consent_update_state_error(
+  root_name: String,
+  consent_key: String,
+  state: String,
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> #(Json, Bool) {
+  case root_name, state {
+    "customerSmsMarketingConsentUpdate", "INVALID" -> #(
+      invalid_sms_marketing_state_variable_error(
+        consent_key,
+        state,
+        input,
+        field,
+        document,
+      ),
+      False,
+    )
+    _, _ -> #(
+      json.object([
+        #(
+          "message",
+          json.string(
+            "Cannot specify " <> state <> " as a marketing state input",
+          ),
+        ),
+        #("locations", graphql_helpers.field_locations_json(field, document)),
+        #("extensions", json.object([#("code", json.string("INVALID"))])),
+        #("path", json.array([json.string(root_name)], fn(x) { x })),
+      ]),
+      True,
+    )
+  }
+}
+
+fn invalid_sms_marketing_state_variable_error(
+  consent_key: String,
+  state: String,
+  input: Dict(String, root_field.ResolvedValue),
+  field: Selection,
+  document: String,
+) -> Json {
+  let input_type = "CustomerSmsMarketingConsentUpdateInput"
+  let allowed_values =
+    "NOT_SUBSCRIBED, PENDING, SUBSCRIBED, UNSUBSCRIBED, REDACTED"
+  let explanation =
+    "Expected \"" <> state <> "\" to be one of: " <> allowed_values
+  json.object([
+    #(
+      "message",
+      json.string(
+        "Variable $input of type "
+        <> input_type
+        <> "! was provided invalid value for "
+        <> consent_key
+        <> ".marketingState ("
+        <> explanation
+        <> ")",
+      ),
+    ),
+    #("locations", graphql_helpers.field_locations_json(field, document)),
+    #(
+      "extensions",
+      json.object([
+        #("code", json.string("INVALID_VARIABLE")),
+        #(
+          "value",
+          root_field.resolved_value_to_json(root_field.ObjectVal(input)),
+        ),
+        #(
+          "problems",
+          json.array(
+            [
+              json.object([
+                #(
+                  "path",
+                  json.array(
+                    [json.string(consent_key), json.string("marketingState")],
+                    fn(x) { x },
+                  ),
+                ),
+                #("explanation", json.string(explanation)),
+              ]),
+            ],
+            fn(x) { x },
+          ),
+        ),
+      ]),
+    ),
+  ])
 }
 
 fn first_customer_merge_missing_argument_error(
@@ -2161,6 +2345,7 @@ fn handle_validated_mutation_fields(
     store: logged_store,
     identity: logged_identity,
     staged_resource_ids: staged_ids,
+    log_drafts: [],
   )
 }
 
@@ -4437,65 +4622,81 @@ fn handle_customer_address_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   let address_id = graphql_helpers.read_arg_string_nonempty(args, "addressId")
   let address_input =
     graphql_helpers.read_arg_object(args, "address")
     |> option.unwrap(dict.new())
   let set_default =
     graphql_helpers.read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
-  case address_id {
-    Some(id) ->
-      case store.get_effective_customer_address_by_id(store, id) {
-        Some(existing) -> {
-          let updated = merge_address(existing, address_input)
-          let #(_, store_after_address) =
-            store.stage_upsert_customer_address(store, updated)
-          let next_store = case set_default {
-            True ->
-              case
-                store.get_effective_customer_by_id(
-                  store_after_address,
-                  updated.customer_id,
-                )
-              {
-                Some(customer) -> {
-                  let #(_, s) =
-                    store.stage_update_customer(
-                      store_after_address,
-                      CustomerRecord(
-                        ..customer,
-                        default_address: Some(address_to_default(updated)),
-                      ),
+  case customer_id, address_id {
+    Some(cid), Some(aid) ->
+      case store.get_effective_customer_by_id(store, cid) {
+        Some(customer) ->
+          case store.get_effective_customer_address_by_id(store, aid) {
+            Some(existing) ->
+              case existing.customer_id == customer.id {
+                True -> {
+                  let updated = merge_address(existing, address_input)
+                  let #(_, store_after_address) =
+                    store.stage_upsert_customer_address(store, updated)
+                  let next_store = case set_default {
+                    True -> {
+                      let #(_, s) =
+                        store.stage_update_customer(
+                          store_after_address,
+                          CustomerRecord(
+                            ..customer,
+                            default_address: Some(address_to_default(updated)),
+                          ),
+                        )
+                      s
+                    }
+                    False -> store_after_address
+                  }
+                  let payload =
+                    address_payload_json(
+                      next_store,
+                      "CustomerAddressUpdatePayload",
+                      Some(updated),
+                      None,
+                      [],
+                      field,
+                      fragments,
                     )
-                  s
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [updated.id],
+                      "customerAddressUpdate",
+                    ),
+                    next_store,
+                    identity,
+                  )
                 }
-                None -> store_after_address
+                False ->
+                  address_ownership_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "CustomerAddressUpdatePayload",
+                    "customerAddressUpdate",
+                  )
               }
-            False -> store_after_address
+            None ->
+              address_unknown_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "CustomerAddressUpdatePayload",
+                "customerAddressUpdate",
+              )
           }
-          let payload =
-            address_payload_json(
-              next_store,
-              "CustomerAddressUpdatePayload",
-              Some(updated),
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [updated.id],
-              "customerAddressUpdate",
-            ),
-            next_store,
-            identity,
-          )
-        }
         None ->
-          address_unknown_result(
+          address_customer_missing_result(
             store,
             identity,
             field,
@@ -4504,7 +4705,7 @@ fn handle_customer_address_update(
             "customerAddressUpdate",
           )
       }
-    None ->
+    _, _ ->
       address_unknown_result(
         store,
         identity,
@@ -4524,69 +4725,89 @@ fn handle_customer_address_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   let address_id = graphql_helpers.read_arg_string_nonempty(args, "addressId")
-  case address_id {
-    Some(id) ->
-      case store.get_effective_customer_address_by_id(store, id) {
-        Some(address) -> {
-          let store_after_delete =
-            store.stage_delete_customer_address(store, id)
-          let next_store = case
-            store.get_effective_customer_by_id(
-              store_after_delete,
-              address.customer_id,
-            )
-          {
-            Some(customer) -> {
-              let current_default =
-                customer.default_address |> option.then(fn(a) { a.id })
-              case current_default == Some(id) {
+  case customer_id, address_id {
+    Some(cid), Some(aid) ->
+      case store.get_effective_customer_by_id(store, cid) {
+        Some(customer) ->
+          case store.get_effective_customer_address_by_id(store, aid) {
+            Some(address) ->
+              case address.customer_id == customer.id {
                 True -> {
-                  let replacement =
-                    store.list_effective_customer_addresses(
-                      store_after_delete,
-                      address.customer_id,
+                  let store_after_delete =
+                    store.stage_delete_customer_address(store, aid)
+                  let next_store = {
+                    let current_default =
+                      customer.default_address |> option.then(fn(a) { a.id })
+                    case current_default == Some(aid) {
+                      True -> {
+                        let replacement =
+                          store.list_effective_customer_addresses(
+                            store_after_delete,
+                            customer.id,
+                          )
+                          |> list.first()
+                          |> result_to_option()
+                        let updated =
+                          CustomerRecord(
+                            ..customer,
+                            default_address: replacement
+                              |> option.map(address_to_default),
+                          )
+                        let #(_, s) =
+                          store.stage_update_customer(
+                            store_after_delete,
+                            updated,
+                          )
+                        s
+                      }
+                      False -> store_after_delete
+                    }
+                  }
+                  let payload =
+                    address_payload_json(
+                      next_store,
+                      "CustomerAddressDeletePayload",
+                      None,
+                      Some(aid),
+                      [],
+                      field,
+                      fragments,
                     )
-                    |> list.first()
-                    |> result_to_option()
-                  let updated =
-                    CustomerRecord(
-                      ..customer,
-                      default_address: replacement
-                        |> option.map(address_to_default),
-                    )
-                  let #(_, s) =
-                    store.stage_update_customer(store_after_delete, updated)
-                  s
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [aid],
+                      "customerAddressDelete",
+                    ),
+                    next_store,
+                    identity,
+                  )
                 }
-                False -> store_after_delete
+                False ->
+                  address_ownership_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "CustomerAddressDeletePayload",
+                    "customerAddressDelete",
+                  )
               }
-            }
-            None -> store_after_delete
+            None ->
+              address_unknown_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "CustomerAddressDeletePayload",
+                "customerAddressDelete",
+              )
           }
-          let payload =
-            address_payload_json(
-              next_store,
-              "CustomerAddressDeletePayload",
-              None,
-              Some(id),
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [id],
-              "customerAddressDelete",
-            ),
-            next_store,
-            identity,
-          )
-        }
         None ->
-          address_unknown_result(
+          address_customer_missing_result(
             store,
             identity,
             field,
@@ -4595,7 +4816,7 @@ fn handle_customer_address_delete(
             "customerAddressDelete",
           )
       }
-    None ->
+    _, _ ->
       address_unknown_result(
         store,
         identity,
@@ -4619,47 +4840,73 @@ fn handle_customer_update_default_address(
   let address_id = graphql_helpers.read_arg_string_nonempty(args, "addressId")
   case customer_id, address_id {
     Some(cid), Some(aid) ->
-      case
-        store.get_effective_customer_by_id(store, cid),
-        store.get_effective_customer_address_by_id(store, aid)
-      {
-        Some(customer), Some(address) -> {
-          let updated =
-            CustomerRecord(
-              ..customer,
-              default_address: Some(address_to_default(address)),
-            )
-          let #(_, next_store) = store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerUpdateDefaultAddressPayload",
-              Some(updated),
-              None,
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [cid, aid],
-              "customerUpdateDefaultAddress",
-            ),
-            next_store,
-            identity,
-          )
-        }
-        _, _ ->
-          unknown_customer_result(
+      case store.get_effective_customer_by_id(store, cid) {
+        Some(customer) ->
+          case store.get_effective_customer_address_by_id(store, aid) {
+            Some(address) ->
+              case address.customer_id == customer.id {
+                True -> {
+                  let updated =
+                    CustomerRecord(
+                      ..customer,
+                      default_address: Some(address_to_default(address)),
+                    )
+                  let #(_, next_store) =
+                    store.stage_update_customer(store, updated)
+                  let payload =
+                    customer_payload_json(
+                      next_store,
+                      "CustomerUpdateDefaultAddressPayload",
+                      Some(updated),
+                      None,
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [cid, aid],
+                      "customerUpdateDefaultAddress",
+                    ),
+                    next_store,
+                    identity,
+                  )
+                }
+                False ->
+                  customer_address_ownership_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "CustomerUpdateDefaultAddressPayload",
+                    "customerUpdateDefaultAddress",
+                    customer,
+                  )
+              }
+            None ->
+              unknown_customer_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "CustomerUpdateDefaultAddressPayload",
+                "customerUpdateDefaultAddress",
+              )
+          }
+        None ->
+          customer_missing_result(
             store,
             identity,
             field,
             fragments,
             "CustomerUpdateDefaultAddressPayload",
             "customerUpdateDefaultAddress",
+            ["customerId"],
+            "Customer does not exist",
+            Some("CUSTOMER_DOES_NOT_EXIST"),
           )
       }
     _, _ ->
@@ -5885,6 +6132,82 @@ fn address_unknown_result(store, identity, field, fragments, typename, root) {
           Some("CUSTOMER_DOES_NOT_EXIST"),
         ),
       ],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(get_field_response_key(field), payload, [], root),
+    store,
+    identity,
+  )
+}
+
+fn address_customer_missing_result(
+  store,
+  identity,
+  field,
+  fragments,
+  typename,
+  root,
+) {
+  let payload =
+    address_payload_json(
+      store,
+      typename,
+      None,
+      None,
+      [
+        UserError(
+          ["customerId"],
+          "Customer does not exist",
+          Some("CUSTOMER_DOES_NOT_EXIST"),
+        ),
+      ],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(get_field_response_key(field), payload, [], root),
+    store,
+    identity,
+  )
+}
+
+fn address_ownership_result(store, identity, field, fragments, typename, root) {
+  let payload =
+    address_payload_json(
+      store,
+      typename,
+      None,
+      None,
+      [UserError(["addressId"], "Address does not exist", None)],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(get_field_response_key(field), payload, [], root),
+    store,
+    identity,
+  )
+}
+
+fn customer_address_ownership_result(
+  store,
+  identity,
+  field,
+  fragments,
+  typename,
+  root,
+  customer,
+) {
+  let payload =
+    customer_payload_json(
+      store,
+      typename,
+      Some(customer),
+      None,
+      None,
+      [UserError(["addressId"], "Address does not exist", None)],
       field,
       fragments,
     )

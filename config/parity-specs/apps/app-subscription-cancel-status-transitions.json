@@ -1,0 +1,68 @@
+{
+  "scenarioId": "app-subscription-cancel-status-transitions",
+  "operationNames": ["appSubscriptionCreate", "appSubscriptionCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-billing-access-local-staging.json"],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",
+    "variables": {
+      "lineItems": [
+        {
+          "plan": {
+            "appUsagePricingDetails": {
+              "cappedAmount": {
+                "amount": 100,
+                "currencyCode": "USD"
+              },
+              "terms": "usage terms"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "subscription-create-payload",
+        "capturePath": "$.evidence.parity.expected.subscriptionCreate.data.appSubscriptionCreate",
+        "proxyPath": "$.data.appSubscriptionCreate",
+        "selectedPaths": ["$.appSubscription.status", "$.userErrors"]
+      },
+      {
+        "name": "subscription-cancel-payload",
+        "capturePath": "$.evidence.parity.expected.cancel.data.appSubscriptionCancel",
+        "proxyPath": "$.data.appSubscriptionCancel",
+        "selectedPaths": ["$.appSubscription.status", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionCancel-local-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "subscription-repeat-cancel-user-error",
+        "capturePath": "$.evidence.parity.expected.cancelAgain.data.appSubscriptionCancel",
+        "proxyPath": "$.data.appSubscriptionCancel",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionCancel-local-lifecycle.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.appSubscriptionCreate.appSubscription.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "The generic parity runner covers create -> cancel -> repeat-cancel by threading proxy state between target requests. The forced EXPIRED initial-status branch is covered by the runtime test file because the current parity runner intentionally does not pre-seed app subscription status; live capture against the configured conformance app is blocked by Shopify's `Custom apps cannot use the Billing API` response."
+}

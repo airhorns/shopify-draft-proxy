@@ -37,6 +37,9 @@ import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/mutation_schema.{type SchemaMutation}
 import shopify_draft_proxy/proxy/mutation_schema_lookup.{type MutationSchema}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Response, Response,
+}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -925,6 +928,57 @@ pub type LogDraft {
   )
 }
 
+/// Standard shape returned by every domain `process_mutation`
+/// implementation. Bundles the JSON response body, the next `Store`,
+/// the next `SyntheticIdentityRegistry`, the resource ids that were
+/// staged this turn (used by the dispatcher to thread through the log
+/// entry), and the per-mutation `LogDraft` list that the dispatcher
+/// records via `record_log_drafts`.
+///
+/// Defined once here so all domain modules share one constructor; the
+/// dispatcher's `finalize_mutation_outcome` only needs to know about
+/// this single type.
+pub type MutationOutcome {
+  MutationOutcome(
+    data: Json,
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
+  )
+}
+
+/// Build a `MutationOutcome` carrying a top-level `{"errors":[...]}`
+/// envelope for a `root_field.RootFieldError`. Domain
+/// `process_mutation` implementations call this when the document
+/// fails to re-parse — in practice unreachable, since the dispatcher
+/// already parsed the document via `parse_operation.parse_operation`
+/// before routing — so this exists to keep the return type a plain
+/// `MutationOutcome` instead of forcing every caller through a
+/// phantom `Result` wrapper.
+pub fn parse_failed_outcome(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  _err: root_field.RootFieldError,
+) -> MutationOutcome {
+  MutationOutcome(
+    data: json.object([
+      #(
+        "errors",
+        json.preprocessed_array([
+          json.object([
+            #("message", json.string("Could not parse GraphQL operation")),
+          ]),
+        ]),
+      ),
+    ]),
+    store: store,
+    identity: identity,
+    staged_resource_ids: [],
+    log_drafts: [],
+  )
+}
+
 /// Build a `LogDraft` for a single-root-field mutation. Mirrors the
 /// shape that webhooks/apps/saved_searches/functions all
 /// historically produced inline. `domain` and `execution` are the
@@ -998,4 +1052,34 @@ pub fn record_log_drafts(
       )
     #(store.record_mutation_log_entry(current_store, entry), identity_after_ts)
   })
+}
+
+/// Wrap a domain `process` result into the dispatcher's
+/// `#(Response, DraftProxy)` shape. `Ok(envelope)` becomes a 200 with
+/// the JSON body; `Error(_)` becomes a 400 carrying `error_message` in
+/// the standard `{ errors: [...] }` envelope. Centralised so each
+/// simple-domain `handle_query_request` is a one-liner.
+pub fn respond_to_query(
+  proxy: DraftProxy,
+  result: Result(Json, a),
+  error_message: String,
+) -> #(Response, DraftProxy) {
+  case result {
+    Ok(envelope) -> #(Response(status: 200, body: envelope, headers: []), proxy)
+    Error(_) -> #(
+      Response(
+        status: 400,
+        body: json.object([
+          #(
+            "errors",
+            json.preprocessed_array([
+              json.object([#("message", json.string(error_message))]),
+            ]),
+          ),
+        ]),
+        headers: [],
+      ),
+      proxy,
+    )
+  }
 }

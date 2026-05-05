@@ -26,14 +26,12 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext, empty_upstream_context,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store, Staged}
@@ -61,16 +59,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type ShippingFulfillmentsError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 type MutationFieldResult {
@@ -1478,40 +1466,23 @@ fn handle_shipping_order_query(
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, ShippingFulfillmentsError) {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
-
-pub fn process_mutation_with_upstream(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, ShippingFulfillmentsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         fields,
         fragments,
         variables,
         upstream,
-      ))
+      )
     }
   }
 }
@@ -4335,12 +4306,26 @@ fn handle_fulfillment_order_simple_status(
             ]
             _ -> ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"]
           }
-          let updated =
-            update_fulfillment_order_fields(order, [
+          let status_updates = case status {
+            "IN_PROGRESS" -> [
               #("status", CapturedString(status)),
               #("updatedAt", CapturedString(synthetic_timestamp_string())),
               #("supportedActions", captured_action_list(actions)),
-            ])
+              #("__draftProxyManuallyReportedProgress", CapturedBool(True)),
+            ]
+            "OPEN" -> [
+              #("status", CapturedString(status)),
+              #("updatedAt", CapturedString(synthetic_timestamp_string())),
+              #("supportedActions", captured_action_list(actions)),
+              #("__draftProxyManuallyReportedProgress", CapturedBool(False)),
+            ]
+            _ -> [
+              #("status", CapturedString(status)),
+              #("updatedAt", CapturedString(synthetic_timestamp_string())),
+              #("supportedActions", captured_action_list(actions)),
+            ]
+          }
+          let updated = update_fulfillment_order_fields(order, status_updates)
           let updated = FulfillmentOrderRecord(..updated, status: status)
           let draft_store =
             update_shipping_order_display_status(draft_store, updated, status)
@@ -4386,50 +4371,66 @@ fn handle_fulfillment_order_cancel(
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) -> {
-          let canceled =
-            update_fulfillment_order_fields(order, [
-              #("status", CapturedString("CLOSED")),
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-              #("supportedActions", CapturedArray([])),
-              #("lineItems", captured_connection([])),
-            ])
-          let canceled = FulfillmentOrderRecord(..canceled, status: "CLOSED")
-          let #(replacement_id, identity) =
-            synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
-          let replacement =
-            update_fulfillment_order_fields(order, [
-              #("id", CapturedString(replacement_id)),
-              #("status", CapturedString("OPEN")),
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-            ])
-          let replacement =
-            FulfillmentOrderRecord(
-              ..replacement,
-              id: replacement_id,
-              status: "OPEN",
-            )
-          let #(canceled, next_store) =
-            store.stage_upsert_fulfillment_order(draft_store, canceled)
-          let #(replacement, next_store) =
-            store.stage_upsert_fulfillment_order(next_store, replacement)
-          #(
-            MutationFieldResult(
-              key: key,
-              payload: fulfillment_order_payload_json(field, fragments, [
-                #("__typename", SrcString("FulfillmentOrderCancelPayload")),
-                #("fulfillmentOrder", fulfillment_order_source(canceled)),
-                #(
-                  "replacementFulfillmentOrder",
-                  fulfillment_order_source(replacement),
+          case fulfillment_order_cancel_block_message(order) {
+            Some(message) ->
+              fulfillment_order_cancel_user_error_payload(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                message,
+              )
+            None -> {
+              let canceled =
+                update_fulfillment_order_fields(order, [
+                  #("status", CapturedString("CLOSED")),
+                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
+                  #("supportedActions", CapturedArray([])),
+                  #("lineItems", captured_connection([])),
+                ])
+              let canceled =
+                FulfillmentOrderRecord(..canceled, status: "CLOSED")
+              let #(replacement_id, identity) =
+                synthetic_identity.make_synthetic_gid(
+                  identity,
+                  "FulfillmentOrder",
+                )
+              let replacement =
+                update_fulfillment_order_fields(order, [
+                  #("id", CapturedString(replacement_id)),
+                  #("status", CapturedString("OPEN")),
+                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
+                ])
+              let replacement =
+                FulfillmentOrderRecord(
+                  ..replacement,
+                  id: replacement_id,
+                  status: "OPEN",
+                )
+              let #(canceled, next_store) =
+                store.stage_upsert_fulfillment_order(draft_store, canceled)
+              let #(replacement, next_store) =
+                store.stage_upsert_fulfillment_order(next_store, replacement)
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: fulfillment_order_payload_json(field, fragments, [
+                    #("__typename", SrcString("FulfillmentOrderCancelPayload")),
+                    #("fulfillmentOrder", fulfillment_order_source(canceled)),
+                    #(
+                      "replacementFulfillmentOrder",
+                      fulfillment_order_source(replacement),
+                    ),
+                    #("userErrors", SrcList([])),
+                  ]),
+                  errors: [],
+                  staged_resource_ids: [canceled.id, replacement.id],
                 ),
-                #("userErrors", SrcList([])),
-              ]),
-              errors: [],
-              staged_resource_ids: [canceled.id, replacement.id],
-            ),
-            next_store,
-            identity,
-          )
+                next_store,
+                identity,
+              )
+            }
+          }
         }
         None ->
           fulfillment_order_missing_mutation_result(
@@ -4449,6 +4450,37 @@ fn handle_fulfillment_order_cancel(
         "FulfillmentOrderCancelPayload",
       )
   }
+}
+
+fn fulfillment_order_cancel_block_message(
+  order: FulfillmentOrderRecord,
+) -> Option(String) {
+  case fulfillment_order_has_manually_reported_progress(order) {
+    True ->
+      Some(
+        "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.",
+      )
+    False ->
+      case fulfillment_order_cancel_allowed(order) {
+        True -> None
+        False ->
+          Some(
+            "Fulfillment order is not in cancelable request state and can't be canceled.",
+          )
+      }
+  }
+}
+
+fn fulfillment_order_cancel_allowed(order: FulfillmentOrderRecord) -> Bool {
+  list.contains(["SUBMITTED", "CANCELLATION_REQUESTED"], order.request_status)
+  || list.contains(["OPEN", "IN_PROGRESS"], order.status)
+}
+
+fn fulfillment_order_has_manually_reported_progress(
+  order: FulfillmentOrderRecord,
+) -> Bool {
+  captured_bool_field(order.data, "__draftProxyManuallyReportedProgress")
+  |> option.unwrap(False)
 }
 
 fn handle_fulfillment_order_split(
@@ -7527,6 +7559,56 @@ fn fulfillment_order_user_error_payload(
     draft_store,
     identity,
   )
+}
+
+fn fulfillment_order_cancel_user_error_payload(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  message: String,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  let field_value = fulfillment_order_cancel_user_error_field(message)
+  let user_error =
+    src_object([
+      #("field", field_value),
+      #("message", SrcString(message)),
+      #("code", fulfillment_order_cancel_user_error_code(message)),
+    ])
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: fulfillment_order_payload_json(field, fragments, [
+        #("__typename", SrcString("FulfillmentOrderCancelPayload")),
+        #("fulfillmentOrder", SrcNull),
+        #("replacementFulfillmentOrder", SrcNull),
+        #("userErrors", SrcList([user_error])),
+      ]),
+      errors: [],
+      staged_resource_ids: [],
+    ),
+    draft_store,
+    identity,
+  )
+}
+
+fn fulfillment_order_cancel_user_error_field(message: String) -> SourceValue {
+  case message {
+    "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." ->
+      SrcList([SrcString("id")])
+    _ -> SrcNull
+  }
+}
+
+fn fulfillment_order_cancel_user_error_code(message: String) -> SourceValue {
+  case message {
+    "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." ->
+      SrcString("fulfillment_order_has_manually_reported_progress")
+    "Fulfillment order is not in cancelable request state and can't be canceled." ->
+      SrcString("fulfillment_order_cannot_be_cancelled")
+    _ -> SrcNull
+  }
 }
 
 fn optional_fulfillment_order_source(

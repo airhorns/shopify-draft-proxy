@@ -27,8 +27,14 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_selected_child_fields, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type LogDraft, type MutationOutcome, LogDraft, MutationOutcome,
+  respond_to_query,
+}
 import shopify_draft_proxy/proxy/products
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
+}
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
 }
@@ -89,6 +95,22 @@ pub fn process(
     variables,
   ))
   Ok(graphql_helpers.wrap_data(data))
+}
+
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  respond_to_query(
+    proxy,
+    process(proxy.store, document, variables),
+    "Failed to handle bulk operations query",
+  )
 }
 
 fn serialize_root_fields(
@@ -353,16 +375,6 @@ fn last_gid_segment(id: String) -> String {
 // Mutation path
 // ===========================================================================
 
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 pub type UserError {
   UserError(field: Option(List(String)), message: String, code: Option(String))
 }
@@ -382,30 +394,13 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, BulkOperationsError) {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
-
-pub fn process_mutation_with_upstream(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, BulkOperationsError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         request_path,
@@ -413,7 +408,7 @@ pub fn process_mutation_with_upstream(
         fragments,
         variables,
         upstream,
-      ))
+      )
     }
   }
 }
@@ -1185,74 +1180,52 @@ fn process_import_lines(
                 object_count,
                 True,
               )
-            Ok(line_variables) ->
-              case
+            Ok(line_variables) -> {
+              let outcome =
                 products.process_mutation(
                   store,
                   identity,
                   request_path,
                   mutation,
                   line_variables,
+                  empty_upstream_context(),
                 )
-              {
-                Error(_) ->
-                  process_import_lines(
-                    rest,
-                    line_number + 1,
-                    store,
-                    identity,
-                    request_path,
+              let staged_this_line = outcome.staged_resource_ids
+              let next_log_drafts = case staged_this_line {
+                [] -> log_drafts
+                _ -> [
+                  bulk_import_log_draft(
                     mutation,
-                    [
-                      import_error_row(
-                        line_number,
-                        "bulkOperationRunMutation could not locally execute the registered inner mutation handler for this line.",
-                      ),
-                      ..rows
-                    ],
-                    staged_ids,
-                    log_drafts,
-                    object_count,
-                    True,
-                  )
-                Ok(outcome) -> {
-                  let staged_this_line = outcome.staged_resource_ids
-                  let next_log_drafts = case staged_this_line {
-                    [] -> log_drafts
-                    _ -> [
-                      bulk_import_log_draft(
-                        mutation,
-                        line_variables,
-                        staged_this_line,
-                      ),
-                      ..log_drafts
-                    ]
-                  }
-                  let next_object_count = case staged_this_line {
-                    [] -> object_count
-                    _ -> object_count + 1
-                  }
-                  process_import_lines(
-                    rest,
-                    line_number + 1,
-                    outcome.store,
-                    outcome.identity,
-                    request_path,
-                    mutation,
-                    [
-                      json.object([
-                        #("line", json.int(line_number)),
-                        #("response", outcome.data),
-                      ]),
-                      ..rows
-                    ],
-                    list.append(outcome.staged_resource_ids, staged_ids),
-                    next_log_drafts,
-                    next_object_count,
-                    failed,
-                  )
-                }
+                    line_variables,
+                    staged_this_line,
+                  ),
+                  ..log_drafts
+                ]
               }
+              let next_object_count = case staged_this_line {
+                [] -> object_count
+                _ -> object_count + 1
+              }
+              process_import_lines(
+                rest,
+                line_number + 1,
+                outcome.store,
+                outcome.identity,
+                request_path,
+                mutation,
+                [
+                  json.object([
+                    #("line", json.int(line_number)),
+                    #("response", outcome.data),
+                  ]),
+                  ..rows
+                ],
+                list.append(outcome.staged_resource_ids, staged_ids),
+                next_log_drafts,
+                next_object_count,
+                failed,
+              )
+            }
           }
       }
     }
@@ -1507,10 +1480,8 @@ fn handle_bulk_operation_cancel(
       let hydrated_store = hydrate_bulk_operation_by_id(store, id, upstream)
       let staged_operation =
         store.get_staged_bulk_operation_by_id(hydrated_store, id)
-      let effective_operation = case staged_operation {
-        Some(op) -> Some(op)
-        None -> store.get_effective_bulk_operation_by_id(hydrated_store, id)
-      }
+      let effective_operation =
+        store.get_effective_bulk_operation_by_id(hydrated_store, id)
       case effective_operation {
         None -> #(
           MutationFieldResult(
