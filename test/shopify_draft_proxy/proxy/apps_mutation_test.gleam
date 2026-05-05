@@ -423,11 +423,11 @@ pub fn subscription_cancel_rejection_does_not_mutate_or_stage_test() {
   let outcome =
     run_mutation_outcome(
       s,
-      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\", prorate: true) { appSubscription { id status } userErrors { field message code } } }",
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/9\", prorate: true) { appSubscription { id status } userErrors { field message } } }",
     )
   let body = json.to_string(outcome.data)
   assert body
-    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot transition status via :cancel from :expired\",\"code\":null}]}}}"
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot transition status via :cancel from :expired\"}]}}}"
   let assert Some(sub) =
     store.get_effective_app_subscription_by_id(
       outcome.store,
@@ -446,11 +446,11 @@ pub fn subscription_cancel_unknown_id_logs_failed_without_staging_test() {
   let outcome =
     run_mutation_outcome(
       store.new(),
-      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/missing\", prorate: true) { appSubscription { id status } userErrors { field message code } } }",
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/missing\", prorate: true) { appSubscription { id status } userErrors { field message } } }",
     )
   let body = json.to_string(outcome.data)
   assert body
-    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Couldn't find RecurringApplicationCharge\",\"code\":null}]}}}"
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Couldn't find RecurringApplicationCharge\"}]}}}"
   assert outcome.staged_resource_ids == []
   let assert [draft] = outcome.log_drafts
   assert draft.status == store.Failed
@@ -461,10 +461,10 @@ pub fn subscription_cancel_unknown_id_emits_user_error_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/missing\") { appSubscription { id } userErrors { field message code } } }",
+      "mutation { appSubscriptionCancel(id: \"gid://shopify/AppSubscription/missing\") { appSubscription { id } userErrors { field message } } }",
     )
   assert body
-    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Couldn't find RecurringApplicationCharge\",\"code\":null}]}}}"
+    == "{\"data\":{\"appSubscriptionCancel\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Couldn't find RecurringApplicationCharge\"}]}}}"
 }
 
 // ----------- appSubscriptionLineItemUpdate -----------

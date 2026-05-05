@@ -7,7 +7,6 @@ mutation AppSubscriptionCancelStateTransition($id: ID!) {
     userErrors {
       field
       message
-      code
     }
   }
 }
