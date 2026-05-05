@@ -704,6 +704,54 @@ pub fn webhook_subscription_create_stages_record_test() {
   assert list.length(records) == 1
 }
 
+pub fn webhook_subscription_create_omitted_filter_stores_null_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"filter\":null},\"userErrors\":[]}}}"
+
+  let records = store.list_effective_webhook_subscriptions(outcome.store)
+  assert records
+    == [
+      WebhookSubscriptionRecord(
+        id: "gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic",
+        topic: Some("SHOP_UPDATE"),
+        uri: Some("https://hooks.example.com/shop"),
+        name: None,
+        format: Some("JSON"),
+        include_fields: [],
+        metafield_namespaces: [],
+        filter: None,
+        created_at: Some("2024-01-01T00:00:00.000Z"),
+        updated_at: Some("2024-01-01T00:00:00.000Z"),
+        endpoint: Some(
+          WebhookHttpEndpoint(callback_url: Some(
+            "https://hooks.example.com/shop",
+          )),
+        ),
+      ),
+    ]
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\") { id filter } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"filter\":null}}"
+}
+
+pub fn webhook_subscription_create_empty_filter_stores_empty_string_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\", filter: \"\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"filter\":\"\"},\"userErrors\":[]}}}"
+
+  let records = store.list_effective_webhook_subscriptions(outcome.store)
+  assert list.map(records, fn(record) { record.filter }) == [Some("")]
+}
+
 pub fn webhook_subscription_create_blank_uri_user_error_test() {
   let document =
     "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
@@ -777,6 +825,34 @@ pub fn webhook_subscription_update_modifies_record_test() {
   let body = run_mutation(s, document)
   assert body
     == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\"},\"userErrors\":[]}}}"
+}
+
+pub fn webhook_subscription_update_preserves_existing_null_filter_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"https://new.example.com/hook\" }) { webhookSubscription { id uri filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seed_update_store(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\",\"filter\":null},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id filter } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":null}}"
+}
+
+pub fn webhook_subscription_update_empty_filter_sets_empty_string_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { filter: \"\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seed_update_store(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"\"},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id filter } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"\"}}"
 }
 
 pub fn webhook_subscription_update_blank_uri_user_error_leaves_record_test() {
