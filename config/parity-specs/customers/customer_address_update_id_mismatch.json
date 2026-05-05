@@ -1,0 +1,214 @@
+{
+  "scenarioId": "customer-address-update-id-mismatch",
+  "operationNames": ["customerCreate", "customerAddressCreate", "customerAddressUpdate", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "state-invariance", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-address-lifecycle.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-customer.graphql",
+    "variablesCapturePath": "$.validations.idMismatchBranches.createCustomer.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for HAR-772: customerAddressUpdate rejects a nested MailingAddressInput.id that differs from the addressId argument before mutating address state. Explicit null id is also treated as a mismatch by Shopify, while omitted and matching nested ids update the address named by addressId. Public CustomerAddressUpdatePayload.userErrors is the generic UserError type in 2025-01 and 2026-04, so this parity proof captures field/message only; a local runtime unit test also requests the proxy-selected code field and observes null.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.customerCreate.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy stages the setup customer locally and returns a stable synthetic Customer GID instead of Shopify's live Customer GID."
+      },
+      {
+        "path": "$.address.id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customer.id",
+        "matcher": "shopify-gid:Customer",
+        "reason": "The proxy reads the locally staged setup customer ID."
+      },
+      {
+        "path": "$.customer.addressesV2.nodes[*].id",
+        "matcher": "any-string",
+        "reason": "The proxy stages customer addresses locally and returns stable synthetic MailingAddress IDs instead of Shopify live IDs."
+      },
+      {
+        "path": "$.customer.addressesV2.pageInfo.startCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      },
+      {
+        "path": "$.customer.addressesV2.pageInfo.endCursor",
+        "matcher": "any-string",
+        "reason": "Shopify connection cursors are opaque and the local proxy emits deterministic synthetic cursors."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-id-mismatch-customer",
+        "capturePath": "$.validations.idMismatchBranches.createCustomer.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "create-first-address",
+        "capturePath": "$.validations.idMismatchBranches.createFirstAddress.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "fromCapturePath": "$.validations.idMismatchBranches.createFirstAddress.variables.address"
+            },
+            "setAsDefault": {
+              "fromCapturePath": "$.validations.idMismatchBranches.createFirstAddress.variables.setAsDefault"
+            }
+          }
+        }
+      },
+      {
+        "name": "create-second-address",
+        "capturePath": "$.validations.idMismatchBranches.createSecondAddress.response.data.customerAddressCreate",
+        "proxyPath": "$.data.customerAddressCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-create-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "address": {
+              "fromCapturePath": "$.validations.idMismatchBranches.createSecondAddress.variables.address"
+            },
+            "setAsDefault": {
+              "fromCapturePath": "$.validations.idMismatchBranches.createSecondAddress.variables.setAsDefault"
+            }
+          }
+        }
+      },
+      {
+        "name": "mismatched-nested-id-update",
+        "capturePath": "$.validations.idMismatchBranches.mismatchedNestedIdUpdate.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "create-first-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "id": {
+                "fromProxyResponse": "create-second-address",
+                "path": "$.data.customerAddressCreate.address.id"
+              },
+              "address1": "999 Bryant"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "read-after-mismatch",
+        "capturePath": "$.validations.idMismatchBranches.readAfterReject.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-update-id-mismatch-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "omitted-nested-id-update",
+        "capturePath": "$.validations.idMismatchBranches.omittedNestedIdUpdate.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "create-first-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "address1": "Omitted Nested Id"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "null-nested-id-update",
+        "capturePath": "$.validations.idMismatchBranches.nullNestedIdUpdate.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "create-first-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "id": null,
+              "address1": "Null Nested Id"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "matching-nested-id-update",
+        "capturePath": "$.validations.idMismatchBranches.matchingNestedIdUpdate.response.data.customerAddressUpdate",
+        "proxyPath": "$.data.customerAddressUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-lifecycle-update-address.graphql",
+          "variables": {
+            "customerId": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            },
+            "addressId": {
+              "fromProxyResponse": "create-first-address",
+              "path": "$.data.customerAddressCreate.address.id"
+            },
+            "address": {
+              "id": {
+                "fromProxyResponse": "create-first-address",
+                "path": "$.data.customerAddressCreate.address.id"
+              },
+              "address1": "Matching Nested Id"
+            },
+            "setAsDefault": false
+          }
+        }
+      },
+      {
+        "name": "final-read",
+        "capturePath": "$.validations.idMismatchBranches.finalRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-address-update-id-mismatch-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -472,6 +472,53 @@ pub fn customer_address_lifecycle_test() {
   )
 }
 
+pub fn customer_address_update_rejects_mismatched_nested_address_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"address-id-mismatch@example.com\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: first_address_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"1 Main St\", city: \"Ottawa\", countryCode: CA, provinceCode: ON, zip: \"K1A 0B1\" }) { address { id address1 } userErrors { field message } } }",
+    )
+  assert first_address_status == 200
+
+  let #(Response(status: second_address_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"2 Side St\", city: \"Toronto\", countryCode: CA, provinceCode: ON, zip: \"M5H 2N2\" }) { address { id address1 } userErrors { field message } } }",
+    )
+  assert second_address_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressUpdate(customerId: \"gid://shopify/Customer/1\", addressId: \"gid://shopify/MailingAddress/3\", address: { id: \"gid://shopify/MailingAddress/5\", address1: \"999 Bryant\" }) { address { id address1 } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  assert string.contains(json.to_string(update_body), "\"address\":null")
+  assert string.contains(
+    json.to_string(update_body),
+    "\"userErrors\":[{\"field\":[\"addressId\"],\"message\":\"The id of the address does not match the id in the input\",\"code\":null}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { addressesV2(first: 5) { nodes { id address1 city } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"address1\":\"1 Main St\"")
+  assert string.contains(read_json, "\"address1\":\"2 Side St\"")
+  assert !string.contains(read_json, "999 Bryant")
+}
+
 pub fn customer_address_update_requires_address_owner_test() {
   let #(proxy, owner_id, address_id, other_id) = setup_cross_customer_address()
 
