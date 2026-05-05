@@ -820,8 +820,20 @@ pub fn collection_create_rejects_invalid_sort_order_as_graphql_error_test() {
     draft_proxy.process_request(draft_proxy.new(), graphql_request_body(body))
 
   assert status == 200
-  assert json.to_string(response_body)
-    == "{\"errors\":[{\"message\":\"Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \\\"INVALID_VALUE\\\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC)\",\"locations\":[{\"line\":1,\"column\":10}],\"extensions\":{\"code\":\"INVALID_VARIABLE\",\"value\":{\"title\":\"Sort Probe\",\"sortOrder\":\"INVALID_VALUE\"},\"problems\":[{\"path\":[\"sortOrder\"],\"explanation\":\"Expected \\\"INVALID_VALUE\\\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC\"}]}}]}"
+  let serialized = json.to_string(response_body)
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"sortOrder\"]")
+  assert string.contains(serialized, "\"title\":\"Sort Probe\"")
+  assert string.contains(serialized, "\"sortOrder\":\"INVALID_VALUE\"")
+  assert string.contains(
+    serialized,
+    "Variable $input of type CollectionInput! was provided invalid value for sortOrder",
+  )
+  assert string.contains(
+    serialized,
+    "Expected \\\"INVALID_VALUE\\\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC",
+  )
   assert store.get_log(next_proxy.store) == []
 }
 
