@@ -141,6 +141,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The active Shopify Admin 2026-04 schema exposes CompanyContact phone/locale input validation but not note/notes fields, so note-to-notes behavior remains runtime-test-backed.',
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-billing-same-as-shipping-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-billing-same-as-shipping-conformance.mts',
+    purpose:
+      'B2B billingSameAsShipping/billingAddress mutual-exclusion and taxExempt null validation for company location create/update inputs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-billing-same-as-shipping-validation.json`,
+      'config/parity-specs/b2b/b2b-billing-same-as-shipping-validation.json',
+      'config/parity-requests/b2b/b2b-billing-same-as-shipping-company-create.graphql',
+      'config/parity-requests/b2b/b2b-billing-same-as-shipping-location-create.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable setup company for direct companyLocationCreate/companyLocationUpdate validation, then deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
