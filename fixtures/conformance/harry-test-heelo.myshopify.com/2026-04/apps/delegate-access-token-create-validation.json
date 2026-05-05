@@ -1,0 +1,88 @@
+{
+  "capturedAt": "2026-05-05T20:22:33.000Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scenario": "delegate-access-token-create-validation",
+  "notes": [
+    "Captured live 2026-04 Admin GraphQL delegateAccessTokenCreate validation on harry-test-heelo.myshopify.com with the conformance credential.",
+    "The happy-path branch used expiresIn: 300 so it would not exceed the parent token's remaining lifetime; Shopify returned expiresIn: 299 after elapsed time.",
+    "The raw live delegate token returned by the happy path was destroyed immediately through delegateAccessTokenDestroy and is redacted in this fixture.",
+    "Parent-is-delegate validation requires swapping the active auth token between requests; the generic parity runner does not support that yet, so focused Gleam runtime tests cover that branch."
+  ],
+  "operationNames": ["delegateAccessTokenCreate"],
+  "upstreamCalls": [],
+  "evidence": {
+    "live": {
+      "cleanup": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": true,
+              "userErrors": []
+            }
+          }
+        }
+      }
+    },
+    "parity": {
+      "expected": {
+        "emptyScope": {
+          "data": {
+            "delegateAccessTokenCreate": {
+              "delegateAccessToken": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The access scope can't be empty.",
+                  "code": "EMPTY_ACCESS_SCOPE"
+                }
+              ]
+            }
+          }
+        },
+        "negativeExpires": {
+          "data": {
+            "delegateAccessTokenCreate": {
+              "delegateAccessToken": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The expires_in value must be greater than 0.",
+                  "code": "NEGATIVE_EXPIRES_IN"
+                }
+              ]
+            }
+          }
+        },
+        "unknownScope": {
+          "data": {
+            "delegateAccessTokenCreate": {
+              "delegateAccessToken": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The access scope is invalid: fake_scope",
+                  "code": "UNKNOWN_SCOPES"
+                }
+              ]
+            }
+          }
+        },
+        "happyPath": {
+          "data": {
+            "delegateAccessTokenCreate": {
+              "delegateAccessToken": {
+                "accessToken": "[redacted-live-delegate-token]",
+                "accessScopes": ["read_products"],
+                "createdAt": "2026-05-05T20:22:33Z",
+                "expiresIn": 299
+              },
+              "userErrors": []
+            }
+          }
+        }
+      }
+    }
+  }
+}

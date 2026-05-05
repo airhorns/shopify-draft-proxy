@@ -1,0 +1,70 @@
+{
+  "scenarioId": "delegate-access-token-create-validation",
+  "operationNames": ["delegateAccessTokenCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-create-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-empty-scope-validation.graphql"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "empty-scope-user-error",
+        "capturePath": "$.evidence.parity.expected.emptyScope.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-empty-scope-validation.graphql"
+        }
+      },
+      {
+        "name": "negative-expires-user-error",
+        "capturePath": "$.evidence.parity.expected.negativeExpires.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-negative-expires-validation.graphql"
+        }
+      },
+      {
+        "name": "unknown-scope-user-error",
+        "capturePath": "$.evidence.parity.expected.unknownScope.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-unknown-scope-validation.graphql"
+        }
+      },
+      {
+        "name": "happy-path-access-scopes",
+        "capturePath": "$.evidence.parity.expected.happyPath.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-happy-validation.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.delegateAccessToken.accessToken",
+            "matcher": "non-empty-string",
+            "reason": "The raw delegated token is a synthetic secret in the proxy and is redacted in the live capture."
+          },
+          {
+            "path": "$.delegateAccessToken.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic session-local timestamps for staged delegated tokens."
+          },
+          {
+            "path": "$.delegateAccessToken.expiresIn",
+            "matcher": "any-number",
+            "reason": "Shopify reports the remaining lifetime after elapsed time; the proxy records the requested local duration."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 delegateAccessTokenCreate validation for empty scope, negative expiresIn, unknown scope, and happy-path accessScopes. Parent-is-delegate rejection is executable local-runtime evidence until the parity harness can swap the active caller token between requests."
+}
