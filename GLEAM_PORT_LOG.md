@@ -123,6 +123,67 @@ Validation:
 
 ---
 
+## 2026-05-05 - Pass 204: HAR-573 fulfillment order cancel parity guardrails
+
+Tightens local `fulfillmentOrderCancel` staging so manually progressed or
+otherwise non-cancellable fulfillment orders return Shopify-shaped user errors
+instead of silently closing and replacing the order, and adds replayable parity
+evidence for the guardrail branches.
+
+| Module / fixture                                                                                                                                                                                                                             | Change                                                                                                                                                                                                                   |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam`                                                                                                                                                                            | Adds cancel precondition checks for status/requestStatus and local manual-progress markers, emits Shopify-captured field/message values plus locally selected error codes, and preserves successful replacement staging. |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                                                                                                                                                                                           | Applies the same cancel guard to order-owned fulfillment-order lifecycle mutations and carries the manual-progress marker through report/open transitions.                                                               |
+| `scripts/capture-fulfillment-order-lifecycle-conformance.ts` / `fixtures/conformance/**/shipping-fulfillments/fulfillment-order-lifecycle.json` / `config/parity-specs/shipping-fulfillments/fulfillment-order-lifecycle-local-staging.json` | Captures and replays cancel-after-progress and cancel-after-cancel guardrails so future API-version recording can re-prove parity.                                                                                       |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam` / `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam`                                                                                                           | Covers rejected already-cancelled/non-cancellable cancels, rejected manually progress-reported cancels, direct handler behavior, and the existing replacement fulfillment-order read-after-write path.                   |
+| `docs/endpoints/orders.md` / `docs/endpoints/shipping-fulfillments.md` / `docs/hard-and-weird-notes.md`                                                                                                                                      | Documents the HAR-573 cancel boundary, captured user-error payloads, and the closed-after-open/close nuance.                                                                                                             |
+
+Validation:
+
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:capture -- --run fulfillment-order-lifecycle`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm parity:record fulfillment-order-lifecycle-local-staging`
+- `cd gleam && gleam test --target javascript -- fulfillment_order_cancel`
+  (858 passed after parity refresh)
+- `cd gleam && gleam test --target javascript` (905 passed after merging
+  `origin/main@0eeb512d`)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 896 passed after merging `origin/main@0eeb512d`)
+- `corepack pnpm conformance:check` (1486 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2350 passed after merging
+  `origin/main@0eeb512d`)
+- `git diff --check`
+
+### Findings
+
+- Shopify returns `field: ["id"]` with
+  `Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.`
+  after manual progress, and `field: null` with the non-cancelable request-state
+  message for a second cancel against an already-cancelled fulfillment order.
+- A fulfillment order can still be cancelable after an open/close sequence, so
+  local guardrails key off request/status plus manual-progress state instead of
+  treating every observed `CLOSED` state as identical.
+- Successful cancel behavior remains local-only staging: the original
+  fulfillment order is closed, its line items are cleared, and an `OPEN`
+  replacement fulfillment order carries the remaining work for downstream
+  mutation/read consistency.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation used the
+  established OTP 28 container fallback.
+- Shopify Admin 2026-04 introspection exposes generic `UserError` for the
+  selected cancel error surface, while this ticket requires the documented
+  code-shaped local values when clients select `code`.
+
+---
+
 ## 2026-05-04 - Pass 204: HAR-562 order edit user-error payloads
 
 Aligns the Gleam order-edit handlers with Shopify's mutation payload contract

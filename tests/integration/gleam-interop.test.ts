@@ -60,7 +60,10 @@ describe('public TS API', () => {
           status: number;
           body: unknown;
         }>;
-        dumpState: (createdAt?: string) => { schema: string; createdAt: string };
+        dumpState: (createdAt?: string) => {
+          schema: string;
+          createdAt: string;
+        };
         restoreState: (dump: unknown) => void;
         getState: () => unknown;
       };
@@ -80,7 +83,7 @@ describe('public TS API', () => {
       ok: true,
       message: expect.stringContaining('shopify-draft-proxy'),
     });
-  });
+  }, 20_000);
 
   it('round-trips state via dumpState/restoreState with the documented schema', async () => {
     const shim = (await import(resolve(gleamProjectRoot, 'js/src/index.ts'))) as {

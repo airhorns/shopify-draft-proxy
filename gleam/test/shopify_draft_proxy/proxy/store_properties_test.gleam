@@ -472,12 +472,21 @@ pub fn location_lifecycle_missing_idempotency_is_version_gated_test() {
       False,
       False,
     )
-  let proxy = draft_proxy.new()
-  let proxy =
-    proxy_state.DraftProxy(
-      ..proxy,
-      store: store.upsert_base_store_property_location(proxy.store, location),
+  let active_location =
+    make_location(
+      "gid://shopify/Location/2",
+      "Beta Warehouse",
+      True,
+      True,
+      True,
+      False,
     )
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_store_property_location(location)
+    |> store.upsert_base_store_property_location(active_location)
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
   let body =
     "{\"query\":\"mutation { locationActivate(locationId: \\\"gid://shopify/Location/1\\\") { location { id isActive } locationActivateUserErrors { field code message } } }\"}"
 
@@ -501,6 +510,40 @@ pub fn location_lifecycle_missing_idempotency_is_version_gated_test() {
   assert string.contains(
     optional_serialized,
     "\"locationActivateUserErrors\":[]",
+  )
+
+  let deactivate_body =
+    "{\"query\":\"mutation { locationDeactivate(locationId: \\\"gid://shopify/Location/2\\\") { location { id isActive } locationDeactivateUserErrors { field code message } } }\"}"
+
+  let #(proxy_state.Response(body: required_deactivate_json, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version("2026-04", deactivate_body),
+    )
+  let required_deactivate_serialized = json.to_string(required_deactivate_json)
+  assert string.contains(
+    required_deactivate_serialized,
+    "\"code\":\"BAD_REQUEST\"",
+  )
+  assert string.contains(
+    required_deactivate_serialized,
+    "\"locationDeactivate\":null",
+  )
+
+  let #(proxy_state.Response(body: optional_deactivate_json, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version("2026-01", deactivate_body),
+    )
+  let optional_deactivate_serialized = json.to_string(optional_deactivate_json)
+  assert !string.contains(
+    optional_deactivate_serialized,
+    "\"code\":\"BAD_REQUEST\"",
+  )
+  assert string.contains(optional_deactivate_serialized, "\"isActive\":false")
+  assert string.contains(
+    optional_deactivate_serialized,
+    "\"locationDeactivateUserErrors\":[]",
   )
 }
 
