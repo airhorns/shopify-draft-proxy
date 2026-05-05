@@ -146,6 +146,19 @@ Focused runtime tests cover these branches and the no-cross-scope-mutation
 invariant; no new passive parity scenarios were added without fresh capture
 evidence.
 
+HAR-754 aligns bulk B2B resolver `userErrors.field` paths with Shopify's
+string-indexed list paths. Bulk company/contact/location deletes, role
+assignment/revoke roots, and location staff assignment/removal roots report
+failed entries at paths such as `["companyContactIds", "1"]` or
+`["rolesToAssign", "0", "companyLocationId"]` while preserving top-level
+single-ID field paths on the single-resource mutation surfaces. The 2026-04
+capture records the Shopify quirk that `companyLocationAssignRoles` reports
+missing contact/role entries at the indexed list item path (for example
+`["rolesToAssign", "0"]`) rather than at a nested sub-field. Staff assignment
+still does not synthesize a broader staff catalog, but missing staff-member and
+staff-assignment IDs use Shopify's indexed user error paths and null payload
+shape for the failed list-valued fields.
+
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`

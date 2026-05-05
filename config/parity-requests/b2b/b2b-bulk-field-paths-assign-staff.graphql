@@ -1,0 +1,12 @@
+mutation HAR754AssignStaff($companyLocationId: ID!, $staffMemberIds: [ID!]!) {
+  companyLocationAssignStaffMembers(companyLocationId: $companyLocationId, staffMemberIds: $staffMemberIds) {
+    companyLocationStaffMemberAssignments {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
