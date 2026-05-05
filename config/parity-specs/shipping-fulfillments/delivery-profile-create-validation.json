@@ -1,0 +1,59 @@
+{
+  "scenarioId": "delivery-profile-create-validation",
+  "operationNames": ["deliveryProfileCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/delivery-profile-create-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-validation.graphql",
+    "variablesCapturePath": "$.mutations.blankName.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-566 validation evidence for deliveryProfileCreate name length, unknown location, and empty-country zone branches. Admin GraphQL 2026-04 exposes this payload's userErrors as generic UserError without a code field; runtime tests cover the ticket-required local code field. Live 2026-04 probes accepted duplicate-country overlap cases, so the ticket-required overlapping-zone guardrail is covered by local runtime tests and documented in the capture notes rather than asserted as Shopify parity.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-name-user-errors",
+        "capturePath": "$.mutations.blankName.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "long-name-user-errors",
+        "capturePath": "$.mutations.longName.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-validation.graphql",
+          "variablesCapturePath": "$.mutations.longName.variables"
+        }
+      },
+      {
+        "name": "unknown-location-user-error-message",
+        "capturePath": "$.mutations.unknownLocation.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.deliveryProfileCreate.profile", "$.deliveryProfileCreate.userErrors[0].message"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-validation.graphql",
+          "variablesCapturePath": "$.mutations.unknownLocation.variables"
+        }
+      },
+      {
+        "name": "empty-countries-user-error-message",
+        "capturePath": "$.mutations.emptyCountries.result.payload.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.deliveryProfileCreate.profile", "$.deliveryProfileCreate.userErrors[0].message"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/delivery-profile-create-validation.graphql",
+          "variablesCapturePath": "$.mutations.emptyCountries.variables"
+        }
+      }
+    ]
+  }
+}

@@ -353,6 +353,34 @@
   ],
   "upstreamCalls": [
     {
+      "operationName": "ShippingDeliveryProfileLocationsHydrate",
+      "variables": {},
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true,
+                  "isFulfillmentService": false
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
       "operationName": "ShippingDeliveryProfileVariantsHydrate",
       "variables": {
         "ids": ["gid://shopify/ProductVariant/51098706739506"]
