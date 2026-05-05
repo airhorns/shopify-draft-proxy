@@ -690,14 +690,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'market-web-presence-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',
-    purpose: 'Web presence create/update/delete lifecycle and downstream top-level webPresences reads.',
+    purpose:
+      'Web presence create/update/delete lifecycle, downstream top-level webPresences reads, and multi-locale rootUrls.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-web-presence-lifecycle-parity.json`,
       'config/parity-specs/markets/web-presence-lifecycle-local-staging.json',
+      'config/parity-specs/markets/web-presence-root-urls-multi-locale.json',
     ],
     cleanupBehavior:
-      'Creates one disposable subfolder web presence, updates it, deletes it, and verifies the baseline read after cleanup.',
+      'Creates one disposable subfolder web presence, updates it, deletes it, records one multi-locale disposable web presence with subfolder suffix intl, deletes it, and verifies the baseline read after cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
