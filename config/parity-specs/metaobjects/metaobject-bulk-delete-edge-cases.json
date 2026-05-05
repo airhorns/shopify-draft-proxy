@@ -1,0 +1,79 @@
+{
+  "scenarioId": "metaobject-bulk-delete-edge-cases",
+  "operationNames": ["metaobjectBulkDelete", "metaobject", "metaobjectDefinitionByType"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-bulk-delete-edge-cases.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metaobject_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-edge-known-empty-type.graphql",
+    "variablesCapturePath": "$.branches.knownEmptyType.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "known-empty-type-payload",
+        "capturePath": "$.branches.knownEmptyType.response.data.metaobjectBulkDelete",
+        "proxyPath": "$.data.metaobjectBulkDelete",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The local proxy creates a synthetic Job ID while Shopify returns a live-store async job ID."
+          }
+        ]
+      },
+      {
+        "name": "empty-ids-payload",
+        "capturePath": "$.branches.emptyIds.response.data.metaobjectBulkDelete",
+        "proxyPath": "$.data.metaobjectBulkDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-edge-empty-ids.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.job.id",
+            "matcher": "shopify-gid:Job",
+            "reason": "The local proxy creates a synthetic Job ID while Shopify returns a live-store async job ID."
+          }
+        ]
+      },
+      {
+        "name": "unknown-type-payload",
+        "capturePath": "$.branches.unknownType.response.data.metaobjectBulkDelete",
+        "proxyPath": "$.data.metaobjectBulkDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-edge-unknown-type.graphql",
+          "variablesCapturePath": "$.branches.unknownType.request.variables"
+        }
+      },
+      {
+        "name": "both-type-and-ids-errors",
+        "capturePath": "$.branches.bothTypeAndIds.response.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-edge-both-type-and-ids.graphql"
+        }
+      },
+      {
+        "name": "both-type-and-ids-data",
+        "capturePath": "$.branches.bothTypeAndIds.response.data.metaobjectBulkDelete",
+        "proxyPath": "$.data.metaobjectBulkDelete",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-bulk-delete-edge-both-type-and-ids.graphql"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-680 captured live 2026-04 evidence for metaobjectBulkDelete edge cases: empty ids succeeds with a no-work Job, unknown where.type returns RECORD_NOT_FOUND on where/type with job null, a known definition whose rows were already deleted also succeeds with a no-work Job, and supplying both type and ids returns top-level INVALID_FIELD_ARGUMENTS plus data.metaobjectBulkDelete null."
+}

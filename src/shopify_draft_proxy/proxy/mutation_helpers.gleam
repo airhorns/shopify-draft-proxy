@@ -826,41 +826,45 @@ fn collect_value_problems_inner(
           |> list.flatten
         _ -> []
       }
-    mutation_schema.NamedType(name: io_name) ->
-      case mutation_schema_lookup.get_input_object(schema, io_name) {
-        None -> []
-        Some(io) ->
-          case resolved {
-            root_field.ObjectVal(fields) ->
-              list.append(
-                list.flat_map(io.input_fields, fn(field) {
-                  let field_path =
-                    list.append(path, [StringSegment(field.name)])
-                  let required =
-                    mutation_schema.is_non_null(field.type_)
-                    && option.is_none(field.default_value)
-                    && inside_list
-                  case dict.get(fields, field.name), required {
-                    Error(_), True -> [
-                      ValueProblem(
-                        path: field_path,
-                        explanation: "Expected value to not be null",
-                      ),
-                    ]
-                    Error(_), False -> []
-                    Ok(child), _ ->
-                      collect_value_problems_inner(
-                        child,
-                        field.type_,
-                        schema,
-                        field_path,
-                        inside_list:,
-                      )
-                  }
-                }),
-                collect_unknown_variable_fields(fields, io, path),
-              )
-            _ -> []
+    mutation_schema.NamedType(name: type_name) ->
+      case type_name {
+        "CountryCode" -> country_code_value_problems(resolved, path)
+        _ ->
+          case mutation_schema_lookup.get_input_object(schema, type_name) {
+            None -> []
+            Some(io) ->
+              case resolved {
+                root_field.ObjectVal(fields) ->
+                  list.append(
+                    list.flat_map(io.input_fields, fn(field) {
+                      let field_path =
+                        list.append(path, [StringSegment(field.name)])
+                      let required =
+                        mutation_schema.is_non_null(field.type_)
+                        && option.is_none(field.default_value)
+                        && inside_list
+                      case dict.get(fields, field.name), required {
+                        Error(_), True -> [
+                          ValueProblem(
+                            path: field_path,
+                            explanation: "Expected value to not be null",
+                          ),
+                        ]
+                        Error(_), False -> []
+                        Ok(child), _ ->
+                          collect_value_problems_inner(
+                            child,
+                            field.type_,
+                            schema,
+                            field_path,
+                            inside_list:,
+                          )
+                      }
+                    }),
+                    collect_unknown_variable_fields(fields, io, path),
+                  )
+                _ -> []
+              }
           }
       }
   }
@@ -917,6 +921,36 @@ fn build_unknown_input_object_field_error(
       ),
     ]),
   )
+}
+
+fn country_code_value_problems(
+  resolved: root_field.ResolvedValue,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  case resolved {
+    root_field.StringVal(value) ->
+      case list.contains(country_code_values(), value) {
+        True -> []
+        False -> [
+          ValueProblem(
+            path: path,
+            explanation: "Expected \""
+              <> value
+              <> "\" to be one of: "
+              <> country_code_values_message(),
+          ),
+        ]
+      }
+    _ -> []
+  }
+}
+
+fn country_code_values() -> List(String) {
+  string.split(country_code_values_message(), ", ")
+}
+
+fn country_code_values_message() -> String {
+  "AF, AX, AL, DZ, AD, AO, AI, AG, AR, AM, AW, AC, AU, AT, AZ, BS, BH, BD, BB, BY, BE, BZ, BJ, BM, BT, BO, BA, BW, BV, BR, IO, BN, BG, BF, BI, KH, CA, CV, BQ, KY, CF, TD, CL, CN, CX, CC, CO, KM, CG, CD, CK, CR, HR, CU, CW, CY, CZ, CI, DK, DJ, DM, DO, EC, EG, SV, GQ, ER, EE, SZ, ET, FK, FO, FJ, FI, FR, GF, PF, TF, GA, GM, GE, DE, GH, GI, GR, GL, GD, GP, GT, GG, GN, GW, GY, HT, HM, VA, HN, HK, HU, IS, IN, ID, IR, IQ, IE, IM, IL, IT, JM, JP, JE, JO, KZ, KE, KI, KP, XK, KW, KG, LA, LV, LB, LS, LR, LY, LI, LT, LU, MO, MG, MW, MY, MV, ML, MT, MQ, MR, MU, YT, MX, MD, MC, MN, ME, MS, MA, MZ, MM, NA, NR, NP, NL, AN, NC, NZ, NI, NE, NG, NU, NF, MK, NO, OM, PK, PS, PA, PG, PY, PE, PH, PN, PL, PT, QA, CM, RE, RO, RU, RW, BL, SH, KN, LC, MF, PM, WS, SM, ST, SA, SN, RS, SC, SL, SG, SX, SK, SI, SB, SO, ZA, GS, KR, SS, ES, LK, VC, SD, SR, SJ, SE, CH, SY, TW, TJ, TZ, TH, TL, TG, TK, TO, TT, TA, TN, TR, TM, TC, TV, UG, UA, AE, GB, US, UM, UY, UZ, VU, VE, VN, VG, WF, EH, YE, ZM, ZW, ZZ"
 }
 
 fn build_invalid_variable_problems_error(

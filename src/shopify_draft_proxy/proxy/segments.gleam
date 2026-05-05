@@ -54,6 +54,12 @@ import shopify_draft_proxy/state/types.{
   StorePropertyList, StorePropertyNull, StorePropertyObject, StorePropertyString,
 }
 
+const max_segment_name_length = 255
+
+const max_segment_query_length = 5000
+
+const max_segments_per_shop = 6000
+
 // ---------------------------------------------------------------------------
 // Public surface
 // ---------------------------------------------------------------------------
@@ -1380,20 +1386,16 @@ fn handle_segment_create(
   let args = graphql_helpers.field_args(field, variables)
   let raw_name = graphql_helpers.read_arg_string_nonempty(args, "name")
   let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
-  let name_errors = case raw_name {
-    None -> [
-      UserError(field: ["name"], message: "Name can't be blank", code: None),
-    ]
-    Some(s) ->
-      case string.trim(s) {
-        "" -> [
-          UserError(field: ["name"], message: "Name can't be blank", code: None),
-        ]
-        _ -> []
-      }
-  }
+  let name_errors = validate_segment_name_required(raw_name, ["name"])
   let query_errors = validate_segment_query(raw_query, ["query"])
-  let errors = list.append(name_errors, query_errors)
+  let field_errors = list.append(name_errors, query_errors)
+  let limit_errors = case field_errors {
+    [] -> validate_segment_limit(store)
+    _ -> []
+  }
+  let errors =
+    field_errors
+    |> list.append(limit_errors)
   case errors, raw_name, raw_query {
     [], Some(name_value), Some(query_value) -> {
       let #(gid, identity_after_id) =
@@ -1479,26 +1481,10 @@ fn handle_segment_update(
   let raw_query = graphql_helpers.read_arg_string_nonempty(args, "query")
   let name_present = arg_present(args, "name")
   let query_present = arg_present(args, "query")
-  let name_errors = case name_present {
-    False -> []
-    True ->
-      case raw_name {
-        None -> [
-          UserError(field: ["name"], message: "Name can't be blank", code: None),
-        ]
-        Some(s) ->
-          case string.trim(s) {
-            "" -> [
-              UserError(
-                field: ["name"],
-                message: "Name can't be blank",
-                code: None,
-              ),
-            ]
-            _ -> []
-          }
-      }
-  }
+  let name_errors =
+    validate_segment_name_optional(raw_name, name_present, [
+      "name",
+    ])
   let query_errors = case query_present {
     False -> []
     True -> validate_segment_query(raw_query, ["query"])
@@ -1954,6 +1940,66 @@ pub fn normalize_segment_name(name: String) -> String {
   string.trim(name)
 }
 
+fn validate_segment_name_required(
+  raw: Option(String),
+  field_path: List(String),
+) -> List(UserError) {
+  validate_segment_name(raw, True, field_path)
+}
+
+fn validate_segment_name_optional(
+  raw: Option(String),
+  present: Bool,
+  field_path: List(String),
+) -> List(UserError) {
+  validate_segment_name(raw, present, field_path)
+}
+
+fn validate_segment_name(
+  raw: Option(String),
+  present: Bool,
+  field_path: List(String),
+) -> List(UserError) {
+  case present, raw {
+    False, _ -> []
+    True, None -> [
+      UserError(field: field_path, message: "Name can't be blank", code: None),
+    ]
+    True, Some(name) ->
+      case string.trim(name) {
+        "" -> [
+          UserError(
+            field: field_path,
+            message: "Name can't be blank",
+            code: None,
+          ),
+        ]
+        _ ->
+          case string.length(name) > max_segment_name_length {
+            True -> [
+              UserError(
+                field: field_path,
+                message: "Name is too long (maximum is 255 characters)",
+                code: None,
+              ),
+            ]
+            False -> []
+          }
+      }
+  }
+}
+
+fn validate_segment_limit(store: Store) -> List(UserError) {
+  case
+    list.length(store.list_effective_segments(store)) >= max_segments_per_shop
+  {
+    True -> [
+      UserError(field: ["base"], message: "Segment limit reached", code: None),
+    ]
+    False -> []
+  }
+}
+
 /// Resolve a segment name against existing names, appending " (N)" until
 /// a free slot is found. Mirrors `resolveUniqueSegmentName`. The
 /// `current_id` argument lets `segmentUpdate` keep its existing name
@@ -2021,12 +2067,22 @@ pub fn validate_segment_query(
           ),
         ]
         trimmed ->
-          case validate_segment_query_string(trimmed) {
-            [] -> []
-            messages ->
-              list.map(messages, fn(m) {
-                UserError(field: field_path, message: m, code: None)
-              })
+          case string.length(trimmed) > max_segment_query_length {
+            True -> [
+              UserError(
+                field: field_path,
+                message: "Query is too long (maximum is 5000 characters)",
+                code: None,
+              ),
+            ]
+            False ->
+              case validate_segment_query_string(trimmed) {
+                [] -> []
+                messages ->
+                  list.map(messages, fn(m) {
+                    UserError(field: field_path, message: m, code: None)
+                  })
+              }
           }
       }
   }

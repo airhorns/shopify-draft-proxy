@@ -1674,6 +1674,7 @@ fn shop_policy_json(record: types.ShopPolicyRecord) -> Json {
     #("url", json.string(record.url)),
     #("createdAt", json.string(record.created_at)),
     #("updatedAt", json.string(record.updated_at)),
+    #("migratedToHtml", json.bool(record.migrated_to_html)),
   ])
 }
 
@@ -2902,6 +2903,7 @@ fn gift_card_json(record: types.GiftCardRecord) -> Json {
     #("legacyResourceId", json.string(record.legacy_resource_id)),
     #("lastCharacters", json.string(record.last_characters)),
     #("maskedCode", json.string(record.masked_code)),
+    #("code", optional_string(record.code)),
     #("enabled", json.bool(record.enabled)),
     #("notify", json.bool(record.notify)),
     #("deactivatedAt", optional_string(record.deactivated_at)),
@@ -4855,6 +4857,7 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
   use url <- decode.field("url", decode.string)
   use created_at <- decode.field("createdAt", decode.string)
   use updated_at <- decode.field("updatedAt", decode.string)
+  use migrated_to_html <- optional_field("migratedToHtml", True, decode.bool)
   decode.success(types.ShopPolicyRecord(
     id: id,
     title: title,
@@ -4863,6 +4866,7 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
     url: url,
     created_at: created_at,
     updated_at: updated_at,
+    migrated_to_html: migrated_to_html,
   ))
 }
 
@@ -5897,6 +5901,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
   use legacy_resource_id <- decode.field("legacyResourceId", decode.string)
   use last_characters <- decode.field("lastCharacters", decode.string)
   use masked_code <- decode.field("maskedCode", decode.string)
+  use code <- optional_string_field("code")
   use enabled <- decode.field("enabled", decode.bool)
   use notify <- optional_field("notify", True, decode.bool)
   use deactivated_at <- optional_string_field("deactivatedAt")
@@ -5925,6 +5930,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
     legacy_resource_id: legacy_resource_id,
     last_characters: last_characters,
     masked_code: masked_code,
+    code: code,
     enabled: enabled,
     notify: notify,
     deactivated_at: deactivated_at,

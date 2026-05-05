@@ -1,0 +1,15 @@
+mutation SegmentCreateValidationLimits($name: String!, $query: String!) {
+  segmentCreate(name: $name, query: $query) {
+    segment {
+      id
+      name
+      query
+      creationDate
+      lastEditDate
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

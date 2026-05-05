@@ -5,10 +5,11 @@
 //// mutation roots (`validationCreate`/`Update`/`Delete`,
 //// `cartTransformCreate`/`Delete`, `taxAppConfigure`).
 ////
-//// The TS handler implicitly hydrates a `ShopifyFunctionRecord` whenever
-//// a validation or cart-transform mutation references one — either by
-//// id, by handle, or by minting a fresh synthetic gid. Mirrored here as
-//// `ensure_shopify_function`. The mutation pipeline returns a
+//// Validation mutations still preserve the legacy local helper that mints
+//// synthetic function metadata for local fixtures. Cart-transform creates
+//// follow Shopify's Function-resolution guardrails: ambiguous, missing,
+//// unknown, duplicate, or wrong-API Function references return userErrors
+//// before staging any local CartTransform. The mutation pipeline returns a
 //// `MutationOutcome` carrying the updated store + identity registry +
 //// staged GIDs, matching the apps/webhooks/saved-search shape.
 
@@ -54,6 +55,8 @@ import shopify_draft_proxy/state/types.{
 }
 
 const max_active_validations: Int = 10
+
+const function_app_id: String = "347082227713"
 
 // ---------------------------------------------------------------------------
 // Public surface
@@ -678,8 +681,9 @@ type MutationFieldResult {
 /// `handleFunctionMutation`.
 /// Pattern 2: dispatched LiveHybrid function metadata mutations first
 /// try to hydrate referenced ShopifyFunction owner/app metadata from
-/// upstream, then stage the mutation locally. Snapshot/no-transport
-/// paths fall back to the existing local synthetic Function record.
+/// upstream, then stage the mutation locally. Cart-transform creation
+/// requires the referenced Function to resolve locally or from that
+/// upstream lookup before it stages any local write.
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -815,25 +819,31 @@ fn handle_mutation_fields(
     _ ->
       "Staged locally in the in-memory Shopify Functions metadata store; external Shopify Function code is not executed."
   }
-  let draft =
-    LogDraft(
-      operation_name: primary_root,
-      root_fields: root_names,
-      primary_root_field: primary_root,
-      domain: "functions",
-      execution: "stage-locally",
-      query: None,
-      variables: None,
-      staged_resource_ids: all_staged,
-      status: store.Staged,
-      notes: Some(notes),
-    )
+  let log_drafts = case list.is_empty(all_staged) {
+    True -> []
+    False -> {
+      let draft =
+        LogDraft(
+          operation_name: primary_root,
+          root_fields: root_names,
+          primary_root_field: primary_root,
+          domain: "functions",
+          execution: "stage-locally",
+          query: None,
+          variables: None,
+          staged_resource_ids: all_staged,
+          status: store.Staged,
+          notes: Some(notes),
+        )
+      [draft]
+    }
+  }
   MutationOutcome(
     data: json.object([#("data", json.object(data_entries))]),
     store: final_store,
     identity: final_identity,
     staged_resource_ids: all_staged,
-    log_drafts: [draft],
+    log_drafts: log_drafts,
   )
 }
 
@@ -940,7 +950,60 @@ fn missing_function_error(field: List(String)) -> UserError {
   UserError(
     field: field,
     message: "Function handle or function ID must be provided",
-    code: Some("MISSING_FUNCTION"),
+    code: Some("MISSING_FUNCTION_IDENTIFIER"),
+  )
+}
+
+fn missing_cart_transform_function_error() -> UserError {
+  UserError(
+    field: ["functionHandle"],
+    message: "Either function_id or function_handle must be provided.",
+    code: Some("MISSING_FUNCTION_IDENTIFIER"),
+  )
+}
+
+fn multiple_function_identifiers_error() -> UserError {
+  UserError(
+    field: ["functionHandle"],
+    message: "Only one of function_id or function_handle can be provided, not both.",
+    code: Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
+  )
+}
+
+fn function_not_found_error(field_name: String, value: String) -> UserError {
+  UserError(
+    field: [field_name],
+    message: function_not_found_message(field_name, value),
+    code: Some("FUNCTION_NOT_FOUND"),
+  )
+}
+
+fn function_not_found_message(field_name: String, value: String) -> String {
+  case field_name {
+    "functionId" ->
+      "Function "
+      <> value
+      <> " not found. Ensure that it is released in the current app ("
+      <> function_app_id
+      <> "), and that the app is installed."
+    "functionHandle" -> "Could not find function with handle: " <> value <> "."
+    _ -> "Could not find function with " <> field_name <> ": " <> value <> "."
+  }
+}
+
+fn function_does_not_implement_error(field_name: String) -> UserError {
+  UserError(
+    field: [field_name],
+    message: "Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].",
+    code: Some("FUNCTION_DOES_NOT_IMPLEMENT"),
+  )
+}
+
+fn function_already_registered_error(field_name: String) -> UserError {
+  UserError(
+    field: [field_name],
+    message: "Could not enable cart transform because it is already registered",
+    code: Some("FUNCTION_ALREADY_REGISTERED"),
   )
 }
 
@@ -1277,7 +1340,18 @@ fn handle_cart_transform_create(
     None, None -> {
       let payload =
         cart_transform_mutation_payload(field, fragments, None, [
-          missing_function_error(["functionHandle"]),
+          missing_cart_transform_function_error(),
+        ])
+      #(
+        MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
+        store,
+        identity,
+      )
+    }
+    Some(_), Some(_) -> {
+      let payload =
+        cart_transform_mutation_payload(field, fragments, None, [
+          multiple_function_identifiers_error(),
         ])
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1287,66 +1361,100 @@ fn handle_cart_transform_create(
     }
     _, _ -> {
       let title = graphql_helpers.read_arg_string(input, "title")
-      let fallback = case title {
-        Some(t) -> t
-        None -> "Local cart transform function"
+      let #(resolution, store_after_fn, identity_after_fn) =
+        resolve_cart_transform_function(store, identity, reference)
+      case resolution {
+        Error(user_error) -> {
+          let payload =
+            cart_transform_mutation_payload(field, fragments, None, [
+              user_error,
+            ])
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+            ),
+            store_after_fn,
+            identity_after_fn,
+          )
+        }
+        Ok(shopify_fn) -> {
+          let field_name = cart_transform_reference_field(reference)
+          case cart_transform_function_in_use(store_after_fn, shopify_fn) {
+            True -> {
+              let payload =
+                cart_transform_mutation_payload(field, fragments, None, [
+                  function_already_registered_error(field_name),
+                ])
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [],
+                ),
+                store_after_fn,
+                identity_after_fn,
+              )
+            }
+            False -> {
+              let #(timestamp, identity_after_ts) =
+                synthetic_identity.make_synthetic_timestamp(identity_after_fn)
+              let #(cart_transform_id, identity_final) =
+                synthetic_identity.make_synthetic_gid(
+                  identity_after_ts,
+                  "CartTransform",
+                )
+              let final_title = case title {
+                Some(t) -> Some(t)
+                None -> shopify_fn.title
+              }
+              let function_handle = case reference.function_handle {
+                Some(_) -> reference.function_handle
+                None -> shopify_fn.handle
+              }
+              let block_on_failure = case
+                graphql_helpers.read_arg_bool(input, "blockOnFailure")
+              {
+                Some(b) -> Some(b)
+                None -> Some(False)
+              }
+              let cart_transform =
+                CartTransformRecord(
+                  id: cart_transform_id,
+                  title: final_title,
+                  block_on_failure: block_on_failure,
+                  function_id: Some(shopify_fn.id),
+                  function_handle: function_handle,
+                  shopify_function_id: Some(shopify_fn.id),
+                  created_at: Some(timestamp),
+                  updated_at: Some(timestamp),
+                )
+              let #(_, store_final) =
+                store.upsert_staged_cart_transform(
+                  store_after_fn,
+                  cart_transform,
+                )
+              let payload =
+                cart_transform_mutation_payload(
+                  field,
+                  fragments,
+                  Some(cart_transform),
+                  [],
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [cart_transform.id],
+                ),
+                store_final,
+                identity_final,
+              )
+            }
+          }
+        }
       }
-      let #(shopify_fn, store_after_fn, identity_after_fn) =
-        ensure_shopify_function(
-          store,
-          identity,
-          reference,
-          "CART_TRANSFORM",
-          fallback,
-        )
-      let #(timestamp, identity_after_ts) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_fn)
-      let #(cart_transform_id, identity_final) =
-        synthetic_identity.make_synthetic_gid(
-          identity_after_ts,
-          "CartTransform",
-        )
-      let final_title = case title {
-        Some(t) -> Some(t)
-        None -> shopify_fn.title
-      }
-      let function_handle = case reference.function_handle {
-        Some(_) -> reference.function_handle
-        None -> shopify_fn.handle
-      }
-      let block_on_failure = case
-        graphql_helpers.read_arg_bool(input, "blockOnFailure")
-      {
-        Some(b) -> Some(b)
-        None -> Some(False)
-      }
-      let cart_transform =
-        CartTransformRecord(
-          id: cart_transform_id,
-          title: final_title,
-          block_on_failure: block_on_failure,
-          function_id: reference.function_id,
-          function_handle: function_handle,
-          shopify_function_id: Some(shopify_fn.id),
-          created_at: Some(timestamp),
-          updated_at: Some(timestamp),
-        )
-      let #(_, store_final) =
-        store.upsert_staged_cart_transform(store_after_fn, cart_transform)
-      let payload =
-        cart_transform_mutation_payload(
-          field,
-          fragments,
-          Some(cart_transform),
-          [],
-        )
-      #(
-        MutationFieldResult(key: key, payload: payload, staged_resource_ids: [
-          cart_transform.id,
-        ]),
-        store_final,
-        identity_final,
-      )
     }
   }
 }
@@ -1493,7 +1601,12 @@ fn function_reference_for_mutation(
             Some(d) -> d
             None -> args
           }
-          Some(#(read_function_reference(input), "CART_TRANSFORM"))
+          let reference = read_function_reference(input)
+          case reference.function_id, reference.function_handle {
+            Some(_), Some(_) -> None
+            None, None -> None
+            _, _ -> Some(#(reference, "CART_TRANSFORM"))
+          }
         }
         _ -> None
       }
@@ -1829,6 +1942,79 @@ fn find_existing_shopify_function(
         }
       }
   }
+}
+
+fn resolve_cart_transform_function(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  reference: FunctionReference,
+) -> #(
+  Result(ShopifyFunctionRecord, UserError),
+  Store,
+  SyntheticIdentityRegistry,
+) {
+  let field_name = cart_transform_reference_field(reference)
+  let value = cart_transform_reference_value(reference)
+  case find_existing_shopify_function(store, reference) {
+    None -> #(
+      Error(function_not_found_error(field_name, value)),
+      store,
+      identity,
+    )
+    Some(record) ->
+      case cart_transform_function_api_supported(record) {
+        True -> #(Ok(record), store, identity)
+        False -> #(
+          Error(function_does_not_implement_error(field_name)),
+          store,
+          identity,
+        )
+      }
+  }
+}
+
+fn cart_transform_reference_field(reference: FunctionReference) -> String {
+  case reference.function_id {
+    Some(_) -> "functionId"
+    None -> "functionHandle"
+  }
+}
+
+fn cart_transform_reference_value(reference: FunctionReference) -> String {
+  case reference.function_id {
+    Some(id) -> id
+    None ->
+      case reference.function_handle {
+        Some(handle) -> handle
+        None -> ""
+      }
+  }
+}
+
+fn cart_transform_function_api_supported(
+  record: ShopifyFunctionRecord,
+) -> Bool {
+  case record.api_type {
+    None -> True
+    Some(api_type) -> normalize_function_api_type(api_type) == "CART_TRANSFORM"
+  }
+}
+
+fn normalize_function_api_type(api_type: String) -> String {
+  api_type
+  |> string.uppercase
+  |> string.replace("-", "_")
+}
+
+fn cart_transform_function_in_use(
+  store: Store,
+  shopify_fn: ShopifyFunctionRecord,
+) -> Bool {
+  store.list_effective_cart_transforms(store)
+  |> list.any(fn(record) {
+    record.shopify_function_id == Some(shopify_fn.id)
+    || record.function_id == Some(shopify_fn.id)
+  })
 }
 
 /// Hydrate a `ShopifyFunctionRecord` given a reference + api type.

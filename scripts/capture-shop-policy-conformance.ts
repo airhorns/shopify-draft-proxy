@@ -42,7 +42,41 @@ function readContactPolicyBody(result: ConformanceGraphqlResult): string {
   return typeof contactPolicy?.['body'] === 'string' ? contactPolicy['body'] : '<p></p>';
 }
 
-const shopPolicyFields = `
+function readPolicyBody(result: ConformanceGraphqlResult, type: string): string | undefined {
+  const policy = readPolicies(result).find((candidate) => candidate['type'] === type);
+  return typeof policy?.['body'] === 'string' ? policy['body'] : undefined;
+}
+
+function readMutationPolicyId(result: ConformanceGraphqlResult, context: string): string {
+  const payload = readObject(result.payload);
+  const data = readObject(payload?.['data']);
+  const update = readObject(data?.['shopPolicyUpdate']);
+  const policy = readObject(update?.['shopPolicy']);
+  const id = policy?.['id'];
+  if (typeof id !== 'string') {
+    throw new Error(`${context} did not return a shop policy id: ${JSON.stringify(result, null, 2)}`);
+  }
+  return id;
+}
+
+function withoutPolicyTranslations(payload: unknown): unknown {
+  const clone = JSON.parse(JSON.stringify(payload)) as unknown;
+  const root = readObject(clone);
+  const data = readObject(root?.['data']);
+  const shop = readObject(data?.['shop']);
+  const policies = shop?.['shopPolicies'];
+  if (Array.isArray(policies)) {
+    for (const policy of policies) {
+      const policyObject = readObject(policy);
+      if (policyObject) {
+        delete policyObject['translations'];
+      }
+    }
+  }
+  return clone;
+}
+
+const shopPolicyCoreFields = `
   id
   title
   body
@@ -50,6 +84,10 @@ const shopPolicyFields = `
   url
   createdAt
   updatedAt
+`;
+
+const shopPolicyFields = `
+  ${shopPolicyCoreFields}
   translations(locale: "fr") {
     key
     locale
@@ -171,6 +209,21 @@ const shopPolicyUpdateMutation = `#graphql
   }
 `;
 
+const shopPolicyUpdateCoreMutation = `#graphql
+  mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) {
+    shopPolicyUpdate(shopPolicy: $shopPolicy) {
+      shopPolicy {
+        ${shopPolicyCoreFields}
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const downstreamReadQuery = `#graphql
   query ShopPolicyDownstreamRead {
     shop {
@@ -183,10 +236,30 @@ const downstreamReadQuery = `#graphql
   }
 `;
 
+const shopPolicyNodeReadQuery = `#graphql
+  query ShopPolicyNodeRead($id: ID!) {
+    node(id: $id) {
+      __typename
+      ... on ShopPolicy {
+        id
+        title
+        body
+        type
+        url
+        createdAt
+        updatedAt
+      }
+    }
+  }
+`;
+
 const before = await runGraphqlRequest(shopBaselineQuery);
 assertNoTopLevelErrors(before, 'baseline shop policy read');
+const baselineHydratePayload = withoutPolicyTranslations(before.payload);
 
 const originalContactBody = readContactPolicyBody(before);
+const originalPrivacyBody = readPolicyBody(before, 'PRIVACY_POLICY') ?? '<p></p>';
+const originalRefundBody = readPolicyBody(before, 'REFUND_POLICY') ?? '<p></p>';
 const marker = `HAR-173 conformance shopPolicyUpdate capture ${new Date().toISOString()}`;
 const mutationVariables = {
   shopPolicy: {
@@ -222,12 +295,72 @@ assertNoTopLevelErrors(cleanup, 'shopPolicyUpdate cleanup');
 const finalRead = await runGraphqlRequest(downstreamReadQuery);
 assertNoTopLevelErrors(finalRead, 'final shop policy read');
 
+const privacyVariables = {
+  shopPolicy: {
+    type: 'PRIVACY_POLICY',
+    body: 'Line one\nLine two',
+  },
+};
+const refundVariables = {
+  shopPolicy: {
+    type: 'REFUND_POLICY',
+    body: '<p>refund text</p>',
+  },
+};
+const maxBodyVariables = {
+  shopPolicy: {
+    type: 'PRIVACY_POLICY',
+    body: 'x'.repeat(524_287),
+  },
+};
+const tooBigVariables = {
+  shopPolicy: {
+    type: 'PRIVACY_POLICY',
+    body: 'x'.repeat(524_288),
+  },
+};
+
+const privacyMutation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, privacyVariables);
+assertNoTopLevelErrors(privacyMutation, 'privacy policy shopPolicyUpdate mutation');
+const privacyNodeRead = await runGraphqlRequest(shopPolicyNodeReadQuery, {
+  id: readMutationPolicyId(privacyMutation, 'privacy policy shopPolicyUpdate mutation'),
+});
+assertNoTopLevelErrors(privacyNodeRead, 'privacy policy node read');
+
+const refundMutation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, refundVariables);
+assertNoTopLevelErrors(refundMutation, 'refund policy shopPolicyUpdate mutation');
+const refundNodeRead = await runGraphqlRequest(shopPolicyNodeReadQuery, {
+  id: readMutationPolicyId(refundMutation, 'refund policy shopPolicyUpdate mutation'),
+});
+assertNoTopLevelErrors(refundNodeRead, 'refund policy node read');
+
+const maxBodyMutation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, maxBodyVariables);
+assertNoTopLevelErrors(maxBodyMutation, 'maximum body shopPolicyUpdate mutation');
+
+const tooBigValidation = await runGraphqlRequest(shopPolicyUpdateCoreMutation, tooBigVariables);
+assertNoTopLevelErrors(tooBigValidation, 'too-big body shopPolicyUpdate validation');
+
+const privacyCleanup = await runGraphqlRequest(shopPolicyUpdateMutation, {
+  shopPolicy: {
+    type: 'PRIVACY_POLICY',
+    body: originalPrivacyBody,
+  },
+});
+assertNoTopLevelErrors(privacyCleanup, 'privacy policy cleanup');
+const refundCleanup = await runGraphqlRequest(shopPolicyUpdateMutation, {
+  shopPolicy: {
+    type: 'REFUND_POLICY',
+    body: originalRefundBody,
+  },
+});
+assertNoTopLevelErrors(refundCleanup, 'refund policy cleanup');
+
 const fixture = {
   capturedAt: new Date().toISOString(),
   storeDomain,
   apiVersion,
   readOnlyBaselines: {
-    shop: before.payload,
+    shop: baselineHydratePayload,
   },
   validation: {
     operationName: 'ShopPolicyUpdate',
@@ -259,7 +392,70 @@ const fixture = {
   },
 };
 
+const titleUrlBodyFixture = {
+  capturedAt: new Date().toISOString(),
+  storeDomain,
+  apiVersion,
+  readOnlyBaselines: {
+    shop: baselineHydratePayload,
+  },
+  privacyMutation: {
+    operationName: 'ShopPolicyUpdate',
+    query: shopPolicyUpdateCoreMutation,
+    variables: privacyVariables,
+    response: privacyMutation.payload,
+  },
+  privacyNodeRead: {
+    operationName: 'ShopPolicyNodeRead',
+    query: shopPolicyNodeReadQuery,
+    variables: { id: readMutationPolicyId(privacyMutation, 'privacy policy shopPolicyUpdate mutation') },
+    response: privacyNodeRead.payload,
+  },
+  refundMutation: {
+    operationName: 'ShopPolicyUpdate',
+    query: shopPolicyUpdateCoreMutation,
+    variables: refundVariables,
+    response: refundMutation.payload,
+  },
+  refundNodeRead: {
+    operationName: 'ShopPolicyNodeRead',
+    query: shopPolicyNodeReadQuery,
+    variables: { id: readMutationPolicyId(refundMutation, 'refund policy shopPolicyUpdate mutation') },
+    response: refundNodeRead.payload,
+  },
+  maxBodyMutation: {
+    operationName: 'ShopPolicyUpdate',
+    query: shopPolicyUpdateCoreMutation,
+    variables: maxBodyVariables,
+    response: maxBodyMutation.payload,
+  },
+  tooBigValidation: {
+    operationName: 'ShopPolicyUpdate',
+    query: shopPolicyUpdateCoreMutation,
+    variables: tooBigVariables,
+    response: tooBigValidation.payload,
+  },
+  cleanup: {
+    privacy: privacyCleanup.payload,
+    refund: refundCleanup.payload,
+  },
+  upstreamCalls: [
+    {
+      operationName: 'StorePropertiesShopBaselineHydrate',
+      variables: {},
+      query: 'sha:hand-synthesized-StorePropertiesShopBaselineHydrate',
+      response: {
+        status: 200,
+        body: baselineHydratePayload,
+      },
+    },
+  ],
+};
+
 await mkdir(outputDir, { recursive: true });
 const outputPath = path.join(outputDir, 'shop-policy-update-parity.json');
 await writeFile(outputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
 console.log(`Wrote ${outputPath}`);
+const titleUrlBodyOutputPath = path.join(outputDir, 'shop-policy-update-title-url-and-body-rendering.json');
+await writeFile(titleUrlBodyOutputPath, `${JSON.stringify(titleUrlBodyFixture, null, 2)}\n`, 'utf8');
+console.log(`Wrote ${titleUrlBodyOutputPath}`);
