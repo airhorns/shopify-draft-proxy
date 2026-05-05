@@ -133,6 +133,19 @@ duplicate role, foreign/missing role, foreign/missing location, successful main
 contact delete, and completed B2B order-history delete rejection branches as
 strict replayable parity evidence.
 
+HAR-762 extends those role-assignment guardrails to revoke-role mutation roots.
+`companyContactRevokeRole` validates the parent contact before looking at the
+assignment and returns `INVALID_INPUT` with
+`detail: "contact_does_not_match_company"` when the assignment exists on a
+different contact. `companyContactRevokeRoles` rejects empty
+`roleAssignmentIds` unless `revokeAll` is true, validates the parent contact,
+and reports per-index ownership errors while still revoking valid IDs.
+`companyLocationRevokeRoles` validates the parent location and reports
+per-index `RESOURCE_NOT_FOUND` errors for assignments outside that location.
+Focused runtime tests cover these branches and the no-cross-scope-mutation
+invariant; no new passive parity scenarios were added without fresh capture
+evidence.
+
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`
