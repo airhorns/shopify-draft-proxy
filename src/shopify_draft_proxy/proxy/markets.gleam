@@ -36,13 +36,15 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type CatalogRecord, type MarketRecord,
-  type PriceListRecord, type ProductMetafieldRecord, type ProductRecord,
-  type ProductVariantRecord, type ShopDomainRecord, type WebPresenceRecord,
-  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, CatalogRecord, MarketRecord, PriceListRecord,
-  ProductMetafieldRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, WebPresenceRecord,
+  type CapturedJsonValue, type CatalogRecord,
+  type MarketLocalizableContentRecord, type MarketLocalizationRecord,
+  type MarketRecord, type PriceListRecord, type ProductMetafieldRecord,
+  type ProductRecord, type ProductVariantRecord, type ShopDomainRecord,
+  type WebPresenceRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CatalogRecord,
+  MarketLocalizableContentRecord, MarketLocalizationRecord, MarketRecord,
+  PriceListRecord, ProductMetafieldRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord, WebPresenceRecord,
 }
 
 pub type MarketsError {
@@ -775,7 +777,29 @@ fn product_metafield_record_from_json(
     created_at: json_get_string(value, "createdAt"),
     updated_at: json_get_string(value, "updatedAt"),
     owner_type: json_get_string(value, "ownerType"),
+    market_localizable_content: market_localizable_content_from_json(value),
   ))
+}
+
+fn market_localizable_content_from_json(
+  value: commit.JsonValue,
+) -> List(MarketLocalizableContentRecord) {
+  case json_get(value, "marketLocalizableContent") {
+    Some(commit.JsonArray(items)) ->
+      items |> list.filter_map(market_localizable_content_record_from_json)
+    _ -> []
+  }
+}
+
+fn market_localizable_content_record_from_json(
+  value: commit.JsonValue,
+) -> Result(MarketLocalizableContentRecord, Nil) {
+  use key <- result.try(json_get_string(value, "key") |> option_to_result)
+  use content_value <- result.try(
+    json_get_string(value, "value") |> option_to_result,
+  )
+  use digest <- result.try(json_get_string(value, "digest") |> option_to_result)
+  Ok(MarketLocalizableContentRecord(key, content_value, digest))
 }
 
 fn collect_objects(value: commit.JsonValue) -> List(commit.JsonValue) {
@@ -1093,7 +1117,7 @@ fn handle_market_create(
     [] -> {
       let #(id, next_identity) =
         synthetic_identity.make_synthetic_gid(identity, "Market")
-      let data = market_data(id, input, None)
+      let data = market_data(store, id, input, None)
       let #(_, next_store) =
         store.upsert_staged_market(store, MarketRecord(id, Some(id), data))
       mutation_result(
@@ -1131,7 +1155,9 @@ fn market_create_input_errors(
   name: String,
 ) -> List(CapturedJsonValue) {
   market_create_name_errors(name)
+  |> list.append(market_create_duplicate_name_errors(store, name))
   |> list.append(market_create_status_enabled_errors(input))
+  |> list.append(market_create_handle_errors(store, input, None))
   |> list.append(market_create_plan_limit_errors(store))
   |> list.append(market_create_currency_errors(store, input))
   |> list.append(market_create_region_errors(store, input))
@@ -1161,12 +1187,36 @@ fn market_create_name_errors(name: String) -> List(CapturedJsonValue) {
   }
 }
 
+fn market_create_duplicate_name_errors(
+  store: Store,
+  name: String,
+) -> List(CapturedJsonValue) {
+  case string.trim(name) {
+    "" -> []
+    trimmed ->
+      case string.length(trimmed) < 2 {
+        True -> []
+        False ->
+          case market_name_in_use(store, name) {
+            True -> [
+              user_error(
+                ["input", "name"],
+                "Name has already been taken",
+                "TAKEN",
+              ),
+            ]
+            False -> []
+          }
+      }
+  }
+}
+
 fn market_create_status_enabled_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
   let status =
     graphql_helpers.read_arg_string_nonempty(input, "status")
-    |> option.unwrap("ACTIVE")
+    |> option.unwrap("DRAFT")
   let enabled =
     graphql_helpers.read_arg_bool(input, "enabled")
     |> option.unwrap(status == "ACTIVE")
@@ -1179,6 +1229,27 @@ fn market_create_status_enabled_errors(
         "INVALID_STATUS_AND_ENABLED_COMBINATION",
       ),
     ]
+  }
+}
+
+fn market_create_handle_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  current_id: Option(String),
+) -> List(CapturedJsonValue) {
+  case read_explicit_market_handle(input) {
+    Some(handle) ->
+      case market_handle_in_use(store, handle, current_id) {
+        True -> [
+          user_error(
+            ["input", "handle"],
+            "Generated handle has already been taken",
+            "GENERATED_DUPLICATED_HANDLE",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
   }
 }
 
@@ -1280,7 +1351,7 @@ fn handle_market_update(
     Some(id) ->
       case store.get_effective_market_by_id(store, id) {
         Some(existing) -> {
-          let data = market_data(id, input, Some(existing.data))
+          let data = market_data(store, id, input, Some(existing.data))
           let #(_, next_store) =
             store.upsert_staged_market(
               store,
@@ -2133,20 +2204,117 @@ fn handle_market_localizations_register(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let resource_id = graphql_helpers.read_arg_string_nonempty(args, "resourceId")
-  let errors = case resource_id {
-    Some(id) ->
-      case store.find_effective_metafield_by_id(store, id) {
-        Some(_) -> [
-          user_error(
-            ["marketLocalizations", "0", "key"],
-            "Key value is not a valid market localizable field",
-            "INVALID_KEY_FOR_MODEL",
+  let inputs = read_arg_object_array(args, "marketLocalizations")
+  case list.length(inputs) > 100 {
+    True ->
+      mutation_payload_result(
+        key,
+        field,
+        fragments,
+        "marketLocalizationsRegister",
+        CapturedObject([
+          #("marketLocalizations", CapturedNull),
+          #(
+            "userErrors",
+            CapturedArray([
+              translation_user_error(
+                ["resourceId"],
+                "Too many keys for resource - maximum 100 per mutation",
+                "TOO_MANY_KEYS_FOR_RESOURCE",
+              ),
+            ]),
           ),
-        ]
-        None -> [resource_not_found_error(id)]
+        ]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      case resource_id {
+        Some(id) ->
+          case store.find_effective_metafield_by_id(store, id) {
+            Some(metafield) -> {
+              let errors =
+                market_localizations_register_errors(store, metafield, inputs)
+              case errors {
+                [] -> {
+                  let #(timestamp, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let records =
+                    inputs
+                    |> list.filter_map(fn(input) {
+                      register_input_to_record(input, id, timestamp)
+                    })
+                  let next_store =
+                    store.upsert_staged_market_localizations(store, records)
+                  mutation_payload_result(
+                    key,
+                    field,
+                    fragments,
+                    "marketLocalizationsRegister",
+                    CapturedObject([
+                      #(
+                        "marketLocalizations",
+                        CapturedArray(
+                          list.map(records, fn(record) {
+                            market_localization_payload(store, record)
+                          }),
+                        ),
+                      ),
+                      #("userErrors", CapturedArray([])),
+                    ]),
+                    next_store,
+                    next_identity,
+                    [id],
+                  )
+                }
+                _ ->
+                  mutation_payload_result(
+                    key,
+                    field,
+                    fragments,
+                    "marketLocalizationsRegister",
+                    CapturedObject([
+                      #("marketLocalizations", CapturedNull),
+                      #("userErrors", CapturedArray(errors)),
+                    ]),
+                    store,
+                    identity,
+                    [],
+                  )
+              }
+            }
+            None ->
+              market_localizations_register_error_result(
+                key,
+                field,
+                fragments,
+                [translation_resource_not_found_error(id)],
+                store,
+                identity,
+              )
+          }
+        None ->
+          market_localizations_register_error_result(
+            key,
+            field,
+            fragments,
+            [translation_resource_not_found_error("")],
+            store,
+            identity,
+          )
       }
-    None -> [resource_not_found_error("")]
   }
+}
+
+fn market_localizations_register_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(CapturedJsonValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
   mutation_payload_result(
     key,
     field,
@@ -2160,6 +2328,181 @@ fn handle_market_localizations_register(
     identity,
     [],
   )
+}
+
+fn market_localizations_register_errors(
+  store: Store,
+  metafield: ProductMetafieldRecord,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(CapturedJsonValue) {
+  inputs
+  |> enumerate_dicts
+  |> list.flat_map(fn(pair) {
+    let #(input, index) = pair
+    market_localization_register_input_errors(store, metafield, input, index)
+  })
+}
+
+fn market_localization_register_input_errors(
+  store: Store,
+  metafield: ProductMetafieldRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  let prefix = ["marketLocalizations", int.to_string(index)]
+  let market_errors = market_localization_market_errors(store, input, prefix)
+  let key =
+    graphql_helpers.read_arg_string_nonempty(input, "key") |> option.unwrap("")
+  let content = market_localizable_content_for_key(metafield, key)
+  let key_errors = case content {
+    Some(_) -> []
+    None -> [
+      translation_user_error(
+        list.append(prefix, ["key"]),
+        "Key " <> key <> " is not a valid market localizable field",
+        "INVALID_KEY_FOR_MODEL",
+      ),
+    ]
+  }
+  let digest_errors = case content, key_errors {
+    Some(item), [] -> market_localization_digest_errors(input, prefix, item)
+    _, _ -> []
+  }
+  let value_errors = case content, key_errors, digest_errors {
+    Some(_), [], [] -> market_localization_value_errors(input, prefix)
+    _, _, _ -> []
+  }
+  market_errors
+  |> list.append(key_errors)
+  |> list.append(digest_errors)
+  |> list.append(value_errors)
+}
+
+fn market_localization_market_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(input, "marketId") {
+    Some(id) ->
+      case store.list_effective_markets(store) {
+        [] -> []
+        _ ->
+          case store.get_effective_market_by_id(store, id) {
+            Some(_) -> []
+            None -> [
+              translation_user_error(
+                list.append(prefix, ["marketId"]),
+                "Market does not exist",
+                "MARKET_DOES_NOT_EXIST",
+              ),
+            ]
+          }
+      }
+    None -> [
+      translation_user_error(
+        list.append(prefix, ["marketId"]),
+        "Market does not exist",
+        "MARKET_DOES_NOT_EXIST",
+      ),
+    ]
+  }
+}
+
+fn market_localizable_content_for_key(
+  metafield: ProductMetafieldRecord,
+  key: String,
+) -> Option(MarketLocalizableContentRecord) {
+  list.find(metafield.market_localizable_content, fn(content) {
+    content.key == key
+  })
+  |> result_to_option
+}
+
+fn market_localization_digest_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+  content: MarketLocalizableContentRecord,
+) -> List(CapturedJsonValue) {
+  case read_market_localizable_content_digest(input) {
+    Some(digest) if digest == content.digest -> []
+    _ -> [
+      translation_user_error(
+        list.append(prefix, ["marketLocalizableContentDigest"]),
+        "Market localizable content is invalid",
+        "INVALID_MARKET_LOCALIZABLE_CONTENT",
+      ),
+    ]
+  }
+}
+
+fn read_market_localizable_content_digest(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case
+    graphql_helpers.read_arg_string_nonempty(
+      input,
+      "marketLocalizableContentDigest",
+    )
+  {
+    Some(digest) -> Some(digest)
+    None ->
+      graphql_helpers.read_arg_string_nonempty(
+        input,
+        "translatableContentDigest",
+      )
+  }
+}
+
+fn market_localization_value_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(CapturedJsonValue) {
+  case read_arg_string_allow_empty(input, "value") {
+    Some(value) ->
+      case string.trim(value) {
+        "" -> [
+          translation_user_error(
+            list.append(prefix, ["value"]),
+            "Value is invalid",
+            "FAILS_RESOURCE_VALIDATION",
+          ),
+        ]
+        _ -> []
+      }
+    _ -> [
+      translation_user_error(
+        list.append(prefix, ["value"]),
+        "Value is invalid",
+        "FAILS_RESOURCE_VALIDATION",
+      ),
+    ]
+  }
+}
+
+fn register_input_to_record(
+  input: Dict(String, root_field.ResolvedValue),
+  resource_id: String,
+  updated_at: String,
+) -> Result(MarketLocalizationRecord, Nil) {
+  use market_id <- result.try(
+    graphql_helpers.read_arg_string_nonempty(input, "marketId")
+    |> option_to_result,
+  )
+  use key <- result.try(
+    graphql_helpers.read_arg_string_nonempty(input, "key") |> option_to_result,
+  )
+  use value <- result.try(
+    read_arg_string_allow_empty(input, "value") |> option_to_result,
+  )
+  Ok(MarketLocalizationRecord(
+    resource_id: resource_id,
+    market_id: market_id,
+    key: key,
+    value: value,
+    updated_at: updated_at,
+    outdated: False,
+  ))
 }
 
 fn handle_market_localizations_remove(
@@ -2197,6 +2540,16 @@ fn handle_market_localizations_remove(
 
 fn resource_not_found_error(resource_id: String) -> CapturedJsonValue {
   user_error(
+    ["resourceId"],
+    "Resource " <> resource_id <> " does not exist",
+    "RESOURCE_NOT_FOUND",
+  )
+}
+
+fn translation_resource_not_found_error(
+  resource_id: String,
+) -> CapturedJsonValue {
+  translation_user_error(
     ["resourceId"],
     "Resource " <> resource_id <> " does not exist",
     "RESOURCE_NOT_FOUND",
@@ -3028,11 +3381,34 @@ fn user_error(
   message: String,
   code: String,
 ) -> CapturedJsonValue {
-  CapturedObject([
-    #("field", CapturedArray(list.map(field, CapturedString))),
-    #("message", CapturedString(message)),
-    #("code", CapturedString(code)),
-  ])
+  user_error_with_typename(field, message, code, None)
+}
+
+fn translation_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  user_error_with_typename(field, message, code, Some("TranslationUserError"))
+}
+
+fn user_error_with_typename(
+  field: List(String),
+  message: String,
+  code: String,
+  typename: Option(String),
+) -> CapturedJsonValue {
+  let typename_fields = case typename {
+    Some(value) -> [#("__typename", CapturedString(value))]
+    None -> []
+  }
+  CapturedObject(
+    list.append(typename_fields, [
+      #("field", CapturedArray(list.map(field, CapturedString))),
+      #("message", CapturedString(message)),
+      #("code", CapturedString(code)),
+    ]),
+  )
 }
 
 fn markets_log_draft(root_name: String, staged_ids: List(String)) -> LogDraft {
@@ -3051,6 +3427,7 @@ fn markets_log_draft(root_name: String, staged_ids: List(String)) -> LogDraft {
 }
 
 fn market_data(
+  store: Store,
   id: String,
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(CapturedJsonValue),
@@ -3064,10 +3441,11 @@ fn market_data(
   let status =
     graphql_helpers.read_arg_string_nonempty(input, "status")
     |> option.or(captured_string_field(existing_value, "status"))
-    |> option.unwrap("ACTIVE")
+    |> option.unwrap("DRAFT")
   let enabled =
     graphql_helpers.read_arg_bool(input, "enabled")
     |> option.unwrap(status == "ACTIVE")
+  let handle = market_data_handle(store, id, input, existing_value, name)
   let market_type = case region_inputs {
     [] ->
       captured_string_field(existing_value, "type")
@@ -3078,7 +3456,7 @@ fn market_data(
     #("__typename", CapturedString("Market")),
     #("id", CapturedString(id)),
     #("name", CapturedString(name)),
-    #("handle", CapturedString(market_handle(name))),
+    #("handle", CapturedString(handle)),
     #("status", CapturedString(status)),
     #("enabled", CapturedBool(enabled)),
     #("type", CapturedString(market_type)),
@@ -3105,10 +3483,107 @@ fn market_data(
   ])
 }
 
+fn market_data_handle(
+  store: Store,
+  id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing_value: CapturedJsonValue,
+  name: String,
+) -> String {
+  case read_explicit_market_handle(input) {
+    Some(handle) -> handle
+    None -> {
+      let base =
+        captured_string_field(existing_value, "handle")
+        |> option.unwrap(market_handle(name))
+      ensure_unique_market_handle(store, base, Some(id), 0)
+    }
+  }
+}
+
+fn read_explicit_market_handle(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case read_arg_string_allow_empty(input, "handle") {
+    Some(handle) -> Some(market_handle(handle))
+    None -> None
+  }
+}
+
 fn market_handle(name: String) -> String {
   string.trim(name)
   |> string.lowercase
-  |> string.replace(" ", "-")
+  |> string.to_graphemes
+  |> list.fold(#([], ""), fn(acc, grapheme) {
+    let #(parts, current) = acc
+    case is_market_handle_grapheme(grapheme) {
+      True -> #(parts, current <> grapheme)
+      False ->
+        case current {
+          "" -> #(parts, "")
+          _ -> #([current, ..parts], "")
+        }
+    }
+  })
+  |> finish_market_handle_parts
+}
+
+fn finish_market_handle_parts(parts_state: #(List(String), String)) -> String {
+  let #(parts, current) = parts_state
+  let parts = case current {
+    "" -> parts
+    _ -> [current, ..parts]
+  }
+  parts
+  |> list.reverse
+  |> string.join("-")
+}
+
+fn is_market_handle_grapheme(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" -> True
+    "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" -> True
+    "u" | "v" | "w" | "x" | "y" | "z" -> True
+    _ -> False
+  }
+}
+
+fn ensure_unique_market_handle(
+  store: Store,
+  handle: String,
+  current_id: Option(String),
+  suffix: Int,
+) -> String {
+  let candidate = case suffix {
+    0 -> handle
+    _ -> handle <> "-" <> int.to_string(suffix)
+  }
+  case market_handle_in_use(store, candidate, current_id) {
+    True -> ensure_unique_market_handle(store, handle, current_id, suffix + 1)
+    False -> candidate
+  }
+}
+
+fn market_handle_in_use(
+  store: Store,
+  handle: String,
+  current_id: Option(String),
+) -> Bool {
+  store.list_effective_markets(store)
+  |> list.any(fn(record) {
+    case current_id == Some(record.id) {
+      True -> False
+      False -> captured_string_field(record.data, "handle") == Some(handle)
+    }
+  })
+}
+
+fn market_name_in_use(store: Store, name: String) -> Bool {
+  store.list_effective_markets(store)
+  |> list.any(fn(record) {
+    captured_string_field(record.data, "name") == Some(name)
+  })
 }
 
 fn read_market_region_inputs(
@@ -4582,12 +5057,59 @@ fn market_localizable_resource_payload(
   resource_id: String,
 ) -> CapturedJsonValue {
   case store.find_effective_metafield_by_id(store, resource_id) {
-    Some(_) ->
+    Some(metafield) ->
       CapturedObject([
         #("resourceId", CapturedString(resource_id)),
-        #("marketLocalizableContent", CapturedArray([])),
-        #("marketLocalizations", CapturedArray([])),
+        #(
+          "marketLocalizableContent",
+          CapturedArray(list.map(
+            metafield.market_localizable_content,
+            market_localizable_content_payload,
+          )),
+        ),
+        #(
+          "marketLocalizations",
+          CapturedArray(
+            store.list_effective_market_localizations(store, resource_id)
+            |> list.map(fn(record) {
+              market_localization_payload(store, record)
+            }),
+          ),
+        ),
       ])
+    None -> CapturedNull
+  }
+}
+
+fn market_localizable_content_payload(
+  content: MarketLocalizableContentRecord,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("key", CapturedString(content.key)),
+    #("value", CapturedString(content.value)),
+    #("digest", CapturedString(content.digest)),
+  ])
+}
+
+fn market_localization_payload(
+  store: Store,
+  record: MarketLocalizationRecord,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("key", CapturedString(record.key)),
+    #("value", CapturedString(record.value)),
+    #("updatedAt", CapturedString(record.updated_at)),
+    #("outdated", CapturedBool(record.outdated)),
+    #("market", market_localization_market_payload(store, record.market_id)),
+  ])
+}
+
+fn market_localization_market_payload(
+  store: Store,
+  market_id: String,
+) -> CapturedJsonValue {
+  case store.get_effective_market_by_id(store, market_id) {
+    Some(record) -> record.data
     None -> CapturedNull
   }
 }

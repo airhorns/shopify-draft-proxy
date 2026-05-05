@@ -1,0 +1,13 @@
+mutation DiscountUpdateEdgeBulkAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {
+  discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {
+    bulkCreation {
+      codesCount
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

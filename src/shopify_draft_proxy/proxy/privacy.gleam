@@ -244,6 +244,7 @@ fn opt_out_new_customer(
       email_marketing_consent: None,
       sms_marketing_consent: None,
       default_address: None,
+      account_activation_token: None,
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
     )
@@ -405,6 +406,7 @@ fn customer_record_from_upstream_node(
         email_marketing_consent: None,
         sms_marketing_consent: None,
         default_address: None,
+        account_activation_token: None,
         created_at: None,
         updated_at: None,
       ))

@@ -2,17 +2,23 @@
   "scenarioId": "customer-input-inline-consent-parity",
   "operationNames": ["customerCreate", "customerUpdate", "customer", "customerByIdentifier", "customers"],
   "scenarioStatus": "captured",
-  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "consent-semantics"],
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "consent-semantics",
+    "graphql-validation-parity"
+  ],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-input-inline-consent-parity.json"
   ],
-  "runtimeTestFiles": ["tests/integration/customer-draft-flow.test.ts"],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/customers_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Captured Admin GraphQL 2025-01 evidence for CustomerInput inline consent semantics: customerCreate accepts emailMarketingConsent and smsMarketingConsent input and immediately reflects those values on Customer.defaultEmailAddress/defaultPhoneNumber and compatibility consent fields; customerUpdate rejects inline emailMarketingConsent and smsMarketingConsent with userErrors directing callers to the dedicated consent mutations, leaving downstream reads unchanged. Runtime tests cover no-upstream local staging and mutation-log behavior.",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for CustomerInput inline consent semantics: customerCreate accepts emailMarketingConsent and smsMarketingConsent input and immediately reflects those values on Customer.defaultEmailAddress/defaultPhoneNumber and compatibility consent fields; customerCreate rejects email consent without an email, SMS consent without a phone, and disallowed create-time marketing states without staging a customer; customerUpdate rejects inline emailMarketingConsent and smsMarketingConsent with userErrors directing callers to the dedicated consent mutations, leaving downstream reads unchanged. Runtime tests cover no-upstream local staging and mutation-log behavior.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
@@ -135,6 +141,45 @@
           "$.customerByIdentifier.emailMarketingConsent",
           "$.customerByIdentifier.smsMarketingConsent"
         ]
+      },
+      {
+        "name": "create-inline-email-consent-missing-email",
+        "capturePath": "$.validation.createEmailConsentMissingEmail.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+          "variablesCapturePath": "$.validation.createEmailConsentMissingEmail.variables"
+        },
+        "selectedPaths": ["$.customerCreate.customer", "$.customerCreate.userErrors"]
+      },
+      {
+        "name": "create-inline-sms-consent-missing-phone",
+        "capturePath": "$.validation.createSmsConsentMissingPhone.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+          "variablesCapturePath": "$.validation.createSmsConsentMissingPhone.variables"
+        },
+        "selectedPaths": ["$.customerCreate.customer", "$.customerCreate.userErrors"]
+      },
+      {
+        "name": "create-inline-email-consent-redacted-errors",
+        "capturePath": "$.validation.createEmailConsentRedacted.response.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+          "variablesCapturePath": "$.validation.createEmailConsentRedacted.variables"
+        },
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions.code"]
+      },
+      {
+        "name": "create-inline-email-consent-redacted-data",
+        "capturePath": "$.validation.createEmailConsentRedacted.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerInputInlineConsent-create.graphql",
+          "variablesCapturePath": "$.validation.createEmailConsentRedacted.variables"
+        }
       }
     ]
   }

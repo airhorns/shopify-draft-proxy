@@ -115,6 +115,7 @@ fn customer(
     email_marketing_consent: None,
     sms_marketing_consent: None,
     default_address: None,
+    account_activation_token: None,
     created_at: None,
     updated_at: None,
   )
@@ -144,20 +145,30 @@ pub fn member_query_create_rejects_both_query_and_segment_id_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { customerSegmentMembersQueryCreate(input: { segmentId: \"gid://shopify/Segment/1\", query: \"number_of_orders > 0\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+      "mutation { customerSegmentMembersQueryCreate(input: { segmentId: \"gid://shopify/Segment/1\", query: \"number_of_orders > 0\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"Providing both segment_id and query is not supported.\"}]}}}"
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"__typename\":\"CustomerSegmentMembersQueryUserError\",\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"Providing both segment_id and query is not supported.\"}]}}}"
 }
 
 pub fn member_query_create_rejects_neither_query_nor_segment_id_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { customerSegmentMembersQueryCreate(input: {}) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+      "mutation { customerSegmentMembersQueryCreate(input: {}) { customerSegmentMembersQuery { id status currentCount done } userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"You must provide one of segment_id or query.\"}]}}}"
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"__typename\":\"CustomerSegmentMembersQueryUserError\",\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"You must provide one of segment_id or query.\"}]}}}"
+}
+
+pub fn member_query_create_invalid_query_uses_member_error_type_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { customerSegmentMembersQueryCreate(input: { query: \"not a valid segment query ???\" }) { customerSegmentMembersQuery { id } userErrors { __typename field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"__typename\":\"CustomerSegmentMembersQueryUserError\",\"field\":null,\"code\":\"INVALID\",\"message\":\"Line 1 Column 6: 'valid' is unexpected.\"}]}}}"
 }
 
 pub fn member_query_create_stages_initialized_query_job_test() {
@@ -248,10 +259,10 @@ pub fn segment_create_blank_name_emits_user_error_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { segmentCreate(name: \"\", query: \"number_of_orders >= 5\") { segment { id } userErrors { field message } } }",
+      "mutation { segmentCreate(name: \"\", query: \"number_of_orders >= 5\") { segment { id } userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name can't be blank\"}]}}}"
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"name\"],\"code\":null,\"message\":\"Name can't be blank\"}]}}}"
 }
 
 pub fn segment_create_missing_query_emits_user_error_test() {
@@ -378,10 +389,25 @@ pub fn segment_update_missing_id_emits_user_error_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { segmentUpdate(id: \"gid://shopify/Segment/missing\", name: \"X\") { segment { id } userErrors { field message } } }",
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/missing\", name: \"X\") { segment { id } userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Segment does not exist\"}]}}}"
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"id\"],\"code\":null,\"message\":\"Segment does not exist\"}]}}}"
+}
+
+pub fn segment_update_without_changes_emits_user_error_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/105", "Keep", "number_of_orders >= 2")
+  let s = seed(store.new(), existing)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/105\") { segment { id } userErrors { __typename field code message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":null,\"code\":null,\"message\":\"At least one attribute to change must be present\"}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 pub fn segment_update_blank_name_emits_user_error_test() {
@@ -463,10 +489,10 @@ pub fn segment_delete_missing_id_emits_user_error_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { segmentDelete(id: \"gid://shopify/Segment/missing\") { deletedSegmentId userErrors { field message } } }",
+      "mutation { segmentDelete(id: \"gid://shopify/Segment/missing\") { deletedSegmentId userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"segmentDelete\":{\"deletedSegmentId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Segment does not exist\"}]}}}"
+    == "{\"data\":{\"segmentDelete\":{\"deletedSegmentId\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"id\"],\"code\":null,\"message\":\"Segment does not exist\"}]}}}"
 }
 
 // ----------- unique-name resolution -----------

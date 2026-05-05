@@ -26,6 +26,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   serialize_empty_connection, source_to_json, src_object,
 }
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
@@ -41,10 +42,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
   type B2BCompanyLocationRecord, type B2BCompanyRecord, type CustomerRecord,
-  type StorePropertyValue, B2BCompanyContactRecord, B2BCompanyContactRoleRecord,
-  B2BCompanyLocationRecord, B2BCompanyRecord, StorePropertyBool,
-  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
-  StorePropertyObject, StorePropertyString,
+  type ProductMetafieldRecord, type StorePropertyValue, B2BCompanyContactRecord,
+  B2BCompanyContactRoleRecord, B2BCompanyLocationRecord, B2BCompanyRecord,
+  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
+  StorePropertyNull, StorePropertyObject, StorePropertyString,
 }
 
 const domain = "b2b"
@@ -700,6 +701,21 @@ fn contact_source(contact: B2BCompanyContactRecord) -> SourceValue {
   record_source("CompanyContact", contact.id, contact.data)
 }
 
+fn contact_source_with_main_flag(
+  store: Store,
+  contact: B2BCompanyContactRecord,
+) -> SourceValue {
+  case contact_source(contact) {
+    SrcObject(fields) ->
+      SrcObject(dict.insert(
+        fields,
+        "isMainContact",
+        SrcBool(contact_is_main_contact(store, contact)),
+      ))
+    source -> source
+  }
+}
+
 fn role_source(role: B2BCompanyContactRoleRecord) -> SourceValue {
   record_source("CompanyContactRole", role.id, role.data)
 }
@@ -811,29 +827,119 @@ fn serialize_company(
               key,
               serialize_count(child, list.length(locations)),
             )
-            "mainContact" -> #(key, case find_main_contact(contacts) {
-              Some(contact) ->
-                serialize_contact(store, contact, child, fragments)
+            "mainContact" -> #(key, case company.main_contact_id {
+              Some(contact_id) ->
+                case
+                  store.get_effective_b2b_company_contact_by_id(
+                    store,
+                    contact_id,
+                  )
+                {
+                  Some(contact) if contact.company_id == company.id ->
+                    serialize_contact(store, contact, child, fragments)
+                  _ -> json.null()
+                }
               None -> json.null()
             })
             "defaultRole" -> #(key, case roles {
               [role, ..] -> project_source(role_source(role), child, fragments)
               [] -> json.null()
             })
-            "orders" | "draftOrders" | "events" | "metafields" -> #(
+            "orders" | "draftOrders" | "events" -> #(
               key,
               serialize_empty_connection(
                 child,
                 default_selected_field_options(),
               ),
             )
+            "metafields" -> #(
+              key,
+              serialize_company_metafields_connection(
+                store,
+                company.id,
+                child,
+                variables,
+              ),
+            )
             "ordersCount" -> #(key, serialize_count(child, 0))
-            "metafield" -> #(key, json.null())
+            "metafield" -> #(
+              key,
+              serialize_company_metafield(store, company.id, child, variables),
+            )
             _ -> source_field(source, child, fragments)
           }
         _ -> #(key, json.null())
       }
     }),
+  )
+}
+
+fn serialize_company_metafield(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = graphql_helpers.field_args(field, variables)
+  let namespace = read_string(args, "namespace")
+  let key = read_string(args, "key")
+  let found =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.find(fn(metafield) {
+      metafield.namespace == option.unwrap(namespace, "")
+      && metafield.key == option.unwrap(key, "")
+    })
+    |> option.from_result
+  case found {
+    Some(metafield) ->
+      metafields.serialize_metafield_selection(
+        company_metafield_to_core(metafield),
+        field,
+        default_selected_field_options(),
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_company_metafields_connection(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = graphql_helpers.field_args(field, variables)
+  let namespace = read_string(args, "namespace")
+  let records =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.filter(fn(metafield) {
+      case namespace {
+        Some(ns) -> metafield.namespace == ns
+        None -> True
+      }
+    })
+    |> list.map(company_metafield_to_core)
+  metafields.serialize_metafields_connection(
+    records,
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn company_metafield_to_core(
+  record: ProductMetafieldRecord,
+) -> metafields.MetafieldRecordCore {
+  metafields.MetafieldRecordCore(
+    id: record.id,
+    namespace: record.namespace,
+    key: record.key,
+    type_: record.type_,
+    value: record.value,
+    compare_digest: record.compare_digest,
+    json_value: record.json_value,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    owner_type: record.owner_type,
   )
 }
 
@@ -843,7 +949,7 @@ fn serialize_contact(
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
-  let source = contact_source(contact)
+  let source = contact_source_with_main_flag(store, contact)
   json.object(
     selected_children(field)
     |> list.map(fn(child) {
@@ -892,6 +998,10 @@ fn serialize_contact(
                 selected_children(child),
                 fragments,
               ),
+            )
+            "isMainContact" -> #(
+              key,
+              json.bool(contact_is_main_contact(store, contact)),
             )
             "note" ->
               source_field(
@@ -1328,13 +1438,14 @@ fn company_roles(store: Store, company: B2BCompanyRecord) {
   })
 }
 
-fn find_main_contact(
-  contacts: List(B2BCompanyContactRecord),
-) -> Option(B2BCompanyContactRecord) {
-  list.find(contacts, fn(contact) {
-    data_get(contact.data, "isMainContact") == SrcBool(True)
-  })
-  |> option_from_result
+fn contact_is_main_contact(
+  store: Store,
+  contact: B2BCompanyContactRecord,
+) -> Bool {
+  case store.get_effective_b2b_company_by_id(store, contact.company_id) {
+    Some(company) -> company.main_contact_id == Some(contact.id)
+    None -> False
+  }
 }
 
 fn option_from_result(value: Result(a, b)) -> Option(a) {
@@ -2487,7 +2598,7 @@ fn create_contact(
   identity: SyntheticIdentityRegistry,
   company_id: String,
   input: Dict(String, root_field.ResolvedValue),
-  is_main: Bool,
+  _is_main: Bool,
 ) -> #(B2BCompanyContactRecord, Store, SyntheticIdentityRegistry) {
   let #(id, identity) = make_gid(identity, "CompanyContact")
   let #(now, identity) = timestamp(identity)
@@ -2495,7 +2606,6 @@ fn create_contact(
     dict.from_list([
       #("id", StorePropertyString(id)),
       #("createdAt", StorePropertyString(now)),
-      #("isMainContact", StorePropertyBool(is_main)),
       #("roleAssignments", StorePropertyList([])),
     ])
   let data = contact_data_from_input(input, now, base)
@@ -2678,6 +2788,10 @@ fn handle_company_create(
               #("createdAt", StorePropertyString(now)),
             ]),
           ),
+          main_contact_id: case contact {
+            Some(c) -> Some(c.id)
+            None -> None
+          },
           contact_ids: case contact {
             Some(c) -> [c.id]
             None -> []
@@ -3090,6 +3204,10 @@ fn delete_contact(store: Store, contact_id: String) -> #(Store, List(String)) {
               store,
               B2BCompanyRecord(
                 ..company,
+                main_contact_id: case company.main_contact_id {
+                  Some(id) if id == contact_id -> None
+                  other -> other
+                },
                 contact_ids: remove_string(company.contact_ids, contact_id),
               ),
             )
@@ -3395,43 +3513,33 @@ fn handle_assign_main_contact(
         store.get_effective_b2b_company_contact_by_id(store, contact_id)
       {
         Some(company), Some(contact) if contact.company_id == company_id -> {
-          let #(store, staged_ids) =
-            list.fold(company.contact_ids, #(store, [company_id]), fn(acc, id) {
-              let #(current_store, ids) = acc
-              case
-                store.get_effective_b2b_company_contact_by_id(current_store, id)
-              {
-                Some(candidate) -> {
-                  let updated =
-                    B2BCompanyContactRecord(
-                      ..candidate,
-                      data: dict.insert(
-                        candidate.data,
-                        "isMainContact",
-                        StorePropertyBool(candidate.id == contact_id),
-                      ),
-                    )
-                  let #(_, next_store) =
-                    store.upsert_staged_b2b_company_contact(
-                      current_store,
-                      updated,
-                    )
-                  #(next_store, list.append(ids, [candidate.id]))
-                }
-                None -> acc
-              }
-            })
+          let updated_company =
+            B2BCompanyRecord(..company, main_contact_id: Some(contact.id))
+          let #(updated_company, store) = stage_company(store, updated_company)
+          RootResult(
+            Payload(..empty_payload([]), company: Some(updated_company)),
+            store,
+            identity,
+            [updated_company.id],
+          )
+        }
+        Some(_company), Some(_contact) ->
           RootResult(
             Payload(
-              ..empty_payload([]),
-              company: store.get_effective_b2b_company_by_id(store, company_id),
+              ..empty_payload([
+                user_error(
+                  Some(["companyContactId"]),
+                  "The company contact does not belong to the company.",
+                  user_error_code.invalid_input,
+                ),
+              ]),
+              company: None,
             ),
             store,
             identity,
-            staged_ids,
+            [],
           )
-        }
-        Some(_), _ ->
+        Some(_company), None ->
           not_found_result(store, identity, "company", ["companyContactId"])
         _, _ -> not_found_result(store, identity, "company", ["companyId"])
       }
@@ -3448,40 +3556,14 @@ fn handle_revoke_main_contact(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let #(store, staged_ids) =
-            list.fold(company.contact_ids, #(store, [company_id]), fn(acc, id) {
-              let #(current_store, ids) = acc
-              case
-                store.get_effective_b2b_company_contact_by_id(current_store, id)
-              {
-                Some(contact) -> {
-                  let updated =
-                    B2BCompanyContactRecord(
-                      ..contact,
-                      data: dict.insert(
-                        contact.data,
-                        "isMainContact",
-                        StorePropertyBool(False),
-                      ),
-                    )
-                  let #(_, next_store) =
-                    store.upsert_staged_b2b_company_contact(
-                      current_store,
-                      updated,
-                    )
-                  #(next_store, list.append(ids, [contact.id]))
-                }
-                None -> acc
-              }
-            })
+          let updated_company =
+            B2BCompanyRecord(..company, main_contact_id: None)
+          let #(updated_company, store) = stage_company(store, updated_company)
           RootResult(
-            Payload(
-              ..empty_payload([]),
-              company: store.get_effective_b2b_company_by_id(store, company_id),
-            ),
+            Payload(..empty_payload([]), company: Some(updated_company)),
             store,
             identity,
-            staged_ids,
+            [updated_company.id],
           )
         }
         None -> not_found_result(store, identity, "company", ["companyId"])
@@ -3848,7 +3930,11 @@ fn hydrate_role_assignment(
         store.get_effective_b2b_company_contact_by_id(store, contact_id)
       {
         Some(contact) ->
-          dict.insert(fields, "companyContact", contact_source(contact))
+          dict.insert(
+            fields,
+            "companyContact",
+            contact_source_with_main_flag(store, contact),
+          )
         None -> fields
       }
       let with_role = case
@@ -4607,41 +4693,56 @@ fn handle_tax_settings_update(
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
-          let current_exemptions =
-            read_string_values(data_get(location.data, "taxExemptions"))
-            |> list.append(read_string_list(args, "exemptionsToAssign"))
-            |> list.filter(fn(item) {
-              !list.contains(read_string_list(args, "exemptionsToRemove"), item)
-            })
-          let #(now, identity) = timestamp(identity)
-          let data =
-            location.data
-            |> dict.insert(
-              "taxExemptions",
-              StorePropertyList(list.map(
-                current_exemptions,
-                StorePropertyString,
-              )),
-            )
-            |> dict.insert("updatedAt", StorePropertyString(now))
-            |> maybe_put_string(args, "taxRegistrationId")
-            |> maybe_put_bool(args, "taxExempt")
-          let tax_settings =
-            src_object([
-              #("taxRegistrationId", data_get(data, "taxRegistrationId")),
-              #("taxExempt", data_get(data, "taxExempt")),
-              #("taxExemptions", data_get(data, "taxExemptions")),
-            ])
-          let data = put_source(data, "taxSettings", tax_settings)
-          let updated = B2BCompanyLocationRecord(..location, data: data)
-          let #(updated, store) =
-            store.upsert_staged_b2b_company_location(store, updated)
-          RootResult(
-            Payload(..empty_payload([]), company_location: Some(updated)),
-            store,
-            identity,
-            [updated.id],
-          )
+          let errors = validate_tax_settings_update_args(args)
+          case errors {
+            [_, ..] ->
+              RootResult(
+                Payload(..empty_payload(errors), company_location: None),
+                store,
+                identity,
+                [],
+              )
+            [] -> {
+              let current_exemptions =
+                read_string_values(data_get(location.data, "taxExemptions"))
+                |> list.append(read_string_list(args, "exemptionsToAssign"))
+                |> list.filter(fn(item) {
+                  !list.contains(
+                    read_string_list(args, "exemptionsToRemove"),
+                    item,
+                  )
+                })
+              let #(now, identity) = timestamp(identity)
+              let data =
+                location.data
+                |> dict.insert(
+                  "taxExemptions",
+                  StorePropertyList(list.map(
+                    current_exemptions,
+                    StorePropertyString,
+                  )),
+                )
+                |> dict.insert("updatedAt", StorePropertyString(now))
+                |> maybe_put_string(args, "taxRegistrationId")
+                |> maybe_put_bool(args, "taxExempt")
+              let tax_settings =
+                src_object([
+                  #("taxRegistrationId", data_get(data, "taxRegistrationId")),
+                  #("taxExempt", data_get(data, "taxExempt")),
+                  #("taxExemptions", data_get(data, "taxExemptions")),
+                ])
+              let data = put_source(data, "taxSettings", tax_settings)
+              let updated = B2BCompanyLocationRecord(..location, data: data)
+              let #(updated, store) =
+                store.upsert_staged_b2b_company_location(store, updated)
+              RootResult(
+                Payload(..empty_payload([]), company_location: Some(updated)),
+                store,
+                identity,
+                [updated.id],
+              )
+            }
+          }
         }
         None ->
           RootResult(
@@ -4677,6 +4778,40 @@ fn handle_tax_settings_update(
         [],
       )
   }
+}
+
+fn validate_tax_settings_update_args(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(args, "taxExempt") {
+    Ok(root_field.NullVal) -> [
+      user_error(
+        Some(["taxExempt"]),
+        "Invalid input.",
+        user_error_code.invalid_input,
+      ),
+    ]
+    _ ->
+      case has_any_tax_settings_update_input(args) {
+        True -> []
+        False -> [
+          user_error(
+            Some(["companyLocationId"]),
+            "No input provided.",
+            user_error_code.no_input,
+          ),
+        ]
+      }
+  }
+}
+
+fn has_any_tax_settings_update_input(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.has_key(args, "taxRegistrationId")
+  || dict.has_key(args, "taxExempt")
+  || dict.has_key(args, "exemptionsToAssign")
+  || dict.has_key(args, "exemptionsToRemove")
 }
 
 fn read_string_values(value: SourceValue) -> List(String) {

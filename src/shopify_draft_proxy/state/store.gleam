@@ -4675,6 +4675,55 @@ pub fn list_effective_markets(store: Store) -> List(MarketRecord) {
   )
 }
 
+fn market_localization_key(
+  resource_id: String,
+  market_id: String,
+  key: String,
+) -> String {
+  resource_id <> "::" <> market_id <> "::" <> key
+}
+
+pub fn upsert_staged_market_localizations(
+  store: Store,
+  records: List(MarketLocalizationRecord),
+) -> Store {
+  let staged = store.staged_state
+  let next_bucket =
+    list.fold(records, staged.market_localizations, fn(acc, record) {
+      dict.insert(
+        acc,
+        market_localization_key(
+          record.resource_id,
+          record.market_id,
+          record.key,
+        ),
+        record,
+      )
+    })
+  Store(
+    ..store,
+    staged_state: StagedState(..staged, market_localizations: next_bucket),
+  )
+}
+
+pub fn list_effective_market_localizations(
+  store: Store,
+  resource_id: String,
+) -> List(MarketLocalizationRecord) {
+  dict.merge(
+    store.base_state.market_localizations,
+    store.staged_state.market_localizations,
+  )
+  |> dict.values
+  |> list.filter(fn(record) { record.resource_id == resource_id })
+  |> list.sort(fn(left, right) {
+    case string.compare(left.market_id, right.market_id) {
+      order.Eq -> string.compare(left.key, right.key)
+      other -> other
+    }
+  })
+}
+
 pub fn upsert_staged_market(
   store: Store,
   record: MarketRecord,
@@ -10366,12 +10415,54 @@ pub fn get_effective_store_credit_account_by_id(
   }
   case found {
     Some(account) ->
-      case get_effective_customer_by_id(store, account.customer_id) {
-        Some(_) -> Some(account)
-        None -> None
+      case store_credit_account_owner_exists(store, account.customer_id) {
+        True -> Some(account)
+        False -> None
       }
     None -> None
   }
+}
+
+pub fn get_effective_store_credit_account_by_owner_id(
+  store: Store,
+  owner_id: String,
+) -> Option(StoreCreditAccountRecord) {
+  find_effective_store_credit_account(store, fn(account) {
+    account.customer_id == owner_id
+  })
+}
+
+pub fn get_effective_store_credit_account_by_owner_id_and_currency(
+  store: Store,
+  owner_id: String,
+  currency_code: String,
+) -> Option(StoreCreditAccountRecord) {
+  find_effective_store_credit_account(store, fn(account) {
+    account.customer_id == owner_id
+    && account.balance.currency_code == currency_code
+  })
+}
+
+fn find_effective_store_credit_account(
+  store: Store,
+  predicate: fn(StoreCreditAccountRecord) -> Bool,
+) -> Option(StoreCreditAccountRecord) {
+  dict.keys(dict.merge(
+    store.base_state.store_credit_accounts,
+    store.staged_state.store_credit_accounts,
+  ))
+  |> list.sort(string_compare)
+  |> list.find_map(fn(id) {
+    case get_effective_store_credit_account_by_id(store, id) {
+      Some(account) ->
+        case predicate(account) {
+          True -> Ok(account)
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+  |> option.from_result
 }
 
 pub fn list_effective_store_credit_accounts_for_customer(
@@ -10410,6 +10501,21 @@ pub fn list_effective_store_credit_account_transactions(
       other -> other
     }
   })
+}
+
+fn store_credit_account_owner_exists(store: Store, owner_id: String) -> Bool {
+  case string.starts_with(owner_id, "gid://shopify/CompanyLocation/") {
+    True ->
+      case get_effective_b2b_company_location_by_id(store, owner_id) {
+        Some(_) -> True
+        None -> False
+      }
+    False ->
+      case get_effective_customer_by_id(store, owner_id) {
+        Some(_) -> True
+        None -> False
+      }
+  }
 }
 
 pub fn upsert_base_customer_account_pages(

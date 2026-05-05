@@ -1,5 +1,7 @@
 import gleam/dict
+import gleam/int
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
@@ -8,7 +10,9 @@ import shopify_draft_proxy/proxy/proxy_state.{
 }
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type ShopRecord, PaymentSettingsRecord, ShopAddressRecord,
+  type MarketRecord, type ProductMetafieldRecord, type ShopRecord,
+  CapturedObject, CapturedString, MarketLocalizableContentRecord, MarketRecord,
+  PaymentSettingsRecord, ProductMetafieldRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
   ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
@@ -404,6 +408,223 @@ pub fn market_create_rejects_duplicate_region_country_test() {
   assert second_status == 200
   assert json.to_string(second_body)
     == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"regions\",\"0\",\"countryCode\"],\"message\":\"Code has already been taken\",\"code\":\"TAKEN\"}]}}}"
+}
+
+pub fn market_create_dedupes_generated_handles_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Europe!\" }) { market { handle } userErrors { field message code } } }",
+    )
+  let #(Response(status: third_status, body: third_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Europe?\" }) { market { handle } userErrors { field message code } } }",
+    )
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe\"},\"userErrors\":[]}}}"
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe-1\"},\"userErrors\":[]}}}"
+  assert third_status == 200
+  assert json.to_string(third_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe-2\"},\"userErrors\":[]}}}"
+}
+
+pub fn market_create_rejects_duplicate_name_before_handle_dedupe_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe\"},\"userErrors\":[]}}}"
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\",\"code\":\"TAKEN\"}]}}}"
+}
+
+pub fn market_create_slugifies_generated_handle_like_shopify_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"  North & South / EU!  \" }) { market { handle } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"north-south-eu\"},\"userErrors\":[]}}}"
+}
+
+pub fn market_create_rejects_explicit_duplicate_handle_test() {
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketCreate(input: { name: \"Other\", handle: \"Europe\" }) { market { handle } userErrors { field message code } } }",
+    )
+
+  assert first_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"handle\":\"europe\"},\"userErrors\":[]}}}"
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":null,\"userErrors\":[{\"field\":[\"input\",\"handle\"],\"message\":\"Generated handle has already been taken\",\"code\":\"GENERATED_DUPLICATED_HANDLE\"}]}}}"
+}
+
+pub fn market_localizations_register_rejects_more_than_100_keys_test() {
+  let input = too_many_market_localization_inputs()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/missing\", marketLocalizations: ["
+      <> input
+      <> "]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"resourceId\"],\"code\":\"TOO_MANY_KEYS_FOR_RESOURCE\"}]}}}"
+}
+
+pub fn market_localizations_register_returns_translation_error_for_missing_resource_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/missing\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"resourceId\"],\"code\":\"RESOURCE_NOT_FOUND\"}]}}}"
+}
+
+pub fn market_localizations_register_validates_market_key_digest_and_value_test() {
+  let proxy = market_localization_proxy()
+  let #(Response(status: market_status, body: market_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/missing\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: key_status, body: key_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"value\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: digest_status, body: digest_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"stale\" }]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: value_status, body: value_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"\", marketLocalizableContentDigest: \"digest-title\" }]) { marketLocalizations { key value } userErrors { __typename field code } } }",
+    )
+
+  assert market_status == 200
+  assert json.to_string(market_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"marketLocalizations\",\"0\",\"marketId\"],\"code\":\"MARKET_DOES_NOT_EXIST\"}]}}}"
+  assert key_status == 200
+  assert json.to_string(key_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"marketLocalizations\",\"0\",\"key\"],\"code\":\"INVALID_KEY_FOR_MODEL\"}]}}}"
+  assert digest_status == 200
+  assert json.to_string(digest_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"marketLocalizations\",\"0\",\"marketLocalizableContentDigest\"],\"code\":\"INVALID_MARKET_LOCALIZABLE_CONTENT\"}]}}}"
+  assert value_status == 200
+  assert json.to_string(value_body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"marketLocalizations\",\"0\",\"value\"],\"code\":\"FAILS_RESOURCE_VALIDATION\"}]}}}"
+}
+
+pub fn market_localizations_register_stages_seeded_content_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(
+      market_localization_proxy(),
+      "mutation { marketLocalizationsRegister(resourceId: \"gid://shopify/Metafield/localizable\", marketLocalizations: [{ marketId: \"gid://shopify/Market/ca\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }]) { marketLocalizations { key value market { id name } } userErrors { __typename field code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { marketLocalizableResource(resourceId: \"gid://shopify/Metafield/localizable\") { marketLocalizableContent { key value digest } marketLocalizations { key value market { id name } } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"marketLocalizationsRegister\":{\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}],\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizableContent\":[{\"key\":\"title\",\"value\":\"Title\",\"digest\":\"digest-title\"}],\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}]}}}"
+}
+
+fn too_many_market_localization_inputs() -> String {
+  int.range(from: 1, to: 102, with: [], run: fn(acc, index) {
+    [
+      "{ marketId: \"gid://shopify/Market/"
+        <> int.to_string(index)
+        <> "\", key: \"title\", value: \"Titre\", marketLocalizableContentDigest: \"digest-title\" }",
+      ..acc
+    ]
+  })
+  |> list.reverse
+  |> string.join(with: ",")
+}
+
+fn market_localization_proxy() -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_markets([market_localization_market()])
+    |> store.replace_base_metafields_for_owner(
+      "gid://shopify/Product/localizable",
+      [market_localization_metafield()],
+    )
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn market_localization_market() -> MarketRecord {
+  MarketRecord(
+    id: "gid://shopify/Market/ca",
+    cursor: Some("gid://shopify/Market/ca"),
+    data: CapturedObject([
+      #("id", CapturedString("gid://shopify/Market/ca")),
+      #("name", CapturedString("Canada")),
+    ]),
+  )
+}
+
+fn market_localization_metafield() -> ProductMetafieldRecord {
+  ProductMetafieldRecord(
+    id: "gid://shopify/Metafield/localizable",
+    owner_id: "gid://shopify/Product/localizable",
+    namespace: "custom",
+    key: "title",
+    type_: Some("single_line_text_field"),
+    value: Some("Title"),
+    compare_digest: Some("digest-title"),
+    json_value: None,
+    created_at: None,
+    updated_at: None,
+    owner_type: Some("PRODUCT"),
+    market_localizable_content: [
+      MarketLocalizableContentRecord(
+        key: "title",
+        value: "Title",
+        digest: "digest-title",
+      ),
+    ],
+  )
 }
 
 pub fn catalog_create_requires_status_test() {

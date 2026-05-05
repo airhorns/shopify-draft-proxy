@@ -188,11 +188,41 @@ const createVariables = {
   },
 };
 
+const createEmailConsentMissingEmailVariables = {
+  input: {
+    phone: `+1312${String(stamp).slice(-7).padStart(7, '0')}`,
+    emailMarketingConsent: {
+      marketingState: 'SUBSCRIBED',
+    },
+  },
+};
+
+const createSmsConsentMissingPhoneVariables = {
+  input: {
+    email: `hermes-inline-consent-missing-phone-${stamp}@example.com`,
+    smsMarketingConsent: {
+      marketingState: 'SUBSCRIBED',
+    },
+  },
+};
+
+const createEmailConsentRedactedVariables = {
+  input: {
+    email: `hermes-inline-consent-redacted-${stamp}@example.com`,
+    emailMarketingConsent: {
+      marketingState: 'REDACTED',
+    },
+  },
+};
+
 let createResult: ConformanceGraphqlResult | null = null;
 let downstreamRead: ConformanceGraphqlResult | null = null;
 let updateEmailConsent: ConformanceGraphqlResult | null = null;
 let updateSmsConsent: ConformanceGraphqlResult | null = null;
 let downstreamAfterRejectedUpdates: ConformanceGraphqlResult | null = null;
+let createEmailConsentMissingEmail: ConformanceGraphqlResult | null = null;
+let createSmsConsentMissingPhone: ConformanceGraphqlResult | null = null;
+let createEmailConsentRedacted: ConformanceGraphqlResult | null = null;
 let customerId: string | null = null;
 
 try {
@@ -237,6 +267,17 @@ try {
 
   downstreamAfterRejectedUpdates = await runGraphqlRequest(downstreamReadQuery, downstreamVariables);
   assertNoTopLevelErrors(downstreamAfterRejectedUpdates, 'customerUpdate inline consent rejection downstream read');
+
+  createEmailConsentMissingEmail = await runGraphqlRequest(
+    customerCreateMutation,
+    createEmailConsentMissingEmailVariables,
+  );
+  assertNoTopLevelErrors(createEmailConsentMissingEmail, 'customerCreate inline email consent missing email');
+
+  createSmsConsentMissingPhone = await runGraphqlRequest(customerCreateMutation, createSmsConsentMissingPhoneVariables);
+  assertNoTopLevelErrors(createSmsConsentMissingPhone, 'customerCreate inline sms consent missing phone');
+
+  createEmailConsentRedacted = await runGraphqlRequest(customerCreateMutation, createEmailConsentRedactedVariables);
 } finally {
   for (const disposableCustomerId of [...createdCustomerIds].reverse()) {
     const deleteVariables = { input: { id: disposableCustomerId } };
@@ -326,8 +367,27 @@ const fixture = {
         : null,
       response: downstreamAfterRejectedUpdates?.payload ?? null,
     },
+    createEmailConsentMissingEmail: {
+      operationName: 'CustomerInputInlineConsentCreate',
+      query: customerCreateMutation,
+      variables: createEmailConsentMissingEmailVariables,
+      response: createEmailConsentMissingEmail?.payload ?? null,
+    },
+    createSmsConsentMissingPhone: {
+      operationName: 'CustomerInputInlineConsentCreate',
+      query: customerCreateMutation,
+      variables: createSmsConsentMissingPhoneVariables,
+      response: createSmsConsentMissingPhone?.payload ?? null,
+    },
+    createEmailConsentRedacted: {
+      operationName: 'CustomerInputInlineConsentCreate',
+      query: customerCreateMutation,
+      variables: createEmailConsentRedactedVariables,
+      response: createEmailConsentRedacted?.payload ?? null,
+    },
   },
   cleanup,
+  upstreamCalls: [],
 };
 
 const outputPath = path.join(outputDir, 'customer-input-inline-consent-parity.json');

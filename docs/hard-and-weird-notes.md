@@ -1315,7 +1315,7 @@ Setup trap:
 - passing `access.admin` while creating a merchant-owned metaobject definition returns `ADMIN_ACCESS_INPUT_NOT_ALLOWED` with message `Admin access can only be specified on metaobject definitions that have an app-reserved type.`
 - practical consequence: for merchant-owned fixture setup, omit `access` from `metaobjectDefinitionCreate` and capture the default access through read queries instead of trying to force it in setup input
 
-HAR-242 implements local staging for definition create/update/delete plus a bounded `standardMetaobjectDefinitionEnable` template slice. Keep the associated-entry delete branch explicit: when `metaobjectsCount` is nonzero, the proxy returns a local unsupported userError because it does not yet model metaobject entries or Shopify's definition-delete cascade. Do not broaden this into entry deletion behavior until entry lifecycle fixtures exist.
+HAR-242 implements local staging for definition create/update/delete plus a bounded `standardMetaobjectDefinitionEnable` template slice. HAR-675 later widened definition delete so associated entries are locally tombstoned as a cascade instead of rejected before staging.
 
 HAR-245's 2026-04 schema-change capture added several easy traps:
 
@@ -1333,6 +1333,10 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 - `metaobjectCreate` field values that violate a `max` validation return `INVALID_VALUE` on `['metaobject', 'fields', '<index>']`; invalid JSON values also return `INVALID_VALUE` with an element key for the JSON field.
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
 - 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
+
+HAR-675 live parity work replaces the old local definition-delete associated-entry guardrail:
+
+- `metaobjectDefinitionDelete` accepts definitions with associated entries, returns the input definition GID as `deletedId`, and relies on Shopify to cascade related rows asynchronously upstream. The local model stages tombstones for the definition and every effective metaobject of that type so immediate downstream definition, id, handle, and type-catalog reads return null or empty results.
 
 HAR-673 live capture against Admin GraphQL 2026-04 added definition type validation details:
 
@@ -2625,7 +2629,19 @@ Captured mutation-scoped `DiscountUserError` branches:
 - combining collection entitlements with product/product-variant entitlements returns a `CONFLICT` error on `['basicCodeDiscount', 'customerGets', 'items', 'collections', 'add']`, while invalid product and variant GIDs also return separate `INVALID` entries
 - BXGY roots reject all-items customer-get/customer-buy payloads and blank titles with root-specific field prefixes (`bxgyCodeDiscount` vs `automaticBxgyDiscount`)
 - free-shipping roots reject all discount-class combinesWith flags; code free shipping also reported blank title, while the captured automatic free-shipping branch only reported invalid combinesWith for the same blank-title payload
-- unknown `discountCodeBasicUpdate` IDs return `field: ['id']`, message `Discount does not exist`, and `code: null`
+- HAR-605 update-only source review found Shopify's internal
+  `discountCodeBasicUpdate` path builds update errors through
+  `DiscountUserError.errors_from_hash`, whose default code is `INVALID`.
+  The current public 2026-04 conformance store still returned `code: null`
+  for unknown IDs and for the bulk-rule code-change branch, so parity specs
+  document that live-vs-source drift explicitly while the local proxy follows
+  the ticketed `INVALID` contract.
+- after `discountRedeemCodeBulkAdd`, Shopify only rejects a
+  `discountCodeBasicUpdate` carrying a `code` field once the bulk-added redeem code is
+  query-visible; immediate update attempts before bulk processing can still
+  succeed on the live store
+- `discountCodeBasicUpdate` against a `DiscountCodeBxgy` record coerces the
+  record to `DiscountCodeBasic` instead of preserving the prior type
 - code and automatic bulk roots use different wording for mutually exclusive selector errors even though both use `code: 'TOO_MANY_ARGUMENTS'`
 
 Access-scope note:

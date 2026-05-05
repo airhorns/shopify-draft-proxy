@@ -1683,6 +1683,7 @@ fn b2b_company_json(record: types.B2BCompanyRecord) -> Json {
     #("id", json.string(record.id)),
     #("cursor", optional_string(record.cursor)),
     #("data", store_property_data_json(record.data)),
+    #("mainContactId", optional_string(record.main_contact_id)),
     #("contactIds", json.array(record.contact_ids, json.string)),
     #("locationIds", json.array(record.location_ids, json.string)),
     #("contactRoleIds", json.array(record.contact_role_ids, json.string)),
@@ -1891,6 +1892,16 @@ fn market_localization_json(record: types.MarketLocalizationRecord) -> Json {
     #("value", json.string(record.value)),
     #("updatedAt", json.string(record.updated_at)),
     #("outdated", json.bool(record.outdated)),
+  ])
+}
+
+fn market_localizable_content_json(
+  record: types.MarketLocalizableContentRecord,
+) -> Json {
+  json.object([
+    #("key", json.string(record.key)),
+    #("value", json.string(record.value)),
+    #("digest", json.string(record.digest)),
   ])
 }
 
@@ -2385,6 +2396,13 @@ fn product_metafield_json(record: types.ProductMetafieldRecord) -> Json {
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
     #("ownerType", optional_string(record.owner_type)),
+    #(
+      "marketLocalizableContent",
+      json.array(
+        record.market_localizable_content,
+        market_localizable_content_json,
+      ),
+    ),
   ])
 }
 
@@ -3018,6 +3036,10 @@ fn customer_json(record: types.CustomerRecord) -> Json {
     #(
       "defaultAddress",
       optional_to_json(record.default_address, customer_default_address_json),
+    ),
+    #(
+      "accountActivationToken",
+      optional_string(record.account_activation_token),
     ),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
@@ -5313,6 +5335,19 @@ fn bulk_operation_decoder() -> Decoder(types.BulkOperationRecord) {
   ))
 }
 
+fn market_localizable_content_decoder() -> Decoder(
+  types.MarketLocalizableContentRecord,
+) {
+  use key <- decode.field("key", decode.string)
+  use value <- decode.field("value", decode.string)
+  use digest <- decode.field("digest", decode.string)
+  decode.success(types.MarketLocalizableContentRecord(
+    key: key,
+    value: value,
+    digest: digest,
+  ))
+}
+
 fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
   use id <- decode.field("id", decode.string)
   use owner_id <- decode.field("ownerId", decode.string)
@@ -5329,6 +5364,11 @@ fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
   use created_at <- optional_string_field("createdAt")
   use updated_at <- optional_string_field("updatedAt")
   use owner_type <- optional_string_field("ownerType")
+  use market_localizable_content <- optional_field(
+    "marketLocalizableContent",
+    [],
+    decode.list(of: market_localizable_content_decoder()),
+  )
   decode.success(types.ProductMetafieldRecord(
     id: id,
     owner_id: owner_id,
@@ -5341,6 +5381,7 @@ fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
     created_at: created_at,
     updated_at: updated_at,
     owner_type: owner_type,
+    market_localizable_content: market_localizable_content,
   ))
 }
 

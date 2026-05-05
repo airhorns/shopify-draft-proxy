@@ -1173,8 +1173,9 @@ fn compare_gift_cards(
 // Mutation path
 // ===========================================================================
 
-/// User-error payload. Notification roots expose Shopify's typed user-error
-/// codes when the selection asks for them; older local guardrails keep `None`.
+/// User-error payload. Most gift-card mutation guardrails expose Shopify's
+/// typed enum code strings; duplicate-code create validation preserves the
+/// public Admin API's captured `null` code.
 pub type UserError {
   UserError(field: List(String), code: Option(String), message: String)
 }
@@ -1612,6 +1613,7 @@ fn customer_record_from_json(
         email_marketing_consent: None,
         sms_marketing_consent: None,
         default_address: None,
+        account_activation_token: None,
         created_at: None,
         updated_at: None,
       ))

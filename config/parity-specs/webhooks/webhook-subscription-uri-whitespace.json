@@ -1,0 +1,58 @@
+{
+  "scenarioId": "webhook-subscription-uri-whitespace",
+  "operationNames": ["webhookSubscriptionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-uri-whitespace.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/webhooks_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.createWhitespaceOnlyUri.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for webhookSubscriptionCreate URI whitespace handling. Live Shopify 2026-04 treats whitespace-only uri as blank and trims leading/trailing whitespace from an otherwise-valid HTTPS uri before storing and returning the subscription.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-whitespace-only-uri",
+        "capturePath": "$.cases.createWhitespaceOnlyUri.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createWhitespaceOnlyUri.variables"
+        }
+      },
+      {
+        "name": "create-uri-with-leading-whitespace",
+        "capturePath": "$.cases.createUriWithLeadingWhitespace.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.cases.createUriWithLeadingWhitespace.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      }
+    ]
+  }
+}

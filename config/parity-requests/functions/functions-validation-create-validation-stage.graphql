@@ -1,0 +1,199 @@
+mutation ValidationCreateValidationStage {
+  minimal: validationCreate(validation: { functionHandle: "validation-alpha" }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active1: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 1", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active2: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 2", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active3: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 3", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active4: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 4", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active5: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 5", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active6: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 6", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active7: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 7", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active8: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 8", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active9: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 9", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active10: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 10", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  maxActive: validationCreate(validation: { functionHandle: "validation-alpha", title: "Max active", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  apiMismatch: validationCreate(
+    validation: { functionId: "gid://shopify/ShopifyFunction/cart-beta", title: "Wrong API", enable: false }
+  ) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  withMetafields: validationCreate(
+    validation: {
+      functionHandle: "validation-alpha"
+      title: "With metafields"
+      metafields: [{ namespace: "custom", key: "mode", type: "single_line_text_field", value: "strict" }]
+    }
+  ) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      title
+      metafields(first: 5) {
+        nodes {
+          namespace
+          key
+          value
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

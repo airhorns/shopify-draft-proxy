@@ -29,6 +29,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_field_value, project_graphql_value, resolved_value_to_source,
   serialize_connection, source_to_json, src_object,
 }
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome, RequiredArgument,
   find_argument, single_root_log_draft, validate_required_field_arguments,
@@ -48,11 +49,12 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type AbandonedCheckoutRecord, type AbandonmentRecord, type CapturedJsonValue,
   type CustomerRecord, type DraftOrderRecord,
-  type DraftOrderVariantCatalogRecord, type OrderRecord, type ProductRecord,
-  type ProductVariantRecord, AbandonmentDeliveryActivityRecord, CapturedArray,
-  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
-  CapturedString, CustomerRecord, DraftOrderRecord,
-  DraftOrderVariantCatalogRecord, OrderRecord, ProductVariantRecord,
+  type DraftOrderVariantCatalogRecord, type OrderRecord,
+  type ProductMetafieldRecord, type ProductRecord, type ProductVariantRecord,
+  AbandonmentDeliveryActivityRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CustomerRecord,
+  DraftOrderRecord, DraftOrderVariantCatalogRecord, OrderRecord,
+  ProductVariantRecord,
 }
 
 pub type OrdersError {
@@ -610,7 +612,14 @@ fn serialize_query_field(
       case id {
         Some(id) ->
           case store.get_order_by_id(store, id) {
-            Some(order) -> serialize_order_node(field, order, fragments)
+            Some(order) ->
+              serialize_order_node(
+                Some(store),
+                field,
+                order,
+                fragments,
+                variables,
+              )
             None -> json.null()
           }
         None -> json.null()
@@ -679,9 +688,11 @@ fn serialize_query_field(
 }
 
 fn serialize_order_node(
+  store: Option(Store),
   field: Selection,
   order: OrderRecord,
   fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
   let source = captured_json_source(order.data)
   let entries =
@@ -707,12 +718,110 @@ fn serialize_order_node(
                 fragments,
               ),
             )
+            "metafield" -> #(key, case store {
+              Some(store) -> {
+                let value =
+                  serialize_order_metafield(store, order.id, child, variables)
+                case json.to_string(value) {
+                  "null" ->
+                    project_graphql_field_value(source, child, fragments)
+                  _ -> value
+                }
+              }
+              None -> project_graphql_field_value(source, child, fragments)
+            })
+            "metafields" -> #(key, case store {
+              Some(store) -> {
+                case
+                  store.get_effective_metafields_by_owner_id(store, order.id)
+                {
+                  [] -> project_graphql_field_value(source, child, fragments)
+                  _ ->
+                    serialize_order_metafields_connection(
+                      store,
+                      order.id,
+                      child,
+                      variables,
+                    )
+                }
+              }
+              None -> project_graphql_field_value(source, child, fragments)
+            })
             _ -> #(key, project_graphql_field_value(source, child, fragments))
           }
         _ -> #(key, json.null())
       }
     })
   json.object(entries)
+}
+
+fn serialize_order_metafield(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_arguments(field, variables)
+  let namespace = read_string(args, "namespace")
+  let key = read_string(args, "key")
+  let found =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.find(fn(metafield) {
+      metafield.namespace == option.unwrap(namespace, "")
+      && metafield.key == option.unwrap(key, "")
+    })
+    |> option.from_result
+  case found {
+    Some(metafield) ->
+      metafields.serialize_metafield_selection(
+        order_metafield_to_core(metafield),
+        field,
+        default_selected_field_options(),
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_order_metafields_connection(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = field_arguments(field, variables)
+  let namespace = read_string(args, "namespace")
+  let records =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.filter(fn(metafield) {
+      case namespace {
+        Some(ns) -> metafield.namespace == ns
+        None -> True
+      }
+    })
+    |> list.map(order_metafield_to_core)
+  metafields.serialize_metafields_connection(
+    records,
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn order_metafield_to_core(
+  record: ProductMetafieldRecord,
+) -> metafields.MetafieldRecordCore {
+  metafields.MetafieldRecordCore(
+    id: record.id,
+    namespace: record.namespace,
+    key: record.key,
+    type_: record.type_,
+    value: record.value,
+    compare_digest: record.compare_digest,
+    json_value: record.json_value,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    owner_type: record.owner_type,
+  )
 }
 
 fn serialize_order_fulfillment_orders_connection(
@@ -4139,7 +4248,8 @@ fn serialize_order_mutation_payload(
         Field(name: name, ..) ->
           case name.value {
             "order" -> #(key, case order {
-              Some(record) -> serialize_order_node(child, record, fragments)
+              Some(record) ->
+                serialize_order_node(None, child, record, fragments, dict.new())
               None -> json.null()
             })
             "userErrors" -> #(
@@ -5924,7 +6034,8 @@ fn serialize_order_capture_payload(
               serialize_captured_selection(child, transaction, fragments),
             )
             "order" -> #(key, case order {
-              Some(order) -> serialize_order_node(child, order, fragments)
+              Some(order) ->
+                serialize_order_node(None, child, order, fragments, dict.new())
               None -> json.null()
             })
             "userErrors" -> #(
@@ -5998,7 +6109,8 @@ fn serialize_mandate_payment_payload(
               graphql_helpers.option_string_json(payment_reference_id),
             )
             "order" -> #(key, case order {
-              Some(order) -> serialize_order_node(child, order, fragments)
+              Some(order) ->
+                serialize_order_node(None, child, order, fragments, dict.new())
               None -> json.null()
             })
             "userErrors" -> #(
@@ -8943,7 +9055,10 @@ fn serialize_order_return(
       case child {
         Field(name: name, ..) ->
           case name.value {
-            "order" -> #(key, serialize_order_node(child, order, fragments))
+            "order" -> #(
+              key,
+              serialize_order_node(None, child, order, fragments, dict.new()),
+            )
             "totalQuantity" -> #(
               key,
               json.int(
@@ -9178,7 +9293,10 @@ fn serialize_reverse_fulfillment_order(
               key,
               serialize_order_return(child, order_return, order, fragments),
             )
-            "order" -> #(key, serialize_order_node(child, order, fragments))
+            "order" -> #(
+              key,
+              serialize_order_node(None, child, order, fragments, dict.new()),
+            )
             "lineItems" | "reverseFulfillmentOrderLineItems" -> #(
               key,
               serialize_reverse_fulfillment_order_line_items_connection(
@@ -10808,7 +10926,10 @@ fn serialize_order_edit_commit_payload(
       case child {
         Field(name: name, ..) ->
           case name.value {
-            "order" -> #(key, serialize_order_node(child, order, fragments))
+            "order" -> #(
+              key,
+              serialize_order_node(None, child, order, fragments, dict.new()),
+            )
             "successMessages" -> #(
               key,
               json.array(["Order updated"], json.string),
@@ -15030,7 +15151,8 @@ fn serialize_refund_create_payload(
               None -> json.null()
             })
             "order" -> #(key, case order {
-              Some(record) -> serialize_order_node(child, record, fragments)
+              Some(record) ->
+                serialize_order_node(None, child, record, fragments, dict.new())
               None -> json.null()
             })
             "userErrors" -> #(
@@ -17441,6 +17563,7 @@ fn customer_record_from_json(
     email_marketing_consent: None,
     sms_marketing_consent: None,
     default_address: None,
+    account_activation_token: None,
     created_at: None,
     updated_at: None,
   ))

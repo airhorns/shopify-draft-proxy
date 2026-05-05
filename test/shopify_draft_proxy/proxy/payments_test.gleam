@@ -22,7 +22,7 @@ import shopify_draft_proxy/state/types.{
   PaymentSettingsRecord, PaymentTermsRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
+  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord, ShopifyFunctionRecord,
 }
 
 const customer_id = "gid://shopify/Customer/1"
@@ -57,6 +57,7 @@ fn customer() {
     email_marketing_consent: None,
     sms_marketing_consent: None,
     default_address: None,
+    account_activation_token: None,
     created_at: None,
     updated_at: None,
   )
@@ -139,6 +140,22 @@ fn graphql(proxy: DraftProxy, query: String) {
   draft_proxy.process_request(proxy, request)
 }
 
+fn seed_shopify_function(proxy: DraftProxy, handle: String) -> DraftProxy {
+  let record =
+    ShopifyFunctionRecord(
+      id: "gid://shopify/ShopifyFunction/" <> handle,
+      title: Some("Function " <> handle),
+      handle: Some(handle),
+      api_type: Some("PAYMENT_CUSTOMIZATION"),
+      description: None,
+      app_key: None,
+      app: None,
+    )
+  let #(_, next_store) =
+    store.upsert_staged_shopify_function(proxy.store, record)
+  DraftProxy(..proxy, store: next_store)
+}
+
 fn graphql_with_proxy(proxy: DraftProxy, query: String) {
   let request =
     Request(
@@ -199,6 +216,7 @@ fn proxy_with_customer() {
         email_marketing_consent: None,
         sms_marketing_consent: None,
         default_address: None,
+        account_activation_token: None,
         created_at: None,
         updated_at: None,
       ),
@@ -587,15 +605,10 @@ pub fn payment_customization_metafields_and_function_handle_readback_test() {
 }
 
 pub fn payment_customization_update_rejects_different_existing_function_test() {
-  let seed_a =
-    "mutation { validationCreate(validation: { title: \"Function A\", functionHandle: \"payment-a\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_a_status, ..), proxy) =
-    graphql(draft_proxy.new(), seed_a)
-  assert seed_a_status == 200
-  let seed_b =
-    "mutation { validationCreate(validation: { title: \"Function B\", functionHandle: \"payment-b\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_b_status, ..), proxy) = graphql(proxy, seed_b)
-  assert seed_b_status == 200
+  let proxy =
+    draft_proxy.new()
+    |> seed_shopify_function("payment-a")
+    |> seed_shopify_function("payment-b")
 
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
@@ -605,7 +618,7 @@ pub fn payment_customization_update_rejects_different_existing_function_test() {
   assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
 
   let update_query =
-    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/5\", paymentCustomization: { functionId: \"gid://shopify/ShopifyFunction/payment-b\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
+    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/1\", paymentCustomization: { functionId: \"gid://shopify/ShopifyFunction/payment-b\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
   let #(Response(status: update_status, body: update_body, ..), proxy) =
     graphql(proxy, update_query)
   assert update_status == 200
@@ -625,7 +638,7 @@ pub fn payment_customization_update_rejects_different_existing_function_test() {
   )
 
   let read_query =
-    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/5\") { id title functionId functionHandle } }"
+    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/1\") { id title functionId functionHandle } }"
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(proxy, read_query)
   assert read_status == 200
@@ -638,11 +651,7 @@ pub fn payment_customization_update_rejects_different_existing_function_test() {
 }
 
 pub fn payment_customization_update_allows_equivalent_function_handle_test() {
-  let seed =
-    "mutation { validationCreate(validation: { title: \"Function A\", functionHandle: \"payment-a\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_status, ..), proxy) =
-    graphql(draft_proxy.new(), seed)
-  assert seed_status == 200
+  let proxy = draft_proxy.new() |> seed_shopify_function("payment-a")
 
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
@@ -651,7 +660,7 @@ pub fn payment_customization_update_allows_equivalent_function_handle_test() {
   assert create_status == 200
 
   let update_query =
-    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/3\", paymentCustomization: { title: \"After\", functionHandle: \"payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
+    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/1\", paymentCustomization: { title: \"After\", functionHandle: \"payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
   let #(Response(status: update_status, body: update_body, ..), _) =
     graphql(proxy, update_query)
   assert update_status == 200
@@ -685,11 +694,7 @@ pub fn payment_customization_update_allows_equivalent_function_id_gid_test() {
 }
 
 pub fn payment_customization_update_unknown_function_id_is_immutable_test() {
-  let seed =
-    "mutation { validationCreate(validation: { title: \"Function A\", functionHandle: \"payment-a\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_status, ..), proxy) =
-    graphql(draft_proxy.new(), seed)
-  assert seed_status == 200
+  let proxy = draft_proxy.new() |> seed_shopify_function("payment-a")
 
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
@@ -698,7 +703,7 @@ pub fn payment_customization_update_unknown_function_id_is_immutable_test() {
   assert create_status == 200
 
   let update_query =
-    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/3\", paymentCustomization: { functionId: \"gid://shopify/ShopifyFunction/missing\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
+    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/1\", paymentCustomization: { functionId: \"gid://shopify/ShopifyFunction/missing\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
   let #(Response(status: update_status, body: update_body, ..), proxy) =
     graphql(proxy, update_query)
   assert update_status == 200
@@ -714,7 +719,7 @@ pub fn payment_customization_update_unknown_function_id_is_immutable_test() {
   )
 
   let read_query =
-    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/3\") { id title functionId } }"
+    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/1\") { id title functionId } }"
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(proxy, read_query)
   assert read_status == 200
@@ -725,11 +730,7 @@ pub fn payment_customization_update_unknown_function_id_is_immutable_test() {
 }
 
 pub fn payment_customization_update_unknown_function_handle_returns_not_found_test() {
-  let seed =
-    "mutation { validationCreate(validation: { title: \"Function A\", functionHandle: \"payment-a\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_status, ..), proxy) =
-    graphql(draft_proxy.new(), seed)
-  assert seed_status == 200
+  let proxy = draft_proxy.new() |> seed_shopify_function("payment-a")
 
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
@@ -738,7 +739,7 @@ pub fn payment_customization_update_unknown_function_handle_returns_not_found_te
   assert create_status == 200
 
   let update_query =
-    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/3\", paymentCustomization: { functionHandle: \"missing-payment-function\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
+    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/1\", paymentCustomization: { functionHandle: \"missing-payment-function\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
   let #(Response(status: update_status, body: update_body, ..), proxy) =
     graphql(proxy, update_query)
   assert update_status == 200
@@ -755,7 +756,7 @@ pub fn payment_customization_update_unknown_function_handle_returns_not_found_te
   )
 
   let read_query =
-    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/3\") { id title functionId } }"
+    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/1\") { id title functionId } }"
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(proxy, read_query)
   assert read_status == 200
@@ -1331,6 +1332,7 @@ fn payment_guard_customer(id: String, email: String) -> CustomerRecord {
     email_marketing_consent: None,
     sms_marketing_consent: None,
     default_address: None,
+    account_activation_token: None,
     created_at: None,
     updated_at: None,
   )
