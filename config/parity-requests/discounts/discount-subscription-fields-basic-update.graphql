@@ -1,0 +1,21 @@
+mutation DiscountSubscriptionFieldsBasicUpdate($id: ID!) {
+  basicUpdate: discountCodeBasicUpdate(
+    id: $id
+    basicCodeDiscount: {
+      title: "Setup basic"
+      code: "SETUP-BASIC-SUB"
+      startsAt: "2026-04-25T00:00:00Z"
+      customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true }
+    }
+  ) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

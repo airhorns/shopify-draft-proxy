@@ -20,6 +20,10 @@ fn run_mutation(document: String) -> mutation_helpers.MutationOutcome {
   run_mutation_from(store.new(), synthetic_identity.new(), document)
 }
 
+fn subscription_store() -> store.Store {
+  store.set_shop_sells_subscriptions(store.new(), True)
+}
+
 fn run_mutation_from(
   store: store.Store,
   identity: synthetic_identity.SyntheticIdentityRegistry,
@@ -768,6 +772,114 @@ pub fn code_bxgy_rejects_customer_gets_subscription_fields_test() {
     == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"appliesOnSubscription\"],\"message\":\"This field is not supported by bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
   assert json.to_string(one_time_outcome.data)
     == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"appliesOnOneTimePurchase\"],\"message\":\"This field is not supported by bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_basic_rejects_subscription_fields_for_default_non_subscription_shop_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Sub gated\", code: \"SUBGATE\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"customerGets\",\"appliesOnSubscription\"],\"message\":\"Customer gets applies on subscription is not permitted for this shop.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn default_non_subscription_shop_rejects_basic_subscription_inputs_test() {
+  let outcome =
+    run_mutation(
+      "mutation { oneTime: discountCodeBasicCreate(basicCodeDiscount: { title: \"One time gated\", code: \"SUBGATE-OTP\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnOneTimePurchase: false } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } nullSub: discountCodeBasicCreate(basicCodeDiscount: { title: \"Null gated\", code: \"SUBGATE-NULL\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: null } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } recurring: discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Recurring gated\", startsAt: \"2026-04-25T00:00:00Z\", recurringCycleLimit: 2, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"oneTime\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"customerGets\",\"appliesOnOneTimePurchase\"],\"message\":\"Customer gets applies on one time purchase is not permitted for this shop.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"nullSub\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"customerGets\",\"appliesOnSubscription\"],\"message\":\"Customer gets applies on subscription is not permitted for this shop.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"recurring\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"recurringCycleLimit\"],\"message\":\"Recurring cycle limit is not permitted for this shop.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn default_non_subscription_shop_rejects_free_shipping_subscription_inputs_test() {
+  let outcome =
+    run_mutation(
+      "mutation { sub: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping sub gated\", code: \"SHIP-SUB\", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true }, appliesOnSubscription: true }) { codeDiscountNode { id } userErrors { field message code extraInfo } } recurring: discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping recurring gated\", code: \"SHIP-REC\", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true }, recurringCycleLimit: 2 }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"sub\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"freeShippingCodeDiscount\",\"appliesOnSubscription\"],\"message\":\"Applies on subscription is not permitted for this shop.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"recurring\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"freeShippingCodeDiscount\",\"recurringCycleLimit\"],\"message\":\"Recurring cycle limit is not permitted for this shop.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn subscription_shop_allows_subscription_flags_but_rejects_explicit_null_test() {
+  let allowed =
+    run_mutation_from(
+      subscription_store(),
+      synthetic_identity.new(),
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Subscription enabled\", code: \"SUB-ENABLED\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true, appliesOnOneTimePurchase: false } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let blank =
+    run_mutation_from(
+      subscription_store(),
+      synthetic_identity.new(),
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Subscription blank\", code: \"SUB-BLANK\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: null } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(allowed.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+  assert json.to_string(blank.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"customerGets\",\"appliesOnSubscription\"],\"message\":\"applies_on_subscription can't be blank\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn subscription_field_gating_applies_to_update_roots_test() {
+  let basic_code_create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic\", code: \"BASIC-UP-SUB\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let basic_code_update =
+    run_mutation_from(
+      basic_code_create.store,
+      basic_code_create.identity,
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Basic\", code: \"BASIC-UP-SUB\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true }, appliesOnSubscription: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let shipping_code_create =
+    run_mutation(
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping\", code: \"SHIP-UP-SUB\", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let shipping_code_update =
+    run_mutation_from(
+      shipping_code_create.store,
+      shipping_code_create.identity,
+      "mutation { discountCodeFreeShippingUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", freeShippingCodeDiscount: { title: \"Shipping\", code: \"SHIP-UP-SUB\", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true }, appliesOnOneTimePurchase: false }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_basic_create =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic basic\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_basic_update =
+    run_mutation_from(
+      automatic_basic_create.store,
+      automatic_basic_create.identity,
+      "mutation { discountAutomaticBasicUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBasicDiscount: { title: \"Automatic basic\", startsAt: \"2026-04-25T00:00:00Z\", recurringCycleLimit: 2, customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(basic_code_update.data)
+    == "{\"data\":{\"discountCodeBasicUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"customerGets\",\"appliesOnSubscription\"],\"message\":\"Customer gets applies on subscription is not permitted for this shop.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(shipping_code_update.data)
+    == "{\"data\":{\"discountCodeFreeShippingUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"freeShippingCodeDiscount\",\"appliesOnOneTimePurchase\"],\"message\":\"Applies on one time purchase is not permitted for this shop.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_basic_update.data)
+    == "{\"data\":{\"discountAutomaticBasicUpdate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBasicDiscount\",\"recurringCycleLimit\"],\"message\":\"Recurring cycle limit is not permitted for this shop.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn automatic_free_shipping_skips_subscription_field_validation_test() {
+  let create =
+    run_mutation(
+      "mutation { discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"Automatic shipping\", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true }, appliesOnSubscription: true, appliesOnOneTimePurchase: false, recurringCycleLimit: 2 }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let update =
+    run_mutation_from(
+      create.store,
+      create.identity,
+      "mutation { discountAutomaticFreeShippingUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", freeShippingAutomaticDiscount: { title: \"Automatic shipping\", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true }, appliesOnSubscription: true, appliesOnOneTimePurchase: false, recurringCycleLimit: 3 }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(create.data)
+    == "{\"data\":{\"discountAutomaticFreeShippingCreate\":{\"automaticDiscountNode\":{\"id\":\"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+  assert json.to_string(update.data)
+    == "{\"data\":{\"discountAutomaticFreeShippingUpdate\":{\"automaticDiscountNode\":{\"id\":\"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
 }
 
 pub fn automatic_bxgy_rejects_disallowed_customer_gets_fields_test() {

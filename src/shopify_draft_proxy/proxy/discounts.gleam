@@ -1215,6 +1215,14 @@ fn create_discount_after_top_level_validation(
   key: String,
 ) -> MutationResult {
   // Local input validation first (structural / pure-function checks).
+  let store =
+    maybe_hydrate_discount_subscription_capability(
+      store,
+      input_name,
+      input,
+      discount_type,
+      upstream,
+    )
   let user_errors =
     validate_discount_input(
       store,
@@ -2247,6 +2255,11 @@ fn validate_discount_input(
   let errors =
     list.append(
       errors,
+      validate_subscription_fields(store, input_name, input, discount_type),
+    )
+  let errors =
+    list.append(
+      errors,
       validate_cart_line_combination_tag_settings(
         input_name,
         input,
@@ -2285,6 +2298,260 @@ fn validate_discount_input(
     "basicCodeDiscount" ->
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
+  }
+}
+
+fn validate_subscription_fields(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+) -> List(SourceValue) {
+  case subscription_field_location(discount_type, input_name) {
+    Some(location) ->
+      validate_subscription_field_values(store, input_name, input, location)
+    None -> []
+  }
+}
+
+type SubscriptionFieldLocation {
+  SubscriptionCustomerGetsFields
+  SubscriptionTopLevelFields
+}
+
+fn subscription_field_location(
+  discount_type: String,
+  input_name: String,
+) -> Option(SubscriptionFieldLocation) {
+  case discount_type, input_name {
+    "basic", _ -> Some(SubscriptionCustomerGetsFields)
+    "free_shipping", "freeShippingAutomaticDiscount" -> None
+    "free_shipping", _ -> Some(SubscriptionTopLevelFields)
+    _, _ -> None
+  }
+}
+
+fn maybe_hydrate_discount_subscription_capability(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  discount_type: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case store.get_effective_shop(store) {
+    Some(_) -> store
+    None ->
+      case subscription_field_location(discount_type, input_name) {
+        Some(location) ->
+          case has_subscription_validation_fields(input, location) {
+            True -> fetch_shop_subscription_capability(store, upstream)
+            False -> store
+          }
+        None -> store
+      }
+  }
+}
+
+fn has_subscription_validation_fields(
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> Bool {
+  let #(fields, _) = subscription_field_source("", input, location)
+  dict.has_key(fields, "appliesOnSubscription")
+  || dict.has_key(fields, "appliesOnOneTimePurchase")
+  || dict.has_key(input, "recurringCycleLimit")
+}
+
+fn fetch_shop_subscription_capability(
+  store: Store,
+  upstream: UpstreamContext,
+) -> Store {
+  let query =
+    "query DraftProxyShopSubscriptionCapability {
+  shop {
+    features {
+      sellsSubscriptions
+    }
+  }
+}
+"
+  case
+    upstream_query.fetch_sync(
+      upstream.origin,
+      upstream.transport,
+      upstream.headers,
+      "DraftProxyShopSubscriptionCapability",
+      query,
+      json.object([]),
+    )
+  {
+    Ok(value) ->
+      case shop_sells_subscriptions_from_response(value) {
+        Some(sells_subscriptions) ->
+          store.set_shop_sells_subscriptions(store, sells_subscriptions)
+        None -> store
+      }
+    Error(_) -> store
+  }
+}
+
+fn shop_sells_subscriptions_from_response(
+  value: commit.JsonValue,
+) -> Option(Bool) {
+  case json_get(value, "data") {
+    Some(data) ->
+      case json_get(data, "shop") {
+        Some(shop) ->
+          case json_get(shop, "features") {
+            Some(features) ->
+              case json_get(features, "sellsSubscriptions") {
+                Some(commit.JsonBool(value)) -> Some(value)
+                _ -> None
+              }
+            None -> None
+          }
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn validate_subscription_field_values(
+  store: Store,
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> List(SourceValue) {
+  case store.shop_sells_subscriptions(store) {
+    False ->
+      subscription_fields_not_permitted_errors(input_name, input, location)
+    True -> blank_subscription_field_errors(input_name, input, location)
+  }
+}
+
+fn subscription_fields_not_permitted_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> List(SourceValue) {
+  let errors =
+    subscription_field_error(
+      input_name,
+      input,
+      location,
+      "appliesOnSubscription",
+      subscription_not_permitted_message(location, "appliesOnSubscription"),
+    )
+  let errors =
+    list.append(
+      errors,
+      subscription_field_error(
+        input_name,
+        input,
+        location,
+        "appliesOnOneTimePurchase",
+        subscription_not_permitted_message(location, "appliesOnOneTimePurchase"),
+      ),
+    )
+  case dict.has_key(input, "recurringCycleLimit") {
+    True ->
+      list.append(errors, [
+        user_error(
+          [input_name, "recurringCycleLimit"],
+          "Recurring cycle limit is not permitted for this shop.",
+          "INVALID",
+        ),
+      ])
+    False -> errors
+  }
+}
+
+fn subscription_not_permitted_message(
+  location: SubscriptionFieldLocation,
+  field_name: String,
+) -> String {
+  case location, field_name {
+    SubscriptionCustomerGetsFields, "appliesOnSubscription" ->
+      "Customer gets applies on subscription is not permitted for this shop."
+    SubscriptionCustomerGetsFields, "appliesOnOneTimePurchase" ->
+      "Customer gets applies on one time purchase is not permitted for this shop."
+    SubscriptionTopLevelFields, "appliesOnSubscription" ->
+      "Applies on subscription is not permitted for this shop."
+    SubscriptionTopLevelFields, "appliesOnOneTimePurchase" ->
+      "Applies on one time purchase is not permitted for this shop."
+    _, _ -> "Subscription field is not permitted for this shop."
+  }
+}
+
+fn subscription_field_error(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+  field_name: String,
+  message: String,
+) -> List(SourceValue) {
+  let #(fields, path) = subscription_field_source(input_name, input, location)
+  case dict.has_key(fields, field_name) {
+    True -> [
+      user_error(list.append(path, [field_name]), message, "INVALID"),
+    ]
+    False -> []
+  }
+}
+
+fn blank_subscription_field_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> List(SourceValue) {
+  let errors =
+    blank_subscription_field_error(
+      input_name,
+      input,
+      location,
+      "appliesOnSubscription",
+      "applies_on_subscription can't be blank",
+    )
+  list.append(
+    errors,
+    blank_subscription_field_error(
+      input_name,
+      input,
+      location,
+      "appliesOnOneTimePurchase",
+      "applies_on_one_time_purchase can't be blank",
+    ),
+  )
+}
+
+fn blank_subscription_field_error(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+  field_name: String,
+  message: String,
+) -> List(SourceValue) {
+  let #(fields, path) = subscription_field_source(input_name, input, location)
+  case dict.get(fields, field_name) {
+    Ok(root_field.NullVal) -> [
+      user_error(list.append(path, [field_name]), message, "INVALID"),
+    ]
+    _ -> []
+  }
+}
+
+fn subscription_field_source(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  location: SubscriptionFieldLocation,
+) -> #(Dict(String, root_field.ResolvedValue), List(String)) {
+  case location {
+    SubscriptionCustomerGetsFields ->
+      case customer_gets_fields(input) {
+        Some(fields) -> #(fields, [input_name, "customerGets"])
+        None -> #(dict.new(), [input_name, "customerGets"])
+      }
+    SubscriptionTopLevelFields -> #(input, [input_name])
   }
 }
 
