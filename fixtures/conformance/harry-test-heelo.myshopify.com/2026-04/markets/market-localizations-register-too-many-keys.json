@@ -1,0 +1,747 @@
+{
+  "capturedAt": "2026-05-05T05:10:45.548Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "scope": "HAR-621 marketLocalizationsRegister >100 key cap validation",
+  "disposableProductId": "gid://shopify/Product/10177028260146",
+  "disposableMetafieldId": "gid://shopify/Metafield/43094037987634",
+  "setup": {
+    "productCreate": {
+      "query": "#graphql\nmutation CreateProduct($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product { id handle metafields(first: 5, namespace: \"custom\") { nodes { id namespace key type value compareDigest createdAt updatedAt ownerType } } }\n    userErrors { field message }\n  }\n}",
+      "variables": {
+        "product": {
+          "title": "HAR 621 market localizations cap g4zbpnh8",
+          "handle": "har-621-market-localizations-cap-g4zbpnh8",
+          "status": "DRAFT",
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "market_material",
+              "type": "single_line_text_field",
+              "value": "Maple g4zbpnh8"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10177028260146",
+                "handle": "har-621-market-localizations-cap-g4zbpnh8",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43094037987634",
+                      "namespace": "custom",
+                      "key": "market_material",
+                      "type": "single_line_text_field",
+                      "value": "Maple g4zbpnh8",
+                      "compareDigest": "f702bf5e673bc97f009cf128ca426b8730c727974c964f241dcee30d78288ff7",
+                      "createdAt": "2026-05-05T05:10:44Z",
+                      "updatedAt": "2026-05-05T05:10:44Z",
+                      "ownerType": "PRODUCT"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "marketLocalizationsRegisterTooManyKeys",
+      "query": "#graphql\nmutation MarketLocalizationsRegisterTooManyKeys($resourceId: ID!, $marketLocalizations: [MarketLocalizationRegisterInput!]!) {\n  marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n    marketLocalizations { key value updatedAt outdated market { id name } }\n    userErrors { __typename field message code }\n  }\n}",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43094037987634",
+        "marketLocalizations": [
+          {
+            "marketId": "gid://shopify/Market/900000000000",
+            "key": "value",
+            "value": "Localized 0",
+            "marketLocalizableContentDigest": "digest-0"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000001",
+            "key": "value",
+            "value": "Localized 1",
+            "marketLocalizableContentDigest": "digest-1"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000002",
+            "key": "value",
+            "value": "Localized 2",
+            "marketLocalizableContentDigest": "digest-2"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000003",
+            "key": "value",
+            "value": "Localized 3",
+            "marketLocalizableContentDigest": "digest-3"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000004",
+            "key": "value",
+            "value": "Localized 4",
+            "marketLocalizableContentDigest": "digest-4"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000005",
+            "key": "value",
+            "value": "Localized 5",
+            "marketLocalizableContentDigest": "digest-5"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000006",
+            "key": "value",
+            "value": "Localized 6",
+            "marketLocalizableContentDigest": "digest-6"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000007",
+            "key": "value",
+            "value": "Localized 7",
+            "marketLocalizableContentDigest": "digest-7"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000008",
+            "key": "value",
+            "value": "Localized 8",
+            "marketLocalizableContentDigest": "digest-8"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000009",
+            "key": "value",
+            "value": "Localized 9",
+            "marketLocalizableContentDigest": "digest-9"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000010",
+            "key": "value",
+            "value": "Localized 10",
+            "marketLocalizableContentDigest": "digest-10"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000011",
+            "key": "value",
+            "value": "Localized 11",
+            "marketLocalizableContentDigest": "digest-11"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000012",
+            "key": "value",
+            "value": "Localized 12",
+            "marketLocalizableContentDigest": "digest-12"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000013",
+            "key": "value",
+            "value": "Localized 13",
+            "marketLocalizableContentDigest": "digest-13"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000014",
+            "key": "value",
+            "value": "Localized 14",
+            "marketLocalizableContentDigest": "digest-14"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000015",
+            "key": "value",
+            "value": "Localized 15",
+            "marketLocalizableContentDigest": "digest-15"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000016",
+            "key": "value",
+            "value": "Localized 16",
+            "marketLocalizableContentDigest": "digest-16"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000017",
+            "key": "value",
+            "value": "Localized 17",
+            "marketLocalizableContentDigest": "digest-17"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000018",
+            "key": "value",
+            "value": "Localized 18",
+            "marketLocalizableContentDigest": "digest-18"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000019",
+            "key": "value",
+            "value": "Localized 19",
+            "marketLocalizableContentDigest": "digest-19"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000020",
+            "key": "value",
+            "value": "Localized 20",
+            "marketLocalizableContentDigest": "digest-20"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000021",
+            "key": "value",
+            "value": "Localized 21",
+            "marketLocalizableContentDigest": "digest-21"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000022",
+            "key": "value",
+            "value": "Localized 22",
+            "marketLocalizableContentDigest": "digest-22"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000023",
+            "key": "value",
+            "value": "Localized 23",
+            "marketLocalizableContentDigest": "digest-23"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000024",
+            "key": "value",
+            "value": "Localized 24",
+            "marketLocalizableContentDigest": "digest-24"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000025",
+            "key": "value",
+            "value": "Localized 25",
+            "marketLocalizableContentDigest": "digest-25"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000026",
+            "key": "value",
+            "value": "Localized 26",
+            "marketLocalizableContentDigest": "digest-26"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000027",
+            "key": "value",
+            "value": "Localized 27",
+            "marketLocalizableContentDigest": "digest-27"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000028",
+            "key": "value",
+            "value": "Localized 28",
+            "marketLocalizableContentDigest": "digest-28"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000029",
+            "key": "value",
+            "value": "Localized 29",
+            "marketLocalizableContentDigest": "digest-29"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000030",
+            "key": "value",
+            "value": "Localized 30",
+            "marketLocalizableContentDigest": "digest-30"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000031",
+            "key": "value",
+            "value": "Localized 31",
+            "marketLocalizableContentDigest": "digest-31"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000032",
+            "key": "value",
+            "value": "Localized 32",
+            "marketLocalizableContentDigest": "digest-32"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000033",
+            "key": "value",
+            "value": "Localized 33",
+            "marketLocalizableContentDigest": "digest-33"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000034",
+            "key": "value",
+            "value": "Localized 34",
+            "marketLocalizableContentDigest": "digest-34"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000035",
+            "key": "value",
+            "value": "Localized 35",
+            "marketLocalizableContentDigest": "digest-35"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000036",
+            "key": "value",
+            "value": "Localized 36",
+            "marketLocalizableContentDigest": "digest-36"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000037",
+            "key": "value",
+            "value": "Localized 37",
+            "marketLocalizableContentDigest": "digest-37"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000038",
+            "key": "value",
+            "value": "Localized 38",
+            "marketLocalizableContentDigest": "digest-38"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000039",
+            "key": "value",
+            "value": "Localized 39",
+            "marketLocalizableContentDigest": "digest-39"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000040",
+            "key": "value",
+            "value": "Localized 40",
+            "marketLocalizableContentDigest": "digest-40"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000041",
+            "key": "value",
+            "value": "Localized 41",
+            "marketLocalizableContentDigest": "digest-41"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000042",
+            "key": "value",
+            "value": "Localized 42",
+            "marketLocalizableContentDigest": "digest-42"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000043",
+            "key": "value",
+            "value": "Localized 43",
+            "marketLocalizableContentDigest": "digest-43"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000044",
+            "key": "value",
+            "value": "Localized 44",
+            "marketLocalizableContentDigest": "digest-44"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000045",
+            "key": "value",
+            "value": "Localized 45",
+            "marketLocalizableContentDigest": "digest-45"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000046",
+            "key": "value",
+            "value": "Localized 46",
+            "marketLocalizableContentDigest": "digest-46"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000047",
+            "key": "value",
+            "value": "Localized 47",
+            "marketLocalizableContentDigest": "digest-47"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000048",
+            "key": "value",
+            "value": "Localized 48",
+            "marketLocalizableContentDigest": "digest-48"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000049",
+            "key": "value",
+            "value": "Localized 49",
+            "marketLocalizableContentDigest": "digest-49"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000050",
+            "key": "value",
+            "value": "Localized 50",
+            "marketLocalizableContentDigest": "digest-50"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000051",
+            "key": "value",
+            "value": "Localized 51",
+            "marketLocalizableContentDigest": "digest-51"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000052",
+            "key": "value",
+            "value": "Localized 52",
+            "marketLocalizableContentDigest": "digest-52"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000053",
+            "key": "value",
+            "value": "Localized 53",
+            "marketLocalizableContentDigest": "digest-53"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000054",
+            "key": "value",
+            "value": "Localized 54",
+            "marketLocalizableContentDigest": "digest-54"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000055",
+            "key": "value",
+            "value": "Localized 55",
+            "marketLocalizableContentDigest": "digest-55"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000056",
+            "key": "value",
+            "value": "Localized 56",
+            "marketLocalizableContentDigest": "digest-56"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000057",
+            "key": "value",
+            "value": "Localized 57",
+            "marketLocalizableContentDigest": "digest-57"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000058",
+            "key": "value",
+            "value": "Localized 58",
+            "marketLocalizableContentDigest": "digest-58"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000059",
+            "key": "value",
+            "value": "Localized 59",
+            "marketLocalizableContentDigest": "digest-59"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000060",
+            "key": "value",
+            "value": "Localized 60",
+            "marketLocalizableContentDigest": "digest-60"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000061",
+            "key": "value",
+            "value": "Localized 61",
+            "marketLocalizableContentDigest": "digest-61"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000062",
+            "key": "value",
+            "value": "Localized 62",
+            "marketLocalizableContentDigest": "digest-62"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000063",
+            "key": "value",
+            "value": "Localized 63",
+            "marketLocalizableContentDigest": "digest-63"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000064",
+            "key": "value",
+            "value": "Localized 64",
+            "marketLocalizableContentDigest": "digest-64"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000065",
+            "key": "value",
+            "value": "Localized 65",
+            "marketLocalizableContentDigest": "digest-65"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000066",
+            "key": "value",
+            "value": "Localized 66",
+            "marketLocalizableContentDigest": "digest-66"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000067",
+            "key": "value",
+            "value": "Localized 67",
+            "marketLocalizableContentDigest": "digest-67"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000068",
+            "key": "value",
+            "value": "Localized 68",
+            "marketLocalizableContentDigest": "digest-68"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000069",
+            "key": "value",
+            "value": "Localized 69",
+            "marketLocalizableContentDigest": "digest-69"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000070",
+            "key": "value",
+            "value": "Localized 70",
+            "marketLocalizableContentDigest": "digest-70"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000071",
+            "key": "value",
+            "value": "Localized 71",
+            "marketLocalizableContentDigest": "digest-71"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000072",
+            "key": "value",
+            "value": "Localized 72",
+            "marketLocalizableContentDigest": "digest-72"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000073",
+            "key": "value",
+            "value": "Localized 73",
+            "marketLocalizableContentDigest": "digest-73"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000074",
+            "key": "value",
+            "value": "Localized 74",
+            "marketLocalizableContentDigest": "digest-74"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000075",
+            "key": "value",
+            "value": "Localized 75",
+            "marketLocalizableContentDigest": "digest-75"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000076",
+            "key": "value",
+            "value": "Localized 76",
+            "marketLocalizableContentDigest": "digest-76"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000077",
+            "key": "value",
+            "value": "Localized 77",
+            "marketLocalizableContentDigest": "digest-77"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000078",
+            "key": "value",
+            "value": "Localized 78",
+            "marketLocalizableContentDigest": "digest-78"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000079",
+            "key": "value",
+            "value": "Localized 79",
+            "marketLocalizableContentDigest": "digest-79"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000080",
+            "key": "value",
+            "value": "Localized 80",
+            "marketLocalizableContentDigest": "digest-80"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000081",
+            "key": "value",
+            "value": "Localized 81",
+            "marketLocalizableContentDigest": "digest-81"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000082",
+            "key": "value",
+            "value": "Localized 82",
+            "marketLocalizableContentDigest": "digest-82"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000083",
+            "key": "value",
+            "value": "Localized 83",
+            "marketLocalizableContentDigest": "digest-83"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000084",
+            "key": "value",
+            "value": "Localized 84",
+            "marketLocalizableContentDigest": "digest-84"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000085",
+            "key": "value",
+            "value": "Localized 85",
+            "marketLocalizableContentDigest": "digest-85"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000086",
+            "key": "value",
+            "value": "Localized 86",
+            "marketLocalizableContentDigest": "digest-86"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000087",
+            "key": "value",
+            "value": "Localized 87",
+            "marketLocalizableContentDigest": "digest-87"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000088",
+            "key": "value",
+            "value": "Localized 88",
+            "marketLocalizableContentDigest": "digest-88"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000089",
+            "key": "value",
+            "value": "Localized 89",
+            "marketLocalizableContentDigest": "digest-89"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000090",
+            "key": "value",
+            "value": "Localized 90",
+            "marketLocalizableContentDigest": "digest-90"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000091",
+            "key": "value",
+            "value": "Localized 91",
+            "marketLocalizableContentDigest": "digest-91"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000092",
+            "key": "value",
+            "value": "Localized 92",
+            "marketLocalizableContentDigest": "digest-92"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000093",
+            "key": "value",
+            "value": "Localized 93",
+            "marketLocalizableContentDigest": "digest-93"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000094",
+            "key": "value",
+            "value": "Localized 94",
+            "marketLocalizableContentDigest": "digest-94"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000095",
+            "key": "value",
+            "value": "Localized 95",
+            "marketLocalizableContentDigest": "digest-95"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000096",
+            "key": "value",
+            "value": "Localized 96",
+            "marketLocalizableContentDigest": "digest-96"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000097",
+            "key": "value",
+            "value": "Localized 97",
+            "marketLocalizableContentDigest": "digest-97"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000098",
+            "key": "value",
+            "value": "Localized 98",
+            "marketLocalizableContentDigest": "digest-98"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000099",
+            "key": "value",
+            "value": "Localized 99",
+            "marketLocalizableContentDigest": "digest-99"
+          },
+          {
+            "marketId": "gid://shopify/Market/900000000100",
+            "key": "value",
+            "value": "Localized 100",
+            "marketLocalizableContentDigest": "digest-100"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRegister": {
+              "marketLocalizations": null,
+              "userErrors": [
+                {
+                  "__typename": "TranslationUserError",
+                  "field": ["resourceId"],
+                  "message": "Too many keys for resource - maximum 100 per mutation",
+                  "code": "TOO_MANY_KEYS_FOR_RESOURCE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "productDelete": {
+      "query": "#graphql\nmutation DeleteProduct($input: ProductDeleteInput!) { productDelete(input: $input) { deletedProductId userErrors { field message } } }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10177028260146"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10177028260146",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
