@@ -2280,14 +2280,17 @@ Live evidence refreshed on this host:
 - `location-activate-deactivate-with-idempotency-directive` is the executable location lifecycle parity spec for field-level `@idempotent(key:)`; sibling inventory idempotency specs prove the same parser/directive shape across other documented idempotent mutation fields
 - Admin GraphQL 2026-01 accepts `locationDeactivate` without `@idempotent` for the same disposable location shape
 - deactivating and reactivating a disposable non-online-fulfilling, unstocked location keeps `activatable: true`, `deactivatable: true`, and `shipsInventory: false` while flipping `isActive` and `deletable`
-- deleting an active stocked location returns both `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` userErrors without mutating the location
+- deleting an active unstocked location returns only `LOCATION_IS_ACTIVE`; deleting an active stocked location returns `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` without mutating the location
+- deleting the captured primary stocked location returned `LOCATION_IS_ACTIVE`, `LOCATION_HAS_INVENTORY`, and `LOCATION_HAS_PENDING_ORDERS`; it did not include `LOCATION_IS_PRIMARY` while those earlier guards applied
+- deleting a fulfillment-service-managed location through `locationDelete` is scoped out and returned `LOCATION_NOT_FOUND`
+- the public Admin API did not allow constructing an inactive stocked location during HAR-663 capture: `inventoryActivate` rejected a deactivated location, and `locationDeactivate` required inventory relocation before deactivation
 
 Practical rule for the proxy:
 
 - keep lifecycle success paths local and never proxy them upstream at runtime
 - require field-level `@idempotent(key: "...")` before activate/deactivate staging only on numeric Admin API routes `>= 2026-04`
 - require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
-- tombstone successful `locationDelete` results so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
+- compute `locationDelete` guard userErrors from the effective local `Location` record and tombstone only successful deletes so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
 
 ### 47b. `location` detail reads should reuse the effective inventory graph
 
