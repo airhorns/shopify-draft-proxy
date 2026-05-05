@@ -4550,6 +4550,7 @@ fn upsert_owner_metafields(
         created_at: Some(created_at),
         updated_at: Some(updated_at),
         owner_type: Some(owner_type),
+        market_localizable_content: [],
       )
     let record = case found {
       Some(existing_record)
