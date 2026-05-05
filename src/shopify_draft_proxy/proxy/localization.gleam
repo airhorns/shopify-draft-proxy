@@ -70,6 +70,77 @@ type AnyUserError {
   ShopLocaleError(field: List(String), message: String, code: String)
 }
 
+const max_keys_per_translation_mutation = 100
+
+pub type TranslationErrorCode {
+  FailsResourceValidation
+  InvalidKeyForModel
+  InvalidLocaleForShop
+  InvalidTranslatableContent
+  InvalidValueForHandleTranslation
+  MarketCustomContentNotAllowed
+  MarketDoesNotExist
+  ResourceNotFound
+  ResourceNotMarketCustomizable
+  TooManyKeysForResource
+  ValueMatchesOriginalContent
+}
+
+pub fn translation_error_code_allow_list() -> List(String) {
+  [
+    "FAILS_RESOURCE_VALIDATION",
+    "INVALID_KEY_FOR_MODEL",
+    "INVALID_LOCALE_FOR_SHOP",
+    "INVALID_TRANSLATABLE_CONTENT",
+    "INVALID_VALUE_FOR_HANDLE_TRANSLATION",
+    "MARKET_CUSTOM_CONTENT_NOT_ALLOWED",
+    "MARKET_DOES_NOT_EXIST",
+    "RESOURCE_NOT_FOUND",
+    "RESOURCE_NOT_MARKET_CUSTOMIZABLE",
+    "TOO_MANY_KEYS_FOR_RESOURCE",
+    "VALUE_MATCHES_ORIGINAL_CONTENT",
+  ]
+}
+
+pub fn emitted_translation_mutation_error_codes() -> List(String) {
+  [
+    translation_error_code_to_string(FailsResourceValidation),
+    translation_error_code_to_string(InvalidKeyForModel),
+    translation_error_code_to_string(InvalidLocaleForShop),
+    translation_error_code_to_string(InvalidTranslatableContent),
+    translation_error_code_to_string(ResourceNotFound),
+    translation_error_code_to_string(TooManyKeysForResource),
+  ]
+}
+
+fn translation_error_code_to_string(code: TranslationErrorCode) -> String {
+  case code {
+    FailsResourceValidation -> "FAILS_RESOURCE_VALIDATION"
+    InvalidKeyForModel -> "INVALID_KEY_FOR_MODEL"
+    InvalidLocaleForShop -> "INVALID_LOCALE_FOR_SHOP"
+    InvalidTranslatableContent -> "INVALID_TRANSLATABLE_CONTENT"
+    InvalidValueForHandleTranslation -> "INVALID_VALUE_FOR_HANDLE_TRANSLATION"
+    MarketCustomContentNotAllowed -> "MARKET_CUSTOM_CONTENT_NOT_ALLOWED"
+    MarketDoesNotExist -> "MARKET_DOES_NOT_EXIST"
+    ResourceNotFound -> "RESOURCE_NOT_FOUND"
+    ResourceNotMarketCustomizable -> "RESOURCE_NOT_MARKET_CUSTOMIZABLE"
+    TooManyKeysForResource -> "TOO_MANY_KEYS_FOR_RESOURCE"
+    ValueMatchesOriginalContent -> "VALUE_MATCHES_ORIGINAL_CONTENT"
+  }
+}
+
+fn translation_error(
+  field: List(String),
+  message: String,
+  code: TranslationErrorCode,
+) -> AnyUserError {
+  TranslationError(
+    field: field,
+    message: message,
+    code: translation_error_code_to_string(code),
+  )
+}
+
 /// One translatable content slot on a translatable resource. `digest`
 /// is `None` when no captured source digest is available.
 @internal
@@ -1913,17 +1984,19 @@ fn handle_translations_register(
   let resource_validation = validate_resource(store_in, args)
   let initial_errors = resource_validation.1
   let inputs = read_translation_inputs(args)
-  let blank_errors = case inputs {
-    [] -> [
-      TranslationError(
-        field: ["translations"],
-        message: "At least one translation is required",
-        code: "BLANK",
+  let has_too_many_keys =
+    list.length(inputs) > max_keys_per_translation_mutation
+  let length_errors = case has_too_many_keys {
+    True -> [
+      translation_error(
+        ["resourceId"],
+        "Too many keys for resource - maximum 100 per mutation",
+        TooManyKeysForResource,
       ),
     ]
-    _ -> []
+    False -> []
   }
-  let errors = list.append(initial_errors, blank_errors)
+  let errors = list.append(initial_errors, length_errors)
 
   let #(translations, errors, identity_after) = case resource_validation.0 {
     Some(resource) ->
@@ -1960,7 +2033,11 @@ fn handle_translations_register(
 
   let translations_for_payload = case errors {
     [] -> Some(translations)
-    _ -> None
+    _ ->
+      case resource_validation.0, has_too_many_keys {
+        Some(_), False -> Some([])
+        _, _ -> None
+      }
   }
   let payload =
     project_translations_payload(
@@ -2008,37 +2085,19 @@ fn handle_translations_remove(
     None -> []
   }
 
-  let key_errors = case keys {
-    [] -> [
-      TranslationError(
-        field: ["translationKeys"],
-        message: "At least one translation key is required",
-        code: "BLANK",
-      ),
-    ]
-    _ -> []
-  }
-  let locale_errors = case locales {
-    [] -> [
-      TranslationError(
-        field: ["locales"],
-        message: "At least one locale is required",
-        code: "BLANK",
-      ),
-    ]
-    _ -> []
-  }
-  let resource_errors = case resource {
-    Some(record) -> {
+  let has_empty_remove_target = list.is_empty(keys) || list.is_empty(locales)
+  let resource_errors = case resource, has_empty_remove_target {
+    _, True -> []
+    Some(record), False -> {
       let key_validation =
         list.flat_map(keys, fn(k) {
           case content_has_key(record.content, k) {
             True -> []
             False -> [
-              TranslationError(
-                field: ["translationKeys"],
-                message: "Key " <> k <> " is not translatable for this resource",
-                code: "INVALID_KEY_FOR_MODEL",
+              translation_error(
+                ["translationKeys"],
+                "Key " <> k <> " is not translatable for this resource",
+                InvalidKeyForModel,
               ),
             ]
           }
@@ -2049,17 +2108,13 @@ fn handle_translations_remove(
         })
       list.append(key_validation, locale_validation)
     }
-    None -> []
+    None, False -> []
   }
 
-  let errors =
-    list.append(
-      initial_errors,
-      list.append(key_errors, list.append(locale_errors, resource_errors)),
-    )
+  let errors = list.append(initial_errors, resource_errors)
 
-  let #(removed, store_after) = case errors, resource {
-    [], Some(record) -> {
+  let #(removed, store_after) = case errors, resource, has_empty_remove_target {
+    [], Some(record), False -> {
       let market_targets = case market_ids {
         [] -> [None]
         _ -> list.map(market_ids, Some)
@@ -2086,12 +2141,12 @@ fn handle_translations_remove(
         })
       #(removed, store_acc)
     }
-    _, _ -> #([], store_in)
+    _, _, _ -> #([], store_in)
   }
 
-  let translations_for_payload = case errors {
-    [] -> Some(removed)
-    _ -> None
+  let translations_for_payload = case errors, has_empty_remove_target {
+    [], False -> Some(removed)
+    _, _ -> None
   }
   let payload =
     project_translations_payload(
@@ -2114,26 +2169,26 @@ fn validate_resource(
 ) -> #(Option(TranslatableResource), List(AnyUserError)) {
   case graphql_helpers.read_arg_string(args, "resourceId") {
     None -> #(None, [
-      TranslationError(
-        field: ["resourceId"],
-        message: "Resource does not exist",
-        code: "RESOURCE_NOT_FOUND",
+      translation_error(
+        ["resourceId"],
+        "Resource does not exist",
+        ResourceNotFound,
       ),
     ])
     Some("") -> #(None, [
-      TranslationError(
-        field: ["resourceId"],
-        message: "Resource does not exist",
-        code: "RESOURCE_NOT_FOUND",
+      translation_error(
+        ["resourceId"],
+        "Resource does not exist",
+        ResourceNotFound,
       ),
     ])
     Some(resource_id) ->
       case resource_exists_for_validation(store_in, resource_id) {
         None -> #(None, [
-          TranslationError(
-            field: ["resourceId"],
-            message: "Resource " <> resource_id <> " does not exist",
-            code: "RESOURCE_NOT_FOUND",
+          translation_error(
+            ["resourceId"],
+            "Resource " <> resource_id <> " does not exist",
+            ResourceNotFound,
           ),
         ])
         Some(record) -> #(Some(record), [])
@@ -2149,10 +2204,10 @@ fn validate_locale_errors(
   case get_shop_locale(store_in, locale) {
     Some(_) -> []
     None -> [
-      TranslationError(
-        field: field_path,
-        message: "Locale is not enabled for this shop",
-        code: "INVALID_LOCALE_FOR_SHOP",
+      translation_error(
+        field_path,
+        "Locale is not enabled for this shop",
+        InvalidLocaleForShop,
       ),
     ]
   }
@@ -2195,18 +2250,18 @@ fn validate_and_build_translations(
           case get_shop_locale(store_in, loc) {
             Some(_) -> #(Some(loc), [])
             None -> #(Some(loc), [
-              TranslationError(
-                field: list.append(prefix, ["locale"]),
-                message: "Locale is not enabled for this shop",
-                code: "INVALID_LOCALE_FOR_SHOP",
+              translation_error(
+                list.append(prefix, ["locale"]),
+                "Locale is not enabled for this shop",
+                InvalidLocaleForShop,
               ),
             ])
           }
         None -> #(None, [
-          TranslationError(
-            field: list.append(prefix, ["locale"]),
-            message: "Locale is not enabled for this shop",
-            code: "INVALID_LOCALE_FOR_SHOP",
+          translation_error(
+            list.append(prefix, ["locale"]),
+            "Locale is not enabled for this shop",
+            InvalidLocaleForShop,
           ),
         ])
       }
@@ -2219,10 +2274,10 @@ fn validate_and_build_translations(
       let key_errors = case content {
         Ok(_) -> []
         Error(_) -> [
-          TranslationError(
-            field: list.append(prefix, ["key"]),
-            message: "Key " <> key <> " is not translatable for this resource",
-            code: "INVALID_KEY_FOR_MODEL",
+          translation_error(
+            list.append(prefix, ["key"]),
+            "Key " <> key <> " is not translatable for this resource",
+            InvalidKeyForModel,
           ),
         ]
       }
@@ -2231,19 +2286,19 @@ fn validate_and_build_translations(
         Some(v) ->
           case v {
             "" -> [
-              TranslationError(
-                field: list.append(prefix, ["value"]),
-                message: "Value can't be blank",
-                code: "BLANK",
+              translation_error(
+                list.append(prefix, ["value"]),
+                "Value can't be blank",
+                FailsResourceValidation,
               ),
             ]
             _ -> []
           }
         None -> [
-          TranslationError(
-            field: list.append(prefix, ["value"]),
-            message: "Value can't be blank",
-            code: "BLANK",
+          translation_error(
+            list.append(prefix, ["value"]),
+            "Value can't be blank",
+            FailsResourceValidation,
           ),
         ]
       }
@@ -2256,10 +2311,10 @@ fn validate_and_build_translations(
               case actual == supplied {
                 True -> []
                 False -> [
-                  TranslationError(
-                    field: list.append(prefix, ["translatableContentDigest"]),
-                    message: "Translatable content digest does not match the resource content",
-                    code: "INVALID_TRANSLATABLE_CONTENT",
+                  translation_error(
+                    list.append(prefix, ["translatableContentDigest"]),
+                    "Translatable content digest does not match the resource content",
+                    InvalidTranslatableContent,
                   ),
                 ]
               }

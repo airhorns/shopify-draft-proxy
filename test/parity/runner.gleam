@@ -169,6 +169,7 @@ pub fn run_with_config(
     primary_vars,
     "<primary>",
     parsed.proxy_request.api_version,
+    parsed.proxy_request.headers,
     config.debug,
   ))
   use primary_value <- result.try(parse_response_body(primary_response))
@@ -545,6 +546,7 @@ fn actual_response_for(
             variables,
             target.name,
             request.api_version,
+            request.headers,
             config.debug,
           ))
           use value <- result.try(parse_response_body(response))
@@ -845,6 +847,7 @@ fn execute(
   variables: JsonValue,
   context: String,
   api_version: Option(String),
+  headers: List(#(String, String)),
   debug: Bool,
 ) -> Result(#(Response, DraftProxy, ExecutedOperation), RunError) {
   let body = build_graphql_body(document, variables)
@@ -853,7 +856,7 @@ fn execute(
     Request(
       method: "POST",
       path: "/admin/api/" <> version <> "/graphql.json",
-      headers: dict.new(),
+      headers: dict.from_list(headers),
       body: body,
     )
   let executed = parse_executed_operation(document)

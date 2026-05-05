@@ -1,0 +1,8 @@
+query CartTransforms($first: Int!) {
+  cartTransforms(first: $first) {
+    nodes {
+      id
+      functionId
+    }
+  }
+}

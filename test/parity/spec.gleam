@@ -32,6 +32,7 @@
 ////     }
 ////   }
 
+import gleam/dict
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
 import gleam/json
@@ -64,6 +65,7 @@ pub type ProxyRequest {
     variables: ParityVariables,
     api_version: Option(String),
     local_setups: List(LocalSetup),
+    headers: List(#(String, String)),
   )
 }
 
@@ -152,6 +154,7 @@ fn empty_spec() -> Spec {
       variables: NoVariables,
       api_version: None,
       local_setups: [],
+      headers: [],
     ),
     targets: [],
     expected_differences: [],
@@ -186,6 +189,11 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
     [],
     decode.list(local_setup_decoder()),
   )
+  use headers <- decode.optional_field(
+    "headers",
+    [],
+    decode.map(decode.dict(decode.string, decode.string), dict.to_list),
+  )
   let variables =
     variables_from_fields(
       variables_capture_path,
@@ -197,6 +205,7 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
     variables: variables,
     api_version: api_version,
     local_setups: local_setups,
+    headers: headers,
   ))
 }
 
