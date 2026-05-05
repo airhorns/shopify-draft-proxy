@@ -1,0 +1,21 @@
+mutation CustomerUpdateRequiresIdentityUpdate($input: CustomerInput!) {
+  customerUpdate(input: $input) {
+    customer {
+      id
+      firstName
+      lastName
+      displayName
+      email
+      defaultEmailAddress {
+        emailAddress
+      }
+      defaultPhoneNumber {
+        phoneNumber
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

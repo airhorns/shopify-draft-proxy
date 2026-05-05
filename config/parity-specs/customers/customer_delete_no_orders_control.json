@@ -1,0 +1,56 @@
+{
+  "scenarioId": "customer_delete_no_orders_control",
+  "operationNames": ["customerCreate", "customerDelete", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "downstream-read-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2025-01/customers/customer_delete_no_orders_control.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-customer-create.graphql",
+    "variablesCapturePath": "$.setup.customerCreate.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-customer",
+        "capturePath": "$.expected.customerCreate.data.customerCreate.userErrors",
+        "proxyPath": "$.data.customerCreate.userErrors"
+      },
+      {
+        "name": "delete-no-orders",
+        "capturePath": "$.expected.customerDelete.data.customerDelete",
+        "proxyPath": "$.data.customerDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-delete.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              }
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "read-after-delete",
+        "capturePath": "$.expected.readAfterDelete.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer-delete-order-precondition-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          },
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-773 executable local-runtime control proving customerDelete still stages a successful delete when the customer has no associated orders, and downstream customer(id:) returns null afterward."
+}
