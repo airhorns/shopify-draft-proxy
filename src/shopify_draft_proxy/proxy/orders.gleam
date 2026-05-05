@@ -4072,56 +4072,197 @@ fn handle_order_cancel_mutation(
     [_, ..] -> #(key, json.null(), store, identity, [], validation_errors, [])
     [] -> {
       let args = field_arguments(field, variables)
-      case read_string_arg(args, "orderId") {
-        Some(order_id) -> {
-          // Pattern 2: hydrate the target order before staging cancellation
-          // locally; Shopify applies the supported mutation asynchronously, but
-          // the proxy still owns the downstream read-after-write state.
-          let hydrated_store =
-            maybe_hydrate_order_by_id(store, order_id, upstream)
-          case store.get_order_by_id(hydrated_store, order_id) {
-            Some(order) -> {
-              let reason =
-                read_string_arg(args, "reason") |> option.unwrap("OTHER")
-              let #(updated_order, next_identity) =
-                apply_order_cancel_update(order, identity, reason)
-              let next_store = store.stage_order(hydrated_store, updated_order)
-              let #(job_id, identity_after_job) =
-                synthetic_identity.make_synthetic_gid(next_identity, "Job")
-              let payload =
-                serialize_order_cancel_payload(field, Some(job_id), [])
-              let draft =
-                single_root_log_draft(
-                  "orderCancel",
-                  [order_id],
-                  store.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some("Locally staged orderCancel in shopify-draft-proxy."),
-                )
-              #(key, payload, next_store, identity_after_job, [order_id], [], [
-                draft,
-              ])
+      case order_cancel_argument_errors(args) {
+        [_, ..] as user_errors -> {
+          let payload = serialize_order_cancel_payload(field, None, user_errors)
+          #(key, payload, store, identity, [], [], [])
+        }
+        [] -> {
+          case read_string_arg(args, "orderId") {
+            Some(order_id) -> {
+              // Pattern 2: hydrate the target order before staging cancellation
+              // locally; Shopify applies the supported mutation asynchronously,
+              // but the proxy still owns the downstream read-after-write state.
+              let hydrated_store =
+                maybe_hydrate_order_by_id(store, order_id, upstream)
+              case store.get_order_by_id(hydrated_store, order_id) {
+                Some(order) -> {
+                  case order_cancel_state_error(order) {
+                    Some(error) -> {
+                      let payload =
+                        serialize_order_cancel_payload(field, None, [error])
+                      #(key, payload, hydrated_store, identity, [], [], [])
+                    }
+                    None -> {
+                      let reason =
+                        read_string_arg(args, "reason")
+                        |> option.unwrap("OTHER")
+                      let #(updated_order, next_identity) =
+                        apply_order_cancel_update(order, identity, reason)
+                      let next_store =
+                        store.stage_order(hydrated_store, updated_order)
+                      let #(job_id, identity_after_job) =
+                        synthetic_identity.make_synthetic_gid(
+                          next_identity,
+                          "Job",
+                        )
+                      let payload =
+                        serialize_order_cancel_payload(field, Some(job_id), [])
+                      let draft =
+                        single_root_log_draft(
+                          "orderCancel",
+                          [order_id],
+                          store.Staged,
+                          "orders",
+                          "stage-locally",
+                          Some(
+                            "Locally staged orderCancel in shopify-draft-proxy.",
+                          ),
+                        )
+                      #(
+                        key,
+                        payload,
+                        next_store,
+                        identity_after_job,
+                        [order_id],
+                        [],
+                        [draft],
+                      )
+                    }
+                  }
+                }
+                None -> {
+                  let payload =
+                    serialize_order_cancel_payload(field, None, [
+                      order_cancel_user_error(
+                        ["orderId"],
+                        "Order does not exist",
+                        "NOT_FOUND",
+                      ),
+                    ])
+                  #(key, payload, hydrated_store, identity, [], [], [])
+                }
+              }
             }
             None -> {
               let payload =
                 serialize_order_cancel_payload(field, None, [
-                  #(["orderId"], "Order does not exist"),
+                  order_cancel_user_error(
+                    ["orderId"],
+                    "Order does not exist",
+                    "NOT_FOUND",
+                  ),
                 ])
-              #(key, payload, hydrated_store, identity, [], [], [])
+              #(key, payload, store, identity, [], [], [])
             }
           }
-        }
-        None -> {
-          let payload =
-            serialize_order_cancel_payload(field, None, [
-              #(["orderId"], "Order does not exist"),
-            ])
-          #(key, payload, store, identity, [], [], [])
         }
       }
     }
   }
+}
+
+fn order_cancel_argument_errors(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  let refund_errors = case
+    has_non_null_arg(args, "refund") && has_non_null_arg(args, "refundMethod")
+  {
+    True -> [
+      order_cancel_user_error(
+        ["refund"],
+        "Refund and refundMethod cannot both be present.",
+        "INVALID",
+      ),
+    ]
+    False -> []
+  }
+  let staff_note_errors = case read_string_arg(args, "staffNote") {
+    Some(note) ->
+      case string.length(note) > 255 {
+        True -> [
+          order_cancel_user_error(
+            ["staffNote"],
+            "Staff note is too long (maximum is 255 characters)",
+            "INVALID",
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+  list.append(refund_errors, staff_note_errors)
+}
+
+fn has_non_null_arg(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(args, name) {
+    Ok(root_field.NullVal) | Error(_) -> False
+    _ -> True
+  }
+}
+
+fn order_cancel_state_error(
+  order: OrderRecord,
+) -> Option(OrderMutationUserError) {
+  case order_is_cancelled(order) {
+    True ->
+      Some(order_cancel_user_error(
+        ["orderId"],
+        "Order has already been cancelled",
+        "INVALID",
+      ))
+    False ->
+      case captured_string_field(order.data, "displayFinancialStatus") {
+        Some("REFUNDED") ->
+          Some(order_cancel_user_error(
+            ["orderId"],
+            "Cannot cancel a refunded order",
+            "INVALID",
+          ))
+        _ ->
+          case order_has_open_return(order) {
+            True ->
+              Some(order_cancel_user_error(
+                ["orderId"],
+                "Cannot cancel an order with open returns",
+                "INVALID",
+              ))
+            False -> None
+          }
+      }
+  }
+}
+
+fn order_is_cancelled(order: OrderRecord) -> Bool {
+  case captured_object_field(order.data, "cancelledAt") {
+    Some(CapturedNull) | None -> False
+    _ -> True
+  }
+}
+
+fn order_has_open_return(order: OrderRecord) -> Bool {
+  order_returns(order.data)
+  |> list.any(fn(order_return) {
+    case captured_string_field(order_return, "status") {
+      Some("OPEN") | Some("REQUESTED") -> True
+      _ -> False
+    }
+  })
+}
+
+fn order_cancel_user_error(
+  field_path: List(String),
+  message: String,
+  code: String,
+) -> OrderMutationUserError {
+  order_mutation_user_error(
+    list.map(field_path, UserErrorField),
+    message,
+    Some(code),
+  )
 }
 
 fn apply_order_cancel_update(
@@ -4146,7 +4287,7 @@ fn apply_order_cancel_update(
 fn serialize_order_cancel_payload(
   field: Selection,
   job_id: Option(String),
-  user_errors: List(#(List(String), String)),
+  user_errors: List(OrderMutationUserError),
 ) -> Json {
   let entries =
     list.map(selection_children(field), fn(child) {
@@ -4161,7 +4302,7 @@ fn serialize_order_cancel_payload(
             "orderCancelUserErrors" | "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
-                serialize_user_error(child, error)
+                serialize_order_mutation_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
