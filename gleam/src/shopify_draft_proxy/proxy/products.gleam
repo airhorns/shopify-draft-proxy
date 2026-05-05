@@ -103,6 +103,16 @@ type ProductSetInventoryQuantityInput {
   )
 }
 
+const product_set_variant_limit = 2048
+
+const product_set_option_limit = 3
+
+const product_set_option_value_limit = 100
+
+const product_set_file_limit = 250
+
+const product_set_inventory_quantities_limit = 250
+
 pub fn is_products_query_root(name: String) -> Bool {
   case name {
     "product"
@@ -3749,6 +3759,7 @@ fn product_operation_user_error_source(
   src_object([
     #("field", field_value),
     #("message", SrcString(error.message)),
+    #("code", graphql_helpers.option_string_source(error.code)),
   ])
 }
 
@@ -7250,13 +7261,26 @@ fn handle_mutation_fields(
                   "stage-locally",
                   Some(note),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "productVariantCreate" -> {
@@ -9214,6 +9238,7 @@ fn handle_product_duplicate(
             ProductOperationUserErrorRecord(
               Some(["productId"]),
               "Product id is required",
+              None,
             ),
           ],
           field,
@@ -9248,6 +9273,7 @@ fn handle_product_duplicate(
                     ProductOperationUserErrorRecord(
                       Some(["productId"]),
                       "Product not found",
+                      None,
                     ),
                   ],
                   field,
@@ -9297,6 +9323,7 @@ fn handle_product_set(
             ProductOperationUserErrorRecord(
               Some(["input"]),
               "Product input is required",
+              None,
             ),
           ],
           field,
@@ -9308,40 +9335,80 @@ fn handle_product_set(
         [],
       )
     Some(input) -> {
-      let existing =
-        find_product_set_existing_product(
-          store,
-          graphql_helpers.read_arg_object(args, "identifier"),
-          input,
-        )
-      case product_set_validation_errors(input) {
+      case product_set_max_input_size_errors(input) {
+        [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
         [] ->
-          stage_product_set(
-            store,
-            identity,
-            key,
-            existing,
-            input,
-            read_arg_bool_default_true(args, "synchronous"),
-            field,
-            variables,
-            fragments,
-          )
-        errors ->
-          mutation_rejected_result(
-            key,
-            product_set_payload(
-              store,
-              None,
-              None,
-              errors,
-              field,
-              variables,
-              fragments,
-            ),
-            store,
-            identity,
-          )
+          case product_set_shape_validation_errors(input) {
+            [] ->
+              case
+                resolve_product_set_existing_product(
+                  store,
+                  graphql_helpers.read_arg_object(args, "identifier"),
+                  input,
+                )
+              {
+                Ok(existing) ->
+                  case product_set_validation_errors(input, existing) {
+                    [] ->
+                      stage_product_set(
+                        store,
+                        identity,
+                        key,
+                        existing,
+                        input,
+                        read_arg_bool_default_true(args, "synchronous"),
+                        field,
+                        variables,
+                        fragments,
+                      )
+                    errors ->
+                      mutation_rejected_result(
+                        key,
+                        product_set_payload(
+                          store,
+                          None,
+                          None,
+                          errors,
+                          field,
+                          variables,
+                          fragments,
+                        ),
+                        store,
+                        identity,
+                      )
+                  }
+                Error(error) ->
+                  mutation_rejected_result(
+                    key,
+                    product_set_payload(
+                      store,
+                      None,
+                      None,
+                      [error],
+                      field,
+                      variables,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                  )
+              }
+            errors ->
+              mutation_rejected_result(
+                key,
+                product_set_payload(
+                  store,
+                  None,
+                  None,
+                  errors,
+                  field,
+                  variables,
+                  fragments,
+                ),
+                store,
+                identity,
+              )
+          }
       }
     }
   }
@@ -9349,11 +9416,214 @@ fn handle_product_set(
 
 fn product_set_validation_errors(
   input: Dict(String, ResolvedValue),
+  existing: Option(ProductRecord),
 ) -> List(ProductOperationUserErrorRecord) {
   list.append(
-    product_set_requires_variants_for_options_errors(input),
-    product_set_duplicate_variant_errors(input),
+    product_set_product_field_errors(input, existing),
+    list.append(
+      product_set_requires_variants_for_options_errors(input),
+      product_set_duplicate_variant_errors(input),
+    ),
   )
+}
+
+fn product_set_shape_validation_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductOperationUserErrorRecord) {
+  list.append(
+    product_set_variant_limit_errors(input),
+    list.append(
+      product_set_option_limit_errors(input),
+      list.append(
+        product_set_file_limit_errors(input),
+        product_set_inventory_quantities_limit_errors(input),
+      ),
+    ),
+  )
+}
+
+fn product_set_variant_limit_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductOperationUserErrorRecord) {
+  let variants = read_object_list_field(input, "variants")
+  case list.length(variants) > product_set_variant_limit {
+    True -> [
+      ProductOperationUserErrorRecord(
+        field: Some(["input", "variants"]),
+        message: "Product can have a maximum of 2048 variants.",
+        code: Some("EXCEEDED_VARIANT_LIMIT"),
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn product_set_max_input_size_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(Json) {
+  list.append(
+    product_set_variant_max_input_size_errors(input),
+    product_set_inventory_quantities_max_input_size_errors(input),
+  )
+}
+
+fn product_set_variant_max_input_size_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(Json) {
+  let variants = read_object_list_field(input, "variants")
+  case list.length(variants) > product_set_variant_limit {
+    True -> [
+      max_input_size_error(list.length(variants), product_set_variant_limit, [
+        "productSet",
+        "input",
+        "variants",
+      ]),
+    ]
+    False -> []
+  }
+}
+
+fn product_set_inventory_quantities_max_input_size_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(Json) {
+  read_object_list_field(input, "variants")
+  |> list.filter_map(fn(variant_input) {
+    let quantities =
+      read_object_list_field(variant_input, "inventoryQuantities")
+    case list.length(quantities) > product_set_inventory_quantities_limit {
+      True ->
+        Ok(
+          max_input_size_error(
+            list.length(quantities),
+            product_set_inventory_quantities_limit,
+            ["productSet", "input", "variants", "inventoryQuantities"],
+          ),
+        )
+      False -> Error(Nil)
+    }
+  })
+}
+
+fn max_input_size_error(length: Int, maximum: Int, path: List(String)) -> Json {
+  json.object([
+    #(
+      "message",
+      json.string(
+        "The input array size of "
+        <> int.to_string(length)
+        <> " is greater than the maximum allowed of "
+        <> int.to_string(maximum)
+        <> ".",
+      ),
+    ),
+    #("path", json.array(path, json.string)),
+    #(
+      "extensions",
+      json.object([#("code", json.string("MAX_INPUT_SIZE_EXCEEDED"))]),
+    ),
+  ])
+}
+
+fn product_set_option_limit_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductOperationUserErrorRecord) {
+  let options = read_object_list_field(input, "productOptions")
+  let option_count_errors = case
+    list.length(options) > product_set_option_limit
+  {
+    True -> [
+      ProductOperationUserErrorRecord(
+        field: Some(["input", "productOptions"]),
+        message: "Options count is over the allowed limit.",
+        code: Some("INVALID_INPUT"),
+      ),
+    ]
+    False -> []
+  }
+  let value_count_errors =
+    options
+    |> enumerate_items()
+    |> list.filter_map(fn(pair) {
+      let #(option_input, index) = pair
+      let values = read_object_list_field(option_input, "values")
+      case list.length(values) > product_set_option_value_limit {
+        True ->
+          Ok(ProductOperationUserErrorRecord(
+            field: Some([
+              "input",
+              "productOptions",
+              int.to_string(index),
+              "values",
+            ]),
+            message: "Option values count is over the allowed limit.",
+            code: Some("INVALID_INPUT"),
+          ))
+        False -> Error(Nil)
+      }
+    })
+  list.append(option_count_errors, value_count_errors)
+}
+
+fn product_set_file_limit_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductOperationUserErrorRecord) {
+  let files = read_object_list_field(input, "files")
+  case list.length(files) > product_set_file_limit {
+    True -> [
+      ProductOperationUserErrorRecord(
+        field: Some(["input", "files"]),
+        message: "Files count is over the allowed limit.",
+        code: Some("INVALID_INPUT"),
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn product_set_inventory_quantities_limit_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductOperationUserErrorRecord) {
+  read_object_list_field(input, "variants")
+  |> enumerate_items()
+  |> list.filter_map(fn(pair) {
+    let #(variant_input, index) = pair
+    let quantities =
+      read_object_list_field(variant_input, "inventoryQuantities")
+    case list.length(quantities) > product_set_inventory_quantities_limit {
+      True ->
+        Ok(ProductOperationUserErrorRecord(
+          field: Some([
+            "input",
+            "variants",
+            int.to_string(index),
+            "inventoryQuantities",
+          ]),
+          message: "Inventory quantities count is over the allowed limit.",
+          code: Some("INVENTORY_QUANTITIES_LIMIT_EXCEEDED"),
+        ))
+      False -> Error(Nil)
+    }
+  })
+}
+
+fn product_set_product_field_errors(
+  input: Dict(String, ResolvedValue),
+  existing: Option(ProductRecord),
+) -> List(ProductOperationUserErrorRecord) {
+  let maybe_error = case existing {
+    Some(_) -> product_update_validation_error(input)
+    None -> product_create_validation_error(input)
+  }
+  case maybe_error {
+    Some(ProductUserError(field: path, message: message, code: code)) -> [
+      ProductOperationUserErrorRecord(
+        field: Some(["input", ..path]),
+        message: message,
+        code: code,
+      ),
+    ]
+    None -> []
+  }
 }
 
 fn product_set_requires_variants_for_options_errors(
@@ -9367,6 +9637,7 @@ fn product_set_requires_variants_for_options_errors(
       ProductOperationUserErrorRecord(
         field: Some(["input", "variants"]),
         message: "Variants input is required when updating product options",
+        code: None,
       ),
     ]
     _, _ -> []
@@ -9403,6 +9674,7 @@ fn product_set_duplicate_variant_errors(
               message: "The variant '"
                 <> product_set_variant_signature_title(signature)
                 <> "' already exists. Please change at least one option value.",
+              code: None,
             ))
         }
       })
@@ -9464,29 +9736,101 @@ fn product_set_variant_signature_title(
   |> string.join(" / ")
 }
 
-fn find_product_set_existing_product(
+fn resolve_product_set_existing_product(
   store: Store,
   identifier: Option(Dict(String, ResolvedValue)),
   input: Dict(String, ResolvedValue),
-) -> Option(ProductRecord) {
+) -> Result(Option(ProductRecord), ProductOperationUserErrorRecord) {
   case identifier {
     Some(identifier) ->
-      case product_by_identifier(store, identifier) {
-        Some(product) -> Some(product)
-        None -> find_product_set_input_product(store, input)
+      case product_set_identifier_has_reference(identifier) {
+        True ->
+          case product_by_identifier(store, identifier) {
+            Some(product) -> validate_product_set_resolved_product(product)
+            None ->
+              Error(
+                product_set_product_does_not_exist_error(
+                  product_set_identifier_reference_field(identifier),
+                ),
+              )
+          }
+        False -> resolve_product_set_input_product(store, input)
       }
-    None -> find_product_set_input_product(store, input)
+    None -> resolve_product_set_input_product(store, input)
   }
 }
 
-fn find_product_set_input_product(
+fn product_set_identifier_has_reference(
+  identifier: Dict(String, ResolvedValue),
+) -> Bool {
+  dict.has_key(identifier, "id") || dict.has_key(identifier, "handle")
+}
+
+fn resolve_product_set_input_product(
   store: Store,
   input: Dict(String, ResolvedValue),
-) -> Option(ProductRecord) {
-  case read_string_field(input, "id") {
-    Some(id) -> store.get_effective_product_by_id(store, id)
-    None -> None
+) -> Result(Option(ProductRecord), ProductOperationUserErrorRecord) {
+  case product_set_input_product_reference(input) {
+    Some(#(id, field)) ->
+      case store.get_effective_product_by_id(store, id) {
+        Some(product) -> validate_product_set_resolved_product(product)
+        None -> Error(product_set_product_does_not_exist_error(field))
+      }
+    None -> Ok(None)
   }
+}
+
+fn product_set_input_product_reference(
+  input: Dict(String, ResolvedValue),
+) -> Option(#(String, List(String))) {
+  case read_string_field(input, "id") {
+    Some(id) -> Some(#(id, ["input", "id"]))
+    None ->
+      case read_string_field(input, "productId") {
+        Some(product_id) -> Some(#(product_id, ["input", "productId"]))
+        None -> None
+      }
+  }
+}
+
+fn product_set_identifier_reference_field(
+  identifier: Dict(String, ResolvedValue),
+) -> List(String) {
+  case read_string_field(identifier, "id") {
+    Some(_) -> ["identifier", "id"]
+    None ->
+      case read_string_field(identifier, "handle") {
+        Some(_) -> ["identifier", "handle"]
+        None -> ["identifier"]
+      }
+  }
+}
+
+fn validate_product_set_resolved_product(
+  product: ProductRecord,
+) -> Result(Option(ProductRecord), ProductOperationUserErrorRecord) {
+  case product.status == "SUSPENDED" {
+    True -> Error(product_set_product_suspended_error())
+    False -> Ok(Some(product))
+  }
+}
+
+fn product_set_product_does_not_exist_error(
+  field: List(String),
+) -> ProductOperationUserErrorRecord {
+  ProductOperationUserErrorRecord(
+    field: Some(field),
+    message: "Product does not exist",
+    code: Some("PRODUCT_DOES_NOT_EXIST"),
+  )
+}
+
+fn product_set_product_suspended_error() -> ProductOperationUserErrorRecord {
+  ProductOperationUserErrorRecord(
+    field: Some(["input"]),
+    message: "Product is suspended",
+    code: Some("INVALID_PRODUCT"),
+  )
 }
 
 fn read_arg_bool_default_true(
@@ -9570,17 +9914,23 @@ fn stage_product_set(
           type_name: "ProductSetOperation",
           product_id: Some(product.id),
           new_product_id: None,
-          status: "CREATED",
+          status: "COMPLETE",
           user_errors: [],
         )
       let #(staged_operation, store_after_operation) =
         store.stage_product_operation(next_store, operation)
+      let initial_operation =
+        ProductOperationRecord(
+          ..staged_operation,
+          product_id: None,
+          status: "CREATED",
+        )
       mutation_result(
         key,
         product_set_payload(
           store_after_operation,
           None,
-          Some(staged_operation),
+          Some(initial_operation),
           [],
           field,
           variables,
@@ -9676,6 +10026,7 @@ fn stage_missing_async_product_duplicate(
         ProductOperationUserErrorRecord(
           Some(["productId"]),
           "Product does not exist",
+          None,
         ),
       ],
     )
@@ -16411,7 +16762,7 @@ fn handle_inventory_set_quantities(
             [],
           )
         Some(name), _, _ -> {
-          case valid_staged_inventory_quantity_name(name) {
+          case valid_inventory_set_quantity_name(name) {
             False ->
               inventory_quantity_mutation_result(
                 key,
@@ -16419,7 +16770,7 @@ fn handle_inventory_set_quantities(
                 store,
                 identity,
                 None,
-                [invalid_inventory_quantity_name_error(["input", "name"])],
+                [invalid_inventory_set_quantity_name_error()],
                 field,
                 fragments,
                 [],
@@ -23618,16 +23969,16 @@ fn apply_inventory_set_quantities(
   List(ProductUserError),
 ) {
   let reference_document_uri = read_string_field(input, "referenceDocumentUri")
-  let initial = #([], [], store)
-  let result =
-    quantities
-    |> enumerate_items()
-    |> list.try_fold(initial, fn(acc, pair) {
-      let #(quantity, index) = pair
-      let #(changes, mirrored_changes, current_store) = acc
-      case validate_inventory_set_quantity(quantity, index) {
-        Some(error) -> Error([error])
-        None -> {
+  case validate_inventory_set_quantity_inputs(quantities) {
+    [_, ..] as errors -> Error(errors)
+    [] -> {
+      let initial = #([], [], store)
+      let result =
+        quantities
+        |> enumerate_items()
+        |> list.try_fold(initial, fn(acc, pair) {
+          let #(quantity, index) = pair
+          let #(changes, mirrored_changes, current_store) = acc
           let assert Some(inventory_item_id) = quantity.inventory_item_id
           let assert Some(location_id) = quantity.location_id
           let assert Some(next_quantity) = quantity.quantity
@@ -23656,46 +24007,41 @@ fn apply_inventory_set_quantities(
                   quantity_after_change: None,
                   ledger_document_uri: None,
                 )
-              let mirrored = case is_on_hand_component_quantity_name(name) {
-                True -> [
-                  InventoryAdjustmentChange(
-                    inventory_item_id: inventory_item_id,
-                    location_id: location_id,
-                    name: "on_hand",
-                    delta: delta,
-                    quantity_after_change: None,
-                    ledger_document_uri: None,
-                  ),
-                ]
-                False -> []
-              }
+              let #(changes_to_append, mirrored) =
+                inventory_set_quantity_changes(
+                  inventory_item_id,
+                  location_id,
+                  name,
+                  delta,
+                  change,
+                )
               Ok(#(
-                list.append(changes, [change]),
+                list.append(changes, changes_to_append),
                 list.append(mirrored_changes, mirrored),
                 next_store,
               ))
             }
           }
+        })
+      case result {
+        Error(errors) -> Error(errors)
+        Ok(done) -> {
+          let #(changes, mirrored_changes, next_store) = done
+          let #(group, next_identity) =
+            make_inventory_adjustment_group(
+              identity,
+              reason,
+              reference_document_uri,
+              list.append(changes, mirrored_changes),
+            )
+          Ok(#(
+            next_store,
+            next_identity,
+            group,
+            inventory_adjustment_staged_ids(group),
+          ))
         }
       }
-    })
-  case result {
-    Error(errors) -> Error(errors)
-    Ok(done) -> {
-      let #(changes, mirrored_changes, next_store) = done
-      let #(group, next_identity) =
-        make_inventory_adjustment_group(
-          identity,
-          reason,
-          reference_document_uri,
-          list.append(changes, mirrored_changes),
-        )
-      Ok(#(
-        next_store,
-        next_identity,
-        group,
-        inventory_adjustment_staged_ids(group),
-      ))
     }
   }
 }
@@ -23706,7 +24052,7 @@ fn validate_inventory_adjust_inputs(
 ) -> List(ProductUserError) {
   let name_errors = case valid_inventory_adjust_quantity_name(name) {
     True -> []
-    False -> [invalid_inventory_quantity_name_error(["input", "name"])]
+    False -> [invalid_inventory_adjust_quantity_name_error(["input", "name"])]
   }
   let ledger_errors = case name {
     "available" -> []
@@ -23726,7 +24072,23 @@ fn validate_inventory_adjust_inputs(
         }
       })
   }
-  list.append(name_errors, ledger_errors)
+  let quantity_errors =
+    changes
+    |> enumerate_items()
+    |> list.flat_map(fn(pair) {
+      let #(change, index) = pair
+      case change.delta {
+        Some(delta) ->
+          inventory_quantity_bounds_errors(delta, [
+            "input",
+            "changes",
+            int.to_string(index),
+            "delta",
+          ])
+        None -> []
+      }
+    })
+  list.append(name_errors, list.append(ledger_errors, quantity_errors))
 }
 
 fn stage_inventory_quantity_adjust(
@@ -23844,29 +24206,195 @@ fn stage_inventory_quantity_adjust(
 fn validate_inventory_set_quantity(
   quantity: InventorySetQuantityInput,
   index: Int,
-) -> Option(ProductUserError) {
+) -> List(ProductUserError) {
   let path = ["input", "quantities", int.to_string(index)]
-  case quantity.inventory_item_id, quantity.location_id, quantity.quantity {
-    None, _, _ ->
-      Some(ProductUserError(
+  let required_errors = case
+    quantity.inventory_item_id,
+    quantity.location_id,
+    quantity.quantity
+  {
+    None, _, _ -> [
+      ProductUserError(
         list.append(path, ["inventoryItemId"]),
         "Inventory item id is required",
         None,
-      ))
-    _, None, _ ->
-      Some(ProductUserError(
+      ),
+    ]
+    _, None, _ -> [
+      ProductUserError(
         list.append(path, ["locationId"]),
         "Inventory location id is required",
         None,
-      ))
-    _, _, None ->
-      Some(ProductUserError(
+      ),
+    ]
+    _, _, None -> [
+      ProductUserError(
         list.append(path, ["quantity"]),
         "Inventory quantity is required",
         None,
-      ))
-    _, _, _ -> None
+      ),
+    ]
+    _, _, _ -> []
   }
+  let quantity_errors = case quantity.quantity {
+    Some(quantity) -> inventory_set_quantity_bounds_errors(quantity, path)
+    None -> []
+  }
+  list.append(required_errors, quantity_errors)
+}
+
+fn inventory_set_quantity_changes(
+  inventory_item_id: String,
+  location_id: String,
+  name: String,
+  delta: Int,
+  change: InventoryAdjustmentChange,
+) -> #(List(InventoryAdjustmentChange), List(InventoryAdjustmentChange)) {
+  case name {
+    "on_hand" -> #(
+      [
+        InventoryAdjustmentChange(
+          inventory_item_id: inventory_item_id,
+          location_id: location_id,
+          name: "available",
+          delta: delta,
+          quantity_after_change: None,
+          ledger_document_uri: None,
+        ),
+      ],
+      [change],
+    )
+    _ -> {
+      let mirrored = case is_on_hand_component_quantity_name(name) {
+        True -> [
+          InventoryAdjustmentChange(
+            inventory_item_id: inventory_item_id,
+            location_id: location_id,
+            name: "on_hand",
+            delta: delta,
+            quantity_after_change: None,
+            ledger_document_uri: None,
+          ),
+        ]
+        False -> []
+      }
+      #([change], mirrored)
+    }
+  }
+}
+
+fn validate_inventory_set_quantity_inputs(
+  quantities: List(InventorySetQuantityInput),
+) -> List(ProductUserError) {
+  let input_errors =
+    quantities
+    |> enumerate_items()
+    |> list.flat_map(fn(pair) {
+      let #(quantity, index) = pair
+      validate_inventory_set_quantity(quantity, index)
+    })
+  list.append(input_errors, duplicate_inventory_set_quantity_errors(quantities))
+}
+
+fn inventory_set_quantity_bounds_errors(
+  quantity: Int,
+  path: List(String),
+) -> List(ProductUserError) {
+  case quantity {
+    quantity if quantity > max_inventory_quantity -> [
+      ProductUserError(
+        list.append(path, ["quantity"]),
+        "The quantity can't be higher than 1,000,000,000.",
+        Some("INVALID_QUANTITY_TOO_HIGH"),
+      ),
+    ]
+    quantity if quantity < min_inventory_quantity -> [
+      ProductUserError(
+        list.append(path, ["quantity"]),
+        "The quantity can't be lower than -1,000,000,000.",
+        Some("INVALID_QUANTITY_TOO_LOW"),
+      ),
+    ]
+    quantity if quantity < 0 -> [
+      ProductUserError(
+        list.append(path, ["quantity"]),
+        "The quantity can't be negative.",
+        Some("INVALID_QUANTITY_NEGATIVE"),
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn inventory_quantity_bounds_errors(
+  quantity: Int,
+  path: List(String),
+) -> List(ProductUserError) {
+  case quantity {
+    quantity if quantity > max_inventory_quantity -> [
+      ProductUserError(
+        path,
+        "The quantity can't be higher than 1,000,000,000.",
+        Some("INVALID_QUANTITY_TOO_HIGH"),
+      ),
+    ]
+    quantity if quantity < min_inventory_quantity -> [
+      ProductUserError(
+        path,
+        "The quantity can't be lower than -1,000,000,000.",
+        Some("INVALID_QUANTITY_TOO_LOW"),
+      ),
+    ]
+    _ -> []
+  }
+}
+
+fn duplicate_inventory_set_quantity_errors(
+  quantities: List(InventorySetQuantityInput),
+) -> List(ProductUserError) {
+  quantities
+  |> enumerate_items()
+  |> list.flat_map(fn(pair) {
+    let #(quantity, index) = pair
+    case quantity.inventory_item_id, quantity.location_id {
+      Some(inventory_item_id), Some(location_id) -> {
+        case
+          has_duplicate_inventory_item_location_pair(
+            quantities,
+            index,
+            inventory_item_id,
+            location_id,
+          )
+        {
+          True -> [
+            ProductUserError(
+              ["input", "quantities", int.to_string(index), "locationId"],
+              "The combination of inventoryItemId and locationId must be unique.",
+              Some("NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR"),
+            ),
+          ]
+          False -> []
+        }
+      }
+      _, _ -> []
+    }
+  })
+}
+
+fn has_duplicate_inventory_item_location_pair(
+  quantities: List(InventorySetQuantityInput),
+  index: Int,
+  inventory_item_id: String,
+  location_id: String,
+) -> Bool {
+  quantities
+  |> enumerate_items()
+  |> list.any(fn(pair) {
+    let #(quantity, other_index) = pair
+    other_index != index
+    && quantity.inventory_item_id == Some(inventory_item_id)
+    && quantity.location_id == Some(location_id)
+  })
 }
 
 fn stage_inventory_quantity_set(
@@ -23921,6 +24449,7 @@ fn stage_inventory_quantity_set(
                   next_quantity,
                 )
                 |> maybe_add_on_hand_component_delta(name, delta)
+                |> maybe_add_available_for_on_hand_delta(name, delta)
               let next_store =
                 stage_variant_inventory_levels(
                   store,
@@ -24445,6 +24974,17 @@ fn maybe_add_on_hand_component_delta(
   }
 }
 
+fn maybe_add_available_for_on_hand_delta(
+  quantities: List(InventoryQuantityRecord),
+  name: String,
+  delta: Int,
+) -> List(InventoryQuantityRecord) {
+  case name {
+    "on_hand" -> add_inventory_quantity_amount(quantities, "available", delta)
+    _ -> quantities
+  }
+}
+
 fn add_on_hand_move_delta(
   quantities: List(InventoryQuantityRecord),
   from_name: String,
@@ -24479,6 +25019,17 @@ fn is_on_hand_component_quantity_name(name: String) -> Bool {
   }
 }
 
+const max_inventory_quantity = 1_000_000_000
+
+const min_inventory_quantity = -1_000_000_000
+
+fn valid_inventory_set_quantity_name(name: String) -> Bool {
+  case name {
+    "available" | "on_hand" -> True
+    _ -> False
+  }
+}
+
 fn valid_staged_inventory_quantity_name(name: String) -> Bool {
   case name {
     "available"
@@ -24495,6 +25046,8 @@ fn valid_staged_inventory_quantity_name(name: String) -> Bool {
 fn valid_inventory_adjust_quantity_name(name: String) -> Bool {
   case name {
     "available"
+    | "on_hand"
+    | "committed"
     | "damaged"
     | "incoming"
     | "quality_control"
@@ -24502,6 +25055,24 @@ fn valid_inventory_adjust_quantity_name(name: String) -> Bool {
     | "safety_stock" -> True
     _ -> False
   }
+}
+
+fn invalid_inventory_set_quantity_name_error() -> ProductUserError {
+  ProductUserError(
+    ["input", "name"],
+    "The quantity name must be either 'available' or 'on_hand'.",
+    Some("INVALID_NAME"),
+  )
+}
+
+fn invalid_inventory_adjust_quantity_name_error(
+  field: List(String),
+) -> ProductUserError {
+  ProductUserError(
+    field,
+    "The specified quantity name is invalid. Valid values are: available, on_hand, committed, damaged, incoming, quality_control, reserved, safety_stock.",
+    Some("INVALID_QUANTITY_NAME"),
+  )
 }
 
 fn invalid_inventory_quantity_name_error(

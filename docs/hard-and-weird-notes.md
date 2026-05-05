@@ -1877,7 +1877,7 @@ Observed behavior from live writes:
 Practical rule for the proxy:
 
 - `available` remains the only quantity name that should mutate `productVariant.inventoryQuantity` and the mirrored synthetic `on_hand` change rows
-- Shopify's current valid mutation names on this host are narrower than the broader inventory-level read names: `available`, `damaged`, `incoming`, `quality_control`, `reserved`, and `safety_stock` were accepted, while `on_hand` was rejected as an invalid mutation name even though it still appears on downstream `inventoryLevels` reads
+- HAR-568 updates this older note for `inventoryAdjustQuantities`: real Shopify accepts direct `on_hand` and `committed` adjustment names in addition to the previously captured non-available names, so adjust/move/set validators must stay split by mutation root instead of sharing one inventory quantity-name union.
 - for non-available mutation names, each change needs its own `ledgerDocumentUri`; Shopify returned that requirement even when the quantity name itself was invalid
 - omitting required nested change inputs such as `inventoryItemId`, `locationId`, or `delta` did **not** yield mutation-scoped `userErrors`; Shopify failed variable coercion first and returned top-level GraphQL `INVALID_VARIABLE` errors naming the exact `changes.<index>.<field>` path
 - by contrast, an unknown-but-present inventory item id did reach the mutation resolver and returned a fielded `userErrors` entry at `['input', 'changes', '0', 'inventoryItemId']` with message `The specified inventory item could not be found.`
@@ -2826,6 +2826,9 @@ Captured facts:
 - `inventoryProperties.quantityNames` returned `available`, `committed`, `damaged`, `incoming`, `on_hand`, `quality_control`, `reserved`, and `safety_stock`; `on_hand` is composed from the component names while `incoming` is separate
 - `inventorySetQuantities` in 2025-01 still exposes deprecated `ignoreCompareQuantity`; omitting both compare data and `ignoreCompareQuantity: true` returns a user error at `["input", "ignoreCompareQuantity"]`
 - a successful available set with `ignoreCompareQuantity: true` returned `available` changes plus mirrored `on_hand` changes, left `quantityAfterChange` null, and echoed `referenceDocumentUri`
+- HAR-568 live validation captures refined the set-name boundary: `inventorySetQuantities` accepts only `available` and `on_hand`; broader read names such as `damaged` and `committed` return `INVALID_NAME` at `["input", "name"]` with the exact message `The quantity name must be either 'available' or 'on_hand'.`
+- Direct `name: "on_hand"` set writes are valid and returned paired `available` and `on_hand` change rows in the mutation payload.
+- `quantity: 1_000_000_001` returns `INVALID_QUANTITY_TOO_HIGH`; duplicate `inventoryItemId` + `locationId` rows return one `NO_DUPLICATE_INVENTORY_ITEM_ID_GROUP_ID_PAIR` userError per duplicate row at each row's `locationId`.
 - immediate downstream `inventoryItem.variant.inventoryQuantity` summed available quantities across the active levels, but `product.totalInventory` stayed at the prior value
 - `inventoryMoveQuantities` is not a cross-location transfer primitive: moving between different locations returned `The quantities can't be moved between different locations.`
 - same-location available-to-damaged move succeeded, returned a negative `available` change and a positive `damaged` change, accepted a ledger URI on the damaged terminal, kept `on_hand` unchanged, reduced variant available quantity, and left product total stale
