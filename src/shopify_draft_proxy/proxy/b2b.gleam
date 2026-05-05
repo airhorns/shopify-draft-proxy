@@ -51,6 +51,10 @@ const default_string_max_length = 255
 
 const notes_max_length = 5000
 
+const external_id_max_length = 64
+
+const external_id_invalid_chars_detail = "external_id_contains_invalid_chars"
+
 pub type B2BError {
   ParseFailed(root_field.RootFieldError)
 }
@@ -60,6 +64,7 @@ type UserError {
     field: Option(List(String)),
     message: String,
     code: user_error_code.Code,
+    detail: Option(String),
   )
 }
 
@@ -1304,7 +1309,16 @@ fn user_error(
   message: String,
   code: user_error_code.Code,
 ) {
-  UserError(field: field, message: message, code: code)
+  UserError(field: field, message: message, code: code, detail: None)
+}
+
+fn detailed_user_error(
+  field: Option(List(String)),
+  message: String,
+  code: user_error_code.Code,
+  detail: String,
+) {
+  UserError(field: field, message: message, code: code, detail: Some(detail))
 }
 
 fn field_path(prefix: List(String), field: String) -> List(String) {
@@ -1373,6 +1387,49 @@ fn validate_text_field(
   }
 }
 
+fn validate_external_id_field(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(UserError) {
+  case read_string(input, "externalId") {
+    Some(value) -> {
+      validate_length(
+        value,
+        "externalId",
+        prefix,
+        "External ID",
+        external_id_max_length,
+      )
+      |> list.append(validate_external_id_charset(value, prefix))
+    }
+    None -> []
+  }
+}
+
+fn validate_external_id_charset(
+  value: String,
+  prefix: List(String),
+) -> List(UserError) {
+  case value |> string.to_graphemes |> list.all(external_id_char_allowed) {
+    True -> []
+    False -> [
+      detailed_user_error(
+        Some(field_path(prefix, "externalId")),
+        "External ID contains invalid characters",
+        user_error_code.invalid,
+        external_id_invalid_chars_detail,
+      ),
+    ]
+  }
+}
+
+fn external_id_char_allowed(char: String) -> Bool {
+  string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\\/?<>_-~.,;:'\"`",
+    char,
+  )
+}
+
 fn sanitize_name_field(
   input: Dict(String, root_field.ResolvedValue),
 ) -> Dict(String, root_field.ResolvedValue) {
@@ -1407,6 +1464,7 @@ fn validate_company_input(
       notes_max_length,
       True,
     ))
+    |> list.append(validate_external_id_field(input, prefix))
   #(input, errors)
 }
 
@@ -1469,6 +1527,7 @@ fn validate_location_input(
       notes_max_length,
       True,
     ))
+    |> list.append(validate_external_id_field(input, prefix))
   #(input, errors)
 }
 
@@ -1820,6 +1879,78 @@ fn validate_contact_duplicate_phone(
       }
     None -> []
   }
+}
+
+fn validate_duplicate_company_external_id(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  exclude_company_id: Option(String),
+  prefix: List(String),
+) -> List(UserError) {
+  case read_string(input, "externalId") {
+    Some(external_id) ->
+      case company_external_id_exists(store, external_id, exclude_company_id) {
+        True -> [
+          user_error(
+            Some(field_path(prefix, "externalId")),
+            "External ID has already been taken.",
+            user_error_code.duplicate_external_id,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn validate_duplicate_location_external_id(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  exclude_location_id: Option(String),
+  prefix: List(String),
+) -> List(UserError) {
+  case read_string(input, "externalId") {
+    Some(external_id) ->
+      case
+        location_external_id_exists(store, external_id, exclude_location_id)
+      {
+        True -> [
+          user_error(
+            Some(field_path(prefix, "externalId")),
+            "External ID has already been taken.",
+            user_error_code.duplicate_location_external_id,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn company_external_id_exists(
+  store: Store,
+  external_id: String,
+  exclude_company_id: Option(String),
+) -> Bool {
+  let excluded = option.unwrap(exclude_company_id, "")
+  store.list_effective_b2b_companies(store)
+  |> list.any(fn(company) {
+    company.id != excluded
+    && source_string(data_get(company.data, "externalId")) == external_id
+  })
+}
+
+fn location_external_id_exists(
+  store: Store,
+  external_id: String,
+  exclude_location_id: Option(String),
+) -> Bool {
+  let excluded = option.unwrap(exclude_location_id, "")
+  store.list_effective_b2b_company_locations(store)
+  |> list.any(fn(location) {
+    location.id != excluded
+    && source_string(data_get(location.data, "externalId")) == external_id
+  })
 }
 
 fn contact_email_exists(
@@ -2268,6 +2399,22 @@ fn handle_company_create(
       "input",
       "companyLocation",
     ])
+  let company_errors =
+    company_errors
+    |> list.append(
+      validate_duplicate_company_external_id(store, company_input, None, [
+        "input",
+        "company",
+      ]),
+    )
+  let location_errors =
+    location_errors
+    |> list.append(
+      validate_duplicate_location_external_id(store, location_input, None, [
+        "input",
+        "companyLocation",
+      ]),
+    )
   let #(contact_input, contact_errors) = case
     dict.get(input, "companyContact")
   {
@@ -2388,6 +2535,16 @@ fn handle_company_update(
         Some(company) -> {
           let #(input, validation_errors) =
             validate_company_input(read_object(args, "input"), ["input"])
+          let validation_errors =
+            validation_errors
+            |> list.append(
+              validate_duplicate_company_external_id(
+                store,
+                input,
+                Some(company_id),
+                ["input"],
+              ),
+            )
           let name = case dict.get(input, "name") {
             Ok(root_field.StringVal(value)) -> value
             _ -> source_string(data_get(company.data, "name"))
@@ -3062,6 +3219,13 @@ fn handle_location_create(
           let fallback = source_string(data_get(company.data, "name"))
           let #(input, validation_errors) =
             validate_location_input(read_object(args, "input"), ["input"])
+          let validation_errors =
+            validation_errors
+            |> list.append(
+              validate_duplicate_location_external_id(store, input, None, [
+                "input",
+              ]),
+            )
           case validation_errors {
             [_, ..] ->
               RootResult(empty_payload(validation_errors), store, identity, [])
@@ -3115,6 +3279,13 @@ fn handle_location_update(
         Some(location) -> {
           let #(input, validation_errors) =
             validate_location_input(read_object(args, "input"), ["input"])
+          let validation_errors =
+            validation_errors
+            |> list.append(
+              validate_duplicate_location_external_id(store, input, Some(id), [
+                "input",
+              ]),
+            )
           case validation_errors {
             [_, ..] ->
               RootResult(empty_payload(validation_errors), store, identity, [])
@@ -4342,6 +4513,10 @@ fn serialize_user_error(
       }),
       #("message", SrcString(error.message)),
       #("code", SrcString(user_error_code.value(error.code))),
+      #("detail", case error.detail {
+        Some(detail) -> SrcString(detail)
+        None -> SrcNull
+      }),
     ])
   project_source(source, field, fragments)
 }

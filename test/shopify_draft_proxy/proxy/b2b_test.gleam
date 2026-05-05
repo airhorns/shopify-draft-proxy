@@ -115,6 +115,114 @@ pub fn b2b_company_name_validation_and_sanitization_test() {
   assert !string.contains(html_json, "<b>")
 }
 
+pub fn b2b_company_create_rejects_external_id_validation_and_duplicate_test() {
+  let long_external_id = string.repeat("x", times: 65)
+  let #(Response(status: long_status, body: long_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Draft\", externalId: \""
+        <> long_external_id
+        <> "\" } }) { company { id externalId } userErrors { field message code detail } } }",
+    )
+  assert long_status == 200
+  let long_json = json.to_string(long_body)
+  assert string.contains(long_json, "\"company\":null")
+  assert string.contains(
+    long_json,
+    "\"field\":[\"input\",\"company\",\"externalId\"]",
+  )
+  assert string.contains(long_json, "\"code\":\"TOO_LONG\"")
+
+  let #(Response(status: invalid_status, body: invalid_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Draft\", externalId: \"has spaces\" } }) { company { id externalId } userErrors { field message code detail } } }",
+    )
+  assert invalid_status == 200
+  let invalid_json = json.to_string(invalid_body)
+  assert string.contains(invalid_json, "\"company\":null")
+  assert string.contains(invalid_json, "\"code\":\"INVALID\"")
+  assert string.contains(
+    invalid_json,
+    "\"detail\":\"external_id_contains_invalid_chars\"",
+  )
+
+  let create_query =
+    "mutation { companyCreate(input: { company: { name: \"Duplicate One\", externalId: \"ACME-1\" } }) { company { id externalId } userErrors { field message code } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(draft_proxy.new(), create_query)
+  assert first_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"Duplicate Two\", externalId: \"ACME-1\" } }) { company { id externalId } userErrors { field message code } } }",
+    )
+  assert duplicate_status == 200
+  let duplicate_json = json.to_string(duplicate_body)
+  assert string.contains(duplicate_json, "\"company\":null")
+  assert string.contains(duplicate_json, "\"code\":\"DUPLICATE_EXTERNAL_ID\"")
+}
+
+pub fn b2b_company_update_validates_external_id_and_duplicate_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: first_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"First\", externalId: \"ACME-1\" } }) { company { id } userErrors { code } } }",
+    )
+  assert first_status == 200
+  let #(Response(status: second_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"Second\", externalId: \"ACME-2\" } }) { company { id } userErrors { code } } }",
+    )
+  assert second_status == 200
+
+  let #(Response(status: self_status, body: self_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyUpdate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { externalId: \"ACME-1\" }) { company { id externalId } userErrors { field message code } } }",
+    )
+  assert self_status == 200
+  assert string.contains(json.to_string(self_body), "\"userErrors\":[]")
+
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyUpdate(companyId: \"gid://shopify/Company/6?shopify-draft-proxy=synthetic\", input: { externalId: \"ACME-1\" }) { company { id externalId } userErrors { field message code } } }",
+    )
+  assert duplicate_status == 200
+  let duplicate_json = json.to_string(duplicate_body)
+  assert string.contains(duplicate_json, "\"company\":null")
+  assert string.contains(duplicate_json, "\"code\":\"DUPLICATE_EXTERNAL_ID\"")
+
+  let long_external_id = string.repeat("x", times: 65)
+  let #(Response(status: long_status, body: long_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyUpdate(companyId: \"gid://shopify/Company/6?shopify-draft-proxy=synthetic\", input: { externalId: \""
+        <> long_external_id
+        <> "\" }) { company { id externalId } userErrors { field message code } } }",
+    )
+  assert long_status == 200
+  assert string.contains(json.to_string(long_body), "\"code\":\"TOO_LONG\"")
+
+  let #(Response(status: invalid_status, body: invalid_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyUpdate(companyId: \"gid://shopify/Company/6?shopify-draft-proxy=synthetic\", input: { externalId: \"bad id\" }) { company { id externalId } userErrors { field message code detail } } }",
+    )
+  assert invalid_status == 200
+  let invalid_json = json.to_string(invalid_body)
+  assert string.contains(invalid_json, "\"code\":\"INVALID\"")
+  assert string.contains(
+    invalid_json,
+    "\"detail\":\"external_id_contains_invalid_chars\"",
+  )
+}
+
 pub fn b2b_company_update_rejects_note_html_and_too_long_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(
@@ -195,6 +303,83 @@ pub fn b2b_location_create_rejects_name_and_note_validation_test() {
   assert string.contains(location_json, "\"field\":[\"input\",\"notes\"]")
   assert string.contains(location_json, "\"code\":\"CONTAINS_HTML_TAGS\"")
   assert string.contains(location_json, "\"code\":\"TOO_LONG\"")
+}
+
+pub fn b2b_location_create_and_update_validates_external_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"B2B Draft\" }, companyLocation: { name: \"HQ\", externalId: \"LOC-1\" } }) { company { id locations(first: 5) { nodes { id externalId } } } userErrors { code } } }",
+    )
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let long_external_id = string.repeat("x", times: 65)
+  let #(Response(status: long_status, body: long_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Long\", externalId: \""
+        <> long_external_id
+        <> "\" }) { companyLocation { id externalId } userErrors { field message code } } }",
+    )
+  assert long_status == 200
+  assert string.contains(json.to_string(long_body), "\"code\":\"TOO_LONG\"")
+
+  let #(Response(status: invalid_status, body: invalid_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Invalid\", externalId: \"bad id\" }) { companyLocation { id externalId } userErrors { field message code detail } } }",
+    )
+  assert invalid_status == 200
+  let invalid_json = json.to_string(invalid_body)
+  assert string.contains(invalid_json, "\"code\":\"INVALID\"")
+  assert string.contains(
+    invalid_json,
+    "\"detail\":\"external_id_contains_invalid_chars\"",
+  )
+
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Duplicate\", externalId: \"LOC-1\" }) { companyLocation { id externalId } userErrors { field message code } } }",
+    )
+  assert duplicate_status == 200
+  let duplicate_json = json.to_string(duplicate_body)
+  assert string.contains(duplicate_json, "\"companyLocation\":null")
+  assert string.contains(
+    duplicate_json,
+    "\"code\":\"DUPLICATE_LOCATION_EXTERNAL_ID\"",
+  )
+
+  let #(Response(status: self_status, body: self_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", input: { externalId: \"LOC-1\" }) { companyLocation { id externalId } userErrors { field message code } } }",
+    )
+  assert self_status == 200
+  assert string.contains(json.to_string(self_body), "\"userErrors\":[]")
+
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Second\", externalId: \"LOC-2\" }) { companyLocation { id externalId } userErrors { field message code } } }",
+    )
+  assert second_status == 200
+  assert string.contains(json.to_string(second_body), "\"userErrors\":[]")
+
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \"gid://shopify/CompanyLocation/10?shopify-draft-proxy=synthetic\", input: { externalId: \"LOC-1\" }) { companyLocation { id externalId } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"companyLocation\":null")
+  assert string.contains(
+    update_json,
+    "\"code\":\"DUPLICATE_LOCATION_EXTERNAL_ID\"",
+  )
 }
 
 pub fn b2b_email_delivery_root_is_not_local_support_test() {
@@ -377,6 +562,7 @@ pub fn b2b_business_customer_user_error_code_snapshot_test() {
     "CONTAINS_HTML_TAGS",
     "INVALID_LOCALE_FORMAT",
     "DUPLICATE_EXTERNAL_ID",
+    "DUPLICATE_LOCATION_EXTERNAL_ID",
     "DUPLICATE_EMAIL_ADDRESS",
     "DUPLICATE_PHONE_NUMBER",
     "CUSTOMER_NOT_FOUND",
