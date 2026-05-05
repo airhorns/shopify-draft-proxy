@@ -41,6 +41,10 @@ import gleam/result
 import parity/diff.{type ExpectedDifference}
 import parity/json_value.{type JsonValue}
 
+pub type LocalSetup {
+  SeedSegments(count: Int)
+}
+
 pub type ParityVariables {
   /// Resolve variables by following a JSONPath into the primary capture.
   VariablesFromCapture(path: String)
@@ -59,6 +63,7 @@ pub type ProxyRequest {
     document_path: String,
     variables: ParityVariables,
     api_version: Option(String),
+    local_setups: List(LocalSetup),
   )
 }
 
@@ -146,6 +151,7 @@ fn empty_spec() -> Spec {
       document_path: "",
       variables: NoVariables,
       api_version: None,
+      local_setups: [],
     ),
     targets: [],
     expected_differences: [],
@@ -175,6 +181,11 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
     None,
     decode.optional(decode.dynamic),
   )
+  use local_setups <- decode.optional_field(
+    "localSetups",
+    [],
+    decode.list(local_setup_decoder()),
+  )
   let variables =
     variables_from_fields(
       variables_capture_path,
@@ -185,7 +196,19 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
     document_path: document_path,
     variables: variables,
     api_version: api_version,
+    local_setups: local_setups,
   ))
+}
+
+fn local_setup_decoder() -> Decoder(LocalSetup) {
+  use kind <- decode.field("kind", decode.string)
+  case kind {
+    "seedSegments" -> {
+      use count <- decode.field("count", decode.int)
+      decode.success(SeedSegments(count: count))
+    }
+    _ -> decode.failure(SeedSegments(count: 0), "unsupported local setup kind")
+  }
 }
 
 fn variables_from_fields(

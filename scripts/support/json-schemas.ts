@@ -74,6 +74,14 @@ export const operationRegistryEntrySchema = z.strictObject({
 export const operationRegistrySchema = z.array(operationRegistryEntrySchema);
 export type OperationRegistryEntry = z.infer<typeof operationRegistryEntrySchema>;
 
+export const localSetupSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    kind: z.literal('seedSegments'),
+    count: z.number().int().nonnegative(),
+  }),
+]);
+export type LocalSetup = z.infer<typeof localSetupSchema>;
+
 export const parityProxyRequestSpecSchema = z.strictObject({
   documentPath: z.string().nullable().optional(),
   variablesPath: z.string().nullable().optional(),
@@ -84,6 +92,7 @@ export const parityProxyRequestSpecSchema = z.strictObject({
     .regex(/^\d{4}-\d{2}$/u)
     .optional(),
   waitBeforeMs: z.number().int().nonnegative().optional(),
+  localSetups: z.array(localSetupSchema).optional(),
 });
 export type ProxyRequestSpec = z.infer<typeof parityProxyRequestSpecSchema>;
 
