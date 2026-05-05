@@ -2006,6 +2006,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-order-move-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-order-move-validation-conformance.ts',
+    purpose:
+      'fulfillmentOrderMove validation for closed, manually progress-reported, submitted-request, happy full-move, and invalid-destination branches.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-order-move-validation.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-order-move-validation.json',
+      'config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable orders and a temporary API fulfillment service; rejects the submitted request, cancels orders, and deletes the temporary fulfillment service during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'fulfillment-order-hold-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-order-hold-validation-conformance.ts',
