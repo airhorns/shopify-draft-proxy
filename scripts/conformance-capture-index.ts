@@ -1047,6 +1047,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-edit-fields-and-state-machine',
+    scriptPath: 'scripts/capture-location-edit-fields-and-state-machine-conformance.mts',
+    purpose:
+      'locationEdit editable fields, typed userErrors, location-owned metafields, read-after-write, and fulfillsOnlineOrders state-machine branches.',
+    requiredAuthScopes: ['read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-edit-fields-and-state-machine.json`,
+      'config/parity-specs/store-properties/location-edit-fields-and-state-machine.json',
+      'config/parity-requests/store-properties/location-edit-fields-and-state-machine*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable locations, temporarily disables/restores pre-existing online-fulfilling locations for the only-online rejection branch, then deactivates/deletes the disposable locations.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'location-activate-deactivate-lifecycle',
     scriptPath: 'scripts/capture-location-activate-deactivate-lifecycle-conformance.mts',
     purpose:
