@@ -1,0 +1,64 @@
+mutation SavedSearchQueryGrammarValidationCreate(
+  $orderReserved: SavedSearchCreateInput!
+  $productCollectionTag: SavedSearchCreateInput!
+  $productCollectionPublished: SavedSearchCreateInput!
+  $productCollectionErrorFeedback: SavedSearchCreateInput!
+  $productPositive: SavedSearchCreateInput!
+) {
+  orderReserved: savedSearchCreate(input: $orderReserved) {
+    savedSearch {
+      id
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  productCollectionTag: savedSearchCreate(input: $productCollectionTag) {
+    savedSearch {
+      id
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  productCollectionPublished: savedSearchCreate(input: $productCollectionPublished) {
+    savedSearch {
+      id
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  productCollectionErrorFeedback: savedSearchCreate(input: $productCollectionErrorFeedback) {
+    savedSearch {
+      id
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  productPositive: savedSearchCreate(input: $productPositive) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

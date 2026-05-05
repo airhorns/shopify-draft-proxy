@@ -1,0 +1,13 @@
+mutation CustomerPaymentMethodCreditCardCreateMissingSession($customerId: ID!, $billingAddress: MailingAddressInput!) {
+  customerPaymentMethodCreditCardCreate(customerId: $customerId, billingAddress: $billingAddress) {
+    customerPaymentMethod {
+      id
+    }
+    processing
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

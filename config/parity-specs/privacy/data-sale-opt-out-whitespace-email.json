@@ -1,0 +1,65 @@
+{
+  "scenarioId": "data-sale-opt-out-whitespace-email",
+  "operationNames": ["dataSaleOptOut", "customer", "customerByIdentifier"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/privacy/data-sale-opt-out-whitespace-email.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+    "apiVersion": "2025-01",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict comparison covers Shopify's dataSaleOptOut whitespace sanitization for an internally-whitespaced email. Shopify strips whitespace before validation and creates the customer under the sanitized address; the proxy should stage the same sanitized email locally without runtime Shopify writes.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.dataSaleOptOut.customerId",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Shopify creates a real customer for the sanitized unknown email; the proxy stages a synthetic customer ID locally."
+          }
+        ]
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/data-sale-opt-out-whitespace-downstream-read.graphql",
+          "apiVersion": "2025-01",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.dataSaleOptOut.customerId"
+            },
+            "identifier": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.dataSaleOptOut.customerId"
+              }
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The downstream customer read uses the proxy-created synthetic customer ID."
+          },
+          {
+            "path": "$.customerByIdentifier.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The downstream customerByIdentifier read uses the proxy-created synthetic customer ID."
+          }
+        ]
+      }
+    ]
+  }
+}

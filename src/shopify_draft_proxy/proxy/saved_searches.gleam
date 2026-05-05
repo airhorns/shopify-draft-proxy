@@ -874,6 +874,7 @@ fn handle_create(
   let input = read_input(args)
   let errors =
     validate_saved_search_input(input, RequireResourceType(True))
+    |> validate_saved_search_query_grammar(input, None, CreateValidation)
     |> validate_unique_saved_search_name(store, input, None)
   let #(record_opt, store_after, identity_after, staged_ids) = case
     input,
@@ -938,6 +939,11 @@ fn handle_update(
   let errors = case existing {
     Some(record) ->
       validate_saved_search_input(input, RequireResourceType(False))
+      |> validate_saved_search_query_grammar(
+        input,
+        Some(record.resource_type),
+        UpdateValidation,
+      )
       |> validate_unique_saved_search_name(store, input, Some(record.id))
     None -> [
       UserError(
@@ -950,11 +956,12 @@ fn handle_update(
     Some(d), Some(_) -> Some(sanitized_update_input(d, errors))
     _, _ -> None
   }
-  let is_duplicate_name_error = has_duplicate_name_error(errors)
+  let keep_payload_without_staging =
+    has_duplicate_name_error(errors) || has_query_grammar_error(errors)
   let #(record_opt, store_after, identity_after, staged_ids) = case
     sanitized_input,
     existing,
-    is_duplicate_name_error
+    keep_payload_without_staging
   {
     Some(d), Some(existing_record), True -> {
       let #(record, identity_after) =
@@ -1151,6 +1158,18 @@ fn has_duplicate_name_error(errors: List(UserError)) -> Bool {
   })
 }
 
+fn has_query_grammar_error(errors: List(UserError)) -> Bool {
+  list.any(errors, fn(error) {
+    case error.field {
+      Some(["input", "query"]) | Some(["input", "searchTerms"]) ->
+        string.starts_with(error.message, "Search terms is invalid")
+        || string.starts_with(error.message, "Query has incompatible filters")
+        || error.message == "Query is invalid"
+      _ -> False
+    }
+  })
+}
+
 fn sanitized_update_input(
   input: dict.Dict(String, root_field.ResolvedValue),
   errors: List(UserError),
@@ -1160,7 +1179,6 @@ fn sanitized_update_input(
       Some(parts) ->
         case list.last(parts) {
           Ok("name") -> dict.delete(acc, "name")
-          Ok("query") -> dict.delete(acc, "query")
           _ -> acc
         }
       None -> acc
@@ -1211,6 +1229,11 @@ fn synthetic_shop_source() -> SourceValue {
 
 type RequireResourceType {
   RequireResourceType(Bool)
+}
+
+type SavedSearchValidationOperation {
+  CreateValidation
+  UpdateValidation
 }
 
 fn read_input(
@@ -1270,6 +1293,123 @@ fn validate_saved_search_input(
         False -> errors
       }
     }
+  }
+}
+
+fn validate_saved_search_query_grammar(
+  errors: List(UserError),
+  input: Option(dict.Dict(String, root_field.ResolvedValue)),
+  existing_resource_type: Option(String),
+  operation: SavedSearchValidationOperation,
+) -> List(UserError) {
+  case errors, input {
+    [], Some(fields) ->
+      case read_optional_string(fields, "query") {
+        Some(query) -> {
+          let resource_type = case
+            read_optional_string(fields, "resourceType")
+          {
+            Some(rt) -> Some(rt)
+            None -> existing_resource_type
+          }
+          case resource_type {
+            Some(rt) -> validate_query_for_resource_type(query, rt, operation)
+            None -> []
+          }
+        }
+        None -> []
+      }
+    _, _ -> errors
+  }
+}
+
+fn validate_query_for_resource_type(
+  query: String,
+  resource_type: String,
+  operation: SavedSearchValidationOperation,
+) -> List(UserError) {
+  let keys = saved_search_query_filter_keys(query)
+  case first_reserved_filter(resource_type, keys) {
+    Some(filter) -> [reserved_filter_error(operation, filter)]
+    None ->
+      case product_incompatible_filter_pair(resource_type, keys) {
+        Some(pair) -> {
+          let #(left, right) = pair
+          [
+            UserError(
+              field: Some(["input", "query"]),
+              message: "Query has incompatible filters: "
+                <> left
+                <> ", "
+                <> right,
+            ),
+          ]
+        }
+        None -> []
+      }
+  }
+}
+
+fn saved_search_query_filter_keys(query: String) -> List(String) {
+  split_saved_search_top_level_tokens(query)
+  |> list.filter_map(fn(token) {
+    let term = parse_search_query_term(token)
+    case term.field {
+      Some(field) if field != "" -> Ok(field)
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn first_reserved_filter(
+  resource_type: String,
+  keys: List(String),
+) -> Option(String) {
+  case
+    reserved_filters_for_resource_type(resource_type)
+    |> list.find(fn(filter) { list.contains(keys, filter) })
+  {
+    Ok(filter) -> Some(filter)
+    Error(_) -> None
+  }
+}
+
+fn reserved_filters_for_resource_type(resource_type: String) -> List(String) {
+  case resource_type {
+    "ORDER" -> ["reference_location_id"]
+    _ -> []
+  }
+}
+
+fn reserved_filter_error(
+  operation: SavedSearchValidationOperation,
+  filter: String,
+) -> UserError {
+  let field = case operation {
+    CreateValidation -> ["input", "query"]
+    UpdateValidation -> ["input", "searchTerms"]
+  }
+  UserError(
+    field: Some(field),
+    message: "Search terms is invalid, '"
+      <> filter
+      <> "' is a reserved filter name",
+  )
+}
+
+fn product_incompatible_filter_pair(
+  resource_type: String,
+  keys: List(String),
+) -> Option(#(String, String)) {
+  case resource_type, list.contains(keys, "collection_id") {
+    "PRODUCT", True -> {
+      let incompatible = ["tag", "error_feedback", "published_status"]
+      case list.find(incompatible, fn(key) { list.contains(keys, key) }) {
+        Ok(key) -> Some(#("collection_id", key))
+        Error(_) -> None
+      }
+    }
+    _, _ -> None
   }
 }
 

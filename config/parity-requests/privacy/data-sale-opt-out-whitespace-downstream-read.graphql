@@ -1,0 +1,18 @@
+query DataSaleOptOutWhitespaceDownstream($id: ID!, $identifier: CustomerIdentifierInput!) {
+  customer(id: $id) {
+    id
+    email
+    dataSaleOptOut
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+  customerByIdentifier(identifier: $identifier) {
+    id
+    email
+    dataSaleOptOut
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+}

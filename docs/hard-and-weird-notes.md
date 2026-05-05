@@ -64,14 +64,16 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
-## Current: Online-store body scrubber evidence conflicts with live Admin capture
+## Current: Online-store body HTML is not scrubbed by Admin GraphQL
 
-HAR-561 implements the ticketed local page/article body scrubber behavior, but the live conformance probe is a fidelity trap: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned a `pageCreate` body containing a script block verbatim, and the immediate `page(id:)` read returned the same verbatim body and body summary text.
+HAR-741 resolves the HAR-561 source-of-truth mismatch: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned page/article bodies containing script blocks and event-handler attributes verbatim in create payloads and immediate detail reads.
 
 Practical rule:
 
-- do not add `online-store/page-body-script-scrubbed` as a captured parity spec until the Shopify behavior/source-of-truth disagreement is resolved; checking in the live fixture would assert the opposite of the ticketed behavior, while adding expected differences for `body` / `bodySummary` would mask the field under test.
-- keep local scrubber coverage in runtime tests, and re-probe Shopify before using this scenario as live fidelity evidence.
+- do not scrub `Page.body` or `Article.body` in the local online-store model unless a later version-specific capture proves Shopify changed this behavior.
+- `Page.bodySummary` strips tags but preserves script text, matching the captured Admin payloads.
+- `Article.summary` remains `null` when omitted.
+- executable evidence lives in `online-store/body-script-verbatim-2025-01` and `online-store/body-script-verbatim-2026-04`.
 
 ## Current: B2B same-as-shipping exposes separate public address IDs in 2026-04
 
@@ -3156,3 +3158,29 @@ Practical rule:
   `CUSTOMER_EMAIL_MUST_EXIST`) while preserving the observed field/message
   shapes; re-record parity if Shopify's public Admin API starts returning those
   more specific enum values
+
+## 78. `productSet` commit replay preserved `ProductSetInput` during HAR-548 probes
+
+HAR-548 re-ran the QA-reported `ProductSetInput isn't a defined input type`
+commit replay failure against `harry-test-heelo.myshopify.com`.
+
+Observed behavior:
+
+- `corepack pnpm conformance:probe` resolved the active target to Admin GraphQL
+  `2025-01` on `harry-test-heelo.myshopify.com`
+- an instrumented `__meta/commit` replay posted to
+  `/admin/api/2025-01/graphql.json` with the original
+  `$input: ProductSetInput!` declaration still present in the JSON `query`
+- Shopify returned HTTP 200 with `data.productSet.userErrors: []`; the
+  disposable product was deleted immediately after the probe
+- the same minimal replay shape also returned HTTP 200 with empty userErrors on
+  `/admin/api/2024-01/graphql.json` and `/admin/api/2023-10/graphql.json` for
+  this store, so the exact QA top-level GraphQL error was not reproducible with
+  the current credential and store state
+
+Practical rule:
+
+- keep commit replay tests focused on the invariant the proxy controls: the
+  staged log must retain the original document, variables, and route path so
+  `__meta/commit` sends the same `ProductSetInput` declaration Shopify saw at
+  staging time

@@ -126,7 +126,7 @@ fn handle_data_sale_opt_out(
   let email =
     graphql_helpers.field_args(field, variables)
     |> graphql_helpers.read_arg_string_nonempty("email")
-    |> option_map(string.trim)
+    |> option_map(sanitize_data_sale_email)
   case email {
     Some(value) -> {
       case is_valid_data_sale_email(value) {
@@ -415,21 +415,95 @@ fn customer_record_from_upstream_node(
 }
 
 fn is_valid_data_sale_email(email: String) -> Bool {
-  let trimmed = string.trim(email)
-  case trimmed == email && !string.contains(trimmed, " ") {
+  case string.split(email, "@") {
+    [local, domain] ->
+      // Approximation of Shopify's upstream
+      // `EmailAddressValidator::EmailAddress#pattern_is_valid?`, after
+      // `CustomerFoundations::EmailAddress.try_new` strips whitespace:
+      // /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/
+      local != ""
+      && local_matches_data_sale_email_pattern(local)
+      && domain_matches_data_sale_email_pattern(domain)
+    _ -> False
+  }
+}
+
+fn sanitize_data_sale_email(email: String) -> String {
+  email
+  |> string.to_graphemes
+  |> list.filter(fn(grapheme) {
+    !is_data_sale_email_removed_whitespace(grapheme)
+  })
+  |> string.concat
+}
+
+fn is_data_sale_email_removed_whitespace(grapheme: String) -> Bool {
+  // Live Admin 2025-01 captures show spaces and newlines are stripped before
+  // validation, while tabs still produce Shopify's FAILED userError. Keep this
+  // intentionally narrower than generic `string.trim`.
+  grapheme == " " || grapheme == "\n" || grapheme == "\r"
+}
+
+fn local_matches_data_sale_email_pattern(local: String) -> Bool {
+  local
+  |> string.to_utf_codepoints
+  |> list.all(is_data_sale_email_local_codepoint)
+}
+
+fn domain_matches_data_sale_email_pattern(domain: String) -> Bool {
+  let parts = string.split(domain, ".")
+  list.length(parts) >= 2 && list.all(parts, is_valid_data_sale_domain_label)
+}
+
+fn is_valid_data_sale_domain_label(label: String) -> Bool {
+  case string.length(label) <= 63 {
     False -> False
     True ->
-      case string.split(trimmed, "@") {
-        [local, domain] ->
-          local != "" && domain_has_dot_with_nonempty_parts(domain)
-        _ -> False
+      case string.to_utf_codepoints(label) {
+        [] -> False
+        [first] -> is_ascii_alphanumeric_codepoint(first)
+        [first, ..rest] ->
+          case list.last(rest) {
+            Ok(last) ->
+              is_ascii_alphanumeric_codepoint(first)
+              && is_ascii_alphanumeric_codepoint(last)
+              && list.all(rest, is_data_sale_email_domain_codepoint)
+            Error(_) -> False
+          }
       }
   }
 }
 
-fn domain_has_dot_with_nonempty_parts(domain: String) -> Bool {
-  let parts = string.split(domain, ".")
-  list.length(parts) >= 2 && list.all(parts, fn(part) { part != "" })
+fn is_data_sale_email_local_codepoint(codepoint) -> Bool {
+  let code = string.utf_codepoint_to_int(codepoint)
+  is_ascii_alphanumeric(code)
+  || list.contains(
+    [
+      33, 35, 36, 37, 38, 39, 42, 43, 45, 46, 47, 61, 63, 94, 95, 96, 123, 124,
+      125, 126,
+    ],
+    code,
+  )
+}
+
+fn is_data_sale_email_domain_codepoint(codepoint) -> Bool {
+  let code = string.utf_codepoint_to_int(codepoint)
+  is_ascii_alphanumeric(code) || code == 45
+}
+
+fn is_ascii_alphanumeric_codepoint(codepoint) -> Bool {
+  codepoint
+  |> string.utf_codepoint_to_int
+  |> is_ascii_alphanumeric
+}
+
+fn is_ascii_alphanumeric(codepoint: Int) -> Bool {
+  codepoint >= 48
+  && codepoint <= 57
+  || codepoint >= 65
+  && codepoint <= 90
+  || codepoint >= 97
+  && codepoint <= 122
 }
 
 fn gid_tail(id: String) -> Option(String) {

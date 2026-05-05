@@ -1,0 +1,7 @@
+query OnlineStoreBodyScriptArticleRead($id: ID!) {
+  article(id: $id) {
+    id
+    body
+    summary
+  }
+}

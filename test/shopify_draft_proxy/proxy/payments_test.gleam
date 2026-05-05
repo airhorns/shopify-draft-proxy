@@ -240,6 +240,118 @@ pub fn remote_payment_method_rejects_blank_stripe_customer_id_test() {
   assert !string.contains(body_json, "CustomerPaymentMethod/3")
 }
 
+pub fn credit_card_create_requires_billing_address_fields_test() {
+  let query =
+    "mutation { customerPaymentMethodCreditCardCreate(customerId: \"gid://shopify/Customer/1\", sessionId: \"sess_valid\", billingAddress: { address1: null, city: null, zip: null, country: null, province: null }) { customerPaymentMethod { id } processing userErrors { field code message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy_with_customer(), query)
+  let response = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(response, "\"customerPaymentMethod\":null")
+  assert string.contains(response, "\"processing\":false")
+  assert string.contains(
+    response,
+    "\"field\":[\"billing_address\",\"address1\"]",
+  )
+  assert string.contains(response, "\"field\":[\"billing_address\",\"city\"]")
+  assert string.contains(response, "\"field\":[\"billing_address\",\"zip\"]")
+  assert string.contains(
+    response,
+    "\"field\":[\"billing_address\",\"country_code\"]",
+  )
+  assert string.contains(
+    response,
+    "\"field\":[\"billing_address\",\"province_code\"]",
+  )
+  assert string.contains(response, "\"code\":\"BLANK\"")
+}
+
+pub fn credit_card_create_requires_session_id_test() {
+  let query =
+    "mutation { customerPaymentMethodCreditCardCreate(customerId: \"gid://shopify/Customer/1\", billingAddress: { address1: \"1 Main St\", city: \"New York\", zip: \"10001\", country: \"US\", province: \"NY\" }) { customerPaymentMethod { id } processing userErrors { field code message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy_with_customer(), query)
+  let response = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(response, "\"errors\"")
+  assert string.contains(response, "sessionId")
+}
+
+pub fn credit_card_create_stores_billing_address_for_readback_test() {
+  let create_query =
+    "mutation { customerPaymentMethodCreditCardCreate(customerId: \"gid://shopify/Customer/1\", sessionId: \"sess_valid\", billingAddress: { firstName: \"Ada\", lastName: \"Lovelace\", address1: \"1 Main St\", city: \"New York\", zip: \"10001\", country: \"US\", province: \"NY\" }) { customerPaymentMethod { id instrument { __typename ... on CustomerCreditCard { billingAddress { firstName lastName address1 city zip countryCodeV2 provinceCode } } } } processing userErrors { field code message } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy_with_customer(), create_query)
+  let create_response = json.to_string(create_body)
+
+  assert create_status == 200
+  assert string.contains(
+    create_response,
+    "\"id\":\"gid://shopify/CustomerPaymentMethod/1\"",
+  )
+  assert string.contains(create_response, "\"processing\":false")
+  assert string.contains(create_response, "\"userErrors\":[]")
+  assert string.contains(create_response, "\"address1\":\"1 Main St\"")
+  assert string.contains(create_response, "\"countryCodeV2\":\"US\"")
+  assert string.contains(create_response, "\"provinceCode\":\"NY\"")
+
+  let read_query =
+    "query { customerPaymentMethod(id: \"gid://shopify/CustomerPaymentMethod/1\") { id instrument { __typename ... on CustomerCreditCard { billingAddress { firstName lastName address1 city zip countryCodeV2 provinceCode } } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read_query)
+  let read_response = json.to_string(read_body)
+
+  assert read_status == 200
+  assert string.contains(read_response, "\"address1\":\"1 Main St\"")
+  assert string.contains(read_response, "\"city\":\"New York\"")
+  assert string.contains(read_response, "\"zip\":\"10001\"")
+  assert string.contains(read_response, "\"countryCodeV2\":\"US\"")
+  assert string.contains(read_response, "\"provinceCode\":\"NY\"")
+}
+
+pub fn credit_card_create_can_return_processing_state_test() {
+  let query =
+    "mutation { customerPaymentMethodCreditCardCreate(customerId: \"gid://shopify/Customer/1\", sessionId: \"shopify-draft-proxy:processing\", billingAddress: { address1: \"1 Main St\", city: \"New York\", zip: \"10001\", country: \"US\", province: \"NY\" }) { customerPaymentMethod { id } processing userErrors { field code message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy_with_customer(), query)
+  let response = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(response, "\"customerPaymentMethod\":null")
+  assert string.contains(response, "\"processing\":true")
+  assert string.contains(response, "\"userErrors\":[]")
+  assert !string.contains(response, "CustomerPaymentMethod/1")
+}
+
+pub fn credit_card_update_requires_billing_address_fields_test() {
+  let query =
+    "mutation { customerPaymentMethodCreditCardUpdate(id: \"gid://shopify/CustomerPaymentMethod/base-card\", sessionId: \"sess_valid\", billingAddress: { address1: null, city: null, zip: null, country: null, province: null }) { customerPaymentMethod { id } processing userErrors { field code message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_seeded(seeded_store(method_with([], None, None)), query)
+  let response = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(response, "\"customerPaymentMethod\":null")
+  assert string.contains(response, "\"processing\":false")
+  assert string.contains(
+    response,
+    "\"field\":[\"billing_address\",\"address1\"]",
+  )
+  assert string.contains(response, "\"field\":[\"billing_address\",\"city\"]")
+  assert string.contains(response, "\"field\":[\"billing_address\",\"zip\"]")
+  assert string.contains(
+    response,
+    "\"field\":[\"billing_address\",\"country_code\"]",
+  )
+  assert string.contains(
+    response,
+    "\"field\":[\"billing_address\",\"province_code\"]",
+  )
+  assert string.contains(response, "\"code\":\"BLANK\"")
+}
+
 pub fn remote_payment_method_rejects_blank_gateway_fields_test() {
   let paypal_query =
     "mutation { customerPaymentMethodRemoteCreate(customerId: \"gid://shopify/Customer/1\", remoteReference: { paypalPaymentMethod: { } }) { customerPaymentMethod { id } userErrors { field code message } } }"
