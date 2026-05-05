@@ -537,7 +537,7 @@ pub fn process_mutation(
     document,
     variables,
     upstream,
-    None,
+    app_identity.read_requesting_api_client_id(upstream.headers),
   )
 }
 

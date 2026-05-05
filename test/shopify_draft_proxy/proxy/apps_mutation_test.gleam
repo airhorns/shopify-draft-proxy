@@ -13,6 +13,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -90,9 +91,13 @@ fn run_mutation_outcome(
       store_in,
       identity,
       "/admin/api/2025-01/graphql.json",
-      "https://shopify.example",
       document,
       dict.new(),
+      upstream_query.UpstreamContext(
+        transport: None,
+        origin: "https://shopify.example",
+        headers: dict.new(),
+      ),
     )
   outcome
 }
