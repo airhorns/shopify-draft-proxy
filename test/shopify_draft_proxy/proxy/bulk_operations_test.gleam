@@ -498,7 +498,7 @@ pub fn run_mutation_product_create_import_stages_product_and_result_test() {
     store.stage_staged_upload_content(
       store.new(),
       upload_path,
-      "{\"product\":{\"title\":\"Bulk Created Board\",\"status\":\"DRAFT\"}}\n{\"product\":{\"title\":\"\",\"status\":\"DRAFT\"}}\n",
+      "{\"product\":{\"title\":\"Bulk Created Board\",\"vendor\":\"Hermes\",\"status\":\"DRAFT\"}}\n{\"product\":{\"title\":\"\",\"vendor\":\"Hermes\",\"status\":\"DRAFT\"}}\n",
     )
   let document =
     "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"

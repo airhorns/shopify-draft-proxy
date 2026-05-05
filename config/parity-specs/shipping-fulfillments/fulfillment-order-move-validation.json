@@ -1,0 +1,140 @@
+{
+  "scenarioId": "fulfillment-order-move-validation",
+  "operationNames": [
+    "fulfillmentOrderReportProgress",
+    "fulfillmentOrderSubmitFulfillmentRequest",
+    "fulfillmentOrderMove"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "mutation-lifecycle", "runtime-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-order-move-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-hydrate.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.setup.hydrate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "hydrate-location-baseline",
+        "capturePath": "$.setup.hydrate.response.payload.data.locationsAvailableForDeliveryProfilesConnection",
+        "proxyPath": "$.data.locationsAvailableForDeliveryProfilesConnection"
+      },
+      {
+        "name": "closed-move-user-errors",
+        "capturePath": "$.closed.moveAfterClose.response.payload.data.fulfillmentOrderMove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-move.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.closed.moveAfterClose.variables"
+        },
+        "proxyPath": "$.data.fulfillmentOrderMove",
+        "selectedPaths": [
+          "$.movedFulfillmentOrder",
+          "$.originalFulfillmentOrder",
+          "$.remainingFulfillmentOrder",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "report-progress-setup",
+        "capturePath": "$.progress.reportProgress.response.payload.data.fulfillmentOrderReportProgress",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-report-progress.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.progress.reportProgress.variables"
+        },
+        "proxyPath": "$.data.fulfillmentOrderReportProgress",
+        "selectedPaths": ["$.fulfillmentOrder.status", "$.fulfillmentOrder.requestStatus", "$.userErrors"]
+      },
+      {
+        "name": "progress-move-user-errors",
+        "capturePath": "$.progress.moveAfterProgress.response.payload.data.fulfillmentOrderMove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-move.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.progress.moveAfterProgress.variables"
+        },
+        "proxyPath": "$.data.fulfillmentOrderMove",
+        "selectedPaths": [
+          "$.movedFulfillmentOrder",
+          "$.originalFulfillmentOrder",
+          "$.remainingFulfillmentOrder",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "submit-request-setup",
+        "capturePath": "$.requestStatus.submitRequest.response.payload.data.fulfillmentOrderSubmitFulfillmentRequest",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-submit-request.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.requestStatus.submitRequest.variables"
+        },
+        "proxyPath": "$.data.fulfillmentOrderSubmitFulfillmentRequest",
+        "selectedPaths": [
+          "$.originalFulfillmentOrder.status",
+          "$.originalFulfillmentOrder.requestStatus",
+          "$.submittedFulfillmentOrder.status",
+          "$.submittedFulfillmentOrder.requestStatus",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "submitted-move-user-errors",
+        "capturePath": "$.requestStatus.moveAfterSubmit.response.payload.data.fulfillmentOrderMove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-move.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.requestStatus.moveAfterSubmit.variables"
+        },
+        "proxyPath": "$.data.fulfillmentOrderMove",
+        "selectedPaths": [
+          "$.movedFulfillmentOrder",
+          "$.originalFulfillmentOrder",
+          "$.remainingFulfillmentOrder",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "happy-full-move-shape",
+        "capturePath": "$.happyPath.move.response.payload.data.fulfillmentOrderMove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-move.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.happyPath.move.variables"
+        },
+        "proxyPath": "$.data.fulfillmentOrderMove",
+        "selectedPaths": [
+          "$.movedFulfillmentOrder.assignedLocation.location.id",
+          "$.originalFulfillmentOrder.assignedLocation.location.id",
+          "$.remainingFulfillmentOrder",
+          "$.userErrors"
+        ]
+      },
+      {
+        "name": "unknown-location-user-errors",
+        "capturePath": "$.unknownLocation.move.response.payload.data.fulfillmentOrderMove",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-order-move-validation-move.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.unknownLocation.move.variables"
+        },
+        "proxyPath": "$.data.fulfillmentOrderMove",
+        "selectedPaths": [
+          "$.movedFulfillmentOrder",
+          "$.originalFulfillmentOrder",
+          "$.remainingFulfillmentOrder",
+          "$.userErrors"
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-555 captures fulfillmentOrderMove validation preconditions for closed fulfillment orders, manually reported progress, submitted request status, full-move remainingFulfillmentOrder shape, and invalid destination locations. Runtime coverage separately covers inactive local destinations because the active conformance location catalog only exposes active locations."
+}
