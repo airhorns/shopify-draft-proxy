@@ -6618,7 +6618,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["draftOrderCalculate", "DraftOrderCalculate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Local support calculates DraftOrderInput into a CalculatedDraftOrder-like payload without staging or runtime Shopify writes. Covered fields share the draft-order pricing model and captured empty availableShippingRates behavior.",
+        "Local support validates covered DraftOrderInput branches and calculates a CalculatedDraftOrder-like payload without staging or runtime Shopify writes. Covered fields share the draft-order pricing model and captured empty availableShippingRates behavior; non-empty delivery-profile-backed rate calculation is not modeled.",
       ),
     ),
     RegistryEntry(

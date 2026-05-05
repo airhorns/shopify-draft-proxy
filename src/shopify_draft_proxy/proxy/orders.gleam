@@ -1934,6 +1934,7 @@ pub fn process_mutation(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let #(key, payload, next_errors, next_drafts) = result
               case next_errors {
@@ -3513,6 +3514,7 @@ fn handle_draft_order_calculate(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(String, Json, List(Json), List(LogDraft)) {
   let key = get_field_response_key(field)
   let validation_errors =
@@ -3530,28 +3532,63 @@ fn handle_draft_order_calculate(
       let args = field_arguments(field, variables)
       case dict.get(args, "input") {
         Ok(root_field.ObjectVal(input)) -> {
-          let #(draft_order, _) =
-            build_draft_order_from_input(store, identity, input)
-          let calculated = build_calculated_draft_order_from_draft(draft_order)
-          let payload =
-            serialize_draft_order_calculate_payload(
-              field,
-              Some(calculated),
-              [],
-              fragments,
+          let hydrated_store =
+            maybe_hydrate_draft_order_variant_catalog_from_input(
+              store,
+              input,
+              upstream,
             )
-          let draft =
-            single_root_log_draft(
-              "draftOrderCalculate",
-              [],
-              store.Staged,
-              "orders",
-              "stage-locally",
-              Some(
-                "Locally calculated draftOrderCalculate in shopify-draft-proxy.",
-              ),
-            )
-          #(key, payload, [], [draft])
+            |> maybe_hydrate_draft_order_customer_from_input(input, upstream)
+          let user_errors =
+            validate_draft_order_calculate_input(hydrated_store, input)
+          case user_errors {
+            [] -> {
+              let #(draft_order, _) =
+                build_draft_order_from_input(hydrated_store, identity, input)
+              let calculated =
+                build_calculated_draft_order_from_draft(draft_order)
+              let payload =
+                serialize_draft_order_calculate_payload(
+                  field,
+                  Some(calculated),
+                  [],
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "draftOrderCalculate",
+                  [],
+                  store.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally calculated draftOrderCalculate in shopify-draft-proxy.",
+                  ),
+                )
+              #(key, payload, [], [draft])
+            }
+            _ -> {
+              let payload =
+                serialize_draft_order_calculate_payload(
+                  field,
+                  None,
+                  user_errors,
+                  fragments,
+                )
+              let draft =
+                single_root_log_draft(
+                  "draftOrderCalculate",
+                  [],
+                  store.Failed,
+                  "orders",
+                  "stage-locally",
+                  Some(
+                    "Locally rejected draftOrderCalculate validation branch.",
+                  ),
+                )
+              #(key, payload, [], [draft])
+            }
+          }
         }
         _ -> #(key, json.null(), [], [])
       }
@@ -3574,7 +3611,7 @@ fn build_calculated_draft_order_from_draft(
 fn serialize_draft_order_calculate_payload(
   field: Selection,
   calculated: Option(CapturedJsonValue),
-  user_errors: List(#(List(String), String, Option(String))),
+  user_errors: List(#(Option(List(String)), String, Option(String))),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -3595,7 +3632,7 @@ fn serialize_draft_order_calculate_payload(
             "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
-                serialize_user_error(child, error)
+                serialize_nullable_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
@@ -18435,6 +18472,29 @@ fn validate_draft_order_create_input(
         validate_draft_order_create_email(input),
         validate_draft_order_create_reserve(input),
         validate_draft_order_create_payment_terms(input),
+        line_item_errors,
+      ])
+    }
+  }
+}
+
+fn validate_draft_order_calculate_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(#(Option(List(String)), String, Option(String))) {
+  let line_items = read_object_list(input, "lineItems")
+  case line_items {
+    [] -> [inferred_nullable_user_error(None, "Add at least 1 product")]
+    _ -> {
+      let line_item_errors =
+        line_items
+        |> list.index_map(fn(line_item, index) {
+          validate_draft_order_create_line_item(store, line_item, index)
+        })
+        |> list.flatten
+      list.flatten([
+        validate_draft_order_create_email(input),
+        validate_draft_order_create_reserve(input),
         line_item_errors,
       ])
     }
