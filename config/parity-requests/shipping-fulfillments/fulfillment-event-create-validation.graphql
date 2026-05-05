@@ -1,0 +1,23 @@
+mutation FulfillmentEventCreateValidation($fulfillmentEvent: FulfillmentEventInput!) {
+  fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) {
+    fulfillmentEvent {
+      id
+      status
+      message
+      happenedAt
+      createdAt
+      estimatedDeliveryAt
+      city
+      province
+      country
+      zip
+      address1
+      latitude
+      longitude
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1983,6 +1983,19 @@ fn hydrate_mutation_prerequisites(
         fulfillment_order_merge_ids(args),
         upstream,
       )
+    "fulfillmentEventCreate" ->
+      case read_object(args, "fulfillmentEvent") {
+        Some(input) ->
+          // Pattern 2: events must validate the parent fulfillment before
+          // staging. In LiveHybrid, hydrate the existing upstream fulfillment
+          // by ID; Snapshot/no-transport mode falls back to local-only lookup.
+          maybe_hydrate_fulfillment(
+            store_in,
+            read_string(input, "fulfillmentId"),
+            upstream,
+          )
+        None -> store_in
+      }
     "shippingPackageUpdate"
     | "shippingPackageMakeDefault"
     | "shippingPackageDelete" ->
@@ -1992,6 +2005,67 @@ fn hydrate_mutation_prerequisites(
         upstream,
       )
     _ -> store_in
+  }
+}
+
+fn maybe_hydrate_fulfillment(
+  store_in: Store,
+  id: Option(String),
+  upstream: UpstreamContext,
+) -> Store {
+  case id {
+    Some(id) -> {
+      case is_proxy_synthetic_gid(id) {
+        True -> store_in
+        False ->
+          case store.get_effective_fulfillment_by_id(store_in, id) {
+            Some(_) -> store_in
+            None -> {
+              let query =
+                "query ShippingFulfillmentEventCreateFulfillmentHydrate($id: ID!) {
+  fulfillment(id: $id) {
+    id status displayStatus createdAt updatedAt deliveredAt estimatedDeliveryAt inTransitAt
+    trackingInfo(first: 1) { number url company }
+    events(first: 5) {
+      nodes {
+        id status message happenedAt createdAt estimatedDeliveryAt
+        city province country zip address1 latitude longitude
+      }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    service {
+      id handle serviceName trackingSupport type
+      location { id name }
+    }
+    location { id name }
+    originAddress { address1 address2 city countryCode provinceCode zip }
+    fulfillmentLineItems(first: 5) {
+      nodes { id quantity lineItem { id title } }
+      pageInfo { hasNextPage hasPreviousPage startCursor endCursor }
+    }
+    order { id name displayFulfillmentStatus }
+  }
+}
+"
+              let variables = json.object([#("id", json.string(id))])
+              case
+                upstream_query.fetch_sync(
+                  upstream.origin,
+                  upstream.transport,
+                  upstream.headers,
+                  "ShippingFulfillmentEventCreateFulfillmentHydrate",
+                  query,
+                  variables,
+                )
+              {
+                Ok(value) -> hydrate_from_upstream_response(store_in, value)
+                Error(_) -> store_in
+              }
+            }
+          }
+      }
+    }
+    None -> store_in
   }
 }
 
