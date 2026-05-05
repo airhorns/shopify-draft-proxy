@@ -1,0 +1,74 @@
+{
+  "scenarioId": "saved-search-required-input-validation",
+  "operationNames": ["savedSearchCreate", "savedSearchUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-required-input-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-empty-query-create.graphql",
+    "variablesCapturePath": "$.savedSearchCreateEmptyQuery.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-718 live evidence for SavedSearchCreateInput/SavedSearchUpdateInput required input coercion. Shopify returns top-level GraphQL errors before resolver userErrors for missing inline required input fields, accepts an explicitly empty query string on create, and omits data on the captured coercion-error payloads.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "missing-name-create top-level errors",
+        "capturePath": "$.savedSearchCreateMissingName.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-name-create.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "missing-resourceType-create top-level errors",
+        "capturePath": "$.savedSearchCreateMissingResourceType.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-resource-type-create.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "empty-query-create payload",
+        "capturePath": "$.savedSearchCreateEmptyQuery.payload.data.savedSearchCreate",
+        "proxyPath": "$.data.savedSearchCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local SavedSearch id while Shopify returned a live store id."
+          },
+          {
+            "path": "$.savedSearch.legacyResourceId",
+            "matcher": "non-empty-string",
+            "reason": "The proxy derives the legacy resource id from its deterministic local SavedSearch id while Shopify returned the live store legacy id."
+          }
+        ]
+      },
+      {
+        "name": "missing-id-update top-level errors",
+        "capturePath": "$.savedSearchUpdateMissingId.payload",
+        "proxyPath": "$",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-id-update.graphql",
+          "variables": {},
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  }
+}
