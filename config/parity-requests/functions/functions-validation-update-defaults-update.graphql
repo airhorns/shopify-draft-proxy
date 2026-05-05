@@ -1,0 +1,15 @@
+mutation ValidationUpdateOmittedDefaults($id: ID!, $validation: ValidationUpdateInput!) {
+  validationUpdate(id: $id, validation: $validation) {
+    validation {
+      id
+      title
+      enabled
+      blockOnFailure
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

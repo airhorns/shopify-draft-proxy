@@ -1,0 +1,10 @@
+mutation HAR754LocationsDelete($companyLocationIds: [ID!]!) {
+  companyLocationsDelete(companyLocationIds: $companyLocationIds) {
+    deletedCompanyLocationIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -52,6 +52,13 @@ This project is a **Shopify Admin GraphQL digital twin / draft proxy**, not a ge
      architecture doc.
    - Update `docs/original-intent.md` only if the project goal truly changes.
 
+7. **Keep ticket identifiers out of executable artifacts**
+   - Do not embed Linear issue identifiers in code, GraphQL operation names,
+     capture scripts, fixture data, or generated resources.
+   - Markdown docs may mention issue identifiers when they are necessary for
+     specific historical context, but generally avoid them unless describing a
+     particular change made at a particular time.
+
 ## Development rules
 
 - The runtime is **Gleam**, under `src/shopify_draft_proxy/`,

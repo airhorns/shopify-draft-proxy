@@ -24,6 +24,7 @@ import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/b2b
+import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/customers
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionPageInfoOptions,
@@ -1761,9 +1762,18 @@ fn handle_flow_trigger_receive(
   let body_present = string_option_present(body)
   let handle_present = string_option_present(handle)
   let payload_present = resolved_value_present(payload)
+  let body_validation = case body_present, body {
+    True, Some(value) -> validate_flow_trigger_body(value)
+    _, _ -> Ok("")
+  }
   let user_errors = case body_present, handle_present, payload_present {
     True, True, _ -> [flow_trigger_body_conflict_error()]
     True, _, True -> [flow_trigger_body_conflict_error()]
+    True, False, False ->
+      case body_validation {
+        Ok(_) -> []
+        Error(errors) -> errors
+      }
     False, False, _ -> [flow_trigger_missing_handle_error()]
     _, _, _ ->
       case payload_bytes > flow_trigger_payload_limit_bytes {
@@ -1791,9 +1801,10 @@ fn handle_flow_trigger_receive(
         Some(value) -> value
         None -> "legacy-body"
       }
-      let audit_payload = case body {
-        Some(value) -> value
-        None -> payload_json
+      let audit_payload = case body, body_validation {
+        Some(_), Ok(canonical_body) -> canonical_body
+        Some(value), Error(_) -> value
+        None, _ -> payload_json
       }
       let audit_payload_bytes = string.byte_size(audit_payload)
       let #(record_id, identity_after_id) =
@@ -1859,6 +1870,179 @@ fn flow_trigger_invalid_handle_error(handle: String) -> SourceValue {
 
 fn is_known_missing_flow_trigger_handle(handle: String) -> Bool {
   handle == "har-374-missing"
+}
+
+fn validate_flow_trigger_body(
+  raw_body: String,
+) -> Result(String, List(SourceValue)) {
+  case json.parse(raw_body, commit.json_value_decoder()) {
+    Ok(value) ->
+      case validate_flow_trigger_body_value(value) {
+        Ok(Nil) -> Ok(json.to_string(commit.json_value_to_json(value)))
+        Error(message) -> Error([flow_trigger_body_schema_error(message)])
+      }
+    Error(_) ->
+      Error([
+        flow_trigger_body_schema_error(flow_trigger_json_parse_message(raw_body)),
+      ])
+  }
+}
+
+fn validate_flow_trigger_body_value(
+  value: commit.JsonValue,
+) -> Result(Nil, String) {
+  case value {
+    commit.JsonObject(fields) -> validate_flow_trigger_body_fields(fields)
+    _ -> Error("Type error: body is not an Object.")
+  }
+}
+
+fn validate_flow_trigger_body_fields(
+  fields: List(#(String, commit.JsonValue)),
+) -> Result(Nil, String) {
+  use _ <- result.try(validate_flow_trigger_properties(fields))
+  use _ <- result.try(validate_optional_flow_trigger_string(
+    fields,
+    "trigger_id",
+  ))
+  use _ <- result.try(validate_optional_flow_trigger_string(
+    fields,
+    "trigger_title",
+  ))
+  validate_optional_flow_trigger_resources(fields)
+}
+
+fn validate_flow_trigger_properties(
+  fields: List(#(String, commit.JsonValue)),
+) -> Result(Nil, String) {
+  case json_object_field(fields, "properties") {
+    Some(commit.JsonObject(_)) -> Ok(Nil)
+    Some(value) ->
+      Error(
+        "Type error for field 'properties': "
+        <> flow_trigger_json_error_value(value)
+        <> " is not an Object.",
+      )
+    None -> Error("Required field missing: 'properties'.")
+  }
+}
+
+fn validate_optional_flow_trigger_string(
+  fields: List(#(String, commit.JsonValue)),
+  name: String,
+) -> Result(Nil, String) {
+  case json_object_field(fields, name) {
+    Some(commit.JsonString(_)) -> Ok(Nil)
+    Some(value) ->
+      Error(
+        "Type error for field '"
+        <> name
+        <> "': "
+        <> flow_trigger_json_error_value(value)
+        <> " is not a String.",
+      )
+    None -> Ok(Nil)
+  }
+}
+
+fn validate_optional_flow_trigger_resources(
+  fields: List(#(String, commit.JsonValue)),
+) -> Result(Nil, String) {
+  case json_object_field(fields, "resources") {
+    Some(commit.JsonArray(resources)) ->
+      validate_flow_trigger_resources(resources)
+    Some(value) ->
+      Error(
+        "Type error for field 'resources': "
+        <> flow_trigger_json_error_value(value)
+        <> " is not an Array.",
+      )
+    None -> Ok(Nil)
+  }
+}
+
+fn validate_flow_trigger_resources(
+  resources: List(commit.JsonValue),
+) -> Result(Nil, String) {
+  case resources {
+    [] -> Ok(Nil)
+    [resource, ..rest] -> {
+      use _ <- result.try(validate_flow_trigger_resource(resource))
+      validate_flow_trigger_resources(rest)
+    }
+  }
+}
+
+fn validate_flow_trigger_resource(
+  resource: commit.JsonValue,
+) -> Result(Nil, String) {
+  case resource {
+    commit.JsonObject(fields) -> {
+      use _ <- result.try(validate_required_flow_trigger_resource_string(
+        fields,
+        "url",
+      ))
+      validate_required_flow_trigger_resource_string(fields, "name")
+    }
+    _ ->
+      Error(
+        "Type error for field 'resources': "
+        <> flow_trigger_json_error_value(resource)
+        <> " is not an Object.",
+      )
+  }
+}
+
+fn validate_required_flow_trigger_resource_string(
+  fields: List(#(String, commit.JsonValue)),
+  name: String,
+) -> Result(Nil, String) {
+  case json_object_field(fields, name) {
+    Some(commit.JsonString(_)) -> Ok(Nil)
+    Some(value) ->
+      Error(
+        "Type error for field '"
+        <> name
+        <> "': "
+        <> flow_trigger_json_error_value(value)
+        <> " is not a String.",
+      )
+    None -> Error("Required field missing: '" <> name <> "'.")
+  }
+}
+
+fn json_object_field(
+  fields: List(#(String, commit.JsonValue)),
+  name: String,
+) -> Option(commit.JsonValue) {
+  case fields {
+    [] -> None
+    [#(key, value), ..rest] ->
+      case key == name {
+        True -> Some(value)
+        False -> json_object_field(rest, name)
+      }
+  }
+}
+
+fn flow_trigger_body_schema_error(message: String) -> SourceValue {
+  user_error(["body"], "Errors validating schema:\n  " <> message <> "\n", None)
+}
+
+fn flow_trigger_json_parse_message(raw_body: String) -> String {
+  let trimmed = string.trim(raw_body)
+  let token = case string.split(trimmed, " ") {
+    [first, ..] -> first
+    [] -> trimmed
+  }
+  "unexpected token '" <> token <> "' at line 1 column 1"
+}
+
+fn flow_trigger_json_error_value(value: commit.JsonValue) -> String {
+  case value {
+    commit.JsonString(value) -> value
+    _ -> json.to_string(commit.json_value_to_json(value))
+  }
 }
 
 fn string_option_present(value: Option(String)) -> Bool {
@@ -1971,7 +2155,12 @@ fn backup_region_not_found_result(
   MutationFieldResult(
     project_selection(
       backup_region_update_source(None, [
-        user_error(["region"], "Region not found.", Some("REGION_NOT_FOUND")),
+        user_error_with_typename(
+          "MarketUserError",
+          ["region"],
+          "Region not found.",
+          Some("REGION_NOT_FOUND"),
+        ),
       ]),
       field,
       fragments,
@@ -2004,8 +2193,17 @@ fn user_error(
   message: String,
   code: Option(String),
 ) -> SourceValue {
+  user_error_with_typename("UserError", field, message, code)
+}
+
+fn user_error_with_typename(
+  typename: String,
+  field: List(String),
+  message: String,
+  code: Option(String),
+) -> SourceValue {
   src_object([
-    #("__typename", SrcString("UserError")),
+    #("__typename", SrcString(typename)),
     #("field", SrcList(list.map(field, SrcString))),
     #("message", SrcString(message)),
     #("code", option_string(code)),
