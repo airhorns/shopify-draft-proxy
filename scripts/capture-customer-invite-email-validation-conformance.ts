@@ -4,36 +4,30 @@ import 'dotenv/config';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { createAdminGraphqlClient } from './conformance-graphql-client.js';
+import { createAdminGraphqlClient, type ConformanceGraphqlPayload } from './conformance-graphql-client.js';
 import { readConformanceScriptConfig } from './conformance-script-config.js';
 import { buildAdminAuthHeaders, getValidConformanceAccessToken } from './shopify-conformance-auth.mjs';
 
-type CustomerCreatePayload = {
-  data?: {
-    customerCreate?: {
-      customer?: { id?: string; state?: string } | null;
-      userErrors?: unknown[];
-    };
-  };
-  errors?: unknown;
-};
-
-type InvitePayload = {
-  data?: {
-    customerSendAccountInviteEmail?: {
-      customer?: { id?: string; state?: string } | null;
-      userErrors?: Array<{ field?: string[]; message?: string; code?: string | null }>;
-    };
-  };
-  errors?: unknown;
-};
-
-type CustomerReadPayload = {
-  data?: {
+type CustomerCreateData = {
+  customerCreate?: {
     customer?: { id?: string; state?: string } | null;
+    userErrors?: unknown[];
   };
-  errors?: unknown;
 };
+type CustomerCreatePayload = ConformanceGraphqlPayload<CustomerCreateData>;
+
+type InviteData = {
+  customerSendAccountInviteEmail?: {
+    customer?: { id?: string; state?: string } | null;
+    userErrors?: Array<{ field?: string[]; message?: string; code?: string | null }>;
+  };
+};
+type InvitePayload = ConformanceGraphqlPayload<InviteData>;
+
+type CustomerReadData = {
+  customer?: { id?: string; state?: string } | null;
+};
+type CustomerReadPayload = ConformanceGraphqlPayload<CustomerReadData>;
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -175,17 +169,17 @@ async function runCase(
   const createVariables = {
     input: createInputFor(stamp, label, options.phoneOnly === true),
   };
-  const create = await runGraphql<CustomerCreatePayload>(createMutation, createVariables);
+  const create = await runGraphql<CustomerCreateData>(createMutation, createVariables);
   const customerId = assertCreatedCustomer(create.payload, `${label} customerCreate`);
   const inviteVariables = { customerId, email };
-  const invite = await runGraphql<InvitePayload>(inviteMutation, inviteVariables);
+  const invite = await runGraphql<InviteData>(inviteMutation, inviteVariables);
   assertInviteResult(invite.payload, {
     label,
     userErrorCount: expected.userErrorCount,
     state: expected.inviteState,
   });
   const readVariables = { id: customerId };
-  const readAfterInvite = await runGraphql<CustomerReadPayload>(readMutation, readVariables);
+  const readAfterInvite = await runGraphql<CustomerReadData>(readMutation, readVariables);
   assertNoTopLevelErrors(readAfterInvite.payload, `${label} readAfterInvite`);
   if (readState(readAfterInvite.payload) !== expected.readState) {
     throw new Error(`${label} left unexpected customer state: ${JSON.stringify(readAfterInvite.payload, null, 2)}`);
