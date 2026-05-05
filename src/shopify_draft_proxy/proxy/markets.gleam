@@ -707,6 +707,11 @@ fn product_record_from_json(
     vendor: None,
     product_type: None,
     tags: [],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: None,
+    has_only_default_variant: None,
+    has_out_of_stock_variants: None,
     total_inventory: Some(0),
     tracks_inventory: Some(False),
     created_at: None,
@@ -850,6 +855,7 @@ fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
@@ -1385,20 +1391,7 @@ fn handle_catalog_create(
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let title = read_arg_string_allow_empty(input, "title") |> option.unwrap("")
-  let errors = case string.trim(title) {
-    "" -> [user_error(["input", "title"], "Title can't be blank", "BLANK")]
-    trimmed ->
-      case string.length(trimmed) < 2 {
-        True -> [
-          user_error(
-            ["input", "title"],
-            "Title is too short (minimum is 2 characters)",
-            "TOO_SHORT",
-          ),
-        ]
-        False -> []
-      }
-  }
+  let errors = catalog_create_input_errors(store, input, title)
   case errors {
     [] -> {
       let #(id, next_identity) =
@@ -2274,7 +2267,7 @@ fn handle_web_presence_update(
     Some(id_value) ->
       case store.get_effective_web_presence_by_id(store, id_value) {
         Some(_) -> {
-          let errors = web_presence_create_errors(store, input)
+          let errors = web_presence_update_errors(store, input)
           case errors {
             [] -> {
               let data = web_presence_data(store, id_value, input)
@@ -2575,6 +2568,21 @@ fn web_presence_create_errors(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
+  web_presence_input_errors(store, input, True)
+}
+
+fn web_presence_update_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  web_presence_input_errors(store, input, False)
+}
+
+fn web_presence_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  require_route: Bool,
+) -> List(CapturedJsonValue) {
   let domain_errors = case
     graphql_helpers.read_arg_string_nonempty(input, "domainId")
   {
@@ -2591,11 +2599,67 @@ fn web_presence_create_errors(
       }
     None -> []
   }
-  let locale_errors = case
-    graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
-  {
+  let default_locale_errors = web_presence_default_locale_errors(input)
+  let route_and_suffix_errors = case domain_errors, default_locale_errors {
+    [], [] ->
+      list.append(
+        web_presence_route_errors(input, require_route),
+        web_presence_subfolder_suffix_errors(input),
+      )
+    _, _ -> []
+  }
+  [
+    domain_errors,
+    default_locale_errors,
+    web_presence_alternate_locale_errors(input),
+    route_and_suffix_errors,
+  ]
+  |> list.flatten
+}
+
+fn web_presence_route_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  require_route: Bool,
+) -> List(CapturedJsonValue) {
+  let domain_id = graphql_helpers.read_arg_string_nonempty(input, "domainId")
+  let suffix =
+    graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
+  case domain_id, suffix {
+    Some(_), Some(_) -> [
+      user_error(
+        ["input"],
+        "Cannot have both subfolder suffix and domain",
+        "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN",
+      ),
+    ]
+    None, None ->
+      case require_route {
+        True -> [
+          user_error(
+            ["input"],
+            "Requires domain or subfolder",
+            "REQUIRES_DOMAIN_OR_SUBFOLDER",
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn web_presence_default_locale_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string(input, "defaultLocale") {
+    Some("") -> [
+      user_error(
+        ["input", "defaultLocale"],
+        "Default locale can't be blank",
+        "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
+      ),
+    ]
     Some(locale) ->
-      case locale == "en" {
+      case valid_web_presence_locale(locale) {
         True -> []
         False -> [
           user_error(
@@ -2605,9 +2669,112 @@ fn web_presence_create_errors(
           ),
         ]
       }
+    None -> [
+      user_error(
+        ["input", "defaultLocale"],
+        "Default locale can't be blank",
+        "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
+      ),
+    ]
+  }
+}
+
+fn web_presence_alternate_locale_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  read_arg_string_array(input, "alternateLocales")
+  |> option.unwrap([])
+  |> list.index_fold([], fn(errors, locale, index) {
+    case valid_web_presence_locale(locale) {
+      True -> errors
+      False ->
+        list.append(errors, [
+          user_error(
+            ["input", "alternateLocales", int.to_string(index)],
+            "Invalid locale codes: " <> locale,
+            "INVALID",
+          ),
+        ])
+    }
+  })
+}
+
+fn web_presence_subfolder_suffix_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix") {
+    Some(suffix) -> {
+      let length_errors = case subfolder_suffix_letter_count(suffix) < 2 {
+        True -> [
+          user_error(
+            ["input", "subfolderSuffix"],
+            "Subfolder suffix must be at least 2 letters",
+            "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS",
+          ),
+        ]
+        False -> []
+      }
+      let script_errors = case is_web_presence_script_code(suffix) {
+        True -> [
+          user_error(
+            ["input", "subfolderSuffix"],
+            "Subfolder suffix cannot be script code",
+            "SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE",
+          ),
+        ]
+        False -> []
+      }
+      list.append(length_errors, script_errors)
+    }
     None -> []
   }
-  list.append(domain_errors, locale_errors)
+}
+
+fn valid_web_presence_locale(locale: String) -> Bool {
+  list.contains(shopify_i18n_language_codes(), locale)
+}
+
+fn shopify_i18n_language_codes() -> List(String) {
+  [
+    "af", "ak", "sq", "am", "ar", "hy", "as", "az", "bm", "bn", "eu", "be", "bs",
+    "br", "bg", "my", "ca", "ckb", "ce", "zh-CN", "zh-TW", "kw", "hr", "cs",
+    "da", "nl", "dz", "en", "eo", "et", "ee", "fo", "fil", "fi", "fr", "fr-CA",
+    "ff", "gl", "lg", "ka", "de", "el", "gu", "ha", "he", "hi", "hu", "is", "ig",
+    "id", "ia", "ga", "it", "ja", "jv", "kl", "kn", "ks", "kk", "km", "ki", "rw",
+    "ko", "ku", "ky", "lo", "lv", "ln", "lt", "lu", "lb", "mk", "mg", "ms", "ml",
+    "mt", "gv", "mr", "mn", "mi", "ne", "nd", "se", "no", "nb", "nn", "or", "om",
+    "os", "ps", "fa", "pl", "pt-BR", "pt-PT", "pa", "qu", "ro", "rm", "rn", "ru",
+    "sg", "sa", "sc", "gd", "sr", "sn", "ii", "sd", "si", "sk", "sl", "so", "es",
+    "su", "sw", "sv", "tg", "ta", "tt", "te", "th", "bo", "ti", "to", "tr", "tk",
+    "uk", "ur", "ug", "uz", "vi", "cy", "fy", "wo", "xh", "yi", "yo", "zu",
+  ]
+}
+
+fn subfolder_suffix_letter_count(value: String) -> Int {
+  value
+  |> string.to_graphemes
+  |> list.filter(is_ascii_alpha)
+  |> list.length
+}
+
+fn is_ascii_alpha(grapheme: String) -> Bool {
+  string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    grapheme,
+  )
+}
+
+fn is_web_presence_script_code(value: String) -> Bool {
+  list.contains(
+    [
+      "Arab", "Armn", "Beng", "Bopo", "Brai", "Cyrl", "Deva", "Ethi", "Geor",
+      "Grek", "Gujr", "Guru", "Hang", "Hani", "Hans", "Hant", "Hebr", "Hira",
+      "Jpan", "Kana", "Khmr", "Knda", "Kore", "Laoo", "Latn", "Mlym", "Mong",
+      "Mymr", "Orya", "Sinh", "Taml", "Telu", "Tfng", "Thaa", "Thai", "Tibt",
+      "Yiii",
+    ],
+    value,
+  )
 }
 
 fn web_presence_data(
@@ -3237,6 +3404,211 @@ fn currency_name(currency: String) -> String {
     "USD" -> "United States Dollar"
     _ -> currency
   }
+}
+
+fn catalog_create_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  title: String,
+) -> List(CapturedJsonValue) {
+  let title_errors = catalog_title_errors(title)
+  case title_errors {
+    [] -> {
+      let status_errors = catalog_status_errors(input)
+      case status_errors {
+        [] -> catalog_context_errors(store, input)
+        _ -> status_errors
+      }
+    }
+    _ -> title_errors
+  }
+}
+
+fn catalog_title_errors(title: String) -> List(CapturedJsonValue) {
+  case string.trim(title) {
+    "" -> [user_error(["input", "title"], "Title can't be blank", "BLANK")]
+    trimmed ->
+      case string.length(trimmed) < 2 {
+        True -> [
+          user_error(
+            ["input", "title"],
+            "Title is too short (minimum is 2 characters)",
+            "TOO_SHORT",
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn catalog_status_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case read_arg_string_allow_empty(input, "status") {
+    None -> [
+      user_error(["input", "status"], "Status is required", "REQUIRED"),
+    ]
+    Some(status) ->
+      case list.contains(["ACTIVE", "ARCHIVED", "DRAFT"], status) {
+        True -> []
+        False -> [
+          user_error(["input", "status"], "Status is invalid", "INVALID"),
+        ]
+      }
+  }
+}
+
+fn catalog_context_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_object(input, "context") {
+    None -> [
+      user_error(["input", "context"], "Context is required", "INVALID"),
+    ]
+    Some(context) -> catalog_context_object_errors(store, context)
+  }
+}
+
+fn catalog_context_object_errors(
+  store: Store,
+  context: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(context, "driverType") {
+    None -> [
+      user_error(
+        ["input", "context", "driverType"],
+        "Driver type is required",
+        "INVALID",
+      ),
+    ]
+    Some(driver_type) ->
+      case driver_type {
+        "MARKET" -> {
+          case
+            require_catalog_context_ids(
+              context,
+              "marketIds",
+              "Market ids can't be blank",
+            )
+          {
+            Ok(ids) -> missing_market_context_errors(store, ids)
+            Error(errors) -> errors
+          }
+        }
+        "COMPANY_LOCATION" -> {
+          case
+            require_catalog_context_ids(
+              context,
+              "companyLocationIds",
+              "Company location ids can't be blank",
+            )
+          {
+            Ok(ids) -> {
+              case missing_company_location_context_errors(store, ids) {
+                [] -> unsupported_catalog_context_errors("COMPANY_LOCATION")
+                errors -> errors
+              }
+            }
+            Error(errors) -> errors
+          }
+        }
+        "COUNTRY" -> {
+          case
+            require_catalog_context_ids(
+              context,
+              "countryCodes",
+              "Country codes can't be blank",
+            )
+          {
+            Ok(_) -> unsupported_catalog_context_errors("COUNTRY")
+            Error(errors) -> errors
+          }
+        }
+        _ -> [
+          user_error(
+            ["input", "context", "driverType"],
+            "Driver type is invalid",
+            "INVALID",
+          ),
+        ]
+      }
+  }
+}
+
+fn unsupported_catalog_context_errors(
+  driver_type: String,
+) -> List(CapturedJsonValue) {
+  [
+    user_error(
+      ["input", "context", "driverType"],
+      "Catalog context driverType "
+        <> driver_type
+        <> " is not supported by the local MarketCatalog model",
+      "INVALID",
+    ),
+  ]
+}
+
+fn require_catalog_context_ids(
+  context: Dict(String, root_field.ResolvedValue),
+  field_name: String,
+  message: String,
+) -> Result(List(String), List(CapturedJsonValue)) {
+  case read_arg_string_array(context, field_name) {
+    Some(ids) ->
+      case ids {
+        [] ->
+          Error([
+            user_error(["input", "context", field_name], message, "INVALID"),
+          ])
+        [_, ..] -> Ok(ids)
+      }
+    None ->
+      Error([
+        user_error(["input", "context", field_name], message, "INVALID"),
+      ])
+  }
+}
+
+fn missing_market_context_errors(
+  store: Store,
+  market_ids: List(String),
+) -> List(CapturedJsonValue) {
+  market_ids
+  |> list.index_map(fn(id, index) { #(id, index) })
+  |> list.filter_map(fn(entry) {
+    let #(id, index) = entry
+    case store.get_effective_market_by_id(store, id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          ["input", "context", "marketIds", int.to_string(index)],
+          "Market does not exist",
+          "INVALID",
+        ))
+    }
+  })
+}
+
+fn missing_company_location_context_errors(
+  store: Store,
+  location_ids: List(String),
+) -> List(CapturedJsonValue) {
+  location_ids
+  |> list.index_map(fn(id, index) { #(id, index) })
+  |> list.filter_map(fn(entry) {
+    let #(id, index) = entry
+    case store.get_effective_b2b_company_location_by_id(store, id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          ["input", "context", "companyLocationIds", int.to_string(index)],
+          "Company location does not exist",
+          "INVALID",
+        ))
+    }
+  })
 }
 
 fn catalog_data(

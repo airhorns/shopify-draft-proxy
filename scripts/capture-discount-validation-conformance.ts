@@ -16,6 +16,7 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'discounts');
 const validationOutputPath = path.join(outputDir, 'discount-validation-branches.json');
+const codeRequiredValidationOutputPath = path.join(outputDir, 'discount-code-required-blank-validation.json');
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const adminOptions = {
   adminOrigin,
@@ -24,8 +25,22 @@ const adminOptions = {
 };
 const { runGraphqlRaw } = createAdminGraphqlClient(adminOptions);
 
+const discountProductProbeDocument = `#graphql
+  query DiscountCodeRequiredBlankValidationProducts {
+    products(first: 1) {
+      nodes {
+        id
+      }
+    }
+  }
+`;
+
 const discountValidationDocument = await readFile(
   'config/parity-requests/discounts/discount-validation-branches.graphql',
+  'utf8',
+);
+const codeRequiredValidationDocument = await readFile(
+  'config/parity-requests/discounts/discount-code-required-blank-validation.graphql',
   'utf8',
 );
 const missingInputDocument = await readFile(
@@ -95,12 +110,90 @@ function basicInput(code: string): Record<string, unknown> {
   };
 }
 
+function withoutCode(input: Record<string, unknown>): Record<string, unknown> {
+  const copy = { ...input };
+  delete copy['code'];
+  return copy;
+}
+
+function bxgyInput(code: string, productId: string): Record<string, unknown> {
+  return {
+    title: `HAR-596 BXGY ${code}`,
+    code,
+    startsAt: '2026-04-25T00:00:00Z',
+    combinesWith: {
+      productDiscounts: true,
+      orderDiscounts: false,
+      shippingDiscounts: false,
+    },
+    context: {
+      all: 'ALL',
+    },
+    customerBuys: {
+      value: {
+        quantity: '1',
+      },
+      items: {
+        products: {
+          productsToAdd: [productId],
+        },
+      },
+    },
+    customerGets: {
+      value: {
+        discountOnQuantity: {
+          quantity: '1',
+          effect: {
+            percentage: 1,
+          },
+        },
+      },
+      items: {
+        products: {
+          productsToAdd: [productId],
+        },
+      },
+    },
+  };
+}
+
+function freeShippingInput(code: string): Record<string, unknown> {
+  return {
+    title: `HAR-596 free shipping ${code}`,
+    code,
+    startsAt: '2026-04-25T00:00:00Z',
+    combinesWith: {
+      productDiscounts: false,
+      orderDiscounts: false,
+      shippingDiscounts: false,
+    },
+    context: {
+      all: 'ALL',
+    },
+    destination: {
+      all: true,
+    },
+  };
+}
+
 function readCreatedSeedId(response: unknown): string {
   const id = (
     response as { payload?: { data?: { discountCodeBasicCreate?: { codeDiscountNode?: { id?: unknown } } } } }
   ).payload?.data?.discountCodeBasicCreate?.codeDiscountNode?.id;
   if (typeof id !== 'string' || id.length === 0) {
     throw new Error(`Seed discount create did not return an id: ${JSON.stringify(response)}`);
+  }
+
+  return id;
+}
+
+function readProductId(response: unknown): string {
+  const id = (response as { payload?: { data?: { products?: { nodes?: Array<{ id?: unknown }> } } } }).payload?.data
+    ?.products?.nodes?.[0]?.id;
+  if (typeof id !== 'string' || id.length === 0) {
+    throw new Error(
+      `Discount code validation capture requires at least one product in the test shop: ${JSON.stringify(response)}`,
+    );
   }
 
   return id;
@@ -116,6 +209,9 @@ const duplicateCode = `HAR198DUP${stamp}`;
 const duplicateSeedInput = basicInput(duplicateCode);
 const duplicateSeedCreate = await runGraphqlRaw(seedCreateDocument, { input: duplicateSeedInput });
 const duplicateSeedId = readCreatedSeedId(duplicateSeedCreate);
+const productProbe = await runGraphqlRaw(discountProductProbeDocument, {});
+const productId = readProductId(productProbe);
+const tooLongCode = 'X'.repeat(256);
 
 const validationVariables = {
   duplicate: duplicateSeedInput,
@@ -267,11 +363,29 @@ const validationVariables = {
   bulkSearch: 'status:active',
 };
 
-const [missingInputResponse, inlineNullInputResponse, validationResponse] = await Promise.all([
-  runGraphqlRaw(missingInputDocument, {}),
-  runGraphqlRaw(inlineNullInputDocument, {}),
-  runGraphqlRaw(discountValidationDocument, validationVariables),
-]);
+const codeRequiredValidationVariables = {
+  basicMissing: withoutCode(basicInput(`HAR596BASICMISSING${stamp}`)),
+  basicEmpty: basicInput(''),
+  basicNewline: basicInput('abc\ndef'),
+  basicTooLong: {
+    ...basicInput(tooLongCode),
+    title: `HAR-596 basic too long ${stamp}`,
+  },
+  bxgyMissing: withoutCode(bxgyInput(`HAR596BXGYMISSING${stamp}`, productId)),
+  bxgyEmpty: bxgyInput('', productId),
+  bxgyNewline: bxgyInput('abc\ndef', productId),
+  freeShippingMissing: withoutCode(freeShippingInput(`HAR596FREEMISSING${stamp}`)),
+  freeShippingEmpty: freeShippingInput(''),
+  freeShippingNewline: freeShippingInput('abc\ndef'),
+};
+
+const [missingInputResponse, inlineNullInputResponse, validationResponse, codeRequiredValidationResponse] =
+  await Promise.all([
+    runGraphqlRaw(missingInputDocument, {}),
+    runGraphqlRaw(inlineNullInputDocument, {}),
+    runGraphqlRaw(discountValidationDocument, validationVariables),
+    runGraphqlRaw(codeRequiredValidationDocument, codeRequiredValidationVariables),
+  ]);
 
 const cleanup = await runGraphqlRaw(seedCleanupDocument, { id: duplicateSeedId });
 
@@ -279,6 +393,24 @@ const fixture = {
   storeDomain,
   apiVersion,
   accessScopes: scopeProbe,
+  upstreamCalls: [
+    {
+      operationName: 'DiscountUniquenessCheck',
+      variables: {
+        code: duplicateCode,
+      },
+      response: {
+        status: 200,
+        body: {
+          data: {
+            codeDiscountNodeByCode: {
+              id: duplicateSeedId,
+            },
+          },
+        },
+      },
+    },
+  ],
   seedDiscounts: [
     {
       id: duplicateSeedId,
@@ -322,16 +454,53 @@ const fixture = {
     },
   },
   cleanup: cleanup.payload,
+  upstreamCalls: [
+    {
+      operationName: 'DiscountUniquenessCheck',
+      variables: {
+        code: duplicateCode,
+      },
+      query: 'sha:DiscountUniquenessCheck',
+      response: {
+        status: 200,
+        body: {
+          data: {
+            codeDiscountNodeByCode: {
+              id: duplicateSeedId,
+            },
+          },
+        },
+      },
+    },
+  ],
+};
+
+const codeRequiredValidationFixture = {
+  capturedAt: new Date().toISOString(),
+  storeDomain,
+  apiVersion,
+  accessScopes: scopeProbe,
+  codeRequiredValidation: {
+    query: codeRequiredValidationDocument,
+    variables: codeRequiredValidationVariables,
+    response: codeRequiredValidationResponse.payload,
+  },
+  upstreamCalls: [],
 };
 
 await writeFile(validationOutputPath, `${JSON.stringify(fixture, null, 2)}\n`, 'utf8');
+await writeFile(
+  codeRequiredValidationOutputPath,
+  `${JSON.stringify(codeRequiredValidationFixture, null, 2)}\n`,
+  'utf8',
+);
 
 console.log(
   JSON.stringify(
     {
       ok: true,
       apiVersion,
-      output: validationOutputPath,
+      outputs: [validationOutputPath, codeRequiredValidationOutputPath],
       duplicateSeedId,
     },
     null,

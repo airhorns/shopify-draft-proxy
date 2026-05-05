@@ -4,6 +4,7 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
@@ -670,6 +671,7 @@ fn run_mutation(store_in: store.Store, document: String) -> String {
       "/admin/api/2025-01/graphql.json",
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   json.to_string(outcome.data)
 }
@@ -704,6 +706,7 @@ fn run_mutation_outcome(
       "/admin/api/2025-01/graphql.json",
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   outcome
 }
@@ -721,6 +724,54 @@ pub fn webhook_subscription_create_stages_record_test() {
   // The store should now have one effective record
   let records = store.list_effective_webhook_subscriptions(outcome.store)
   assert list.length(records) == 1
+}
+
+pub fn webhook_subscription_create_omitted_filter_stores_null_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"filter\":null},\"userErrors\":[]}}}"
+
+  let records = store.list_effective_webhook_subscriptions(outcome.store)
+  assert records
+    == [
+      WebhookSubscriptionRecord(
+        id: "gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic",
+        topic: Some("SHOP_UPDATE"),
+        uri: Some("https://hooks.example.com/shop"),
+        name: None,
+        format: Some("JSON"),
+        include_fields: [],
+        metafield_namespaces: [],
+        filter: None,
+        created_at: Some("2024-01-01T00:00:00.000Z"),
+        updated_at: Some("2024-01-01T00:00:00.000Z"),
+        endpoint: Some(
+          WebhookHttpEndpoint(callback_url: Some(
+            "https://hooks.example.com/shop",
+          )),
+        ),
+      ),
+    ]
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\") { id filter } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"filter\":null}}"
+}
+
+pub fn webhook_subscription_create_empty_filter_stores_empty_string_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\", filter: \"\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"filter\":\"\"},\"userErrors\":[]}}}"
+
+  let records = store.list_effective_webhook_subscriptions(outcome.store)
+  assert list.map(records, fn(record) { record.filter }) == [Some("")]
 }
 
 pub fn webhook_subscription_create_blank_uri_user_error_test() {
@@ -797,6 +848,59 @@ pub fn webhook_subscription_create_http_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol http:// is not supported\"}]}}}"
 }
 
+pub fn webhook_subscription_create_json_only_topic_xml_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: RETURNS_APPROVE, webhookSubscription: { uri: \"https://hooks.example.com/returns\", format: XML }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"format\"],\"message\":\"Format 'xml' is invalid for this webhook topic. Allowed formats: json\"}]}}}"
+}
+
+pub fn webhook_subscription_create_pubsub_xml_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"pubsub://valid-project:topic\", format: XML }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"format\"],\"message\":\"Format can only be used with format: 'json'\"}]}}}"
+}
+
+pub fn webhook_subscription_create_empty_name_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\", name: \"\" }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name is too short (minimum is 1 character)\"},{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name name field can only contain alphanumeric characters, underscores, and hyphens\"}]}}}"
+}
+
+pub fn webhook_subscription_create_bad_name_format_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\", name: \"has spaces\" }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name name field can only contain alphanumeric characters, underscores, and hyphens\"}]}}}"
+}
+
+pub fn webhook_subscription_create_long_name_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\", name: \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name is too long (maximum is 50 characters)\"}]}}}"
+}
+
+pub fn webhook_subscription_create_duplicate_topic_uri_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/dup\", format: JSON, filter: \"\" }) { webhookSubscription { id topic uri format filter } userErrors { field message } } }"
+  let first_outcome = run_mutation_outcome(store.new(), document)
+  let first_body = json.to_string(first_outcome.data)
+  assert first_body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"SHOP_UPDATE\",\"uri\":\"https://hooks.example.com/dup\",\"format\":\"JSON\",\"filter\":\"\"},\"userErrors\":[]}}}"
+
+  let second_body = run_mutation(first_outcome.store, document)
+  assert second_body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address for this topic has already been taken\"}]}}}"
+}
+
 pub fn webhook_subscription_create_accepts_callback_url_alias_test() {
   // Real Shopify accepts `callbackUrl` on `WebhookSubscriptionInput` as a
   // legacy alias for `uri`. The proxy used to read only `uri`, fabricating
@@ -853,6 +957,34 @@ pub fn webhook_subscription_update_modifies_record_test() {
   let body = run_mutation(s, document)
   assert body
     == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\"},\"userErrors\":[]}}}"
+}
+
+pub fn webhook_subscription_update_preserves_existing_null_filter_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"https://new.example.com/hook\" }) { webhookSubscription { id uri filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seed_update_store(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new.example.com/hook\",\"filter\":null},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id filter } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":null}}"
+}
+
+pub fn webhook_subscription_update_empty_filter_sets_empty_string_test() {
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { filter: \"\" }) { webhookSubscription { id filter } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(seed_update_store(), document)
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"\"},\"userErrors\":[]}}}"
+
+  assert handle(
+      outcome.store,
+      "{ webhookSubscription(id: \"gid://shopify/WebhookSubscription/1\") { id filter } }",
+    )
+    == "{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"filter\":\"\"}}"
 }
 
 pub fn webhook_subscription_update_blank_uri_user_error_leaves_record_test() {

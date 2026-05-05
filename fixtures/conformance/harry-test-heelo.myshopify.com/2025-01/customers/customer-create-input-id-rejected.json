@@ -1,0 +1,37 @@
+{
+  "query": "mutation CustomerCreateInputIdRejected($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer { id email }\n    userErrors { field message }\n  }\n}",
+  "variables": {
+    "input": {
+      "id": "gid://shopify/Customer/999",
+      "email": "har-641-input-id-capture@example.com"
+    }
+  },
+  "mutation": {
+    "status": 200,
+    "response": {
+      "data": {
+        "customerCreate": {
+          "customer": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Cannot specify ID on creation"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

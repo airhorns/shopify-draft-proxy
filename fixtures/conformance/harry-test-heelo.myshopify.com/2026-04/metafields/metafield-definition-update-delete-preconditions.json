@@ -1,0 +1,917 @@
+{
+  "capturedAt": "2026-05-05T15:42:22.316Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "suffix": "har697_mossr6ry",
+  "deleteWithoutFlag": {
+    "namespace": "har697_mossr6ry_delete_without_flag",
+    "key": "tier",
+    "product": {
+      "request": {
+        "query": "#graphql\n  mutation HAR697CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "HAR-697 delete_without_flag har697_mossr6ry"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10177412825394",
+              "title": "HAR-697 delete_without_flag har697_mossr6ry"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "create": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
+        "variables": {
+          "definition": {
+            "name": "HAR-697 delete_without_flag",
+            "namespace": "har697_mossr6ry_delete_without_flag",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206664270130",
+              "name": "HAR-697 delete_without_flag",
+              "namespace": "har697_mossr6ry_delete_without_flag",
+              "key": "tier",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "metafieldsSet": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-metafields-set.graphql",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10177412825394",
+              "namespace": "har697_mossr6ry_delete_without_flag",
+              "key": "tier",
+              "type": "single_line_text_field",
+              "value": "gold"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/43103971934514",
+                "namespace": "har697_mossr6ry_delete_without_flag",
+                "key": "tier",
+                "type": "single_line_text_field",
+                "value": "gold"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-delete-no-flag.graphql",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206664270130"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664270130",
+            "deletedDefinition": {
+              "ownerType": "PRODUCT",
+              "namespace": "har697_mossr6ry_delete_without_flag",
+              "key": "tier"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "deleteFalseFlag": {
+    "namespace": "har697_mossr6ry_delete_false_flag",
+    "key": "tier",
+    "product": {
+      "request": {
+        "query": "#graphql\n  mutation HAR697CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "HAR-697 delete_false_flag har697_mossr6ry"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10177412858162",
+              "title": "HAR-697 delete_false_flag har697_mossr6ry"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "create": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
+        "variables": {
+          "definition": {
+            "name": "HAR-697 delete_false_flag",
+            "namespace": "har697_mossr6ry_delete_false_flag",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206664302898",
+              "name": "HAR-697 delete_false_flag",
+              "namespace": "har697_mossr6ry_delete_false_flag",
+              "key": "tier",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "metafieldsSet": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-metafields-set.graphql",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10177412858162",
+              "namespace": "har697_mossr6ry_delete_false_flag",
+              "key": "tier",
+              "type": "single_line_text_field",
+              "value": "gold"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/43103972000050",
+                "namespace": "har697_mossr6ry_delete_false_flag",
+                "key": "tier",
+                "type": "single_line_text_field",
+                "value": "gold"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-delete-with-flag.graphql",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206664302898",
+          "deleteAllAssociatedMetafields": false
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664302898",
+            "deletedDefinition": {
+              "ownerType": "PRODUCT",
+              "namespace": "har697_mossr6ry_delete_false_flag",
+              "key": "tier"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "deleteWithFlag": {
+    "namespace": "har697_mossr6ry_delete_with_flag",
+    "key": "tier",
+    "product": {
+      "request": {
+        "query": "#graphql\n  mutation HAR697CreateProduct($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id title }\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "product": {
+            "title": "HAR-697 delete_with_flag har697_mossr6ry"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10177412956466",
+              "title": "HAR-697 delete_with_flag har697_mossr6ry"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "create": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
+        "variables": {
+          "definition": {
+            "name": "HAR-697 delete_with_flag",
+            "namespace": "har697_mossr6ry_delete_with_flag",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206664335666",
+              "name": "HAR-697 delete_with_flag",
+              "namespace": "har697_mossr6ry_delete_with_flag",
+              "key": "tier",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "metafieldsSet": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-metafields-set.graphql",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Product/10177412956466",
+              "namespace": "har697_mossr6ry_delete_with_flag",
+              "key": "tier",
+              "type": "single_line_text_field",
+              "value": "gold"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/43103972262194",
+                "namespace": "har697_mossr6ry_delete_with_flag",
+                "key": "tier",
+                "type": "single_line_text_field",
+                "value": "gold"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "delete": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-delete-with-flag.graphql",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206664335666",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664335666",
+            "deletedDefinition": {
+              "ownerType": "PRODUCT",
+              "namespace": "har697_mossr6ry_delete_with_flag",
+              "key": "tier"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateNamespace": {
+    "namespace": "har697_mossr6ry_update_namespace",
+    "key": "tier",
+    "create": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
+        "variables": {
+          "definition": {
+            "name": "HAR-697 update_namespace",
+            "namespace": "har697_mossr6ry_update_namespace",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206664368434",
+              "name": "HAR-697 update_namespace",
+              "namespace": "har697_mossr6ry_update_namespace",
+              "key": "tier",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-update.graphql",
+        "variables": {
+          "definition": {
+            "namespace": "har697_mossr6ry_update_namespace_changed",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "name": "HAR-697 namespace changed"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionUpdate": {
+            "updatedDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition"],
+                "message": "Definition not found.",
+                "code": "NOT_FOUND"
+              }
+            ],
+            "validationJob": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateKey": {
+    "namespace": "har697_mossr6ry_update_key",
+    "key": "tier",
+    "create": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
+        "variables": {
+          "definition": {
+            "name": "HAR-697 update_key",
+            "namespace": "har697_mossr6ry_update_key",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206664401202",
+              "name": "HAR-697 update_key",
+              "namespace": "har697_mossr6ry_update_key",
+              "key": "tier",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-update.graphql",
+        "variables": {
+          "definition": {
+            "namespace": "har697_mossr6ry_update_key",
+            "key": "tier_changed",
+            "ownerType": "PRODUCT",
+            "name": "HAR-697 key changed"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionUpdate": {
+            "updatedDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition"],
+                "message": "Definition not found.",
+                "code": "NOT_FOUND"
+              }
+            ],
+            "validationJob": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updateOwnerType": {
+    "namespace": "har697_mossr6ry_update_owner_type",
+    "key": "tier",
+    "create": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-create.graphql",
+        "variables": {
+          "definition": {
+            "name": "HAR-697 update_owner_type",
+            "namespace": "har697_mossr6ry_update_owner_type",
+            "key": "tier",
+            "ownerType": "PRODUCT",
+            "type": "single_line_text_field"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206664433970",
+              "name": "HAR-697 update_owner_type",
+              "namespace": "har697_mossr6ry_update_owner_type",
+              "key": "tier",
+              "ownerType": "PRODUCT",
+              "type": {
+                "name": "single_line_text_field"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "update": {
+      "request": {
+        "documentPath": "config/parity-requests/metafields/metafield-definition-update-delete-preconditions-update.graphql",
+        "variables": {
+          "definition": {
+            "namespace": "har697_mossr6ry_update_owner_type",
+            "key": "tier",
+            "ownerType": "CUSTOMER",
+            "name": "HAR-697 owner type changed"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionUpdate": {
+            "updatedDefinition": null,
+            "userErrors": [
+              {
+                "field": ["definition"],
+                "message": "Definition not found.",
+                "code": "NOT_FOUND"
+              }
+            ],
+            "validationJob": null
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation HAR697DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10177412825394"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10177412825394",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation HAR697DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10177412858162"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10177412858162",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation HAR697DeleteProduct($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Product/10177412956466"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "productDelete": {
+            "deletedProductId": "gid://shopify/Product/10177412956466",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation HAR697CleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206664368434"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664368434",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation HAR697CleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206664401202"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664401202",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation HAR697CleanupDefinition($id: ID!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: true) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206664433970"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206664433970",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

@@ -7,6 +7,7 @@
 //// reuse-vs-mint behavior.
 
 import gleam/dict
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
@@ -16,8 +17,10 @@ import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type CartTransformRecord, type ShopifyFunctionRecord, type ValidationRecord,
-  CartTransformRecord, ShopifyFunctionRecord, ValidationRecord,
+  type AppInstallationRecord, type AppRecord, type CartTransformRecord,
+  type ShopifyFunctionRecord, type ValidationRecord, AccessScopeRecord,
+  AppInstallationRecord, AppRecord, CartTransformRecord, ShopifyFunctionRecord,
+  ValidationRecord,
 }
 
 // ----------- Helpers -----------
@@ -73,6 +76,47 @@ fn shopify_fn(
   )
 }
 
+fn shopify_fn_with_app_key(
+  id: String,
+  handle: String,
+  api_type: String,
+  app_key: String,
+) -> ShopifyFunctionRecord {
+  ShopifyFunctionRecord(
+    ..shopify_fn(id, handle, api_type),
+    app_key: Some(app_key),
+  )
+}
+
+fn app(id: String, api_key: String) -> AppRecord {
+  AppRecord(
+    id: id,
+    api_key: Some(api_key),
+    handle: Some("test-app"),
+    title: Some("Test app"),
+    developer_name: Some("test-dev"),
+    embedded: Some(True),
+    previously_installed: Some(False),
+    requested_access_scopes: [
+      AccessScopeRecord(handle: "read_products", description: None),
+    ],
+  )
+}
+
+fn installation(id: String, app_id: String) -> AppInstallationRecord {
+  AppInstallationRecord(
+    id: id,
+    app_id: app_id,
+    launch_url: Some("https://example.com/admin/apps/test"),
+    uninstall_url: None,
+    access_scopes: [],
+    active_subscription_ids: [],
+    all_subscription_ids: [],
+    one_time_purchase_ids: [],
+    uninstalled_at: None,
+  )
+}
+
 fn seed_function(
   store_in: store.Store,
   record: ShopifyFunctionRecord,
@@ -87,6 +131,38 @@ fn seed_validation(
 ) -> store.Store {
   let #(_, s) = store.upsert_staged_validation(store_in, record)
   s
+}
+
+fn seed_active_validations(
+  store_in: store.Store,
+  fn_record: ShopifyFunctionRecord,
+  index: Int,
+  count: Int,
+) -> store.Store {
+  case index > count {
+    True -> store_in
+    False ->
+      seed_active_validations(
+        seed_validation(
+          store_in,
+          ValidationRecord(
+            id: "gid://shopify/Validation/active-" <> int.to_string(index),
+            title: Some("Active " <> int.to_string(index)),
+            enable: Some(True),
+            block_on_failure: Some(False),
+            function_id: Some(fn_record.id),
+            function_handle: Some("cap"),
+            shopify_function_id: Some(fn_record.id),
+            metafields: [],
+            created_at: None,
+            updated_at: None,
+          ),
+        ),
+        fn_record,
+        index + 1,
+        count,
+      )
+  }
 }
 
 fn seed_cart_transform(
@@ -229,6 +305,7 @@ pub fn validation_update_changes_title_and_enable_test() {
       function_id: None,
       function_handle: Some("checkout-validator"),
       shopify_function_id: Some(fn_record.id),
+      metafields: [],
       created_at: Some("2024-01-01T00:00:00.000Z"),
       updated_at: Some("2024-01-01T00:00:00.000Z"),
     )
@@ -243,6 +320,116 @@ pub fn validation_update_changes_title_and_enable_test() {
     )
   assert body
     == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/77\",\"title\":\"Renamed\",\"enable\":false},\"userErrors\":[]}}}"
+}
+
+pub fn validation_update_function_inputs_do_not_rebind_test() {
+  let fn_a =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/function-a",
+      "function-a",
+      "VALIDATION",
+    )
+  let fn_b =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/function-b",
+      "function-b",
+      "VALIDATION",
+    )
+  let v =
+    ValidationRecord(
+      id: "gid://shopify/Validation/rebind",
+      title: Some("Original"),
+      enable: Some(True),
+      block_on_failure: Some(False),
+      function_id: Some(fn_a.id),
+      function_handle: Some("function-a"),
+      shopify_function_id: Some(fn_a.id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let outcome =
+    run_mutation_outcome(
+      store.new()
+        |> seed_function(fn_a)
+        |> seed_function(fn_b)
+        |> seed_validation(v),
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/rebind\", validation: { functionId: \"gid://shopify/ShopifyFunction/function-b\", title: \"Still A\" }) { validation { id title functionId functionHandle shopifyFunction { id handle } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/rebind\",\"title\":\"Still A\",\"functionId\":\"gid://shopify/ShopifyFunction/function-a\",\"functionHandle\":\"function-a\",\"shopifyFunction\":{\"id\":\"gid://shopify/ShopifyFunction/function-a\",\"handle\":\"function-a\"}},\"userErrors\":[]}}}"
+  let assert Some(updated) =
+    store.get_effective_validation_by_id(
+      outcome.store,
+      "gid://shopify/Validation/rebind",
+    )
+  assert updated.function_id == Some(fn_a.id)
+  assert updated.function_handle == Some("function-a")
+  assert updated.shopify_function_id == Some(fn_a.id)
+}
+
+pub fn validation_update_reenable_enforces_active_cap_test() {
+  let fn_record =
+    shopify_fn("gid://shopify/ShopifyFunction/cap", "cap", "VALIDATION")
+  let seeded =
+    seed_active_validations(
+      seed_function(store.new(), fn_record),
+      fn_record,
+      1,
+      10,
+    )
+  let inactive =
+    ValidationRecord(
+      id: "gid://shopify/Validation/inactive-11",
+      title: Some("Inactive"),
+      enable: Some(False),
+      block_on_failure: Some(False),
+      function_id: Some(fn_record.id),
+      function_handle: Some("cap"),
+      shopify_function_id: Some(fn_record.id),
+      metafields: [],
+      created_at: None,
+      updated_at: None,
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_validation(seeded, inactive),
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/inactive-11\", validation: { enable: true }) { validation { id enable } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"enable\"],\"message\":\"The maximum number of active validations has been reached.\",\"code\":\"MAX_VALIDATIONS_ACTIVATED\"}]}}}"
+  let assert Some(unchanged) =
+    store.get_effective_validation_by_id(
+      outcome.store,
+      "gid://shopify/Validation/inactive-11",
+    )
+  assert unchanged.enable == Some(False)
+}
+
+pub fn validation_update_persists_metafields_for_downstream_reads_test() {
+  let create_outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { validationCreate(validation: { functionHandle: \"metafield-validation\", title: \"Metafield validation\" }) { validation { id } userErrors { field } } }",
+    )
+  let update_outcome =
+    run_mutation_outcome(
+      create_outcome.store,
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/1\", validation: { metafields: [{ namespace: \"custom\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }] }) { validation { id metafields(first: 5) { nodes { namespace key value } } } userErrors { field message code } } }",
+    )
+  assert json.to_string(update_outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}},\"userErrors\":[]}}}"
+
+  let assert Ok(read_data) =
+    functions.handle_function_query(
+      update_outcome.store,
+      "{ validations(first: 5) { nodes { id metafields(first: 5) { nodes { namespace key value } } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}}]}}"
 }
 
 pub fn validation_update_unknown_id_emits_user_error_test() {
@@ -273,6 +460,7 @@ pub fn validation_delete_removes_record_test() {
       function_id: None,
       function_handle: Some("checkout-validator"),
       shopify_function_id: Some(fn_record.id),
+      metafields: [],
       created_at: None,
       updated_at: None,
     )
@@ -303,7 +491,46 @@ pub fn validation_delete_unknown_id_emits_user_error_test() {
       "mutation { validationDelete(id: \"gid://shopify/Validation/missing\") { deletedId userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"validationDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"No function-backed resource exists with id gid://shopify/Validation/missing\",\"code\":\"NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"validationDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Extension not found.\",\"code\":\"NOT_FOUND\"}]}}}"
+}
+
+pub fn validation_delete_bare_id_returns_canonical_deleted_id_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/checkout-validator",
+      "checkout-validator",
+      "VALIDATION",
+    )
+  let v =
+    ValidationRecord(
+      id: "gid://shopify/Validation/88",
+      title: Some("Doomed"),
+      enable: Some(True),
+      block_on_failure: Some(False),
+      function_id: None,
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(fn_record.id),
+      metafields: [],
+      created_at: None,
+      updated_at: None,
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_validation(v)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { validationDelete(id: \"88\") { deletedId userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationDelete\":{\"deletedId\":\"gid://shopify/Validation/88\",\"userErrors\":[]}}}"
+  let assert None =
+    store.get_effective_validation_by_id(
+      outcome.store,
+      "gid://shopify/Validation/88",
+    )
+  assert outcome.staged_resource_ids == ["gid://shopify/Validation/88"]
 }
 
 // ----------- cartTransformCreate -----------
@@ -478,7 +705,94 @@ pub fn cart_transform_delete_unknown_id_emits_user_error_test() {
       "mutation { cartTransformDelete(id: \"gid://shopify/CartTransform/missing\") { deletedId userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"cartTransformDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"No function-backed resource exists with id gid://shopify/CartTransform/missing\",\"code\":\"NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"cartTransformDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Could not find cart transform with id: gid://shopify/CartTransform/missing\",\"code\":\"NOT_FOUND\"}]}}}"
+}
+
+pub fn cart_transform_delete_bare_id_returns_canonical_deleted_id_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/cart-transformer",
+      "cart-transformer",
+      "CART_TRANSFORM",
+    )
+  let cart_transform =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/01ABC",
+      title: Some("Doomed cart transform"),
+      block_on_failure: Some(False),
+      function_id: None,
+      function_handle: Some("cart-transformer"),
+      shopify_function_id: Some(fn_record.id),
+      created_at: None,
+      updated_at: None,
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_cart_transform(cart_transform)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformDelete(id: \"01ABC\") { deletedId userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"cartTransformDelete\":{\"deletedId\":\"gid://shopify/CartTransform/01ABC\",\"userErrors\":[]}}}"
+  let assert None =
+    store.get_effective_cart_transform_by_id(
+      outcome.store,
+      "gid://shopify/CartTransform/01ABC",
+    )
+  assert outcome.staged_resource_ids == ["gid://shopify/CartTransform/01ABC"]
+}
+
+pub fn cart_transform_delete_cross_app_function_emits_unauthorized_scope_test() {
+  let current_app = app("gid://shopify/App/current", "current-app-key")
+  let current_installation =
+    installation(
+      "gid://shopify/AppInstallation/current",
+      "gid://shopify/App/current",
+    )
+  let fn_record =
+    shopify_fn_with_app_key(
+      "gid://shopify/ShopifyFunction/cart-transformer",
+      "cart-transformer",
+      "CART_TRANSFORM",
+      "other-app-key",
+    )
+  let cart_transform =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/77",
+      title: Some("Other app cart transform"),
+      block_on_failure: Some(False),
+      function_id: None,
+      function_handle: Some("cart-transformer"),
+      shopify_function_id: Some(fn_record.id),
+      created_at: None,
+      updated_at: None,
+    )
+  let s =
+    store.upsert_base_app_installation(
+      store.new(),
+      current_installation,
+      current_app,
+    )
+  let s =
+    s
+    |> seed_function(fn_record)
+    |> seed_cart_transform(cart_transform)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformDelete(id: \"gid://shopify/CartTransform/77\") { deletedId userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"cartTransformDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The app is not authorized to access this Function resource.\",\"code\":\"UNAUTHORIZED_APP_SCOPE\"}]}}}"
+  let assert Some(_) =
+    store.get_effective_cart_transform_by_id(
+      outcome.store,
+      "gid://shopify/CartTransform/77",
+    )
+  assert outcome.staged_resource_ids == []
 }
 
 // ----------- taxAppConfigure -----------

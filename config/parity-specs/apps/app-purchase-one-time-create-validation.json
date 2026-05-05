@@ -1,0 +1,73 @@
+{
+  "scenarioId": "app-purchase-one-time-create-validation",
+  "operationNames": ["appPurchaseOneTimeCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/apps/app-purchase-one-time-create-validation.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-validation-blank-name.graphql"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-name-payload",
+        "capturePath": "$.evidence.parity.expected.blankName.data.appPurchaseOneTimeCreate",
+        "proxyPath": "$.data.appPurchaseOneTimeCreate"
+      },
+      {
+        "name": "zero-price-payload",
+        "capturePath": "$.evidence.parity.expected.zeroPrice.data.appPurchaseOneTimeCreate",
+        "proxyPath": "$.data.appPurchaseOneTimeCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-validation-zero-price.graphql"
+        }
+      },
+      {
+        "name": "currency-mismatch-payload",
+        "capturePath": "$.evidence.parity.expected.currencyMismatch.data.appPurchaseOneTimeCreate",
+        "proxyPath": "$.data.appPurchaseOneTimeCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-validation-currency-mismatch.graphql"
+        }
+      },
+      {
+        "name": "missing-return-url-payload",
+        "capturePath": "$.evidence.parity.expected.missingReturnUrl.errors",
+        "proxyPath": "$.errors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-validation-missing-return-url.graphql"
+        }
+      },
+      {
+        "name": "success-payload",
+        "capturePath": "$.evidence.parity.expected.success.data.appPurchaseOneTimeCreate",
+        "proxyPath": "$.data.appPurchaseOneTimeCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appPurchaseOneTimeCreate-validation-success.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.confirmationUrl",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a synthetic local confirmation URL instead of a real Shopify billing approval URL."
+          },
+          {
+            "path": "$.appPurchaseOneTime.id",
+            "matcher": "shopify-gid:AppPurchaseOneTime",
+            "reason": "The proxy generates stable session-local one-time purchase IDs."
+          },
+          {
+            "path": "$.appPurchaseOneTime.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses deterministic session-local timestamps for staged purchases."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Executes the HAR-646 appPurchaseOneTimeCreate validation matrix against the local app-domain proxy harness. Live validation capture for billing service branches is blocked by the current conformance custom app returning Custom apps cannot use the Billing API, while returnUrl coercion shape was sampled live and represented through the local coercion/userError boundary."
+}

@@ -1,0 +1,75 @@
+{
+  "scenarioId": "b2b-external-id-duplicate-location",
+  "operationNames": ["companyCreate", "companyLocationCreate", "companyLocationUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-external-id-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/external-id-validation-company-create.graphql",
+    "variablesCapturePath": "$.setupCompany.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "HAR-608 live parity evidence for duplicate company-location externalId validation on companyLocationCreate and companyLocationUpdate.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "location-create-duplicate-external-id",
+        "capturePath": "$.locationCreateDuplicate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationCreateDuplicate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "second-location-setup",
+        "capturePath": "$.secondLocationSetup.response.data.companyLocationCreate.userErrors",
+        "proxyPath": "$.data.companyLocationCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.secondLocationSetup.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-update-duplicate-external-id",
+        "capturePath": "$.locationUpdateDuplicate.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "second-location-setup",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationUpdateDuplicate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

@@ -47,6 +47,16 @@ Local staged mutations:
   policy values. Static non-secret form values match the capture where Shopify
   returns them: MIME `Content-Type`, `success_action_status: 201`,
   `acl: private`, and `x-goog-algorithm: GOOG4-RSA-SHA256` for IMAGE and FILE.
+- HAR-704 captured staged upload validation behavior for Admin GraphQL 2026-04.
+  `VIDEO` and `MODEL_3D` inputs require `fileSize`; missing values return a
+  field-scoped `userErrors` entry and a null placeholder target. Invalid enum
+  resource values are rejected as top-level GraphQL `INVALID_VARIABLE` errors
+  before resolver handling. IMAGE-family resources reject unsupported MIME
+  values with a `mimeType` userError. Current Shopify accepts FILE staged
+  uploads with arbitrary MIME strings such as `application/x-msdownload`, so the
+  proxy does not impose an IMAGE-style MIME allowlist on FILE resources.
+- The live `stagedUploadsCreate.userErrors` type exposes `field` and `message`;
+  it does not expose a selectable `code` field in the 2026-04 schema.
 - Shopify's media guide documents staged uploads as a two-step upload flow:
   obtain signed target metadata, upload bytes directly to Shopify storage, then
   pass the returned `resourceUrl` to `fileCreate` or product media inputs. The
@@ -54,7 +64,16 @@ Local staged mutations:
   bulk-mutation variable JSONL handoff; it does not model Shopify storage or
   media processing side effects.
 - File mutations stage local `FileRecord` state and do not proxy supported roots upstream at runtime.
-- `fileCreate` validates original source URLs and alt text length, derives a filename from the source when no filename is supplied, creates stable synthetic Shopify GIDs by content type, and returns uploaded file status. IMAGE files sourced from a usable URL keep that URL available through `MediaImage.image` and `preview.image` immediately; the proxy does not suppress the image payload solely because the staged file is still `UPLOADED`.
+- `fileCreate` validates original source URL presence/length, non-http(s)
+  schemes, filename/originalSource extension mismatches, duplicate-resolution
+  mode compatibility, and the private-core `referencesToAdd` cardinality
+  guardrail before staging. It derives a filename from the source when no
+  filename is supplied, creates stable synthetic Shopify GIDs by content type,
+  and returns uploaded file status. IMAGE files sourced from a usable URL keep
+  that URL available through `MediaImage.image` and `preview.image`
+  immediately; the proxy does not suppress the image payload solely because the
+  staged file is still `UPLOADED`. The proxy does not apply the older fabricated
+  512-character `alt` ceiling on `fileCreate`.
 - `fileUpdate` validates file ids, URL fields, alt text length, product references, Shopify's mutually exclusive `originalSource` / `previewImageSource` update rule, READY state, type-specific `originalSource` / `filename` support, filename extension preservation, source plus `revertToVersionId` conflict, and typed-GID mismatches before updating staged records. `referencesToAdd` can attach a READY file to product media, and `referencesToRemove` can remove the file from product media while keeping the file visible through Files API reads. Successful updates preserve the existing file status rather than promoting files to `READY`.
 - In LiveHybrid mode, `fileUpdate` may issue narrow reads before validation: product reads hydrate referenced products, and file reads hydrate existing READY Shopify file records needed for local validation/staging. Supported mutation handling still stages locally and does not write upstream at runtime.
 - `fileDelete` marks files deleted in local state so downstream reads and product media references can observe the deletion. In LiveHybrid mode, deletes of product-owned media ids may first hydrate the owning product/media relationship from upstream so the local delete can remove that media node from downstream `product.media` reads. The payload's `deletedFileIds` are rebuilt from the local record's actual Files API type (`MediaImage`, `Video`, `GenericFile`, etc.) rather than echoing a caller-supplied alias GID unchanged.

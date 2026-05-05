@@ -480,6 +480,11 @@ pub fn orders_order_edit_add_variant_payload_test() {
         vendor: None,
         product_type: None,
         tags: [],
+        price_range_min: None,
+        price_range_max: None,
+        total_variants: None,
+        has_only_default_variant: None,
+        has_out_of_stock_variants: None,
         total_inventory: None,
         tracks_inventory: None,
         created_at: None,
@@ -6280,6 +6285,135 @@ pub fn orders_order_open_close_read_after_write_test() {
     orders.process(open_outcome.store, read_query, dict.new())
   assert json.to_string(open_read)
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":false,\"closedAt\":null}}}"
+}
+
+pub fn order_close_noops_when_order_already_closed_test() {
+  let order_id = "gid://shopify/Order/6830646198505"
+  let closed_at = "2024-04-01T12:00:00.000Z"
+  let updated_at = "2024-04-01T12:05:00.000Z"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("closed", types.CapturedBool(True)),
+          #("closedAt", types.CapturedString(closed_at)),
+          #("updatedAt", types.CapturedString(updated_at)),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation {
+      orderClose(input: { id: \"gid://shopify/Order/6830646198505\" }) {
+        order {
+          id
+          closed
+          closedAt
+          updatedAt
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderClose\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":true,\"closedAt\":\"2024-04-01T12:00:00.000Z\",\"updatedAt\":\"2024-04-01T12:05:00.000Z\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+
+  let identity_state = synthetic_identity.dump_state(outcome.identity)
+  assert identity_state.next_synthetic_timestamp == "2024-01-01T00:00:00.000Z"
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/6830646198505\") {
+        id
+        closed
+        closedAt
+        updatedAt
+      }
+    }
+  "
+  let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":true,\"closedAt\":\"2024-04-01T12:00:00.000Z\",\"updatedAt\":\"2024-04-01T12:05:00.000Z\"}}}"
+}
+
+pub fn order_open_noops_when_order_already_open_test() {
+  let order_id = "gid://shopify/Order/6830646198505"
+  let updated_at = "2024-04-01T12:05:00.000Z"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("closed", types.CapturedBool(False)),
+          #("closedAt", types.CapturedNull),
+          #("updatedAt", types.CapturedString(updated_at)),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation {
+      orderOpen(input: { id: \"gid://shopify/Order/6830646198505\" }) {
+        order {
+          id
+          closed
+          closedAt
+          updatedAt
+        }
+        userErrors { field message }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderOpen\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":false,\"closedAt\":null,\"updatedAt\":\"2024-04-01T12:05:00.000Z\"},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+
+  let identity_state = synthetic_identity.dump_state(outcome.identity)
+  assert identity_state.next_synthetic_timestamp == "2024-01-01T00:00:00.000Z"
+
+  let read_query =
+    "
+    query {
+      order(id: \"gid://shopify/Order/6830646198505\") {
+        id
+        closed
+        closedAt
+        updatedAt
+      }
+    }
+  "
+  let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
+  assert json.to_string(read)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":false,\"closedAt\":null,\"updatedAt\":\"2024-04-01T12:05:00.000Z\"}}}"
 }
 
 pub fn orders_order_cancel_read_after_write_test() {

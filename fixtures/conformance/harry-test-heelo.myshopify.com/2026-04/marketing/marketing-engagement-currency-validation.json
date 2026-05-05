@@ -1,0 +1,272 @@
+{
+  "capturedAt": "2026-05-05T06:29:42.985Z",
+  "apiVersion": "2026-04",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "scopeEvidence": {
+    "app": {
+      "id": "gid://shopify/App/347082227713",
+      "handle": "hermes-conformance-products",
+      "title": "hermes-conformance-products"
+    },
+    "accessScopes": ["read_marketing_events", "write_marketing_events"]
+  },
+  "schema": {
+    "budgetTypeEnum": [
+      {
+        "name": "DAILY"
+      },
+      {
+        "name": "LIFETIME"
+      }
+    ]
+  },
+  "operations": {
+    "createActivity": {
+      "request": {
+        "query": "#graphql\n  mutation CreateMarketingActivity($input: MarketingActivityCreateExternalInput!) {\n    marketingActivityCreateExternal(input: $input) {\n      marketingActivity {\n        id\n        adSpend {\n          amount\n          currencyCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "title": "HAR-684 Currency Validation Campaign",
+            "remoteId": "har-684-currency-validation-mos90kjt",
+            "status": "ACTIVE",
+            "remoteUrl": "https://example.com/har-684-currency-validation-mos90kjt",
+            "tactic": "NEWSLETTER",
+            "marketingChannelType": "EMAIL",
+            "budget": {
+              "budgetType": "DAILY",
+              "total": {
+                "amount": "100.00",
+                "currencyCode": "USD"
+              }
+            },
+            "utm": {
+              "campaign": "har-684-currency-validation-mos90kjt",
+              "source": "newsletter",
+              "medium": "email"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingActivityCreateExternal": {
+            "marketingActivity": {
+              "id": "gid://shopify/MarketingActivity/197020844338",
+              "adSpend": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "inputCurrencyMismatch": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCurrencyByRemoteId(\n    $remoteId: String!\n    $engagement: MarketingEngagementInput!\n  ) {\n    marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $engagement) {\n      marketingEngagement {\n        occurredOn\n        adSpend {\n          amount\n          currencyCode\n        }\n        sales {\n          amount\n          currencyCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "remoteId": "har-684-currency-validation-mos90kjt",
+          "engagement": {
+            "occurredOn": "2026-04-01",
+            "isCumulative": false,
+            "utcOffset": "+00:00",
+            "adSpend": {
+              "amount": "10.00",
+              "currencyCode": "USD"
+            },
+            "sales": {
+              "amount": "30.00",
+              "currencyCode": "EUR"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": ["marketingEngagement"],
+                "message": "Currency codes in the marketing engagement input do not match.",
+                "code": "CURRENCY_CODE_MISMATCH_INPUT"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "activityCurrencyMismatchById": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCurrencyByActivityId(\n    $activityId: ID!\n    $engagement: MarketingEngagementInput!\n  ) {\n    marketingEngagementCreate(marketingActivityId: $activityId, marketingEngagement: $engagement) {\n      marketingEngagement {\n        occurredOn\n        adSpend {\n          amount\n          currencyCode\n        }\n        sales {\n          amount\n          currencyCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "activityId": "gid://shopify/MarketingActivity/197020844338",
+          "engagement": {
+            "occurredOn": "2026-04-02",
+            "isCumulative": false,
+            "utcOffset": "+00:00",
+            "adSpend": {
+              "amount": "10.00",
+              "currencyCode": "EUR"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": ["marketingEngagement"],
+                "message": "Marketing activity currency code does not match the currency code in the marketing engagement input.",
+                "code": "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "activityCurrencyMismatchByRemoteId": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCurrencyByRemoteId(\n    $remoteId: String!\n    $engagement: MarketingEngagementInput!\n  ) {\n    marketingEngagementCreate(remoteId: $remoteId, marketingEngagement: $engagement) {\n      marketingEngagement {\n        occurredOn\n        adSpend {\n          amount\n          currencyCode\n        }\n        sales {\n          amount\n          currencyCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "remoteId": "har-684-currency-validation-mos90kjt",
+          "engagement": {
+            "occurredOn": "2026-04-03",
+            "isCumulative": false,
+            "utcOffset": "+00:00",
+            "sales": {
+              "amount": "30.00",
+              "currencyCode": "EUR"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": ["marketingEngagement"],
+                "message": "Marketing activity currency code does not match the currency code in the marketing engagement input.",
+                "code": "MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "channelInputMismatch": {
+      "request": {
+        "query": "#graphql\n  mutation MarketingEngagementCurrencyByChannelHandle(\n    $channelHandle: String!\n    $engagement: MarketingEngagementInput!\n  ) {\n    marketingEngagementCreate(channelHandle: $channelHandle, marketingEngagement: $engagement) {\n      marketingEngagement {\n        occurredOn\n        channelHandle\n        adSpend {\n          amount\n          currencyCode\n        }\n        sales {\n          amount\n          currencyCode\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "channelHandle": "unknown-channel",
+          "engagement": {
+            "occurredOn": "2026-04-01",
+            "isCumulative": false,
+            "utcOffset": "+00:00",
+            "adSpend": {
+              "amount": "10.00",
+              "currencyCode": "USD"
+            },
+            "sales": {
+              "amount": "30.00",
+              "currencyCode": "EUR"
+            }
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "marketingEngagementCreate": {
+            "marketingEngagement": null,
+            "userErrors": [
+              {
+                "field": ["channelHandle"],
+                "message": "The channel handle is not recognized. Please contact your partner manager for more information.",
+                "code": "INVALID_CHANNEL_HANDLE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "cleanup": {
+      "deleteActivity": {
+        "request": {
+          "query": "#graphql\n  mutation DeleteMarketingActivity($remoteId: String) {\n    marketingActivityDeleteExternal(remoteId: $remoteId) {\n      deletedMarketingActivityId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+          "variables": {
+            "remoteId": "har-684-currency-validation-mos90kjt"
+          }
+        },
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197020844338",
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Captured currency validation against a disposable external marketing activity with a USD budget and cleaned it up afterward.",
+    "Activity currency mismatch is captured through both marketingActivityId and remoteId resolution paths.",
+    "The unrecognized channelHandle probe returns INVALID_CHANNEL_HANDLE before currency validation; recognized channel-handle currency validation remains runtime-test-backed until the disposable shop exposes a valid handle."
+  ],
+  "upstreamCalls": []
+}

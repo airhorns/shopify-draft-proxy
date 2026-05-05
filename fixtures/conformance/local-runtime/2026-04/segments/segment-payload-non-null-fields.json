@@ -1,0 +1,99 @@
+{
+  "capturedAt": "2026-05-05T14:45:00.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenarioId": "segment-payload-non-null-fields",
+  "create": {
+    "variables": {
+      "name": "HAR-715 payload defaults",
+      "query": "number_of_orders >= 1"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "segmentCreate": {
+            "segment": {
+              "id": "gid://shopify/Segment/715001",
+              "name": "HAR-715 payload defaults",
+              "query": "number_of_orders >= 1",
+              "creationDate": "2026-05-05T14:45:00Z",
+              "lastEditDate": "2026-05-05T14:45:00Z",
+              "tagMigrated": false,
+              "valid": true,
+              "percentageSnapshot": 12.5,
+              "percentageSnapshotUpdatedAt": "2026-05-05T14:45:01Z",
+              "translation": "HAR-715 payload defaults",
+              "author": {
+                "name": "Shopify"
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "update": {
+    "variables": {
+      "id": "gid://shopify/Segment/715001",
+      "name": "HAR-715 payload defaults updated",
+      "query": "number_of_orders >= 2"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "segmentUpdate": {
+            "segment": {
+              "id": "gid://shopify/Segment/715001",
+              "name": "HAR-715 payload defaults updated",
+              "query": "number_of_orders >= 2",
+              "creationDate": "2026-05-05T14:45:00Z",
+              "lastEditDate": "2026-05-05T14:45:02Z",
+              "tagMigrated": false,
+              "valid": true,
+              "percentageSnapshot": 33.3,
+              "percentageSnapshotUpdatedAt": "2026-05-05T14:45:03Z",
+              "translation": "HAR-715 payload defaults updated",
+              "author": {
+                "name": "Shopify"
+              }
+            },
+            "userErrors": []
+          }
+        }
+      }
+    }
+  },
+  "read": {
+    "variables": {
+      "id": "gid://shopify/Segment/715001"
+    },
+    "response": {
+      "payload": {
+        "data": {
+          "segment": {
+            "id": "gid://shopify/Segment/715001",
+            "name": "HAR-715 payload defaults updated",
+            "query": "number_of_orders >= 2",
+            "creationDate": "2026-05-05T14:45:00Z",
+            "lastEditDate": "2026-05-05T14:45:02Z",
+            "tagMigrated": false,
+            "valid": true,
+            "percentageSnapshot": 33.3,
+            "percentageSnapshotUpdatedAt": "2026-05-05T14:45:03Z",
+            "translation": "HAR-715 payload defaults updated",
+            "author": {
+              "name": "Shopify"
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "HAR-715 local-runtime fixture for Core Segment fields that are absent from the public 2025-01 and 2026-04 conformance store schema but present in the ticket's cited Core GraphApi::Admin::Segment source.",
+    "The fixture deliberately uses non-null percentageSnapshot, percentageSnapshotUpdatedAt, translation, and author values so the parity spec must declare those as expected differences while still requiring exact tagMigrated and valid boolean matches.",
+    "No upstream calls are expected because supported segmentCreate and segmentUpdate stage locally and the downstream segment(id:) read targets the staged segment."
+  ],
+  "upstreamCalls": []
+}

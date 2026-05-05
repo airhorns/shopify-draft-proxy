@@ -163,6 +163,19 @@ pub fn segment_by_id_returns_record_test() {
     == "{\"segment\":{\"__typename\":\"Segment\",\"id\":\"gid://shopify/Segment/1\",\"name\":\"VIPs\",\"query\":\"number_of_orders >= 5\",\"creationDate\":\"2024-01-01T00:00:00.000Z\",\"lastEditDate\":\"2024-01-02T00:00:00.000Z\"}}"
 }
 
+pub fn segment_by_id_returns_payload_defaults_test() {
+  let record =
+    segment("gid://shopify/Segment/3", "VIPs", "number_of_orders >= 5")
+  let s = seed(store.new(), record)
+  let result =
+    run(
+      s,
+      "{ segment(id: \"gid://shopify/Segment/3\") { id tagMigrated valid percentageSnapshot percentageSnapshotUpdatedAt translation author { name } } }",
+    )
+  assert result
+    == "{\"segment\":{\"id\":\"gid://shopify/Segment/3\",\"tagMigrated\":false,\"valid\":true,\"percentageSnapshot\":null,\"percentageSnapshotUpdatedAt\":null,\"translation\":null,\"author\":null}}"
+}
+
 pub fn segment_by_id_missing_returns_null_test() {
   let result =
     run(

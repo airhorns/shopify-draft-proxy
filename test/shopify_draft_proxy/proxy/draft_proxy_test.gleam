@@ -462,6 +462,32 @@ pub fn graphql_saved_search_create_missing_input_test() {
     == "{\"errors\":[{\"message\":\"Field 'savedSearchCreate' is missing required arguments: input\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"savedSearchCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"savedSearchCreate\",\"arguments\":\"input\"}}]}"
 }
 
+pub fn graphql_validation_update_rejects_unknown_function_input_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation ValidationUpdateRebind { validationUpdate(id: \\\"gid://shopify/Validation/1\\\", validation: { functionId: \\\"gid://shopify/ShopifyFunction/other\\\" }) { validation { id functionId } userErrors { field message code } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Field 'functionId' is not defined on ValidationUpdateInput\",\"locations\":[{\"line\":1,\"column\":100}],\"path\":[\"mutation ValidationUpdateRebind\",\"validationUpdate\",\"validation\",\"functionId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"functionId\"}}]}"
+}
+
+pub fn graphql_validation_update_rejects_unknown_function_handle_input_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation ValidationUpdateRebind { validationUpdate(id: \\\"gid://shopify/Validation/1\\\", validation: { functionHandle: \\\"other\\\" }) { validation { id functionHandle } userErrors { field message code } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Field 'functionHandle' is not defined on ValidationUpdateInput\",\"locations\":[{\"line\":1,\"column\":100}],\"path\":[\"mutation ValidationUpdateRebind\",\"validationUpdate\",\"validation\",\"functionHandle\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"functionHandle\"}}]}"
+}
+
 pub fn graphql_saved_search_create_missing_required_input_fields_test() {
   let proxy = draft_proxy.new()
   let request =
@@ -551,6 +577,80 @@ pub fn graphql_saved_search_create_customer_deprecated_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":null,\"message\":\"Customer saved searches have been deprecated. Use Segmentation API instead.\"}]}}}"
+}
+
+pub fn graphql_saved_search_create_duplicate_staged_name_test() {
+  let proxy = draft_proxy.new()
+  let create_a =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Conflict A\\\", query: \\\"tag:a\\\", resourceType: PRODUCT }) { savedSearch { id name } userErrors { field message } } }\"}",
+    )
+  let #(_, proxy) = draft_proxy.process_request(proxy, create_a)
+  let duplicate =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Conflict A\\\", query: \\\"tag:b\\\", resourceType: PRODUCT }) { savedSearch { id name } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, duplicate)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ productSavedSearches(query: \\\"Conflict A\\\") { nodes { name query } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productSavedSearches\":{\"nodes\":[{\"name\":\"Conflict A\",\"query\":\"tag:a\"}]}}}"
+}
+
+pub fn graphql_saved_search_create_duplicate_name_is_case_sensitive_test() {
+  let proxy = draft_proxy.new()
+  let create_a =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Conflict A\\\", query: \\\"tag:a\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(_, proxy) = draft_proxy.process_request(proxy, create_a)
+  let create_lowercase =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"conflict a\\\", query: \\\"tag:b\\\", resourceType: PRODUCT }) { savedSearch { name query resourceType } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, create_lowercase)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":{\"name\":\"conflict a\",\"query\":\"tag:b\",\"resourceType\":\"PRODUCT\"},\"userErrors\":[]}}}"
+}
+
+pub fn graphql_saved_search_create_duplicate_static_default_name_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Unfulfilled\\\", query: \\\"tag:new\\\", resourceType: ORDER }) { savedSearch { id name } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+}
+
+pub fn graphql_saved_search_create_duplicate_base_state_name_test() {
+  let snapshot =
+    "{\"kind\":\"normalized-state-snapshot\",\"baseState\":{\"products\":{},\"savedSearches\":{\"gid://shopify/SavedSearch/900\":{\"id\":\"gid://shopify/SavedSearch/900\",\"legacyResourceId\":\"900\",\"name\":\"Base Product Search\",\"query\":\"tag:base\",\"resourceType\":\"PRODUCT\",\"searchTerms\":\"\",\"filters\":[],\"cursor\":null}},\"savedSearchOrder\":[\"gid://shopify/SavedSearch/900\"]}}"
+  let assert Ok(proxy) =
+    draft_proxy.restore_snapshot(draft_proxy.new(), snapshot)
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Base Product Search\\\", query: \\\"tag:new\\\", resourceType: PRODUCT }) { savedSearch { id name } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchCreate\":{\"savedSearch\":null,\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
 }
 
 pub fn meta_state_reflects_staged_saved_search_test() {
@@ -683,6 +783,38 @@ pub fn graphql_saved_search_update_renames_record_test() {
     json.to_string(state_body),
     "\"name\":\"Renamed promo\"",
   )
+}
+
+pub fn graphql_saved_search_update_duplicate_name_leaves_record_unchanged_test() {
+  let proxy = draft_proxy.new()
+  let create_a =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Conflict A\\\", query: \\\"tag:a\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(_, proxy) = draft_proxy.process_request(proxy, create_a)
+  let create_b =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Conflict B\\\", query: \\\"tag:b\\\", resourceType: PRODUCT }) { savedSearch { id } userErrors { field message } } }\"}",
+    )
+  let #(_, proxy) = draft_proxy.process_request(proxy, create_b)
+  let update_b =
+    graphql_request(
+      "{\"query\":\"mutation { savedSearchUpdate(input: { id: \\\"gid://shopify/SavedSearch/3?shopify-draft-proxy=synthetic\\\", name: \\\"Conflict A\\\", query: \\\"tag:changed\\\" }) { savedSearch { id name query } userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), proxy) =
+    draft_proxy.process_request(proxy, update_b)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"savedSearchUpdate\":{\"savedSearch\":{\"id\":\"gid://shopify/SavedSearch/3?shopify-draft-proxy=synthetic\",\"name\":\"Conflict B\",\"query\":\"tag:changed\"},\"userErrors\":[{\"field\":[\"input\",\"name\"],\"message\":\"Name has already been taken\"}]}}}"
+  let #(Response(body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "{\"query\":\"{ productSavedSearches(query: \\\"Conflict\\\") { nodes { name query } } }\"}",
+      ),
+    )
+  assert json.to_string(read_body)
+    == "{\"data\":{\"productSavedSearches\":{\"nodes\":[{\"name\":\"Conflict A\",\"query\":\"tag:a\"},{\"name\":\"Conflict B\",\"query\":\"tag:b\"}]}}}"
 }
 
 pub fn graphql_saved_search_update_unknown_id_test() {
@@ -1262,7 +1394,9 @@ pub fn restore_state_round_trips_synthetic_identity_test() {
   let #(Response(body: body, ..), _) =
     draft_proxy.process_request(
       restored,
-      graphql_request(saved_search_create_body),
+      graphql_request(
+        "{\"query\":\"mutation { savedSearchCreate(input: { name: \\\"Restored promo\\\", query: \\\"tag:restored\\\", resourceType: ORDER }) { savedSearch { id } userErrors { field message } } }\"}",
+      ),
     )
   assert string.contains(
     json.to_string(body),

@@ -1,0 +1,10 @@
+mutation CommentModerationStatusDelete($id: ID!) {
+  commentDelete(id: $id) {
+    deletedCommentId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
