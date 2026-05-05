@@ -518,6 +518,17 @@ fn read_obj_string(
   }
 }
 
+fn read_obj_raw_string(
+  obj: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(obj, name) {
+    Ok(root_field.StringVal(s)) -> Some(s)
+    Ok(root_field.IntVal(i)) -> Some(int.to_string(i))
+    _ -> None
+  }
+}
+
 fn read_normalized_optional_string(
   obj: Dict(String, root_field.ResolvedValue),
   name: String,
@@ -5634,6 +5645,7 @@ fn token_safe_customer_id(customer_id: String) -> String {
 fn handle_account_invite(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
   let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
+  let email_input = read_account_invite_email_input(args)
   case customer_id {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
@@ -5642,22 +5654,44 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
             customer_account_invitable(customer)
           {
             True -> {
-              let updated = CustomerRecord(..customer, state: Some("INVITED"))
-              let #(_, next_store) = store.stage_update_customer(store, updated)
-              #(
-                customer_payload_json(
-                  next_store,
-                  "CustomerSendAccountInviteEmailPayload",
-                  Some(updated),
-                  None,
-                  None,
+              let email_errors =
+                validate_account_invite_email(customer, email_input)
+              case email_errors {
+                [] -> {
+                  let updated =
+                    CustomerRecord(..customer, state: Some("INVITED"))
+                  let #(_, next_store) =
+                    store.stage_update_customer(store, updated)
+                  #(
+                    customer_payload_json(
+                      next_store,
+                      "CustomerSendAccountInviteEmailPayload",
+                      Some(updated),
+                      None,
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    [id],
+                  )
+                }
+                _ -> #(
+                  customer_payload_json(
+                    store,
+                    "CustomerSendAccountInviteEmailPayload",
+                    None,
+                    None,
+                    None,
+                    email_errors,
+                    field,
+                    fragments,
+                  ),
+                  store,
                   [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                [id],
-              )
+                )
+              }
             }
             False -> #(
               customer_payload_json(
@@ -5716,6 +5750,147 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
         "Customer can't be found",
         None,
       )
+  }
+}
+
+fn read_account_invite_email_input(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(args, "email") {
+    Ok(root_field.ObjectVal(input)) -> Some(input)
+    _ -> None
+  }
+}
+
+fn validate_account_invite_email(
+  customer: CustomerRecord,
+  email_input: Option(Dict(String, root_field.ResolvedValue)),
+) -> List(UserError) {
+  case email_input {
+    None -> []
+    Some(input) -> {
+      [
+        validate_account_invite_subject(input),
+        validate_account_invite_to(customer, input),
+        validate_account_invite_from(input),
+        validate_account_invite_bcc(input),
+        validate_account_invite_custom_message(input),
+      ]
+      |> list.flatten()
+    }
+  }
+}
+
+fn validate_account_invite_subject(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_raw_string(input, "subject") {
+    None | Some("") -> [
+      UserError(["email", "subject"], "Subject can't be blank", Some("INVALID")),
+    ]
+    Some(subject) ->
+      case string.length(subject) > 1000 {
+        True -> [account_invite_send_error()]
+        False -> []
+      }
+  }
+}
+
+fn validate_account_invite_to(
+  customer: CustomerRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_raw_string(input, "to") {
+    None | Some("") -> []
+    Some(to) ->
+      case customer.email {
+        Some(email) if email != "" -> [
+          UserError(
+            ["email", "to"],
+            "To must be blank when the customer has an email address",
+            Some("INVALID"),
+          ),
+        ]
+        _ ->
+          case valid_account_invite_email_address(to) {
+            True -> []
+            False -> [
+              UserError(["email", "to"], "To is invalid", Some("INVALID")),
+            ]
+          }
+      }
+  }
+}
+
+fn validate_account_invite_from(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "from") {
+    Ok(_) -> [
+      UserError(["email", "from"], "From Sender is invalid", Some("INVALID")),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_account_invite_bcc(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  let bcc = read_obj_array_strings(input, "bcc")
+  case bcc {
+    [] -> []
+    _ -> [
+      UserError(
+        ["email", "bcc"],
+        account_invite_bcc_message(bcc),
+        Some("INVALID"),
+      ),
+    ]
+  }
+}
+
+fn validate_account_invite_custom_message(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_raw_string(input, "customMessage") {
+    Some(message) -> {
+      let invalid =
+        string.length(message) > 5000
+        || string.contains(message, "<")
+        || string.contains(message, ">")
+      case invalid {
+        True -> [account_invite_send_error()]
+        False -> []
+      }
+    }
+    _ -> []
+  }
+}
+
+fn account_invite_bcc_message(bcc: List(String)) -> String {
+  "Bcc "
+  <> string.join(
+    list.map(bcc, fn(address) { address <> " is not a valid bcc address" }),
+    " and ",
+  )
+}
+
+fn account_invite_send_error() -> UserError {
+  UserError(
+    ["customerId"],
+    "Error sending account invite to customer.",
+    Some("INVALID"),
+  )
+}
+
+fn valid_account_invite_email_address(email: String) -> Bool {
+  case string.split(email, "@") {
+    [local, domain] ->
+      local != ""
+      && domain != ""
+      && string.contains(domain, ".")
+      && !string.contains(email, " ")
+    _ -> False
   }
 }
 

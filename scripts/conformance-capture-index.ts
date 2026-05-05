@@ -3001,6 +3001,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior: 'Validation-only unknown-ID capture; no created Shopify resources to clean up.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
+  {
+    domain: 'customers',
+    captureId: 'customer-invite-email-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-customer-invite-email-validation-conformance.ts',
+    purpose:
+      'customerSendAccountInviteEmail nested EmailInput validation for subject, to, from, bcc, and customMessage.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-invite-email-validation.json`,
+      'config/parity-specs/customers/customer_invite_email_validation.json',
+      'config/parity-requests/customers/customer-invite-email-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer per validation branch and deletes all created customers during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The valid phone-customer to override control remains runtime-test-backed because the live conformance shop currently returns a generic outbound-delivery failure for success-path invite attempts.',
+  },
 ]);
 
 export function loadConformanceCaptureScriptPaths(repoRoot = process.cwd()): string[] {

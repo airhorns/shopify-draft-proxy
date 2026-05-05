@@ -356,6 +356,123 @@ pub fn customer_account_invite_stages_only_invitable_customers_test() {
   )
 }
 
+pub fn customer_account_invite_validates_email_overrides_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"invite-validation@example.com\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: invite_status, body: invite_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\", email: { subject: \"\", to: \"not-an-email\", from: \"\", bcc: [\"bad\", \"ok@example.com\"], customMessage: \"<script>bad</script>\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert invite_status == 200
+  let invite_json = json.to_string(invite_body)
+  assert string.contains(invite_json, "\"customer\":null,\"userErrors\":[")
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"email\",\"subject\"],\"message\":\"Subject can't be blank\",\"code\":\"INVALID\"}",
+  )
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"email\",\"to\"],\"message\":\"To must be blank when the customer has an email address\",\"code\":\"INVALID\"}",
+  )
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"email\",\"from\"],\"message\":\"From Sender is invalid\",\"code\":\"INVALID\"}",
+  )
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"email\",\"bcc\"],\"message\":\"Bcc bad is not a valid bcc address and ok@example.com is not a valid bcc address\",\"code\":\"INVALID\"}",
+  )
+  assert string.contains(
+    invite_json,
+    "{\"field\":[\"customerId\"],\"message\":\"Error sending account invite to customer.\",\"code\":\"INVALID\"}",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id state } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"DISABLED\"}",
+  )
+
+  let log_request =
+    Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, log_request)
+  assert log_status == 200
+  let log_json = json.to_string(log_body)
+  assert string.contains(log_json, "\"primaryRootField\":\"customerCreate\"")
+  assert !string.contains(log_json, "customerSendAccountInviteEmail")
+}
+
+pub fn customer_account_invite_accepts_valid_to_override_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+14155550123\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: invite_status, body: invite_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\", email: { subject: \"Account invite\", to: \"valid@example.com\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert invite_status == 200
+  let invite_json = json.to_string(invite_body)
+  assert string.contains(
+    invite_json,
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"INVITED\"}",
+  )
+  assert string.contains(invite_json, "\"userErrors\":[]")
+}
+
+pub fn customer_account_invite_rejects_oversized_subject_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"invite-long-subject@example.com\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let long_subject = string.repeat("s", 1001)
+  let #(Response(status: invite_status, body: invite_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\", email: { subject: \""
+        <> long_subject
+        <> "\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert invite_status == 200
+  assert string.contains(
+    json.to_string(invite_body),
+    "\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"Error sending account invite to customer.\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id state } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"DISABLED\"}",
+  )
+}
+
 pub fn customer_create_rejects_client_supplied_id_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, body: create_body, ..), proxy) =
