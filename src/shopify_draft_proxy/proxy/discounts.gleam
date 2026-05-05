@@ -40,9 +40,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DiscountRecord, type ShopifyFunctionAppRecord,
-  type ShopifyFunctionRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString, DiscountRecord,
+  type CapturedJsonValue, type DiscountBulkOperationRecord, type DiscountRecord,
+  type ShopifyFunctionAppRecord, type ShopifyFunctionRecord, CapturedArray,
+  CapturedBool, CapturedFloat, CapturedInt, CapturedNull, CapturedObject,
+  CapturedString, DiscountBulkOperationRecord, DiscountRecord,
   ShopifyFunctionAppRecord, ShopifyFunctionRecord,
 }
 
@@ -61,6 +62,10 @@ type MutationResult {
   )
 }
 
+type RedeemCodeValidation {
+  RedeemCodeValidation(code: String, accepted: Bool, errors: List(SourceValue))
+}
+
 pub fn is_discount_query_root(name: String) -> Bool {
   case name {
     "discountNodes"
@@ -69,6 +74,7 @@ pub fn is_discount_query_root(name: String) -> Bool {
     | "codeDiscountNodes"
     | "codeDiscountNode"
     | "codeDiscountNodeByCode"
+    | "discountRedeemCodeBulkCreation"
     | "automaticDiscountNodes"
     | "automaticDiscountNode" -> True
     _ -> False
@@ -161,6 +167,36 @@ pub fn local_has_staged_discounts(
   has_synthetic || !list.is_empty(store.list_effective_discounts(proxy.store))
 }
 
+fn local_has_discount_bulk_creation_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id)
+        || dict.has_key(proxy.store.staged_state.discount_bulk_operations, id)
+        || dict.has_key(proxy.store.base_state.discount_bulk_operations, id)
+      _ -> False
+    }
+  })
+}
+
+fn get_effective_discount_bulk_operation(
+  store: Store,
+  id: String,
+) -> Option(DiscountBulkOperationRecord) {
+  case dict.get(store.staged_state.discount_bulk_operations, id) {
+    Ok(record) -> Some(record)
+    Error(_) ->
+      case dict.get(store.base_state.discount_bulk_operations, id) {
+        Ok(record) -> Some(record)
+        Error(_) -> None
+      }
+  }
+}
+
 /// In `LiveHybrid` mode, decide whether this discount-domain
 /// operation should be answered by reaching upstream verbatim instead
 /// of from local state. Internal helper for `handle_query_request` —
@@ -193,6 +229,8 @@ fn should_passthrough_in_live_hybrid(
       !local_has_staged_discounts(proxy, variables)
     parse_operation.QueryOperation, "codeDiscountNodeByCode" ->
       !local_has_staged_discounts(proxy, variables)
+    parse_operation.QueryOperation, "discountRedeemCodeBulkCreation" ->
+      !local_has_discount_bulk_creation_id(proxy, variables)
     _, _ -> False
   }
 }
@@ -347,6 +385,21 @@ fn root_query_payload(
           |> option.map(fn(record) {
             project_graphql_value(
               discount_owner_source(record),
+              child_fields(field),
+              fragments,
+            )
+          })
+          |> option.unwrap(json.null())
+        }
+        "discountRedeemCodeBulkCreation" -> {
+          let id = read_string_arg(field, variables, "id")
+          id
+          |> option.then(fn(id) {
+            get_effective_discount_bulk_operation(store, id)
+          })
+          |> option.map(fn(record) {
+            project_graphql_value(
+              captured_to_source(record.payload),
               child_fields(field),
               fragments,
             )
@@ -1112,6 +1165,7 @@ fn handle_discount_mutation_field(
         identity,
         root,
         field,
+        document,
         fragments,
         variables,
         upstream,
@@ -1690,75 +1744,397 @@ fn bulk_job_payload(
 fn redeem_code_bulk_add(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  _root: String,
+  root: String,
   field: Selection,
+  document: String,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> MutationResult {
   let key = get_field_response_key(field)
   let discount_id = read_string_arg(field, variables, "discountId")
-  let codes = read_codes_arg(field, variables, "codes")
-  let #(bulk_id, identity_after_bulk) =
-    make_discount_async_gid(store, identity, "DiscountRedeemCodeBulkCreation")
-  // Pattern 2: when the bulk-add targets a real Shopify-side discount
-  // we don't have locally yet, fetch its current state from upstream
-  // and seed it into the base store so the staged code-additions
-  // overlay correctly. Subsequent read-after-write queries
-  // (`codeDiscountNode`, `codeDiscountNodeByCode`) then serve from the
-  // local handler with the merged shape. In `Snapshot` mode the
-  // hydration silently no-ops; the existing local-only behavior
-  // applies (codes are appended only when the discount is already
-  // staged).
-  let #(store, identity_after_bulk) = case discount_id {
-    Some(id) -> maybe_hydrate_discount(store, identity_after_bulk, id, upstream)
-    None -> #(store, identity_after_bulk)
+  let #(codes, schema_input_codes) =
+    read_codes_arg_with_shape(field, variables, "codes")
+  let too_many_errors =
+    validate_redeem_code_bulk_add_size(field, document, codes)
+  case too_many_errors {
+    [_, ..] ->
+      MutationResult(key, json.null(), store, identity, [], too_many_errors)
+    [] ->
+      redeem_code_bulk_add_after_size_validation(
+        store,
+        identity,
+        root,
+        field,
+        fragments,
+        discount_id,
+        codes,
+        schema_input_codes,
+        upstream,
+        key,
+      )
   }
-  let #(next_store, identity_after_codes) = case discount_id {
+}
+
+fn redeem_code_bulk_add_after_size_validation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root: String,
+  field: Selection,
+  fragments: FragmentMap,
+  discount_id: Option(String),
+  codes: List(String),
+  schema_input_codes: Bool,
+  upstream: UpstreamContext,
+  key: String,
+) -> MutationResult {
+  let #(store, identity) = case discount_id {
+    Some(id) -> maybe_hydrate_discount(store, identity, id, upstream)
+    None -> #(store, identity)
+  }
+  case discount_id {
+    None ->
+      redeem_code_bulk_add_user_error(
+        store,
+        identity,
+        root,
+        field,
+        fragments,
+        key,
+        user_error(["discountId"], "Code discount does not exist.", "INVALID"),
+      )
     Some(id) ->
-      case store.get_effective_discount_by_id(store, id) {
-        Some(record) -> {
-          let #(updated, identity_after_codes) =
-            append_codes(store, record, codes, identity_after_bulk)
-          let #(updated_at, identity_after_codes) =
-            synthetic_identity.make_synthetic_timestamp(identity_after_codes)
-          let updated = bump_discount_updated_at(updated, updated_at)
-          let #(_, s) = store.stage_discount(store, updated)
-          #(s, identity_after_codes)
+      case store.get_effective_discount_by_id(store, id), codes {
+        None, _ ->
+          redeem_code_bulk_add_user_error(
+            store,
+            identity,
+            root,
+            field,
+            fragments,
+            key,
+            user_error(
+              ["discountId"],
+              "Code discount does not exist.",
+              "INVALID",
+            ),
+          )
+        Some(_), [] ->
+          redeem_code_bulk_add_user_error(
+            store,
+            identity,
+            root,
+            field,
+            fragments,
+            key,
+            user_error(["codes"], "Codes can't be blank", "BLANK"),
+          )
+        Some(record), [_, ..] -> {
+          let #(bulk_id, identity) =
+            make_discount_async_gid(
+              store,
+              identity,
+              "DiscountRedeemCodeBulkCreation",
+            )
+          let validations = validate_redeem_codes(codes)
+          let accepted_codes =
+            validations
+            |> list.filter(fn(item) { item.accepted })
+            |> list.map(fn(item) { item.code })
+          let #(updated, identity, created_nodes) =
+            append_codes(store, record, accepted_codes, identity)
+          let #(next_store, identity) = case accepted_codes {
+            [] -> #(store, identity)
+            [_, ..] -> {
+              let #(updated_at, identity) =
+                synthetic_identity.make_synthetic_timestamp(identity)
+              let updated = bump_discount_updated_at(updated, updated_at)
+              let #(_, next_store) = store.stage_discount(store, updated)
+              #(next_store, identity)
+            }
+          }
+          let final_bulk_creation =
+            redeem_code_bulk_creation_source(
+              bulk_id,
+              validations,
+              created_nodes,
+              False,
+            )
+          let #(_, next_store) =
+            store.stage_discount_bulk_operation(
+              next_store,
+              DiscountBulkOperationRecord(
+                id: bulk_id,
+                operation: "discountRedeemCodeBulkAdd",
+                discount_id: id,
+                status: "COMPLETED",
+                payload: source_to_captured(final_bulk_creation),
+              ),
+            )
+          let mutation_bulk_creation =
+            redeem_code_bulk_creation_source(
+              bulk_id,
+              validations,
+              created_nodes,
+              schema_input_codes,
+            )
+          let payload =
+            project_graphql_value(
+              SrcObject(
+                dict.from_list([
+                  #("bulkCreation", mutation_bulk_creation),
+                  #("userErrors", SrcList([])),
+                ]),
+              ),
+              child_fields(field),
+              fragments,
+            )
+          MutationResult(key, payload, next_store, identity, [id, bulk_id], [])
         }
-        None -> #(store, identity_after_bulk)
       }
-    None -> #(store, identity_after_bulk)
   }
-  let bulk_creation =
-    SrcObject(
-      dict.from_list([
-        #("id", SrcString(bulk_id)),
-        #("codesCount", SrcInt(list.length(codes))),
-        #("failedCount", SrcInt(0)),
-        #("importedCount", SrcInt(list.length(codes))),
-        #("done", SrcBool(True)),
-      ]),
-    )
+}
+
+fn redeem_code_bulk_add_user_error(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  _root: String,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  error: SourceValue,
+) -> MutationResult {
   let payload =
     project_graphql_value(
       SrcObject(
         dict.from_list([
-          #("bulkCreation", bulk_creation),
-          #("userErrors", SrcList([])),
+          #("bulkCreation", SrcNull),
+          #("userErrors", SrcList([error])),
         ]),
       ),
       child_fields(field),
       fragments,
     )
-  MutationResult(
-    key,
-    payload,
-    next_store,
-    identity_after_codes,
-    option_to_list(discount_id),
-    [],
+  MutationResult(key, payload, store, identity, [], [])
+}
+
+fn validate_redeem_code_bulk_add_size(
+  field: Selection,
+  document: String,
+  codes: List(String),
+) -> List(Json) {
+  let count = list.length(codes)
+  case count > 250 {
+    False -> []
+    True -> [
+      json.object([
+        #(
+          "message",
+          json.string(
+            "The input array size of "
+            <> int.to_string(count)
+            <> " is greater than the maximum allowed of 250.",
+          ),
+        ),
+        #("locations", field_locations_json(field, document)),
+        #(
+          "path",
+          json.array(["discountRedeemCodeBulkAdd", "codes"], json.string),
+        ),
+        #(
+          "extensions",
+          json.object([#("code", json.string("MAX_INPUT_SIZE_EXCEEDED"))]),
+        ),
+      ]),
+    ]
+  }
+}
+
+fn validate_redeem_codes(codes: List(String)) -> List(RedeemCodeValidation) {
+  let #(items, _) =
+    list.fold(codes, #([], []), fn(acc, code) {
+      let #(items, seen) = acc
+      let pure_errors = redeem_code_value_errors(code)
+      case pure_errors {
+        [_, ..] -> #(
+          [RedeemCodeValidation(code, False, pure_errors), ..items],
+          seen,
+        )
+        [] ->
+          case list.contains(seen, code) {
+            True -> #(
+              [
+                RedeemCodeValidation(code, False, [
+                  user_error_with_code(
+                    ["code"],
+                    "Codes must be unique within BulkDiscountCodeCreation",
+                    None,
+                  ),
+                ]),
+                ..items
+              ],
+              seen,
+            )
+            False -> #([RedeemCodeValidation(code, True, []), ..items], [
+              code,
+              ..seen
+            ])
+          }
+      }
+    })
+  list.reverse(items)
+}
+
+fn redeem_code_value_errors(code: String) -> List(SourceValue) {
+  case code == "" {
+    True -> [
+      user_error_with_code(
+        ["code"],
+        "is too short (minimum is 1 character)",
+        None,
+      ),
+    ]
+    False ->
+      case string.contains(code, "\n") || string.contains(code, "\r") {
+        True -> [
+          user_error_with_code(
+            ["code"],
+            "cannot contain newline characters.",
+            None,
+          ),
+        ]
+        False ->
+          case string.length(code) > 255 {
+            True -> [
+              user_error_with_code(
+                ["code"],
+                "is too long (maximum is 255 characters)",
+                None,
+              ),
+            ]
+            False -> []
+          }
+      }
+  }
+}
+
+fn redeem_code_bulk_creation_source(
+  id: String,
+  validations: List(RedeemCodeValidation),
+  created_nodes: List(#(String, String)),
+  pending: Bool,
+) -> SourceValue {
+  let failed_count =
+    validations
+    |> list.filter(fn(item) { !item.accepted })
+    |> list.length
+  let imported_count = list.length(validations) - failed_count
+  SrcObject(
+    dict.from_list([
+      #("id", SrcString(id)),
+      #("done", SrcBool(!pending)),
+      #("codesCount", SrcInt(list.length(validations))),
+      #(
+        "importedCount",
+        SrcInt(case pending {
+          True -> 0
+          False -> imported_count
+        }),
+      ),
+      #(
+        "failedCount",
+        SrcInt(case pending {
+          True -> 0
+          False -> failed_count
+        }),
+      ),
+      #(
+        "codes",
+        SrcObject(
+          dict.from_list([
+            #(
+              "nodes",
+              SrcList(
+                list.map(validations, fn(item) {
+                  redeem_code_bulk_creation_code_source(
+                    item,
+                    created_nodes,
+                    pending,
+                  )
+                }),
+              ),
+            ),
+            #("edges", SrcList([])),
+            #(
+              "pageInfo",
+              SrcObject(
+                dict.from_list([
+                  #("hasNextPage", SrcBool(False)),
+                  #("hasPreviousPage", SrcBool(False)),
+                  #("startCursor", SrcNull),
+                  #("endCursor", SrcNull),
+                ]),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    ]),
   )
+}
+
+fn redeem_code_bulk_creation_code_source(
+  validation: RedeemCodeValidation,
+  created_nodes: List(#(String, String)),
+  pending: Bool,
+) -> SourceValue {
+  let redeem_code = case pending, validation.accepted {
+    True, _ -> SrcNull
+    False, True ->
+      case find_created_redeem_code_id(created_nodes, validation.code) {
+        Some(id) ->
+          SrcObject(
+            dict.from_list([
+              #("id", SrcString(id)),
+              #("code", SrcString(validation.code)),
+            ]),
+          )
+        None -> SrcNull
+      }
+    False, False -> SrcNull
+  }
+  SrcObject(
+    dict.from_list([
+      #("code", SrcString(validation.code)),
+      #(
+        "errors",
+        SrcList(case pending {
+          True -> []
+          False -> validation.errors
+        }),
+      ),
+      #("discountRedeemCode", redeem_code),
+    ]),
+  )
+}
+
+fn find_created_redeem_code_id(
+  nodes: List(#(String, String)),
+  code: String,
+) -> Option(String) {
+  case
+    nodes
+    |> list.find(fn(pair) {
+      let #(_, node_code) = pair
+      node_code == code
+    })
+  {
+    Ok(pair) -> {
+      let #(id, _) = pair
+      Some(id)
+    }
+    Error(_) -> None
+  }
 }
 
 fn redeem_code_bulk_delete(
@@ -4478,26 +4854,37 @@ fn read_string_array(
   }
 }
 
-fn read_codes_arg(
+fn read_codes_arg_with_shape(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
   name: String,
-) -> List(String) {
+) -> #(List(String), Bool) {
   case root_field.get_field_arguments(field, variables) {
     Ok(args) ->
       case dict.get(args, name) {
-        Ok(root_field.ListVal(items)) ->
-          list.filter_map(items, fn(item) {
-            case item {
-              root_field.StringVal(value) -> Ok(value)
-              root_field.ObjectVal(fields) ->
-                read_string(fields, "code") |> option.to_result(Nil)
-              _ -> Error(Nil)
-            }
-          })
-        _ -> []
+        Ok(root_field.ListVal(items)) -> {
+          let has_object_inputs =
+            list.any(items, fn(item) {
+              case item {
+                root_field.ObjectVal(_) -> True
+                _ -> False
+              }
+            })
+          #(
+            list.filter_map(items, fn(item) {
+              case item {
+                root_field.StringVal(value) -> Ok(value)
+                root_field.ObjectVal(fields) ->
+                  read_string(fields, "code") |> option.to_result(Nil)
+                _ -> Error(Nil)
+              }
+            }),
+            has_object_inputs,
+          )
+        }
+        _ -> #([], False)
       }
-    Error(_) -> []
+    Error(_) -> #([], False)
   }
 }
 
@@ -5261,9 +5648,9 @@ fn append_codes(
   record: DiscountRecord,
   codes: List(String),
   identity: SyntheticIdentityRegistry,
-) -> #(DiscountRecord, SyntheticIdentityRegistry) {
+) -> #(DiscountRecord, SyntheticIdentityRegistry, List(#(String, String))) {
   case codes {
-    [] -> #(record, identity)
+    [] -> #(record, identity, [])
     [first, ..] -> {
       let existing_nodes = existing_code_nodes(record)
       let existing_codes = list.map(existing_nodes, fn(pair) { pair.1 })
@@ -5288,6 +5675,7 @@ fn append_codes(
           payload: update_payload_codes(record.payload, nodes),
         ),
         next_identity,
+        list.reverse(new_nodes),
       )
     }
   }

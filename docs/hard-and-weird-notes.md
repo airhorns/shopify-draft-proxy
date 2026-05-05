@@ -2682,6 +2682,16 @@ Captured mutation-scoped `DiscountUserError` branches:
   `discountCodeBasicUpdate` carrying a `code` field once the bulk-added redeem code is
   query-visible; immediate update attempts before bulk processing can still
   succeed on the live store
+- `discountRedeemCodeBulkAdd` validation is split across GraphQL validation,
+  mutation-scoped `DiscountUserError`s, and async per-code bulk results:
+  unknown `discountId` returns `field: ['discountId']`, `code: 'INVALID'`,
+  and `Code discount does not exist.`; an empty code array returns
+  `field: ['codes']`, `code: 'BLANK'`, and `Codes can't be blank`; more than
+  250 input codes is a top-level `MAX_INPUT_SIZE_EXCEEDED` error on
+  `['discountRedeemCodeBulkAdd', 'codes']`; schema-shaped empty, CR/LF,
+  too-long, and duplicate code strings are accepted into a
+  `DiscountRedeemCodeBulkCreation` and appear later as per-code
+  `codes.nodes[].errors` on `discountRedeemCodeBulkCreation(id:)`
 - `discountCodeBasicUpdate` against a `DiscountCodeBxgy` record coerces the
   record to `DiscountCodeBasic` instead of preserving the prior type
 - code and automatic bulk roots use different wording for mutually exclusive selector errors even though both use `code: 'TOO_MANY_ARGUMENTS'`
