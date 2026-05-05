@@ -393,24 +393,6 @@ const fixture = {
   storeDomain,
   apiVersion,
   accessScopes: scopeProbe,
-  upstreamCalls: [
-    {
-      operationName: 'DiscountUniquenessCheck',
-      variables: {
-        code: duplicateCode,
-      },
-      response: {
-        status: 200,
-        body: {
-          data: {
-            codeDiscountNodeByCode: {
-              id: duplicateSeedId,
-            },
-          },
-        },
-      },
-    },
-  ],
   seedDiscounts: [
     {
       id: duplicateSeedId,
