@@ -143,6 +143,19 @@ duplicate role, foreign/missing role, foreign/missing location, successful main
 contact delete, and completed B2B order-history delete rejection branches as
 strict replayable parity evidence.
 
+HAR-762 extends those role-assignment guardrails to revoke-role mutation roots.
+`companyContactRevokeRole` validates the parent contact before looking at the
+assignment and returns Shopify's public `RESOURCE_NOT_FOUND` userError when the
+assignment is not scoped to that contact. `companyContactRevokeRoles` rejects
+empty `roleAssignmentIds` unless `revokeAll` is true with Shopify's null
+`field` / null `revokedRoleAssignmentIds` payload, validates the parent contact,
+and reports per-index `RESOURCE_NOT_FOUND` ownership errors while still
+revoking valid IDs. `companyLocationRevokeRoles` validates the parent location
+and reports per-index `RESOURCE_NOT_FOUND` errors for assignments outside that
+location. Focused runtime tests and the 2026-04
+`b2b-revoke-role-scope-preconditions` capture cover these branches and the
+no-cross-scope-mutation invariant.
+
 HAR-758 extends the contact-removal lifecycle cascade. Successful
 `companyContactDelete`, `companyContactsDelete`, and
 `companyContactRemoveFromCompany` remove every normalized role assignment whose

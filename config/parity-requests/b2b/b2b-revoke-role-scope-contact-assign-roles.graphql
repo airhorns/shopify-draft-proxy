@@ -1,0 +1,12 @@
+mutation B2BRevokeRoleScopeContactAssignRoles($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {
+  companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {
+    roleAssignments {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

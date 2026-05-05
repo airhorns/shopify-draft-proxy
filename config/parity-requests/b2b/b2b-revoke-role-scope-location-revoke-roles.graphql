@@ -1,0 +1,10 @@
+mutation B2BRevokeRoleScopeLocationRevokeRoles($companyLocationId: ID!, $rolesToRevoke: [ID!]!) {
+  companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $rolesToRevoke) {
+    revokedRoleAssignmentIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
