@@ -249,6 +249,73 @@ pub fn run_query_returns_created_operation_and_stages_terminal_log_test() {
   assert list.length(store.get_log(outcome.store)) == 1
 }
 
+pub fn run_query_returns_operation_in_progress_for_non_terminal_query_test() {
+  let running =
+    bulk_operation(
+      "gid://shopify/BulkOperation/701",
+      "RUNNING",
+      "QUERY",
+      "2026-04-27T00:00:04Z",
+    )
+  let #(_, source) = store.stage_bulk_operation(store.new(), running)
+  let document =
+    "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\") { bulkOperation { id status type } userErrors { field message code } } }"
+  let outcome =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"A bulk query operation for this app and shop is already in progress: gid://shopify/BulkOperation/701.\",\"code\":\"OPERATION_IN_PROGRESS\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let assert [_] = store.list_effective_bulk_operations(outcome.store)
+}
+
+pub fn run_query_canceling_operation_still_blocks_new_query_test() {
+  let running =
+    bulk_operation(
+      "gid://shopify/BulkOperation/711",
+      "RUNNING",
+      "QUERY",
+      "2026-04-27T00:00:04Z",
+    )
+  let #(_, source) = store.stage_bulk_operation(store.new(), running)
+  let cancel =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { bulkOperationCancel(id: \"gid://shopify/BulkOperation/711\") { bulkOperation { id status } userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let document =
+    "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\") { bulkOperation { id status type } userErrors { field message code } } }"
+  let next =
+    bulk_operations.process_mutation(
+      cancel.store,
+      cancel.identity,
+      "/admin/api/2026-04/graphql.json",
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(next.data)
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"A bulk query operation for this app and shop is already in progress: gid://shopify/BulkOperation/711.\",\"code\":\"OPERATION_IN_PROGRESS\"}]}}}"
+  let assert Some(operation) =
+    store.get_effective_bulk_operation_by_id(
+      next.store,
+      "gid://shopify/BulkOperation/711",
+    )
+  assert operation.status == "CANCELING"
+}
+
 pub fn run_query_accepts_group_objects_true_false_and_default_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let fields =
@@ -620,6 +687,49 @@ pub fn run_mutation_product_create_import_stages_product_and_result_test() {
     dict.get(log_variables, "product")
   let assert Ok(root_field.StringVal("Bulk Created Board")) =
     dict.get(log_product, "title")
+}
+
+pub fn run_mutation_returns_operation_in_progress_for_non_terminal_mutation_test() {
+  let running =
+    bulk_operation(
+      "gid://shopify/BulkOperation/801",
+      "RUNNING",
+      "MUTATION",
+      "2026-04-27T00:00:04Z",
+    )
+  let upload_path = "/bulk/in-progress-products.jsonl"
+  let source =
+    store.new()
+    |> store.stage_bulk_operation(running)
+    |> fn(pair) { pair.1 }
+    |> store.stage_staged_upload_content(
+      upload_path,
+      "{\"product\":{\"title\":\"Blocked Bulk Create\"}}\n",
+    )
+  let inner =
+    "mutation ProductCreate($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
+  let document =
+    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type } userErrors { field message code } } }"
+  let variables =
+    dict.from_list([
+      #("mutation", root_field.StringVal(inner)),
+      #("path", root_field.StringVal(upload_path)),
+    ])
+  let outcome =
+    bulk_operations.process_mutation(
+      source,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      variables,
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/801.\",\"code\":\"OPERATION_IN_PROGRESS\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_products(outcome.store) == []
+  let assert [_] = store.list_effective_bulk_operations(outcome.store)
 }
 
 pub fn cancel_staged_terminal_and_missing_operations_test() {

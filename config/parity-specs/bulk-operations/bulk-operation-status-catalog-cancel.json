@@ -62,24 +62,6 @@
         }
       },
       {
-        "name": "staged-running-cancel",
-        "capturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.response.data.bulkOperationCancel",
-        "proxyPath": "$.data.bulkOperationCancel",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
-          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.variables"
-        }
-      },
-      {
-        "name": "read-after-staged-cancel",
-        "capturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.response.data.bulkOperationCancel.bulkOperation",
-        "proxyPath": "$.data.bulkOperation",
-        "proxyRequest": {
-          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-by-id-parity.graphql",
-          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.variables"
-        }
-      },
-      {
         "name": "run-query-user-errors-empty",
         "capturePath": "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.userErrors",
         "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
@@ -158,6 +140,24 @@
             "reason": "Shopify returns a signed storage URL while the proxy serves an in-memory local result URL."
           }
         ]
+      },
+      {
+        "name": "staged-running-cancel",
+        "capturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.variables"
+        }
+      },
+      {
+        "name": "read-after-staged-cancel",
+        "capturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.response.data.bulkOperationCancel.bulkOperation",
+        "proxyPath": "$.data.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-by-id-parity.graphql",
+          "variablesCapturePath": "$.lifecycle.queryExportImmediateCancel.cancelAttempt.variables"
+        }
       }
     ]
   }

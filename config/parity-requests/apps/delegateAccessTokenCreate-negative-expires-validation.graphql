@@ -1,0 +1,15 @@
+mutation DelegateAccessTokenCreateNegativeExpiresValidation {
+  delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: -1 }) {
+    delegateAccessToken {
+      accessToken
+      accessScopes
+      createdAt
+      expiresIn
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

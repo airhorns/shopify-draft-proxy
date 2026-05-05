@@ -1,0 +1,11 @@
+mutation BackupRegionUpdateNumericCountryCode {
+  backupRegionUpdate(region: { countryCode: 42 }) {
+    backupRegion {
+      id
+    }
+    userErrors {
+      field
+      code
+    }
+  }
+}

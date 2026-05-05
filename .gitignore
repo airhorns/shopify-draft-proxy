@@ -17,6 +17,7 @@ elixir_smoke/deps/
 # Test and runtime output
 coverage/
 .conformance/
+.linear-cache/
 docs/generated/
 *.log
 npm-debug.log*

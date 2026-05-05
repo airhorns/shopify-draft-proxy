@@ -1715,28 +1715,64 @@ fn validate_https_uri(uri: String) -> List(UserError) {
       }
     True -> {
       let host = https_uri_host(uri)
-      case host == "" || has_url_whitespace(uri) || is_disallowed_host(host) {
+      case host == "" || has_url_whitespace(uri) {
         True -> [invalid_url_user_error()]
-        False -> []
+        False ->
+          case is_disallowed_host(host) {
+            True -> [internal_domain_user_error()]
+            False -> []
+          }
       }
     }
   }
 }
 
 fn https_uri_host(uri: String) -> String {
-  let without_scheme = string.drop_start(uri, 8)
-  without_scheme
-  |> split_before("/")
-  |> split_before("?")
-  |> split_before("#")
-  |> split_before(":")
+  uri
+  |> string.drop_start(8)
+  |> uri_authority
+  |> host_without_userinfo
+  |> host_without_port
+  |> trim_trailing_dot
   |> string.lowercase
 }
 
-fn split_before(value: String, separator: String) -> String {
-  case string.split_once(value, separator) {
-    Ok(#(left, _)) -> left
-    Error(_) -> value
+fn uri_authority(after_scheme: String) -> String {
+  after_scheme
+  |> string_before("/")
+  |> string_before("?")
+  |> string_before("#")
+}
+
+fn string_before(value: String, delimiter: String) -> String {
+  case string.split(value, on: delimiter) {
+    [head, ..] -> head
+    [] -> value
+  }
+}
+
+fn host_without_userinfo(authority: String) -> String {
+  case string.split(authority, on: "@") |> list.last {
+    Ok(host) -> host
+    Error(_) -> authority
+  }
+}
+
+fn host_without_port(host_port: String) -> String {
+  case string.starts_with(host_port, "[") {
+    True ->
+      case string.drop_start(host_port, 1) |> string.split_once("]") {
+        Ok(#(host, _)) -> host
+        Error(_) -> host_port
+      }
+    False -> string_before(host_port, ":")
+  }
+}
+
+fn trim_trailing_dot(host: String) -> String {
+  case string.ends_with(host, ".") {
+    True -> trim_trailing_dot(string.drop_end(host, 1))
+    False -> host
   }
 }
 
@@ -1748,11 +1784,62 @@ fn has_url_whitespace(value: String) -> Bool {
 }
 
 fn is_disallowed_host(host: String) -> Bool {
+  is_disallowed_webhook_domain(host) || is_disallowed_webhook_ipv4(host)
+}
+
+fn is_disallowed_webhook_domain(host: String) -> Bool {
   host == "localhost"
-  || host == "127.0.0.1"
-  || host == "0.0.0.0"
-  || host == "::1"
-  || string.ends_with(host, ".local")
+  || domain_matches(host, "shopify.com")
+  || domain_matches(host, "myshopify.com")
+  || domain_matches(host, "shopifypreview.com")
+  || domain_matches(host, "myshopify.dev")
+}
+
+fn domain_matches(host: String, domain: String) -> Bool {
+  host == domain || string.ends_with(host, "." <> domain)
+}
+
+fn is_disallowed_webhook_ipv4(host: String) -> Bool {
+  case parse_ipv4(host) {
+    Some(#(first, second, _, _)) ->
+      first == 0
+      || first == 10
+      || first == 127
+      || { first == 192 && second == 168 }
+      || { first == 172 && second >= 16 && second <= 31 }
+    None -> False
+  }
+}
+
+fn parse_ipv4(host: String) -> Option(#(Int, Int, Int, Int)) {
+  case string.split(host, on: ".") {
+    [a, b, c, d] ->
+      case int.parse(a), int.parse(b), int.parse(c), int.parse(d) {
+        Ok(first), Ok(second), Ok(third), Ok(fourth) ->
+          case
+            valid_ipv4_octet(first)
+            && valid_ipv4_octet(second)
+            && valid_ipv4_octet(third)
+            && valid_ipv4_octet(fourth)
+          {
+            True -> Some(#(first, second, third, fourth))
+            False -> None
+          }
+        _, _, _, _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn valid_ipv4_octet(value: Int) -> Bool {
+  value >= 0 && value <= 255
+}
+
+fn internal_domain_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address cannot be a Shopify or an internal domain",
+  )
 }
 
 fn validate_pubsub_uri(uri: String) -> List(UserError) {

@@ -1,0 +1,8 @@
+mutation FlowTriggerReceiveBodyNotJson {
+  flowTriggerReceive(body: "not json") {
+    userErrors {
+      field
+      message
+    }
+  }
+}

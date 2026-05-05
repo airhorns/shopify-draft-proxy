@@ -87,6 +87,14 @@ fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
 ) -> mutation_helpers.MutationOutcome {
+  run_mutation_outcome_with_headers(store_in, document, dict.new())
+}
+
+fn run_mutation_outcome_with_headers(
+  store_in: store.Store,
+  document: String,
+  headers: dict.Dict(String, String),
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
   let outcome =
     apps.process_mutation(
@@ -98,7 +106,7 @@ fn run_mutation_outcome(
       upstream_query.UpstreamContext(
         transport: None,
         origin: "https://shopify.example",
-        headers: dict.new(),
+        headers: headers,
       ),
     )
   outcome
@@ -271,20 +279,50 @@ pub fn process_mutation_returns_data_envelope_test() {
 
 // ----------- appUninstall -----------
 
-pub fn app_uninstall_creates_default_when_no_installation_test() {
-  // No installation seeded — handler must mint a default app + installation.
+pub fn app_uninstall_no_installation_returns_app_not_installed_test() {
   let outcome =
     run_mutation_outcome(
       store.new(),
-      "mutation { appUninstall { app { id handle } userErrors { field } } }",
+      "mutation { appUninstall { app { id handle } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   assert body
-    == "{\"data\":{\"appUninstall\":{\"app\":{\"id\":\"gid://shopify/App/1\",\"handle\":\"shopify-draft-proxy\"},\"userErrors\":[]}}}"
-  // Staged uninstall suppresses the current installation from downstream reads.
-  assert store.get_current_app_installation(outcome.store) == None
-  let assert Some(_) =
-    store.get_effective_app_by_id(outcome.store, "gid://shopify/App/1")
+    == "{\"data\":{\"appUninstall\":{\"app\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"App is not installed on this shop.\",\"code\":\"APP_NOT_INSTALLED\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert dict.size(outcome.store.staged_state.apps) == 0
+  assert dict.size(outcome.store.staged_state.app_installations) == 0
+  let assert [draft] = outcome.log_drafts
+  assert draft.status == store.Failed
+}
+
+pub fn app_uninstall_unknown_input_id_returns_app_not_found_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { appUninstall(input: { id: \"gid://shopify/App/9999999999\" }) { app { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appUninstall\":{\"app\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The app cannot be found.\",\"code\":\"APP_NOT_FOUND\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert dict.size(outcome.store.staged_state.apps) == 0
+  assert dict.size(outcome.store.staged_state.app_installations) == 0
+  let assert [draft] = outcome.log_drafts
+  assert draft.status == store.Failed
+}
+
+pub fn app_uninstall_existing_uninstalled_input_id_returns_not_installed_test() {
+  let a = app("gid://shopify/App/101", "other-app", "key-101")
+  let #(_, s) = store.stage_app(store.new(), a)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appUninstall(input: { id: \"gid://shopify/App/101\" }) { app { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appUninstall\":{\"app\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"App is not installed on this shop.\",\"code\":\"APP_NOT_INSTALLED\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let assert [draft] = outcome.log_drafts
+  assert draft.status == store.Failed
 }
 
 pub fn app_uninstall_marks_installation_uninstalled_test() {
@@ -299,6 +337,152 @@ pub fn app_uninstall_marks_installation_uninstalled_test() {
     )
     == None
   assert outcome.staged_resource_ids == ["gid://shopify/AppInstallation/100"]
+}
+
+pub fn app_uninstall_input_id_targets_existing_installation_test() {
+  let outcome =
+    run_mutation_outcome(
+      seeded_with_installation(),
+      "mutation { appUninstall(input: { id: \"gid://shopify/App/100\" }) { app { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appUninstall\":{\"app\":{\"id\":\"gid://shopify/App/100\"},\"userErrors\":[]}}}"
+  assert store.get_current_app_installation(outcome.store) == None
+  let assert [draft] = outcome.log_drafts
+  assert draft.status == store.Staged
+}
+
+pub fn app_uninstall_cross_app_requires_apps_scope_test() {
+  let current_app = app("gid://shopify/App/200", "current-app", "key-current")
+  let current_install =
+    installation("gid://shopify/AppInstallation/200", current_app.id)
+  let target_app = app("gid://shopify/App/201", "target-app", "key-target")
+  let target_install =
+    installation("gid://shopify/AppInstallation/201", target_app.id)
+  let s =
+    store.upsert_base_app_installation(
+      store.new(),
+      current_install,
+      current_app,
+    )
+  let #(_, s) = store.stage_app(s, target_app)
+  let #(_, s) = store.stage_app_installation(s, target_install)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appUninstall(input: { id: \"gid://shopify/App/201\" }) { app { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appUninstall\":{\"app\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"You do not have permission to uninstall this app.\",\"code\":\"INSUFFICIENT_PERMISSIONS\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let assert Some(still_target) =
+    store.get_effective_app_installation_by_id(outcome.store, target_install.id)
+  assert still_target.app_id == target_app.id
+}
+
+pub fn app_uninstall_cross_app_with_apps_scope_succeeds_test() {
+  let current_app = app("gid://shopify/App/210", "current-app", "key-current")
+  let current_install =
+    installation_with_scopes(
+      "gid://shopify/AppInstallation/210",
+      current_app.id,
+      [scope("read_products"), scope("apps")],
+    )
+  let target_app = app("gid://shopify/App/211", "target-app", "key-target")
+  let target_install =
+    installation("gid://shopify/AppInstallation/211", target_app.id)
+  let s =
+    store.upsert_base_app_installation(
+      store.new(),
+      current_install,
+      current_app,
+    )
+  let #(_, s) = store.stage_app(s, target_app)
+  let #(_, s) = store.stage_app_installation(s, target_install)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appUninstall(input: { id: \"gid://shopify/App/211\" }) { app { id } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appUninstall\":{\"app\":{\"id\":\"gid://shopify/App/211\"},\"userErrors\":[]}}}"
+  assert store.get_effective_app_installation_by_id(
+      outcome.store,
+      target_install.id,
+    )
+    == None
+  let assert Some(still_current) =
+    store.get_current_app_installation(outcome.store)
+  assert still_current.id == current_install.id
+}
+
+pub fn app_uninstall_cascades_subscriptions_tokens_and_scopes_test() {
+  let s = seeded_with_installation()
+  let sub_active =
+    subscription("gid://shopify/AppSubscription/active", "ACTIVE")
+  let sub_pending =
+    subscription("gid://shopify/AppSubscription/pending", "PENDING")
+  let sub_cancelled =
+    subscription("gid://shopify/AppSubscription/cancelled", "CANCELLED")
+  let #(_, s) = store.stage_app_subscription(s, sub_active)
+  let #(_, s) = store.stage_app_subscription(s, sub_pending)
+  let #(_, s) = store.stage_app_subscription(s, sub_cancelled)
+  let assert Some(install) = store.get_current_app_installation(s)
+  let #(_, s) =
+    store.stage_app_installation(
+      s,
+      AppInstallationRecord(
+        ..install,
+        active_subscription_ids: [sub_active.id, sub_pending.id],
+        all_subscription_ids: [sub_active.id, sub_pending.id, sub_cancelled.id],
+      ),
+    )
+  let raw = "shpat_delegate_uninstall_cascade"
+  let token =
+    DelegatedAccessTokenRecord(
+      id: "gid://shopify/DelegateAccessToken/cascade",
+      access_token_sha256: shopify_sha256_of(raw),
+      access_token_preview: "[redacted]cade",
+      access_scopes: ["read_products"],
+      created_at: "2023-12-01T00:00:00Z",
+      expires_in: None,
+      destroyed_at: None,
+    )
+  let #(_, s) = store.stage_delegated_access_token(s, token)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appUninstall { app { id } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appUninstall\":{\"app\":{\"id\":\"gid://shopify/App/100\"},\"userErrors\":[]}}}"
+  assert store.get_current_app_installation(outcome.store) == None
+  let assert Some(updated_active) =
+    store.get_effective_app_subscription_by_id(outcome.store, sub_active.id)
+  let assert Some(updated_pending) =
+    store.get_effective_app_subscription_by_id(outcome.store, sub_pending.id)
+  let assert Some(unchanged_cancelled) =
+    store.get_effective_app_subscription_by_id(outcome.store, sub_cancelled.id)
+  assert updated_active.status == "CANCELLED"
+  assert updated_pending.status == "CANCELLED"
+  assert unchanged_cancelled.status == "CANCELLED"
+  assert store.find_delegated_access_token_by_hash(
+      outcome.store,
+      shopify_sha256_of(raw),
+    )
+    == None
+  assert list.contains(outcome.staged_resource_ids, sub_active.id)
+  assert list.contains(outcome.staged_resource_ids, sub_pending.id)
+  assert !list.contains(outcome.staged_resource_ids, sub_cancelled.id)
+  assert list.contains(outcome.staged_resource_ids, token.id)
+  let assert Ok(staged_install) =
+    dict.get(
+      outcome.store.staged_state.app_installations,
+      "gid://shopify/AppInstallation/100",
+    )
+  assert staged_install.access_scopes == []
+  assert staged_install.active_subscription_ids == []
 }
 
 // ----------- appRevokeAccessScopes -----------
@@ -434,12 +618,12 @@ pub fn delegate_token_create_round_trip_test() {
   let outcome =
     run_mutation_outcome(
       store.new(),
-      "mutation { delegateAccessTokenCreate(input: { accessScopes: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes createdAt expiresIn } userErrors { field message } } }",
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes createdAt expiresIn } shop { id name } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   // Token id is the first synthetic gid (#1). Raw token = "shpat_delegate_proxy_1".
   assert body
-    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"expiresIn\":3600},\"userErrors\":[]}}}"
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"expiresIn\":3600},\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\",\"name\":\"Shopify Draft Proxy\"},\"userErrors\":[]}}}"
   // The store must hold a record whose sha256 matches the raw token's hash.
   let assert Some(record) =
     store.find_delegated_access_token_by_hash(
@@ -448,6 +632,87 @@ pub fn delegate_token_create_round_trip_test() {
     )
   assert record.access_scopes == ["read_products"]
   assert record.destroyed_at == None
+}
+
+pub fn delegate_token_create_legacy_access_scopes_fallback_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { accessScopes: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"expiresIn\":3600},\"userErrors\":[]}}}"
+}
+
+pub fn delegate_token_create_delegate_scope_presence_blocks_legacy_fallback_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [], accessScopes: [\"read_products\"] }) { delegateAccessToken { accessScopes } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The access scope can't be empty.\",\"code\":\"EMPTY_ACCESS_SCOPE\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+}
+
+pub fn delegate_token_create_rejects_empty_scope_list_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [] }) { delegateAccessToken { accessToken accessScopes } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The access scope can't be empty.\",\"code\":\"EMPTY_ACCESS_SCOPE\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+  let assert [
+    mutation_helpers.LogDraft(status: store.Failed, staged_resource_ids: [], ..),
+  ] = outcome.log_drafts
+}
+
+pub fn delegate_token_create_rejects_non_positive_expires_in_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: -1 }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The expires_in value must be greater than 0.\",\"code\":\"NEGATIVE_EXPIRES_IN\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+}
+
+pub fn delegate_token_create_rejects_unknown_scope_handles_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"fake_scope\", \"another_fake_scope\"] }) { delegateAccessToken { accessScopes } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The access scope is invalid: fake_scope, another_fake_scope\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+}
+
+pub fn delegate_token_create_rejects_active_delegate_parent_test() {
+  let raw = "shpat_delegate_parent"
+  let record =
+    DelegatedAccessTokenRecord(
+      id: "gid://shopify/DelegateAccessToken/parent",
+      access_token_sha256: shopify_sha256_of(raw),
+      access_token_preview: "[redacted]rent",
+      access_scopes: ["read_products"],
+      created_at: "2024-01-01T00:00:00.000Z",
+      expires_in: Some(3600),
+      destroyed_at: None,
+    )
+  let #(_, s) = store.stage_delegated_access_token(store.new(), record)
+  let outcome =
+    run_mutation_outcome_with_headers(
+      s,
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"] }) { delegateAccessToken { accessScopes } userErrors { field message code } } }",
+      dict.from_list([#("X-Shopify-Access-Token", raw)]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The parent access token can't be a delegate token.\",\"code\":\"DELEGATE_ACCESS_TOKEN\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 1
 }
 
 pub fn delegate_token_destroy_marks_destroyed_test() {
