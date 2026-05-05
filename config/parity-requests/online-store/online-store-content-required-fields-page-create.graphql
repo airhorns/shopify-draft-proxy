@@ -1,0 +1,14 @@
+mutation OnlineStoreContentRequiredFieldsPageCreate($page: PageCreateInput!) {
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,292 @@
+{
+  "capturedAt": "2026-05-05T02:45:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2025-01",
+  "liveGatewaySideEffects": false,
+  "notes": "Local-runtime strict parity fixture for HAR-564 MoneyBag presentment coverage. The empty upstream cassette proves supported order/refund/edit mutations remain locally staged for this scenario.",
+  "singleCurrencyCreate": {
+    "variables": {
+      "order": {
+        "currency": "USD",
+        "lineItems": [
+          {
+            "title": "MoneyBag line",
+            "quantity": 1,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "12.00",
+                "currencyCode": "USD"
+              }
+            },
+            "taxLines": [
+              {
+                "title": "Line tax",
+                "rate": 0.125,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "1.50",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "expected": {
+      "data": {
+        "orderCreate": {
+          "order": {
+            "id": "gid://shopify/Order/1",
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "13.5",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "13.5",
+                "currencyCode": "USD"
+              }
+            },
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "13.5",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "13.5",
+                "currencyCode": "USD"
+              }
+            },
+            "totalTaxSet": {
+              "shopMoney": {
+                "amount": "1.5",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "1.5",
+                "currencyCode": "USD"
+              }
+            },
+            "totalReceivedSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "0.0",
+                "currencyCode": "USD"
+              }
+            },
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "13.5",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "13.5",
+                "currencyCode": "USD"
+              }
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "12.0",
+                      "currencyCode": "USD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.0",
+                      "currencyCode": "USD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "multiCurrencyCreate": {
+    "variables": {
+      "order": {
+        "currency": "CAD",
+        "lineItems": [
+          {
+            "title": "FX line",
+            "quantity": 1,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "10.00",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "7.00",
+                "currencyCode": "USD"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "expected": {
+      "data": {
+        "orderCreate": {
+          "order": {
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "10.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "7.0",
+                "currencyCode": "USD"
+              }
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "originalUnitPriceSet": {
+                    "shopMoney": {
+                      "amount": "10.0",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "7.0",
+                      "currencyCode": "USD"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "markAsPaid": {
+    "expected": {
+      "data": {
+        "orderMarkAsPaid": {
+          "order": {
+            "id": "gid://shopify/Order/1",
+            "totalOutstandingSet": {
+              "shopMoney": {
+                "amount": "0.0",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "0.0",
+                "currencyCode": "USD"
+              }
+            },
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "13.5",
+                    "currencyCode": "USD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "13.5",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "refund": {
+    "expected": {
+      "data": {
+        "refundCreate": {
+          "refund": {
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "5.0",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "5.0",
+                "currencyCode": "USD"
+              }
+            }
+          },
+          "order": {
+            "totalRefundedSet": {
+              "shopMoney": {
+                "amount": "5.0",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "5.0",
+                "currencyCode": "USD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "orderEditBegin": {
+    "expected": {
+      "data": {
+        "orderEditBegin": {
+          "calculatedOrder": {
+            "id": "gid://shopify/CalculatedOrder/7",
+            "originalOrder": {
+              "id": "gid://shopify/Order/1"
+            },
+            "totalPriceSet": {
+              "shopMoney": {
+                "amount": "12.0",
+                "currencyCode": "CAD"
+              },
+              "presentmentMoney": {
+                "amount": "12.0",
+                "currencyCode": "CAD"
+              }
+            }
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "orderEditCommit": {
+    "expected": {
+      "data": {
+        "orderEditCommit": {
+          "order": {
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "13.5",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "13.5",
+                "currencyCode": "USD"
+              }
+            }
+          },
+          "successMessages": ["Order updated"],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

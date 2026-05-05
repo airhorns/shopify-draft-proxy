@@ -1,0 +1,289 @@
+{
+  "scenarioId": "online-store/content-required-fields",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-05T02:27:38.908Z",
+  "interactions": [
+    {
+      "name": "blogCreate-setup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentRequiredFieldsBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "HAR 558 Required Fields Blog 20260505022737"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120966414642",
+              "title": "HAR 558 Required Fields Blog 20260505022737",
+              "handle": "har-558-required-fields-blog-20260505022737"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageCreate-missing-title-schema-error",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentRequiredFieldsPageCreateMissing {\n    pageCreate(page: {}) {\n      page { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'title' on InputObject 'PageCreateInput' is required. Expected type String!",
+            "locations": [
+              {
+                "line": 3,
+                "column": 22
+              }
+            ],
+            "path": ["mutation OnlineStoreContentRequiredFieldsPageCreateMissing", "pageCreate", "page", "title"],
+            "extensions": {
+              "code": "missingRequiredInputObjectAttribute",
+              "argumentName": "title",
+              "argumentType": "String!",
+              "inputObjectType": "PageCreateInput"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "pageCreate-blank-title-user-error",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentRequiredFieldsPageCreate($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "page": {
+            "title": ""
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": null,
+            "userErrors": [
+              {
+                "field": ["page", "title"],
+                "message": "Title can't be blank",
+                "code": "BLANK"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-missing-title-schema-error",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentRequiredFieldsArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "blogId": "gid://shopify/Blog/120966414642",
+            "author": {
+              "name": "HAR 558 Author"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Variable $article of type ArticleCreateInput! was provided invalid value for title (Expected value to not be null)",
+            "locations": [
+              {
+                "line": 2,
+                "column": 58
+              }
+            ],
+            "extensions": {
+              "code": "INVALID_VARIABLE",
+              "value": {
+                "blogId": "gid://shopify/Blog/120966414642",
+                "author": {
+                  "name": "HAR 558 Author"
+                }
+              },
+              "problems": [
+                {
+                  "path": ["title"],
+                  "explanation": "Expected value to not be null"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "articleCreate-blank-title-user-error",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentRequiredFieldsArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "",
+            "blogId": "gid://shopify/Blog/120966414642",
+            "author": {
+              "name": "HAR 558 Author"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article", "title"],
+                "message": "Title can't be blank",
+                "code": "BLANK"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogCreate-missing-title-schema-error",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentRequiredFieldsBlogCreateMissing {\n    blogCreate(blog: {}) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {}
+      },
+      "status": 200,
+      "response": {
+        "errors": [
+          {
+            "message": "Argument 'title' on InputObject 'BlogCreateInput' is required. Expected type String!",
+            "locations": [
+              {
+                "line": 3,
+                "column": 22
+              }
+            ],
+            "path": ["mutation OnlineStoreContentRequiredFieldsBlogCreateMissing", "blogCreate", "blog", "title"],
+            "extensions": {
+              "code": "missingRequiredInputObjectAttribute",
+              "argumentName": "title",
+              "argumentType": "String!",
+              "inputObjectType": "BlogCreateInput"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "blogCreate-blank-title-user-error",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreContentRequiredFieldsBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": ""
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": null,
+            "userErrors": [
+              {
+                "field": ["blog", "title"],
+                "message": "Title can't be blank",
+                "code": null
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "blogDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation BlogDelete($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/120966414642"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/120966414642",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

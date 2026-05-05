@@ -644,8 +644,8 @@ fn create_content(
       payload_key,
     )
     |> option.unwrap(dict.new())
-  case resolve_content_handle(outcome.store, kind, input, None, None) {
-    Error(error) ->
+  case required_title_error(payload_key, input) {
+    Some(error) ->
       content_validation_error_payload(
         outcome,
         field,
@@ -654,32 +654,44 @@ fn create_content(
         payload_key,
         error,
       )
-    Ok(handle) -> {
-      let #(record, identity) =
-        make_content(outcome.identity, kind, input, None, None, handle)
-      let #(_, store) =
-        store.upsert_staged_online_store_content(outcome.store, record)
-      let payload =
-        mutation_payload(
-          field,
-          fragments,
-          payload_key,
-          project_content_payload(
-            store,
-            record,
+    None ->
+      case resolve_content_handle(outcome.store, kind, input, None, None) {
+        Error(error) ->
+          content_validation_error_payload(
+            outcome,
             field,
             fragments,
-            variables,
+            root,
             payload_key,
-          ),
-          [],
-        )
-      #(
-        key,
-        payload,
-        mutation_outcome(outcome, store, identity, root, [record.id]),
-      )
-    }
+            error,
+          )
+        Ok(handle) -> {
+          let #(record, identity) =
+            make_content(outcome.identity, kind, input, None, None, handle)
+          let #(_, store) =
+            store.upsert_staged_online_store_content(outcome.store, record)
+          let payload =
+            mutation_payload(
+              field,
+              fragments,
+              payload_key,
+              project_content_payload(
+                store,
+                record,
+                field,
+                fragments,
+                variables,
+                payload_key,
+              ),
+              [],
+            )
+          #(
+            key,
+            payload,
+            mutation_outcome(outcome, store, identity, root, [record.id]),
+          )
+        }
+      }
   }
 }
 
@@ -695,23 +707,15 @@ fn create_article(
     graphql_helpers.read_arg_object(args, "article")
     |> option.unwrap(dict.new())
   case article_create_validation_error(args, article_input) {
-    Some(error) -> {
-      let payload =
-        mutation_payload(field, fragments, "article", json.null(), [error])
-      #(
-        key,
-        payload,
-        mutation_outcome_with_status(
-          outcome,
-          outcome.store,
-          outcome.identity,
-          "articleCreate",
-          [],
-          store.Failed,
-          Some("Rejected articleCreate validation in shopify-draft-proxy."),
-        ),
+    Some(error) ->
+      content_validation_error_payload(
+        outcome,
+        field,
+        fragments,
+        "articleCreate",
+        "article",
+        error,
       )
-    }
     None -> {
       let blog_from_arg =
         graphql_helpers.read_arg_object(args, "blog")
@@ -869,18 +873,22 @@ fn article_create_validation_error(
     Some(_) -> True
     None -> False
   }
-  case has_blog_id, has_inline_blog {
-    True, True ->
-      Some(article_user_error(
-        "Can't create a blog from input if a blog ID is supplied.",
-        "AMBIGUOUS_BLOG",
-      ))
-    False, False ->
-      Some(article_user_error(
-        "Must reference or create a blog when creating an article.",
-        "BLOG_REFERENCE_REQUIRED",
-      ))
-    _, _ -> article_author_validation_error(article_input)
+  case required_title_error("article", article_input) {
+    Some(error) -> Some(error)
+    None ->
+      case has_blog_id, has_inline_blog {
+        True, True ->
+          Some(article_user_error(
+            "Can't create a blog from input if a blog ID is supplied.",
+            "AMBIGUOUS_BLOG",
+          ))
+        False, False ->
+          Some(article_user_error(
+            "Must reference or create a blog when creating an article.",
+            "BLOG_REFERENCE_REQUIRED",
+          ))
+        _, _ -> article_author_validation_error(article_input)
+      }
   }
 }
 
@@ -3100,6 +3108,21 @@ fn article_user_error(
     #("message", SrcString(message)),
     #("code", SrcString(code)),
   ])
+}
+
+fn required_title_error(
+  payload_key: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(graphql_helpers.SourceValue) {
+  case input_non_blank_string(input, "title") {
+    Some(_) -> None
+    None ->
+      Some(user_error_with_code(
+        [payload_key, "title"],
+        "Title can't be blank",
+        "BLANK",
+      ))
+  }
 }
 
 fn user_errors_source(
