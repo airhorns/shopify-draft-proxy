@@ -235,7 +235,6 @@ fn location_inventory_levels(quantity_name: String, quantity: Int) {
   )
 }
 
-
 pub fn empty_shop_read_returns_null_test() {
   let body = "{\"query\":\"query { shop { id name } }\"}"
   let #(proxy_state.Response(status: status, body: response_body, ..), _) =

@@ -670,6 +670,7 @@ pub fn payment_customization_invalid_metafield_shape_returns_user_error_test() {
   )
   assert string.contains(update_json, "\"code\":\"INVALID_METAFIELDS\"")
 }
+
 const order_id = "gid://shopify/Order/637"
 
 fn order_money_set(amount: String, currency_code: String) {
