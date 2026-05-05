@@ -2976,7 +2976,7 @@ Captured facts:
 Practical rule:
 
 - keep local gift-card search filtering limited to confirmed Shopify search fields such as `id`; invalid fields should not narrow local results
-- treat credit/debit transaction support as locally staged runtime behavior backed by current integration tests until live transaction scopes are added and successful payloads can be captured
+- credit/debit transaction success and validation behavior is now backed by live 2025-01 captures with transaction scopes, including typed `GiftCardCreditTransaction` payloads and failure branches for expired, deactivated, mismatched currency, and invalid/future `processedAt`
 
 ## 72. Finance/risk/POS roots need strong data minimization
 

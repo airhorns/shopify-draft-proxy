@@ -31,14 +31,14 @@
     "response": {
       "data": {
         "fileUpdate": {
-          "files": [
+          "files": [],
+          "userErrors": [
             {
-              "id": "gid://shopify/MediaImage/2",
-              "alt": "Local failure acknowledgement ready state",
-              "fileStatus": "READY"
+              "field": ["files"],
+              "message": "Non-ready files cannot be updated.",
+              "code": "NON_READY_STATE"
             }
-          ],
-          "userErrors": []
+          ]
         }
       }
     }
@@ -47,17 +47,14 @@
     "response": {
       "data": {
         "fileAcknowledgeUpdateFailed": {
-          "files": [
+          "files": null,
+          "userErrors": [
             {
-              "id": "gid://shopify/MediaImage/2",
-              "alt": "Local failure acknowledgement ready state",
-              "fileStatus": "READY",
-              "image": {
-                "url": "https://cdn.example.com/ack-ready.jpg"
-              }
+              "field": ["fileIds"],
+              "message": "File with id gid://shopify/MediaImage/2 is not in the READY state.",
+              "code": "NON_READY_STATE"
             }
-          ],
-          "userErrors": []
+          ]
         }
       }
     }
@@ -69,12 +66,12 @@
           "nodes": [
             {
               "id": "gid://shopify/MediaImage/2",
-              "alt": "Local failure acknowledgement ready state",
+              "alt": "Local failure acknowledgement source",
               "createdAt": "2024-01-01T00:00:01.000Z",
-              "fileStatus": "READY",
+              "fileStatus": "UPLOADED",
               "filename": "ack-source.jpg",
               "image": {
-                "url": "https://cdn.example.com/ack-ready.jpg",
+                "url": "https://cdn.example.com/ack-source.jpg",
                 "width": null,
                 "height": null
               }
@@ -90,5 +87,10 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [],
+  "evidence": [
+    "Snapshot-mode fileCreate stages a Files API MediaImage record in UPLOADED state.",
+    "fileUpdate rejects that non-ready staged file with NON_READY_STATE instead of promoting it to READY.",
+    "fileAcknowledgeUpdateFailed also rejects the non-ready file and downstream files reads preserve the original UPLOADED state."
+  ]
 }

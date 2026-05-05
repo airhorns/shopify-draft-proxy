@@ -578,6 +578,24 @@ fn serialize_gift_card_transaction(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Json {
+  serialize_gift_card_transaction_as(
+    transaction,
+    selections,
+    giftcard,
+    fragments,
+    variables,
+    "GiftCardTransaction",
+  )
+}
+
+fn serialize_gift_card_transaction_as(
+  transaction: GiftCardTransactionRecord,
+  selections: List(Selection),
+  giftcard: Option(GiftCardRecord),
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  typename: String,
+) -> Json {
   let entries =
     list.flat_map(selections, fn(selection) {
       case selection {
@@ -586,8 +604,8 @@ fn serialize_gift_card_transaction(
             Some(ast.NamedType(name: name, ..)) -> Some(name.value)
             _ -> None
           }
-          case cond {
-            None | Some("GiftCardTransaction") -> {
+          case transaction_selection_matches(cond, typename) {
+            True -> {
               let SelectionSet(selections: inner, ..) = ss
               transaction_entries(
                 transaction,
@@ -595,9 +613,10 @@ fn serialize_gift_card_transaction(
                 giftcard,
                 fragments,
                 variables,
+                typename,
               )
             }
-            _ -> []
+            False -> []
           }
         }
         ast.FragmentSpread(name: name, ..) ->
@@ -607,7 +626,9 @@ fn serialize_gift_card_transaction(
               selection_set: SelectionSet(selections: inner, ..),
               ..,
             )) ->
-              case cond_name.value == "GiftCardTransaction" {
+              case
+                transaction_selection_matches(Some(cond_name.value), typename)
+              {
                 True ->
                   transaction_entries(
                     transaction,
@@ -615,6 +636,7 @@ fn serialize_gift_card_transaction(
                     giftcard,
                     fragments,
                     variables,
+                    typename,
                   )
                 False -> []
               }
@@ -627,11 +649,23 @@ fn serialize_gift_card_transaction(
             giftcard,
             fragments,
             variables,
+            typename,
           ),
         ]
       }
     })
   json.object(entries)
+}
+
+fn transaction_selection_matches(
+  condition: Option(String),
+  typename: String,
+) -> Bool {
+  case condition {
+    None -> True
+    Some("GiftCardTransaction") -> True
+    Some(value) -> value == typename
+  }
 }
 
 fn transaction_entries(
@@ -640,6 +674,7 @@ fn transaction_entries(
   giftcard: Option(GiftCardRecord),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  typename: String,
 ) -> List(#(String, Json)) {
   list.flat_map(selections, fn(selection) {
     case selection {
@@ -648,8 +683,8 @@ fn transaction_entries(
           Some(ast.NamedType(name: name, ..)) -> Some(name.value)
           _ -> None
         }
-        case cond {
-          None | Some("GiftCardTransaction") -> {
+        case transaction_selection_matches(cond, typename) {
+          True -> {
             let SelectionSet(selections: inner, ..) = ss
             transaction_entries(
               transaction,
@@ -657,9 +692,10 @@ fn transaction_entries(
               giftcard,
               fragments,
               variables,
+              typename,
             )
           }
-          _ -> []
+          False -> []
         }
       }
       ast.FragmentSpread(name: name, ..) ->
@@ -669,7 +705,9 @@ fn transaction_entries(
             selection_set: SelectionSet(selections: inner, ..),
             ..,
           )) ->
-            case cond_name.value == "GiftCardTransaction" {
+            case
+              transaction_selection_matches(Some(cond_name.value), typename)
+            {
               True ->
                 transaction_entries(
                   transaction,
@@ -677,6 +715,7 @@ fn transaction_entries(
                   giftcard,
                   fragments,
                   variables,
+                  typename,
                 )
               False -> []
             }
@@ -689,6 +728,7 @@ fn transaction_entries(
           giftcard,
           fragments,
           variables,
+          typename,
         ),
       ]
     }
@@ -701,12 +741,13 @@ fn transaction_field_entry(
   giftcard: Option(GiftCardRecord),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  typename: String,
 ) -> #(String, Json) {
   let key = get_field_response_key(field)
   case field {
     Field(name: name, selection_set: ss, ..) ->
       case name.value {
-        "__typename" -> #(key, json.string("GiftCardTransaction"))
+        "__typename" -> #(key, json.string(typename))
         "id" -> #(key, json.string(transaction.id))
         "kind" -> #(key, json.string(transaction.kind))
         "note" -> #(key, graphql_helpers.option_string_json(transaction.note))
@@ -1242,6 +1283,7 @@ fn handle_mutation_fields(
                 "creditAmount",
                 "creditInput",
                 "GiftCardCreditPayload",
+                "GiftCardCreditTransaction",
               ))
             "giftCardDebit" ->
               Some(handle_gift_card_transaction(
@@ -1254,6 +1296,7 @@ fn handle_mutation_fields(
                 "debitAmount",
                 "debitInput",
                 "GiftCardDebitPayload",
+                "GiftCardDebitTransaction",
               ))
             "giftCardDeactivate" ->
               Some(handle_gift_card_deactivate(
@@ -2034,161 +2077,92 @@ fn handle_gift_card_transaction(
   preferred_amount_key: String,
   preferred_input_key: String,
   payload_typename: String,
+  transaction_typename: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let id = read_gift_card_id(args)
-  let existing = case id {
-    Some(value) -> store.get_effective_gift_card_by_id(store, value)
-    None -> None
-  }
-  case id, existing {
-    Some(_), Some(current) -> {
-      let raw_money =
-        read_mutation_money(args, preferred_amount_key, preferred_input_key)
-      let magnitude =
-        parse_decimal_amount(root_field.StringVal(raw_money.amount))
-      case magnitude <=. 0.0 {
-        True -> {
-          let payload =
-            empty_payload([
-              UserError(
-                field: [preferred_amount_key],
-                code: None,
-                message: "Amount must be greater than zero",
-              ),
-            ])
-          let json_payload =
-            gift_card_payload_json(
-              payload,
-              payload_typename,
-              field,
-              fragments,
-              variables,
-            )
-          #(
-            MutationFieldResult(
-              key: key,
-              payload: json_payload,
-              staged_resource_ids: [],
-            ),
-            store,
-            identity,
-          )
-        }
-        False -> {
-          let current_balance =
-            parse_decimal_amount(root_field.StringVal(current.balance.amount))
-          case kind == "DEBIT" && magnitude >. current_balance {
-            True -> {
-              let payload =
-                empty_payload([
-                  UserError(
-                    field: [preferred_amount_key],
-                    code: None,
-                    message: "Insufficient balance",
-                  ),
-                ])
-              let json_payload =
-                gift_card_payload_json(
-                  payload,
-                  payload_typename,
-                  field,
-                  fragments,
-                  variables,
-                )
-              #(
-                MutationFieldResult(
-                  key: key,
-                  payload: json_payload,
-                  staged_resource_ids: [],
-                ),
-                store,
-                identity,
-              )
-            }
-            False -> {
-              let signed = case kind {
-                "CREDIT" -> magnitude
-                _ -> 0.0 -. magnitude
-              }
-              let currency = case raw_money.currency_code {
-                "" -> current.balance.currency_code
-                code -> code
-              }
-              let #(transaction_id, identity_after_id) =
-                synthetic_identity.make_synthetic_gid(
-                  identity,
-                  "GiftCardTransaction",
-                )
-              let processed_at_explicit =
-                read_mutation_processed_at(args, preferred_input_key)
-              let #(processed_at, identity_after_processed) = case
-                processed_at_explicit
-              {
-                Some(value) -> #(value, identity_after_id)
-                None ->
-                  synthetic_identity.make_synthetic_timestamp(identity_after_id)
-              }
-              let transaction =
-                GiftCardTransactionRecord(
-                  id: transaction_id,
-                  kind: kind,
-                  amount: Money(
-                    amount: format_decimal_amount(signed),
-                    currency_code: currency,
-                  ),
-                  processed_at: processed_at,
-                  note: read_mutation_note(args, preferred_input_key),
-                )
-              let new_balance = current_balance +. signed
-              let #(now, identity_after_ts) =
-                synthetic_identity.make_synthetic_timestamp(
-                  identity_after_processed,
-                )
-              let updated =
-                GiftCardRecord(
-                  ..current,
-                  balance: Money(
-                    amount: format_decimal_amount(new_balance),
-                    currency_code: currency,
-                  ),
-                  updated_at: now,
-                  transactions: list.append(current.transactions, [transaction]),
-                )
-              let #(_, store_after) =
-                store.stage_update_gift_card(store, updated)
-              let payload =
-                GiftCardPayload(
-                  gift_card: Some(updated),
-                  gift_card_code: None,
-                  gift_card_transaction: Some(transaction),
-                  user_errors: [],
-                )
-              let json_payload =
-                gift_card_payload_json(
-                  payload,
-                  payload_typename,
-                  field,
-                  fragments,
-                  variables,
-                )
-              #(
-                MutationFieldResult(
-                  key: key,
-                  payload: json_payload,
-                  staged_resource_ids: [updated.id],
-                ),
-                store_after,
-                identity_after_ts,
-              )
-            }
-          }
-        }
+  let raw_money =
+    read_mutation_money(args, preferred_amount_key, preferred_input_key)
+  let magnitude = parse_decimal_amount(root_field.StringVal(raw_money.amount))
+  let existing =
+    id
+    |> option.then(fn(value) {
+      store.get_effective_gift_card_by_id(store, value)
+    })
+  let processed_at_explicit =
+    read_mutation_processed_at(args, preferred_input_key)
+  let validation_error =
+    validate_gift_card_transaction(
+      existing,
+      raw_money,
+      magnitude,
+      processed_at_explicit,
+      kind,
+      preferred_amount_key,
+      preferred_input_key,
+    )
+
+  case existing, validation_error {
+    _, Some(user_error) ->
+      gift_card_transaction_error_result(
+        key,
+        user_error,
+        payload_typename,
+        field,
+        fragments,
+        variables,
+        store,
+        identity,
+      )
+    Some(current), None -> {
+      let current_balance =
+        parse_decimal_amount(root_field.StringVal(current.balance.amount))
+      let signed = case kind {
+        "CREDIT" -> magnitude
+        _ -> 0.0 -. magnitude
       }
-    }
-    _, _ -> {
-      let payload = empty_payload([not_found_user_error()])
+      let currency = current.balance.currency_code
+      let #(transaction_id, identity_after_id) =
+        synthetic_identity.make_synthetic_gid(identity, transaction_typename)
+      let #(processed_at, identity_after_processed) = case
+        processed_at_explicit
+      {
+        Some(value) -> #(value, identity_after_id)
+        None -> synthetic_identity.make_synthetic_timestamp(identity_after_id)
+      }
+      let transaction =
+        GiftCardTransactionRecord(
+          id: transaction_id,
+          kind: kind,
+          amount: Money(
+            amount: format_decimal_amount(signed),
+            currency_code: currency,
+          ),
+          processed_at: processed_at,
+          note: read_mutation_note(args, preferred_input_key),
+        )
+      let new_balance = current_balance +. signed
+      let #(now, identity_after_ts) =
+        synthetic_identity.make_synthetic_timestamp(identity_after_processed)
+      let updated =
+        GiftCardRecord(
+          ..current,
+          balance: Money(
+            amount: format_decimal_amount(new_balance),
+            currency_code: currency,
+          ),
+          updated_at: now,
+          transactions: list.append(current.transactions, [transaction]),
+        )
+      let #(_, store_after) = store.stage_update_gift_card(store, updated)
+      let payload =
+        GiftCardPayload(
+          gift_card: Some(updated),
+          gift_card_code: None,
+          gift_card_transaction: Some(transaction),
+          user_errors: [],
+        )
       let json_payload =
         gift_card_payload_json(
           payload,
@@ -2201,11 +2175,190 @@ fn handle_gift_card_transaction(
         MutationFieldResult(
           key: key,
           payload: json_payload,
-          staged_resource_ids: [],
+          staged_resource_ids: [updated.id],
         ),
+        store_after,
+        identity_after_ts,
+      )
+    }
+    None, None ->
+      gift_card_transaction_error_result(
+        key,
+        not_found_user_error(),
+        payload_typename,
+        field,
+        fragments,
+        variables,
         store,
         identity,
       )
+  }
+}
+
+fn gift_card_transaction_error_result(
+  key: String,
+  user_error: UserError,
+  payload_typename: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload = empty_payload([user_error])
+  let json_payload =
+    gift_card_payload_json(
+      payload,
+      payload_typename,
+      field,
+      fragments,
+      variables,
+    )
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: json_payload,
+      staged_resource_ids: [],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn validate_gift_card_transaction(
+  existing: Option(GiftCardRecord),
+  raw_money: Money,
+  magnitude: Float,
+  processed_at: Option(String),
+  kind: String,
+  preferred_amount_key: String,
+  preferred_input_key: String,
+) -> Option(UserError) {
+  case magnitude <=. 0.0 {
+    True ->
+      Some(UserError(
+        field: [preferred_input_key, preferred_amount_key, "amount"],
+        code: Some("NEGATIVE_OR_ZERO_AMOUNT"),
+        message: "Amount must be greater than zero",
+      ))
+    False ->
+      case existing {
+        None -> Some(not_found_user_error())
+        Some(current) ->
+          validate_existing_gift_card_transaction(
+            current,
+            raw_money,
+            magnitude,
+            processed_at,
+            kind,
+            preferred_amount_key,
+            preferred_input_key,
+          )
+      }
+  }
+}
+
+fn validate_existing_gift_card_transaction(
+  current: GiftCardRecord,
+  raw_money: Money,
+  magnitude: Float,
+  processed_at: Option(String),
+  kind: String,
+  preferred_amount_key: String,
+  preferred_input_key: String,
+) -> Option(UserError) {
+  case validate_processed_at(processed_at, preferred_input_key) {
+    Some(error) -> Some(error)
+    None ->
+      case gift_card_is_expired(current) {
+        True -> Some(invalid_user_error(["id"], "The gift card has expired."))
+        False ->
+          case current.enabled {
+            False ->
+              Some(invalid_user_error(["id"], "The gift card is deactivated."))
+            True ->
+              validate_gift_card_transaction_money(
+                current,
+                raw_money,
+                magnitude,
+                kind,
+                preferred_amount_key,
+                preferred_input_key,
+              )
+          }
+      }
+  }
+}
+
+fn validate_processed_at(
+  processed_at: Option(String),
+  preferred_input_key: String,
+) -> Option(UserError) {
+  case processed_at {
+    Some(value) ->
+      case iso_timestamp.parse_iso(value) {
+        Ok(ms) ->
+          case ms < 0 {
+            True ->
+              Some(invalid_user_error(
+                [preferred_input_key, "processedAt"],
+                "A valid processed date must be used.",
+              ))
+            False -> {
+              let now_ms =
+                iso_timestamp.now_iso()
+                |> iso_timestamp.parse_iso
+                |> result.unwrap(0)
+              case ms > now_ms {
+                True ->
+                  Some(invalid_user_error(
+                    [preferred_input_key, "processedAt"],
+                    "The processed date must not be in the future.",
+                  ))
+                False -> None
+              }
+            }
+          }
+        Error(_) ->
+          Some(invalid_user_error(
+            [preferred_input_key, "processedAt"],
+            "A valid processed date must be used.",
+          ))
+      }
+    None -> None
+  }
+}
+
+fn validate_gift_card_transaction_money(
+  current: GiftCardRecord,
+  raw_money: Money,
+  magnitude: Float,
+  kind: String,
+  preferred_amount_key: String,
+  preferred_input_key: String,
+) -> Option(UserError) {
+  case
+    raw_money.currency_code != ""
+    && raw_money.currency_code != current.balance.currency_code
+  {
+    True ->
+      Some(UserError(
+        field: [preferred_input_key, preferred_amount_key, "currencyCode"],
+        code: Some("MISMATCHING_CURRENCY"),
+        message: "The currency provided does not match the currency of the gift card.",
+      ))
+    False -> {
+      let current_balance =
+        parse_decimal_amount(root_field.StringVal(current.balance.amount))
+      case kind == "DEBIT" && magnitude >. current_balance {
+        True ->
+          Some(UserError(
+            field: [preferred_input_key, preferred_amount_key, "amount"],
+            code: Some("INSUFFICIENT_FUNDS"),
+            message: "Insufficient balance",
+          ))
+        False -> None
+      }
     }
   }
 }
@@ -2853,12 +3006,17 @@ fn payload_field_entry(
           key,
           case payload.gift_card_transaction {
             Some(tx) ->
-              serialize_gift_card_transaction(
+              serialize_gift_card_transaction_as(
                 tx,
                 graphql_helpers.selection_set_selections(ss),
                 payload.gift_card,
                 fragments,
                 variables,
+                case name.value {
+                  "giftCardDebitTransaction" -> "GiftCardDebitTransaction"
+                  "giftCardCreditTransaction" -> "GiftCardCreditTransaction"
+                  _ -> "GiftCardTransaction"
+                },
               )
             None -> json.null()
           },

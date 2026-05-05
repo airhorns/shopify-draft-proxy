@@ -13,13 +13,7 @@
   "notes": "Captured live store-level Files API `fileUpdate` after the created MediaImage reached READY. This keeps generic Files API updates distinct from product-scoped `productUpdateMedia`.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.fileUpdate.files[0].id",
-        "matcher": "shopify-gid:MediaImage",
-        "reason": "The update target uses the local staged file id returned by the proxy create response; Shopify returns the live file id captured from the dev store."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "update-mutation-data",
@@ -30,7 +24,7 @@
             "files": [
               {
                 "id": {
-                  "fromPrimaryProxyPath": "$.data.fileCreate.files[0].id"
+                  "fromCapturePath": "$.mutation.variables.files[0].id"
                 },
                 "alt": "Hermes Files API updated alt"
               }
