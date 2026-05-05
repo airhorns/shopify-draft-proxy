@@ -137,9 +137,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/9801098789170"
-              ]
+              "productsToAdd": ["gid://shopify/Product/9801098789170"]
             }
           }
         },
@@ -154,9 +152,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/9801098789170"
-              ]
+              "productsToAdd": ["gid://shopify/Product/9801098789170"]
             }
           }
         }
@@ -211,10 +207,7 @@
       "gid://shopify/DiscountCodeNode/1640466055474",
       "gid://shopify/DiscountCodeNode/1640466088242"
     ],
-    "customerIds": [
-      "gid://shopify/Customer/10582995763506",
-      "gid://shopify/Customer/10582995796274"
-    ],
+    "customerIds": ["gid://shopify/Customer/10582995763506", "gid://shopify/Customer/10582995796274"],
     "productId": "gid://shopify/Product/9801098789170"
   },
   "conflictCreate": {
@@ -226,16 +219,12 @@
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995763506"
-            ]
+            "add": ["gid://shopify/Customer/10582995763506"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995796274"
-            ]
+            "add": ["gid://shopify/Customer/10582995796274"]
           }
         },
         "customerGets": {
@@ -253,16 +242,12 @@
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995763506"
-            ]
+            "add": ["gid://shopify/Customer/10582995763506"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995796274"
-            ]
+            "add": ["gid://shopify/Customer/10582995796274"]
           }
         },
         "customerBuys": {
@@ -271,9 +256,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/9801098789170"
-              ]
+              "productsToAdd": ["gid://shopify/Product/9801098789170"]
             }
           }
         },
@@ -288,9 +271,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/9801098789170"
-              ]
+              "productsToAdd": ["gid://shopify/Product/9801098789170"]
             }
           }
         }
@@ -301,16 +282,12 @@
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995763506"
-            ]
+            "add": ["gid://shopify/Customer/10582995763506"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995796274"
-            ]
+            "add": ["gid://shopify/Customer/10582995796274"]
           }
         },
         "destination": {
@@ -323,16 +300,12 @@
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995763506"
-            ]
+            "add": ["gid://shopify/Customer/10582995763506"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995796274"
-            ]
+            "add": ["gid://shopify/Customer/10582995796274"]
           }
         },
         "functionHandle": "discount-local"
@@ -344,10 +317,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "basicCodeDiscount",
-                "context"
-              ],
+              "field": ["basicCodeDiscount", "context"],
               "message": "Only one of context or customerSelection can be provided.",
               "code": "INVALID",
               "extraInfo": null
@@ -358,10 +328,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "bxgyCodeDiscount",
-                "context"
-              ],
+              "field": ["bxgyCodeDiscount", "context"],
               "message": "Only one of context or customerSelection can be provided.",
               "code": "INVALID",
               "extraInfo": null
@@ -372,10 +339,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "freeShippingCodeDiscount",
-                "context"
-              ],
+              "field": ["freeShippingCodeDiscount", "context"],
               "message": "Only one of context or customerSelection can be provided.",
               "code": "INVALID",
               "extraInfo": null
@@ -386,10 +350,7 @@
           "codeAppDiscount": null,
           "userErrors": [
             {
-              "field": [
-                "codeAppDiscount",
-                "context"
-              ],
+              "field": ["codeAppDiscount", "context"],
               "message": "Only one of context or customerSelection can be provided.",
               "code": "INVALID",
               "extraInfo": null
@@ -420,16 +381,12 @@
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995763506"
-            ]
+            "add": ["gid://shopify/Customer/10582995763506"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995796274"
-            ]
+            "add": ["gid://shopify/Customer/10582995796274"]
           }
         },
         "customerGets": {
@@ -448,10 +405,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "basicCodeDiscount",
-                "context"
-              ],
+              "field": ["basicCodeDiscount", "context"],
               "message": "Only one of context or customerSelection can be provided.",
               "code": "INVALID",
               "extraInfo": null
@@ -482,16 +436,12 @@
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995763506"
-            ]
+            "add": ["gid://shopify/Customer/10582995763506"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995796274"
-            ]
+            "add": ["gid://shopify/Customer/10582995796274"]
           }
         },
         "customerBuys": {
@@ -500,9 +450,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/9801098789170"
-              ]
+              "productsToAdd": ["gid://shopify/Product/9801098789170"]
             }
           }
         },
@@ -517,9 +465,7 @@
           },
           "items": {
             "products": {
-              "productsToAdd": [
-                "gid://shopify/Product/9801098789170"
-              ]
+              "productsToAdd": ["gid://shopify/Product/9801098789170"]
             }
           }
         }
@@ -531,10 +477,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "bxgyCodeDiscount",
-                "context"
-              ],
+              "field": ["bxgyCodeDiscount", "context"],
               "message": "Only one of context or customerSelection can be provided.",
               "code": "INVALID",
               "extraInfo": null
@@ -565,16 +508,12 @@
         "startsAt": "2026-04-25T00:00:00Z",
         "context": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995763506"
-            ]
+            "add": ["gid://shopify/Customer/10582995763506"]
           }
         },
         "customerSelection": {
           "customers": {
-            "add": [
-              "gid://shopify/Customer/10582995796274"
-            ]
+            "add": ["gid://shopify/Customer/10582995796274"]
           }
         },
         "destination": {
@@ -588,10 +527,7 @@
           "codeDiscountNode": null,
           "userErrors": [
             {
-              "field": [
-                "freeShippingCodeDiscount",
-                "context"
-              ],
+              "field": ["freeShippingCodeDiscount", "context"],
               "message": "Only one of context or customerSelection can be provided.",
               "code": "INVALID",
               "extraInfo": null
