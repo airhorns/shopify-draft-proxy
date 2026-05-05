@@ -956,6 +956,30 @@ fn multiple_function_identifiers_error() -> UserError {
   )
 }
 
+fn validation_missing_function_identifier_error() -> UserError {
+  UserError(
+    field: ["validation", "functionHandle"],
+    message: "Either function_id or function_handle must be provided.",
+    code: Some("MISSING_FUNCTION_IDENTIFIER"),
+  )
+}
+
+fn validation_multiple_function_identifiers_error() -> UserError {
+  UserError(
+    field: ["validation"],
+    message: "Only one of function_id or function_handle can be provided, not both.",
+    code: Some("MULTIPLE_FUNCTION_IDENTIFIERS"),
+  )
+}
+
+fn validation_function_not_found_error(field_name: String) -> UserError {
+  UserError(
+    field: ["validation", field_name],
+    message: "Extension not found.",
+    code: Some("NOT_FOUND"),
+  )
+}
+
 fn function_not_found_error(field_name: String, value: String) -> UserError {
   UserError(
     field: [field_name],
@@ -989,7 +1013,7 @@ fn validation_function_does_not_implement_error(
   field_name: String,
 ) -> UserError {
   UserError(
-    field: [field_name],
+    field: ["validation", field_name],
     message: "Unexpected Function API. The provided function must implement one of the following extension targets: [%{targets}].",
     code: Some("FUNCTION_DOES_NOT_IMPLEMENT"),
   )
@@ -1062,7 +1086,7 @@ fn handle_validation_create(
     None, None -> {
       let payload =
         validation_mutation_payload(store, field, fragments, None, [
-          missing_cart_transform_function_error(),
+          validation_missing_function_identifier_error(),
         ])
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1073,7 +1097,7 @@ fn handle_validation_create(
     Some(_), Some(_) -> {
       let payload =
         validation_mutation_payload(store, field, fragments, None, [
-          multiple_function_identifiers_error(),
+          validation_multiple_function_identifiers_error(),
         ])
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -2040,9 +2064,8 @@ fn resolve_validation_function(
   reference: FunctionReference,
 ) -> Result(ShopifyFunctionRecord, UserError) {
   let field_name = cart_transform_reference_field(reference)
-  let value = cart_transform_reference_value(reference)
   case find_existing_shopify_function(store, reference) {
-    None -> Error(function_not_found_error(field_name, value))
+    None -> Error(validation_function_not_found_error(field_name))
     Some(record) ->
       case validation_function_api_supported(record) {
         True -> Ok(record)
