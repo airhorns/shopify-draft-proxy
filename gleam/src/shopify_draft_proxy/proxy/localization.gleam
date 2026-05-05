@@ -606,13 +606,12 @@ fn get_shop_locale(
   store_in: Store,
   locale: String,
 ) -> Option(ShopLocaleRecord) {
-  case store.get_effective_shop_locale(store_in, locale) {
-    Some(record) -> Some(record)
-    None ->
-      default_shop_locales(store_in)
-      |> list.find(fn(candidate) { candidate.locale == locale })
-      |> option.from_result
-  }
+  store.get_effective_shop_locale(store_in, locale)
+  |> option.lazy_or(fn() {
+    default_shop_locales(store_in)
+    |> list.find(fn(candidate) { candidate.locale == locale })
+    |> option.from_result
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -1032,21 +1031,19 @@ fn find_resource_or_synthesize(
   store_in: Store,
   resource_id: String,
 ) -> Option(TranslatableResource) {
-  case find_resource(store_in, resource_id) {
-    Some(record) -> Some(record)
-    None -> {
-      let content = synthesized_content_from_translations(store_in, resource_id)
-      case list.is_empty(content) {
-        False ->
-          Some(TranslatableResource(
-            resource_id: resource_id,
-            resource_type: synthetic_resource_type(resource_id),
-            content: content,
-          ))
-        True -> None
-      }
+  find_resource(store_in, resource_id)
+  |> option.lazy_or(fn() {
+    let content = synthesized_content_from_translations(store_in, resource_id)
+    case list.is_empty(content) {
+      False ->
+        Some(TranslatableResource(
+          resource_id: resource_id,
+          resource_type: synthetic_resource_type(resource_id),
+          content: content,
+        ))
+      True -> None
     }
-  }
+  })
 }
 
 fn synthesized_content_from_translations(

@@ -3435,18 +3435,14 @@ fn find_shopify_function(
   store: Store,
   reference: String,
 ) -> Option(ShopifyFunctionRecord) {
-  case store.get_effective_shopify_function_by_id(store, reference) {
-    Some(record) -> Some(record)
-    None ->
-      case
-        list.find(store.list_effective_shopify_functions(store), fn(record) {
-          record.handle == Some(reference) || record.id == reference
-        })
-      {
-        Ok(record) -> Some(record)
-        Error(_) -> None
-      }
-  }
+  store.get_effective_shopify_function_by_id(store, reference)
+  |> option.lazy_or(fn() {
+    store.list_effective_shopify_functions(store)
+    |> list.find(fn(record) {
+      record.handle == Some(reference) || record.id == reference
+    })
+    |> option.from_result
+  })
 }
 
 fn update_payload_status(

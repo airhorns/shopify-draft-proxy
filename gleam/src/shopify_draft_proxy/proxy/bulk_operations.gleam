@@ -1480,10 +1480,8 @@ fn handle_bulk_operation_cancel(
       let hydrated_store = hydrate_bulk_operation_by_id(store, id, upstream)
       let staged_operation =
         store.get_staged_bulk_operation_by_id(hydrated_store, id)
-      let effective_operation = case staged_operation {
-        Some(op) -> Some(op)
-        None -> store.get_effective_bulk_operation_by_id(hydrated_store, id)
-      }
+      let effective_operation =
+        store.get_effective_bulk_operation_by_id(hydrated_store, id)
       case effective_operation {
         None -> #(
           MutationFieldResult(
