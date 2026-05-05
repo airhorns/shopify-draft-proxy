@@ -2200,6 +2200,259 @@ pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
     == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\",\"fulfillmentHolds\":[]},{\"status\":\"CLOSED\",\"fulfillmentHolds\":[]}]}},\"manualHoldsFulfillmentOrders\":{\"nodes\":[]}}}"
 }
 
+pub fn orders_fulfillment_order_hold_validation_branches_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-hold-validation"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/hold-validation"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/hold-validation"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-order-hold-validation"
+  let seeded =
+    fulfillment_order_lifecycle_store(
+      order_id,
+      fulfillment_order_id,
+      fulfillment_order_line_item_id,
+      line_item_id,
+    )
+  let hold_mutation =
+    "
+    mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+      fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+        fulfillmentHold {
+          handle
+        }
+        fulfillmentOrder {
+          status
+          fulfillmentHolds {
+            handle
+          }
+        }
+        remainingFulfillmentOrder {
+          status
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let first_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-1"), [
+        #(fulfillment_order_line_item_id, 1),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(first_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"appA-1\"},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"appA-1\"}]},\"remainingFulfillmentOrder\":{\"status\":\"OPEN\"},\"userErrors\":[]}}}"
+
+  let second_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-1"), []),
+      empty_upstream_context(),
+    )
+  assert json.to_string(second_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"handle\"],\"message\":\"The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.\",\"code\":\"DUPLICATE_FULFILLMENT_HOLD_HANDLE\"}]}}}"
+
+  let split_held_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-2"), [
+        #(fulfillment_order_line_item_id, 1),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(split_held_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"fulfillmentOrderLineItems\"],\"message\":\"The fulfillment order is not in a splittable state.\",\"code\":\"FULFILLMENT_ORDER_NOT_SPLITTABLE\"}]}}}"
+
+  let append_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-2"), []),
+      empty_upstream_context(),
+    )
+  assert json.to_string(append_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"appA-2\"},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"appA-1\"},{\"handle\":\"appA-2\"}]},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
+
+  let #(limit_ready_store, limit_ready_identity) =
+    [
+      "appA-4",
+      "appA-5",
+      "appA-6",
+      "appA-7",
+      "appA-8",
+      "appA-9",
+      "appA-10",
+      "appA-11",
+    ]
+    |> list.fold(
+      #(append_outcome.store, append_outcome.identity),
+      fn(acc, handle) {
+        let #(current_store, current_identity) = acc
+        let outcome =
+          orders.process_mutation(
+            current_store,
+            current_identity,
+            "/admin/api/2026-04/graphql.json",
+            hold_mutation,
+            fulfillment_order_hold_variables(
+              fulfillment_order_id,
+              Some(handle),
+              [],
+            ),
+            empty_upstream_context(),
+          )
+        #(outcome.store, outcome.identity)
+      },
+    )
+
+  let limit_outcome =
+    orders.process_mutation(
+      limit_ready_store,
+      limit_ready_identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(
+        fulfillment_order_id,
+        Some("appA-12"),
+        [],
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(limit_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.\",\"code\":\"FULFILLMENT_ORDER_HOLD_LIMIT_REACHED\"}]}}}"
+
+  let zero_quantity_outcome =
+    orders.process_mutation(
+      append_outcome.store,
+      append_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-4"), [
+        #(fulfillment_order_line_item_id, 0),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(zero_quantity_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"You must select at least one item to place on partial hold.\",\"code\":\"GREATER_THAN_ZERO\"}]}}}"
+
+  let duplicate_line_item_outcome =
+    orders.process_mutation(
+      append_outcome.store,
+      append_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-4"), [
+        #(fulfillment_order_line_item_id, 1),
+        #(fulfillment_order_line_item_id, 1),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(duplicate_line_item_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"fulfillmentOrderLineItems\"],\"message\":\"must contain unique line item ids\",\"code\":\"DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS\"}]}}}"
+
+  let default_handle_order_id =
+    "gid://shopify/Order/fulfillment-order-hold-default-handle"
+  let default_handle_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/hold-default-handle"
+  let default_handle_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/hold-default-handle"
+  let default_seeded =
+    fulfillment_order_lifecycle_store(
+      default_handle_order_id,
+      default_handle_fulfillment_order_id,
+      default_handle_line_item_id,
+      "gid://shopify/LineItem/fulfillment-order-hold-default-handle",
+    )
+  let default_handle_outcome =
+    orders.process_mutation(
+      default_seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(
+        default_handle_fulfillment_order_id,
+        None,
+        [],
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(default_handle_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"\"},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"\"}]},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
+
+  let too_long_handle_outcome =
+    orders.process_mutation(
+      default_seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(
+        default_handle_fulfillment_order_id,
+        Some(
+          "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        ),
+        [],
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(too_long_handle_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"handle\"],\"message\":\"Handle is too long (maximum is 64 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+}
+
+fn fulfillment_order_hold_variables(
+  fulfillment_order_id: String,
+  handle: Option(String),
+  line_items: List(#(String, Int)),
+) -> Dict(String, root_field.ResolvedValue) {
+  let hold_fields = [
+    #("reason", root_field.StringVal("OTHER")),
+    #("notifyMerchant", root_field.BoolVal(False)),
+  ]
+  let hold_fields = case handle {
+    Some(handle) ->
+      list.append(hold_fields, [#("handle", root_field.StringVal(handle))])
+    None -> hold_fields
+  }
+  let hold_fields = case line_items {
+    [] -> hold_fields
+    [_, ..] ->
+      list.append(hold_fields, [
+        #(
+          "fulfillmentOrderLineItems",
+          root_field.ListVal(
+            list.map(line_items, fn(line_item) {
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("id", root_field.StringVal(line_item.0)),
+                  #("quantity", root_field.IntVal(line_item.1)),
+                ]),
+              )
+            }),
+          ),
+        ),
+      ])
+  }
+  dict.from_list([
+    #("id", root_field.StringVal(fulfillment_order_id)),
+    #("fulfillmentHold", root_field.ObjectVal(dict.from_list(hold_fields))),
+  ])
+}
+
 pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
   let order_id = "gid://shopify/Order/fulfillment-order-lifecycle"
   let fulfillment_order_id = "gid://shopify/FulfillmentOrder/lifecycle"
