@@ -258,6 +258,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-update-validation-branches',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-media-file-update-validation-branches.ts',
+    purpose: 'fileUpdate readiness, type, filename, source/version, and typed-GID validation branches.',
+    requiredAuthScopes: ['read_files', 'write_files'],
+    fixtureOutputs: [`${CAPTURE_ROOT}media-file-update-validation-branches.json`],
+    cleanupBehavior: 'Creates disposable image/video files and deletes all returned file IDs during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'staged-upload-targets',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-staged-upload-target-conformance.ts',
