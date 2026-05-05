@@ -464,7 +464,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-b\", utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
-    empty_upstream_context(),
+      empty_upstream_context(),
     )
   let channel_response = json.to_string(channel_changed.data)
   assert string.contains(channel_response, "\"marketingActivity\":null")
@@ -486,7 +486,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-a\", urlParameterValue: null, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
-    empty_upstream_context(),
+      empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(url_cleared.data),
@@ -500,7 +500,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-a\", urlParameterValue: \"promo-1\", parentRemoteId: \"parent-a\", hierarchyLevel: CAMPAIGN, utm: { campaign: \"changed\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
-    empty_upstream_context(),
+      empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(utm_changed.data),
@@ -514,7 +514,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-a\", urlParameterValue: \"promo-1\", parentRemoteId: \"missing-parent\", hierarchyLevel: CAMPAIGN, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
-    empty_upstream_context(),
+      empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(missing_parent.data),
@@ -528,7 +528,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpdateExternal(remoteId: \"remote-immutable\", input: { title: \"Changed\", parentRemoteId: \"parent-b\" }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
-    empty_upstream_context(),
+      empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(parent_changed.data),
@@ -542,7 +542,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpdateExternal(remoteId: \"remote-immutable\", input: { title: \"Changed\", hierarchyLevel: AD_GROUP }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
-    empty_upstream_context(),
+      empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(hierarchy_changed.data),
@@ -571,7 +571,7 @@ pub fn external_activity_update_and_upsert_reject_non_external_or_orphan_test() 
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"native-remote\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
-    empty_upstream_context(),
+      empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(non_external.data),
@@ -585,7 +585,7 @@ pub fn external_activity_update_and_upsert_reject_non_external_or_orphan_test() 
       request_path,
       "mutation { marketingActivityUpdateExternal(remoteId: \"orphan-remote\", input: { title: \"Changed\" }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
-    empty_upstream_context(),
+      empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(orphan.data),
@@ -601,7 +601,7 @@ pub fn update_external_requires_a_selector_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityUpdateExternal(input: { title: \"Changed\" }) { marketingActivity { id } userErrors { field message code } } }",
       empty_vars(),
-    empty_upstream_context(),
+      empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(result.data),
