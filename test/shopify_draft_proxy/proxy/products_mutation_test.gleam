@@ -28,6 +28,29 @@ fn graphql_request(query: String) -> Request {
   )
 }
 
+fn run_product_mutation(initial_store: store.Store, query: String) {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: initial_store)
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  #(status, json.to_string(body), next_proxy)
+}
+
+fn assert_product_option_user_error(
+  initial_store: store.Store,
+  query: String,
+  code: String,
+  field_json: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(initial_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store.Failed
+}
+
 pub fn product_options_create_stages_default_product_options_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
@@ -54,6 +77,119 @@ pub fn product_options_create_stages_default_product_options_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_options_create_rejects_invalid_option_inputs_test() {
+  let long_name = repeated_text("N", 256)
+  let long_value = repeated_text("V", 256)
+
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }] }, { name: \\\"Color\\\", values: [{ name: \\\"Blue\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "DUPLICATED_OPTION_NAME",
+    "[\"options\",\"1\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }, { name: \\\"Red\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "DUPLICATED_OPTION_VALUE",
+    "[\"options\",\"0\",\"values\",\"1\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUES_MISSING",
+    "[\"options\",\"0\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"\\\", values: [{ name: \\\"Red\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_NAME_MISSING",
+    "[\"options\",\"0\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\""
+      <> long_name
+      <> "\\\", values: [{ name: \\\"Red\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_NAME_TOO_LONG",
+    "[\"options\",\"0\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\""
+      <> long_value
+      <> "\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUE_NAME_TOO_LONG",
+    "[\"options\",\"0\",\"values\",\"0\",\"name\"]",
+  )
+}
+
+pub fn product_options_create_rejects_product_level_constraints_test() {
+  assert_product_option_user_error(
+    three_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Finish\\\", values: [{ name: \\\"Matte\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTIONS_OVER_LIMIT",
+    "[\"options\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\"Blue\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_ALREADY_EXISTS",
+    "[\"options\",\"0\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Material\\\" }]) { product { id } userErrors { field message code } } }",
+    "NEW_OPTION_WITHOUT_VALUE_FOR_EXISTING_VARIANTS",
+    "[\"options\",\"0\",\"values\"]",
+  )
+  assert_product_option_user_error(
+    variant_cap_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", variantStrategy: CREATE, options: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }, { name: \\\"Blue\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "TOO_MANY_VARIANTS_CREATED",
+    "[\"options\"]",
+  )
+}
+
+pub fn product_option_update_rejects_invalid_option_inputs_test() {
+  let long_value = repeated_text("V", 256)
+
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Size\\\" }) { product { id } userErrors { field message code } } }",
+    "OPTION_ALREADY_EXISTS",
+    "[\"option\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\" }, optionValuesToAdd: [{ name: \\\"Blue\\\" }, { name: \\\"Blue\\\" }]) { product { id } userErrors { field message code } } }",
+    "DUPLICATED_OPTION_VALUE",
+    "[\"optionValuesToAdd\",\"1\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\" }, optionValuesToAdd: [{ name: \\\"red\\\" }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUE_ALREADY_EXISTS",
+    "[\"optionValuesToAdd\",\"0\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\" }, optionValuesToUpdate: [{ id: \\\"gid://shopify/ProductOptionValue/red\\\", name: \\\""
+      <> long_value
+      <> "\\\" }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUE_NAME_TOO_LONG",
+    "[\"optionValuesToUpdate\",\"0\",\"name\"]",
+  )
+}
+
+pub fn product_options_delete_reports_option_codes_for_unknown_ids_test() {
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionsDelete(productId: \\\"gid://shopify/Product/optioned\\\", options: [\\\"gid://shopify/ProductOption/missing\\\"]) { deletedOptionsIds product { id } userErrors { field message code } } }",
+    "OPTION_DOES_NOT_EXIST",
+    "[\"options\",\"0\"]",
+  )
 }
 
 pub fn product_option_update_repositions_values_and_variants_test() {
@@ -1304,6 +1440,51 @@ fn option_update_store() -> store.Store {
         ProductOptionValueRecord(
           id: "gid://shopify/ProductOptionValue/small",
           name: "Small",
+          has_variants: True,
+        ),
+      ],
+    ),
+  ])
+}
+
+fn three_option_store() -> store.Store {
+  option_update_store()
+  |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/color",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Color",
+      position: 1,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/red",
+          name: "Red",
+          has_variants: True,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/size",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Size",
+      position: 2,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/small",
+          name: "Small",
+          has_variants: True,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/material",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Material",
+      position: 3,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/cotton",
+          name: "Cotton",
           has_variants: True,
         ),
       ],

@@ -294,6 +294,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-option-validation',
+    scriptPath: 'scripts/capture-product-option-validation-conformance.mts',
+    purpose:
+      'productOptionsCreate option-limit, duplicate, required-value, and CREATE variant-limit validation branches.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [`${CAPTURE_ROOT}product-options-create-limits-and-duplicates-parity.json`],
+    cleanupBehavior: 'Creates disposable products/options/variants and deletes the products in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-option-variant-strategy-edges',
     scriptPath: 'scripts/capture-product-option-variant-strategy-edge-conformance.mts',
     purpose: 'product option variantStrategy and productVariantsBulkCreate.strategy edge behavior.',
