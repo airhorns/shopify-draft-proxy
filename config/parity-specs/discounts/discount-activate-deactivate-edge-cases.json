@@ -1,10 +1,6 @@
 {
   "scenarioId": "discount-activate-deactivate-edge-cases",
-  "operationNames": [
-    "discountCodeBasicCreate",
-    "discountCodeDeactivate",
-    "discountCodeActivate"
-  ],
+  "operationNames": ["discountCodeBasicCreate", "discountCodeDeactivate", "discountCodeActivate"],
   "scenarioStatus": "captured",
   "assertionKinds": [
     "runtime-staging",
@@ -16,9 +12,7 @@
   "liveCaptureFiles": [
     "fixtures/conformance/local-runtime/2026-04/discounts/discount-activate-deactivate-edge-cases.json"
   ],
-  "runtimeTestFiles": [
-    "gleam/test/shopify_draft_proxy/proxy/discounts_test.gleam"
-  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/discounts_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/discounts/discount-activate-deactivate-edge-create.graphql",
     "variablesCapturePath": "$.create.variables",
