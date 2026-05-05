@@ -1609,6 +1609,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'functions',
+    captureId: 'functions-delete-error-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-delete-error-shape-conformance.ts',
+    purpose:
+      'validationDelete/cartTransformDelete missing-id userError shape plus cassette-backed cartTransformCreate/delete canonical deletedId lifecycle.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for missing validationDelete userError capture',
+      'read_cart_transforms',
+      'write_cart_transforms for missing cartTransformDelete userError capture',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-delete-error-shape.json`,
+      'config/parity-specs/functions/functions-delete-error-shape.json',
+    ],
+    cleanupBehavior:
+      'Captures missing-delete userErrors only; no live resources are created. The local lifecycle leg is cassette-backed because the current unattended shop lacks released cart-transform/validation Function handles.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'payments',
     captureId: 'finance-risk',
     scriptPath: 'scripts/capture-finance-risk-conformance.ts',
