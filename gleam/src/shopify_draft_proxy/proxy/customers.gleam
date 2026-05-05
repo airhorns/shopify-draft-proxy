@@ -1931,7 +1931,6 @@ fn job_source(job_id: String, status: String) -> SourceValue {
   ])
 }
 
-
 pub fn process_mutation(
   proxy: DraftProxy,
   request_path: String,
@@ -1942,7 +1941,12 @@ pub fn process_mutation(
   let store = proxy.store
   let identity = proxy.synthetic_identity
   case root_field.get_root_fields(document) {
-    Error(err) -> mutation_helpers.parse_failed_outcome(proxy.store, proxy.synthetic_identity, err)
+    Error(err) ->
+      mutation_helpers.parse_failed_outcome(
+        proxy.store,
+        proxy.synthetic_identity,
+        err,
+      )
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       handle_mutation_fields(

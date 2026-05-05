@@ -25,8 +25,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_empty_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  single_root_log_draft,
+  type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -311,61 +310,70 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> MutationOutcome {case root_field.get_root_fields(document) {
+) -> MutationOutcome {
+  case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
-    Ok(fields) -> {  let fragments = get_document_fragments(document)
-  let initial = #([], store, identity, [], [])
-  let #(entries, final_store, final_identity, staged_ids, drafts) =
-    list.fold(fields, initial, fn(acc, field) {
-      let #(data_entries, current_store, current_identity, all_ids, all_drafts) =
-        acc
-      case field {
-        Field(name: name, ..) -> {
-          let result =
-            dispatch_mutation_root(
-              current_store,
-              current_identity,
-              name.value,
-              field,
-              variables,
-            )
-          let payload_json =
-            serialize_mutation_payload(
-              result.store,
-              result.payload,
-              field,
-              fragments,
-              variables,
-            )
-          let draft =
-            single_root_log_draft(
-              name.value,
-              result.staged_ids,
-              status_for(result),
-              domain,
-              "stage-locally",
-              Some("Staged locally in the in-memory B2B company draft store."),
-            )
-          #(
-            list.append(data_entries, [
-              #(get_field_response_key(field), payload_json),
-            ]),
-            result.store,
-            result.identity,
-            list.append(all_ids, result.staged_ids),
-            list.append(all_drafts, [draft]),
-          )
-        }
-        _ -> acc
-      }
-    })
-  MutationOutcome(
-    data: json.object([#("data", json.object(entries))]),
-    store: final_store,
-    identity: final_identity,
-    staged_resource_ids: staged_ids,
-    log_drafts: drafts,
-  )
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let initial = #([], store, identity, [], [])
+      let #(entries, final_store, final_identity, staged_ids, drafts) =
+        list.fold(fields, initial, fn(acc, field) {
+          let #(
+            data_entries,
+            current_store,
+            current_identity,
+            all_ids,
+            all_drafts,
+          ) = acc
+          case field {
+            Field(name: name, ..) -> {
+              let result =
+                dispatch_mutation_root(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  variables,
+                )
+              let payload_json =
+                serialize_mutation_payload(
+                  result.store,
+                  result.payload,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let draft =
+                single_root_log_draft(
+                  name.value,
+                  result.staged_ids,
+                  status_for(result),
+                  domain,
+                  "stage-locally",
+                  Some(
+                    "Staged locally in the in-memory B2B company draft store.",
+                  ),
+                )
+              #(
+                list.append(data_entries, [
+                  #(get_field_response_key(field), payload_json),
+                ]),
+                result.store,
+                result.identity,
+                list.append(all_ids, result.staged_ids),
+                list.append(all_drafts, [draft]),
+              )
+            }
+            _ -> acc
+          }
+        })
+      MutationOutcome(
+        data: json.object([#("data", json.object(entries))]),
+        store: final_store,
+        identity: final_identity,
+        staged_resource_ids: staged_ids,
+        log_drafts: drafts,
+      )
     }
   }
 }

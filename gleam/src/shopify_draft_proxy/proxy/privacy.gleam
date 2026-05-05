@@ -17,12 +17,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  single_root_log_draft,
+  type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -53,7 +50,6 @@ pub fn is_privacy_mutation_root(name: String) -> Bool {
     _ -> False
   }
 }
-
 
 pub fn process_mutation(
   store: Store,

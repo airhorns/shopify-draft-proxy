@@ -11,13 +11,13 @@ import gleam/json
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type ShopifyFunctionRecord, type ValidationRecord, ShopifyFunctionRecord,
   ValidationRecord,
 }
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 // ----------- Helpers -----------
 

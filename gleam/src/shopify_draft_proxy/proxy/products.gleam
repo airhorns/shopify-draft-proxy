@@ -41,17 +41,15 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  RequiredArgument, build_null_argument_error, find_argument,
-  single_root_log_draft, validate_required_field_arguments,
+  type MutationOutcome, MutationOutcome, RequiredArgument,
+  build_null_argument_error, find_argument, single_root_log_draft,
+  validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/iso_timestamp
@@ -5206,7 +5204,6 @@ type MutationFieldResult {
     staging_failed: Bool,
   )
 }
-
 
 pub fn process_mutation(
   store: Store,

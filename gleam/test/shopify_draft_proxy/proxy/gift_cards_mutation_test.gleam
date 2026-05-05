@@ -12,12 +12,12 @@ import gleam/json
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/gift_cards
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type GiftCardRecord, type Money, GiftCardRecord, Money,
 }
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 // ----------- Helpers -----------
 

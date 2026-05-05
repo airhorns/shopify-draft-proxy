@@ -8,12 +8,12 @@ import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/bulk_operations
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type ProductRecord, BulkOperationRecord, ProductRecord, ProductSeoRecord,
 }
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 fn empty_vars() {
   dict.new()

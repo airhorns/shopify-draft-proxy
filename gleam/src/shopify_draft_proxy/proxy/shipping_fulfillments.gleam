@@ -26,15 +26,12 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  single_root_log_draft,
+  type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/store.{type Store, Staged}
@@ -1465,7 +1462,6 @@ fn handle_shipping_order_query(
     None -> QueryFieldResult(key: key, value: json.null(), errors: [])
   }
 }
-
 
 pub fn process_mutation(
   store: Store,

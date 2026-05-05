@@ -2,8 +2,8 @@ import gleam/dict
 import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
-import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{

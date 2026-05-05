@@ -30,7 +30,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_field_response_key, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome, MutationOutcome, LogDraft}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, LogDraft, MutationOutcome,
+}
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
@@ -605,7 +607,6 @@ type MutationFieldResult {
 
 /// Process a functions mutation document. Mirrors
 /// `handleFunctionMutation`.
-
 /// Pattern 2: dispatched LiveHybrid function metadata mutations first
 /// try to hydrate referenced ShopifyFunction owner/app metadata from
 /// upstream, then stage the mutation locally. Snapshot/no-transport

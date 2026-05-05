@@ -36,7 +36,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/proxy/metafields
-import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome, MutationOutcome, LogDraft}
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, LogDraft, MutationOutcome,
+}
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/proxy_state.{

@@ -38,8 +38,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, serialize_connection, serialize_empty_connection,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  read_optional_string_array, single_root_log_draft,
+  type MutationOutcome, MutationOutcome, read_optional_string_array,
+  single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
@@ -527,13 +527,7 @@ pub fn process_mutation(
     Error(err) -> mutation_helpers.parse_failed_outcome(store_in, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      handle_mutation_fields(
-        store_in,
-        identity,
-        fields,
-        fragments,
-        variables,
-      )
+      handle_mutation_fields(store_in, identity, fields, fragments, variables)
     }
   }
 }

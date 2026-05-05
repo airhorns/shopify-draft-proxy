@@ -25,17 +25,14 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  type RequiredArgument, RequiredArgument, single_root_log_draft,
-  validate_required_field_arguments,
+  type MutationOutcome, type RequiredArgument, MutationOutcome, RequiredArgument,
+  single_root_log_draft, validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -592,7 +589,6 @@ fn child_fields(field: Selection) -> List(Selection) {
     SelectedFieldOptions(include_inline_fragments: True),
   )
 }
-
 
 /// Variant of `process_mutation` that threads an `UpstreamContext` into
 /// the per-handler logic. Used by the dispatcher when the proxy has an

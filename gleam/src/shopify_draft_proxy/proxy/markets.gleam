@@ -25,15 +25,12 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, serialize_empty_connection,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  type LogDraft, single_root_log_draft,
+  type LogDraft, type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -849,7 +846,6 @@ fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
     _ -> None
   }
 }
-
 
 pub fn process_mutation(
   store: Store,
