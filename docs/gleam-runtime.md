@@ -313,14 +313,15 @@ Useful checks from the repository root:
 ```sh
 corepack pnpm conformance:check
 corepack pnpm parity:run
+corepack pnpm gleam:format:check
 ```
 
-Useful checks from this package directory:
+Useful direct Gleam checks from the repository root:
 
 ```sh
 gleam test --target erlang
 gleam test --target javascript
-gleam format --check
+gleam format --check src test
 ```
 
 Live conformance capture remains a repository-level workflow driven by the
@@ -334,7 +335,7 @@ formats that validate the Gleam runtime as coverage reaches parity.
 gleam deps download
 gleam test --target erlang
 gleam test --target javascript
-gleam format --check
+gleam format --check src test
 ```
 
 Release-shipment smoke:

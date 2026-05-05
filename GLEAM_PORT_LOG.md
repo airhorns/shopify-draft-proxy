@@ -9,6 +9,59 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-05 - Pass 206: HAR-486 root format check hardening
+
+Hardens the promoted root layout against stale CI cache artifacts from the old
+`gleam/` project directory. CI can restore an ignored `gleam/build` cache before
+linting; the root `gleam:format` scripts now target only checked-in `src` and
+`test` Gleam source trees, and `.gitignore` documents the retired cache path.
+
+| Module / area          | Change                                                                                 |
+| ---------------------- | -------------------------------------------------------------------------------------- |
+| `package.json`         | Narrows `gleam:format` and `gleam:format:check` to `src test`.                         |
+| `.gitignore`           | Ignores the retired `gleam/build/` cache path that CI may still restore temporarily.    |
+| `docs/gleam-runtime.md` | Documents root-layout format commands that avoid generated or cached dependency trees. |
+
+Validation:
+
+- Reproduction before the fix: PR CI run `25350901724` failed in
+  `corepack pnpm lint` because `gleam format --check` traversed restored
+  `./gleam/build/packages/**` dependency files.
+- Fixed stale-cache proof: created an ignored unformatted
+  `gleam/build/packages/stale/src/stale.gleam`; `corepack pnpm
+  gleam:format:check` passed because it checks only `src test`; removed the
+  temporary `gleam/` tree afterward.
+- `corepack pnpm gleam:registry:check`
+- `corepack pnpm typecheck`
+- `corepack pnpm test` (8 files passed; 1468 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm conformance:check` (1450 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm conformance:status -- --output-json .conformance/current/conformance-status-report.json --output-markdown .conformance/current/conformance-status-comment.md`
+  (399/399 strict parity scenarios, 0 capture-only)
+- `corepack pnpm gleam:port:coverage` (399 strict executable parity specs)
+- `corepack pnpm gleam:test:js` (868 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam test --target erlang'`
+  (OTP 28, 859 passed)
+- `corepack pnpm build`
+- `corepack pnpm gleam:smoke:js` (5 passed)
+- `corepack pnpm elixir:smoke` (17 passed, 1 live test excluded)
+- `git diff --check && git diff --cached --check`
+
+### Findings
+
+- Narrowing the format command is preferable to clearing CI caches because it
+  keeps package dependency artifacts outside the project source validation
+  boundary in both local and CI environments.
+
+### Risks / open items
+
+- Host Erlang is still OTP 25 in this workspace, so local Erlang validation
+  requires the established OTP 28 container fallback.
+
+---
+
 ## 2026-05-04 - Pass 205: HAR-486 root Gleam layout promotion
 
 Moves the promoted Gleam project out of the transitional `gleam/` directory and
