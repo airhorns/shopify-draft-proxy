@@ -870,6 +870,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'online-store',
+    captureId: 'online-store-page-handle-dedupe-and-takenness',
+    scriptPath: 'scripts/capture-online-store-page-handle-conformance.ts',
+    purpose:
+      'pageCreate handle normalization, auto-dedupe for derived handle collisions, and explicit TAKEN userErrors.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-page-handle-dedupe-and-takenness.json`,
+      'config/parity-specs/online-store/online-store-page-handle-dedupe-and-takenness.json',
+      'config/parity-requests/online-store/online-store-page-handle-dedupe-and-takenness.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable pages and deletes every successful pageCreate result during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'collections',
     captureId: 'collections',
     scriptPath: 'scripts/capture-collection-conformance.mts',
@@ -1245,6 +1260,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/admin-platform/admin-platform-taxonomy-hierarchy-node-reads.json',
     ],
     cleanupBehavior: 'Read-only/blocked-root capture; no cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'admin-platform',
+    captureId: 'admin-platform-backup-region-update-extended',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-admin-platform-backup-region-update-extended.mts',
+    purpose:
+      'backupRegionUpdate omitted/null current-state semantics, harry-test-heelo non-CA success, read-after-write, and REGION_NOT_FOUND validation.',
+    requiredAuthScopes: ['active Admin API token with Markets/admin platform access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}admin-platform-backup-region-update-extended.json`,
+      'config/parity-specs/admin-platform/admin-platform-backup-region-update-extended.json',
+    ],
+    cleanupBehavior: 'Temporarily stages AE as the backup region, then restores the store backup region to CA.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
