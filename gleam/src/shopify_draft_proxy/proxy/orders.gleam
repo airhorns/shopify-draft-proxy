@@ -12992,33 +12992,55 @@ fn handle_fulfillment_order_lifecycle_mutation(
                 )
                 Some(match) -> {
                   let #(order, fulfillment_order) = match
-                  let #(values, next_order, next_identity) =
-                    apply_fulfillment_order_lifecycle(
-                      root_name,
-                      order,
-                      fulfillment_order,
-                      identity,
-                      field,
-                      variables,
-                    )
-                  let next_store = store.stage_order(store, next_order)
-                  let payload =
-                    serialize_fulfillment_order_mutation_payload(
-                      field,
-                      values,
-                      [],
-                      fragments,
-                    )
-                  let draft = fulfillment_order_log_draft(root_name, [id])
-                  #(
-                    key,
-                    payload,
-                    next_store,
-                    next_identity,
-                    [next_order.id],
-                    [],
-                    [draft],
-                  )
+                  case
+                    root_name == "fulfillmentOrderCancel",
+                    fulfillment_order_cancel_block_message(fulfillment_order)
+                  {
+                    True, Some(message) -> {
+                      let payload =
+                        serialize_fulfillment_order_mutation_payload(
+                          field,
+                          [],
+                          [
+                            #(
+                              fulfillment_order_cancel_user_error_field(message),
+                              message,
+                            ),
+                          ],
+                          fragments,
+                        )
+                      #(key, payload, store, identity, [], [], [])
+                    }
+                    _, _ -> {
+                      let #(values, next_order, next_identity) =
+                        apply_fulfillment_order_lifecycle(
+                          root_name,
+                          order,
+                          fulfillment_order,
+                          identity,
+                          field,
+                          variables,
+                        )
+                      let next_store = store.stage_order(store, next_order)
+                      let payload =
+                        serialize_fulfillment_order_mutation_payload(
+                          field,
+                          values,
+                          [],
+                          fragments,
+                        )
+                      let draft = fulfillment_order_log_draft(root_name, [id])
+                      #(
+                        key,
+                        payload,
+                        next_store,
+                        next_identity,
+                        [next_order.id],
+                        [],
+                        [draft],
+                      )
+                    }
+                  }
                 }
               }
           }
@@ -13026,6 +13048,45 @@ fn handle_fulfillment_order_lifecycle_mutation(
       }
     }
   }
+}
+
+fn fulfillment_order_cancel_block_message(
+  fulfillment_order: CapturedJsonValue,
+) -> Option(String) {
+  case fulfillment_order_has_manually_reported_progress(fulfillment_order) {
+    True ->
+      Some(
+        "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.",
+      )
+    False ->
+      case fulfillment_order_cancel_allowed(fulfillment_order) {
+        True -> None
+        False ->
+          Some(
+            "Fulfillment order is not in cancelable request state and can't be canceled.",
+          )
+      }
+  }
+}
+
+fn fulfillment_order_cancel_allowed(
+  fulfillment_order: CapturedJsonValue,
+) -> Bool {
+  let status =
+    captured_string_field(fulfillment_order, "status")
+    |> option.unwrap("OPEN")
+  let request_status =
+    captured_string_field(fulfillment_order, "requestStatus")
+    |> option.unwrap("UNSUBMITTED")
+  list.contains(["SUBMITTED", "CANCELLATION_REQUESTED"], request_status)
+  || list.contains(["OPEN", "IN_PROGRESS"], status)
+}
+
+fn fulfillment_order_has_manually_reported_progress(
+  fulfillment_order: CapturedJsonValue,
+) -> Bool {
+  captured_bool_field(fulfillment_order, "__draftProxyManuallyReportedProgress")
+  |> option.unwrap(False)
 }
 
 fn apply_fulfillment_order_lifecycle(
@@ -13426,10 +13487,22 @@ fn apply_fulfillment_order_status(
   let #(updated_at, next_identity) =
     synthetic_identity.make_synthetic_timestamp(identity)
   let updated =
-    replace_captured_object_fields(fulfillment_order, [
-      #("status", CapturedString(status)),
-      #("updatedAt", CapturedString(updated_at)),
-    ])
+    replace_captured_object_fields(fulfillment_order, case status {
+      "IN_PROGRESS" -> [
+        #("status", CapturedString(status)),
+        #("updatedAt", CapturedString(updated_at)),
+        #("__draftProxyManuallyReportedProgress", CapturedBool(True)),
+      ]
+      "OPEN" -> [
+        #("status", CapturedString(status)),
+        #("updatedAt", CapturedString(updated_at)),
+        #("__draftProxyManuallyReportedProgress", CapturedBool(False)),
+      ]
+      _ -> [
+        #("status", CapturedString(status)),
+        #("updatedAt", CapturedString(updated_at)),
+      ]
+    })
   let replacements = case status {
     "IN_PROGRESS" -> [
       #("displayFulfillmentStatus", CapturedString("IN_PROGRESS")),
@@ -13618,11 +13691,31 @@ fn serialize_nullable_field_user_error(
     src_object([
       #("field", field_value),
       #("message", SrcString(message)),
-      #("code", SrcNull),
+      #("code", fulfillment_order_user_error_code(message)),
     ]),
     selection_children(field),
     dict.new(),
   )
+}
+
+fn fulfillment_order_cancel_user_error_field(
+  message: String,
+) -> Option(List(String)) {
+  case message {
+    "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." ->
+      Some(["id"])
+    _ -> None
+  }
+}
+
+fn fulfillment_order_user_error_code(message: String) -> SourceValue {
+  case message {
+    "Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first." ->
+      SrcString("fulfillment_order_has_manually_reported_progress")
+    "Fulfillment order is not in cancelable request state and can't be canceled." ->
+      SrcString("fulfillment_order_cannot_be_cancelled")
+    _ -> SrcNull
+  }
 }
 
 fn find_named_captured_value(
@@ -18619,6 +18712,13 @@ fn captured_string_field(
 ) -> Option(String) {
   case captured_object_field(value, name) {
     Some(CapturedString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn captured_bool_field(value: CapturedJsonValue, name: String) -> Option(Bool) {
+  case captured_object_field(value, name) {
+    Some(CapturedBool(value)) -> Some(value)
     _ -> None
   }
 }

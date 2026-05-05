@@ -137,6 +137,22 @@ async function runCaptureCase(name, query, variables) {
   };
 }
 
+function customerHydrateCall(customer) {
+  return {
+    operationName: 'CustomerHydrate',
+    variables: { id: customer.id },
+    query: 'hand-synthesized from checked-in customer parity capture',
+    response: {
+      status: 200,
+      body: {
+        data: {
+          customer,
+        },
+      },
+    },
+  };
+}
+
 async function main() {
   await mkdir(outputDir, { recursive: true });
 
@@ -563,6 +579,16 @@ async function main() {
         },
       },
     }),
+    await runCaptureCase('invalid input state', smsConsentMutation, {
+      input: {
+        customerId: transitionCustomerId,
+        smsMarketingConsent: {
+          marketingState: 'INVALID',
+          marketingOptInLevel: 'SINGLE_OPT_IN',
+          consentUpdatedAt: '2026-04-25T03:09:00Z',
+        },
+      },
+    }),
   ];
 
   const deleteResult = await runGraphql(deleteMutation, { input: { id: customerId } });
@@ -597,6 +623,7 @@ async function main() {
       },
       matrix: emailValidationMatrix,
     },
+    upstreamCalls: [customerHydrateCall(createResult.payload.data.customerCreate.customer)],
   };
 
   const smsCapture = {
@@ -628,6 +655,7 @@ async function main() {
       emailOnlyCustomerResponse: emailOnlyDeleteResult.payload,
       phoneOnlyCustomerResponse: phoneOnlyDeleteResult.payload,
     },
+    upstreamCalls: [customerHydrateCall(emailConsentResult.payload.data.customerEmailMarketingConsentUpdate.customer)],
   };
 
   await writeFile(

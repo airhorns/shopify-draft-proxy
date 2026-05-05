@@ -24,6 +24,55 @@ fn escape(value: String) -> String {
   |> string.replace("\"", "\\\"")
 }
 
+fn setup_cross_customer_address() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_owner_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"address-owner@example.com\", firstName: \"Owner\", lastName: \"Customer\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_owner_status == 200
+
+  let #(Response(status: address_status, body: address_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"1 Main St\", city: \"Ottawa\", countryCode: CA, provinceCode: ON, zip: \"K1A 0B1\" }, setAsDefault: true) { address { id city } userErrors { field message } } }",
+    )
+  assert address_status == 200
+  assert string.contains(
+    json.to_string(address_body),
+    "\"id\":\"gid://shopify/MailingAddress/3\"",
+  )
+
+  let #(Response(status: create_other_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"address-other@example.com\", firstName: \"Other\", lastName: \"Customer\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_other_status == 200
+
+  #(
+    proxy,
+    "gid://shopify/Customer/1",
+    "gid://shopify/MailingAddress/3",
+    "gid://shopify/Customer/5",
+  )
+}
+
+fn assert_address_ownership_error(body: json.Json) {
+  assert string.contains(
+    json.to_string(body),
+    "\"userErrors\":[{\"field\":[\"addressId\"],\"message\":\"Address does not exist\"}]",
+  )
+}
+
+fn assert_missing_customer_error(body: json.Json) {
+  assert string.contains(
+    json.to_string(body),
+    "\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"Customer does not exist\"}]",
+  )
+}
+
 pub fn customer_create_readback_and_log_test() {
   let proxy = draft_proxy.new()
   let create_query =
@@ -108,6 +157,151 @@ pub fn customer_address_lifecycle_test() {
   )
 }
 
+pub fn customer_address_update_requires_address_owner_test() {
+  let #(proxy, owner_id, address_id, other_id) = setup_cross_customer_address()
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressUpdate(customerId: \""
+        <> other_id
+        <> "\", addressId: \""
+        <> address_id
+        <> "\", address: { city: \"Cross Customer\" }, setAsDefault: true) { address { id city } userErrors { field message } } }",
+    )
+  assert update_status == 200
+  assert string.contains(json.to_string(update_body), "\"address\":null")
+  assert_address_ownership_error(update_body)
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \""
+        <> owner_id
+        <> "\") { defaultAddress { id city } addressesV2(first: 5) { nodes { id city } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"city\":\"Ottawa\"")
+  assert !string.contains(read_json, "Cross Customer")
+}
+
+pub fn customer_address_delete_requires_address_owner_test() {
+  let #(proxy, owner_id, address_id, other_id) = setup_cross_customer_address()
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressDelete(customerId: \""
+        <> other_id
+        <> "\", addressId: \""
+        <> address_id
+        <> "\") { deletedAddressId userErrors { field message } } }",
+    )
+  assert delete_status == 200
+  assert string.contains(
+    json.to_string(delete_body),
+    "\"deletedAddressId\":null",
+  )
+  assert_address_ownership_error(delete_body)
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \""
+        <> owner_id
+        <> "\") { addressesV2(first: 5) { nodes { id city } } } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"id\":\"" <> address_id <> "\"",
+  )
+}
+
+pub fn customer_update_default_address_requires_address_owner_test() {
+  let #(proxy, _owner_id, address_id, other_id) = setup_cross_customer_address()
+
+  let #(Response(status: default_status, body: default_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdateDefaultAddress(customerId: \""
+        <> other_id
+        <> "\", addressId: \""
+        <> address_id
+        <> "\") { customer { id defaultAddress { id city } } userErrors { field message } } }",
+    )
+  assert default_status == 200
+  assert string.contains(
+    json.to_string(default_body),
+    "\"defaultAddress\":null",
+  )
+  assert_address_ownership_error(default_body)
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \""
+        <> other_id
+        <> "\") { defaultAddress { id city } addressesV2(first: 5) { nodes { id city } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"defaultAddress\":null")
+  assert !string.contains(read_json, address_id)
+}
+
+pub fn customer_address_update_missing_customer_precedes_address_lookup_test() {
+  let #(proxy, _owner_id, address_id, _other_id) =
+    setup_cross_customer_address()
+
+  let #(Response(status: update_status, body: update_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerAddressUpdate(customerId: \"gid://shopify/Customer/999999\", addressId: \""
+        <> address_id
+        <> "\", address: { city: \"Cross Customer\" }) { address { id city } userErrors { field message } } }",
+    )
+  assert update_status == 200
+  assert string.contains(json.to_string(update_body), "\"address\":null")
+  assert_missing_customer_error(update_body)
+}
+
+pub fn customer_address_delete_missing_customer_precedes_address_lookup_test() {
+  let #(proxy, _owner_id, address_id, _other_id) =
+    setup_cross_customer_address()
+
+  let #(Response(status: delete_status, body: delete_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerAddressDelete(customerId: \"gid://shopify/Customer/999999\", addressId: \""
+        <> address_id
+        <> "\") { deletedAddressId userErrors { field message } } }",
+    )
+  assert delete_status == 200
+  assert string.contains(
+    json.to_string(delete_body),
+    "\"deletedAddressId\":null",
+  )
+  assert_missing_customer_error(delete_body)
+}
+
+pub fn customer_update_default_address_missing_customer_precedes_address_lookup_test() {
+  let #(proxy, _owner_id, address_id, _other_id) =
+    setup_cross_customer_address()
+
+  let #(Response(status: default_status, body: default_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerUpdateDefaultAddress(customerId: \"gid://shopify/Customer/999999\", addressId: \""
+        <> address_id
+        <> "\") { customer { id defaultAddress { id } } userErrors { field message } } }",
+    )
+  assert default_status == 200
+  assert string.contains(json.to_string(default_body), "\"customer\":null")
+  assert_missing_customer_error(default_body)
+}
+
 pub fn store_credit_credit_debit_readback_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, ..), proxy) =
@@ -167,4 +361,196 @@ pub fn store_credit_credit_debit_readback_test() {
     read_json,
     "\"owner\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"credit@example.com\"}",
   )
+}
+
+pub fn email_marketing_consent_update_rejects_disallowed_states_test() {
+  assert_email_consent_state_rejected("NOT_SUBSCRIBED")
+  assert_email_consent_state_rejected("REDACTED")
+  assert_email_consent_state_rejected("INVALID")
+}
+
+pub fn sms_marketing_consent_update_rejects_disallowed_states_test() {
+  assert_sms_consent_state_rejected("NOT_SUBSCRIBED")
+  assert_sms_consent_state_rejected("REDACTED")
+  assert_sms_consent_state_rejected("INVALID")
+}
+
+pub fn marketing_consent_update_allowed_states_still_stage_test() {
+  assert_email_consent_state_stages("SUBSCRIBED")
+  assert_email_consent_state_stages("UNSUBSCRIBED")
+  assert_email_consent_state_stages("PENDING")
+  assert_sms_consent_state_stages("SUBSCRIBED")
+  assert_sms_consent_state_stages("UNSUBSCRIBED")
+  assert_sms_consent_state_stages("PENDING")
+}
+
+fn assert_email_consent_state_rejected(state: String) {
+  let proxy = consent_customer_proxy()
+  let mutation =
+    "mutation { customerEmailMarketingConsentUpdate(input: { customerId: \"gid://shopify/Customer/1\", emailMarketingConsent: { marketingState: "
+    <> state
+    <> ", marketingOptInLevel: "
+    <> opt_in_level_for_state(state)
+    <> " } }) { customer { id defaultEmailAddress { marketingState } emailMarketingConsent { marketingState } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  assert_disallowed_consent_response(
+    json.to_string(body),
+    "customerEmailMarketingConsentUpdate",
+    state,
+  )
+  assert_email_consent_readback(proxy, "SUBSCRIBED")
+  assert_log_omits_root(proxy, "customerEmailMarketingConsentUpdate")
+}
+
+fn assert_sms_consent_state_rejected(state: String) {
+  let proxy = consent_customer_proxy()
+  let mutation =
+    "mutation { customerSmsMarketingConsentUpdate(input: { customerId: \"gid://shopify/Customer/1\", smsMarketingConsent: { marketingState: "
+    <> state
+    <> ", marketingOptInLevel: "
+    <> opt_in_level_for_state(state)
+    <> " } }) { customer { id defaultPhoneNumber { marketingState } smsMarketingConsent { marketingState } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  assert_disallowed_consent_response(
+    json.to_string(body),
+    "customerSmsMarketingConsentUpdate",
+    state,
+  )
+  assert_sms_consent_readback(proxy, "SUBSCRIBED")
+  assert_log_omits_root(proxy, "customerSmsMarketingConsentUpdate")
+}
+
+fn assert_email_consent_state_stages(state: String) {
+  let proxy = consent_customer_proxy()
+  let mutation =
+    "mutation { customerEmailMarketingConsentUpdate(input: { customerId: \"gid://shopify/Customer/1\", emailMarketingConsent: { marketingState: "
+    <> state
+    <> ", marketingOptInLevel: "
+    <> opt_in_level_for_state(state)
+    <> " } }) { customer { id defaultEmailAddress { marketingState } emailMarketingConsent { marketingState } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert !string.contains(body_json, "\"errors\"")
+  assert string.contains(body_json, "\"userErrors\":[]")
+  assert_email_consent_readback(proxy, state)
+}
+
+fn assert_sms_consent_state_stages(state: String) {
+  let proxy = consent_customer_proxy()
+  let mutation =
+    "mutation { customerSmsMarketingConsentUpdate(input: { customerId: \"gid://shopify/Customer/1\", smsMarketingConsent: { marketingState: "
+    <> state
+    <> ", marketingOptInLevel: "
+    <> opt_in_level_for_state(state)
+    <> " } }) { customer { id defaultPhoneNumber { marketingState } smsMarketingConsent { marketingState } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert !string.contains(body_json, "\"errors\"")
+  assert string.contains(body_json, "\"userErrors\":[]")
+  assert_sms_consent_readback(proxy, state)
+}
+
+fn consent_customer_proxy() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"consent@example.com\", phone: \"+14155550123\", emailMarketingConsent: { marketingState: SUBSCRIBED, marketingOptInLevel: SINGLE_OPT_IN }, smsMarketingConsent: { marketingState: SUBSCRIBED, marketingOptInLevel: SINGLE_OPT_IN } }) { customer { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  proxy
+}
+
+fn assert_disallowed_consent_response(
+  body_json: String,
+  root_name: String,
+  state: String,
+) {
+  assert string.contains(body_json, "\"errors\":[")
+  case root_name, state {
+    "customerSmsMarketingConsentUpdate", "INVALID" -> {
+      assert string.contains(
+        body_json,
+        "\"message\":\"Variable $input of type CustomerSmsMarketingConsentUpdateInput! was provided invalid value for smsMarketingConsent.marketingState",
+      )
+      assert string.contains(body_json, "\"code\":\"INVALID_VARIABLE\"")
+      assert string.contains(
+        body_json,
+        "Expected \\\"INVALID\\\" to be one of: NOT_SUBSCRIBED, PENDING, SUBSCRIBED, UNSUBSCRIBED, REDACTED",
+      )
+      assert !string.contains(body_json, "\"" <> root_name <> "\":null")
+    }
+    _, _ -> {
+      assert string.contains(
+        body_json,
+        "\"message\":\"Cannot specify "
+          <> state
+          <> " as a marketing state input\"",
+      )
+      assert string.contains(body_json, "\"extensions\":{\"code\":\"INVALID\"}")
+      assert string.contains(body_json, "\"path\":[\"" <> root_name <> "\"]")
+      assert string.contains(body_json, "\"" <> root_name <> "\":null")
+    }
+  }
+  assert !string.contains(body_json, "userErrors")
+}
+
+fn assert_email_consent_readback(proxy: draft_proxy.DraftProxy, state: String) {
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { defaultEmailAddress { marketingState } emailMarketingConsent { marketingState } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"defaultEmailAddress\":{\"marketingState\":\"" <> state <> "\"}",
+  )
+  assert string.contains(
+    read_json,
+    "\"emailMarketingConsent\":{\"marketingState\":\"" <> state <> "\"}",
+  )
+}
+
+fn assert_sms_consent_readback(proxy: draft_proxy.DraftProxy, state: String) {
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { defaultPhoneNumber { marketingState } smsMarketingConsent { marketingState } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"defaultPhoneNumber\":{\"marketingState\":\"" <> state <> "\"}",
+  )
+  assert string.contains(
+    read_json,
+    "\"smsMarketingConsent\":{\"marketingState\":\"" <> state <> "\"}",
+  )
+}
+
+fn assert_log_omits_root(proxy: draft_proxy.DraftProxy, root_name: String) {
+  let log_request =
+    Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, log_request)
+  assert log_status == 200
+  assert !string.contains(json.to_string(log_body), root_name)
+}
+
+fn opt_in_level_for_state(state: String) -> String {
+  case state {
+    "PENDING" -> "CONFIRMED_OPT_IN"
+    _ -> "SINGLE_OPT_IN"
+  }
 }
