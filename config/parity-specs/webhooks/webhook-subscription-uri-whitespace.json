@@ -1,19 +1,12 @@
 {
   "scenarioId": "webhook-subscription-uri-whitespace",
-  "operationNames": [
-    "webhookSubscriptionCreate"
-  ],
+  "operationNames": ["webhookSubscriptionCreate"],
   "scenarioStatus": "captured",
-  "assertionKinds": [
-    "user-errors-parity"
-  ],
+  "assertionKinds": ["user-errors-parity"],
   "liveCaptureFiles": [
     "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-uri-whitespace.json"
   ],
-  "runtimeTestFiles": [
-    "test/parity_test.gleam",
-    "test/shopify_draft_proxy/proxy/webhooks_test.gleam"
-  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/webhooks_test.gleam"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
     "apiVersion": "2026-04",

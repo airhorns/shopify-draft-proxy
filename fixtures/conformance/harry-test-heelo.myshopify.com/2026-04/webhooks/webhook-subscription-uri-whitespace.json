@@ -28,10 +28,7 @@
               "webhookSubscription": null,
               "userErrors": [
                 {
-                  "field": [
-                    "webhookSubscription",
-                    "callbackUrl"
-                  ],
+                  "field": ["webhookSubscription", "callbackUrl"],
                   "message": "Address can't be blank"
                 }
               ]
