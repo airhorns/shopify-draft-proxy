@@ -206,7 +206,7 @@ pub fn process_wraps_in_data_envelope_test() {
   assert json.to_string(data) == "{\"data\":{\"bulkOperation\":null}}"
 }
 
-pub fn run_query_stages_completed_operation_and_log_test() {
+pub fn run_query_returns_created_operation_and_stages_terminal_log_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let document =
     "mutation { bulkOperationRunQuery(query: \"{ products { edges { node { id } } } }\") { bulkOperation { id status type objectCount rootObjectCount fileSize url partialDataUrl query } userErrors { field message code } } }"
@@ -223,12 +223,29 @@ pub fn run_query_stages_completed_operation_and_log_test() {
   let response = json.to_string(outcome.data)
   assert string.contains(
     response,
-    "\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+    "\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"CREATED\",\"type\":\"QUERY\"",
   )
   assert string.contains(response, "\"objectCount\":\"0\"")
   assert string.contains(response, "\"rootObjectCount\":\"0\"")
+  assert string.contains(response, "\"fileSize\":null")
+  assert string.contains(response, "\"url\":null")
+  assert string.contains(response, "\"partialDataUrl\":null")
   assert string.contains(response, "\"userErrors\":[]")
   assert outcome.staged_resource_ids == ["gid://shopify/BulkOperation/1"]
+  let read_after =
+    run(
+      outcome.store,
+      "{ bulkOperation(id: \"gid://shopify/BulkOperation/1\") { id status type objectCount rootObjectCount fileSize url partialDataUrl query } }",
+    )
+  assert string.contains(
+    read_after,
+    "\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+  )
+  assert string.contains(read_after, "\"fileSize\":\"0\"")
+  assert string.contains(
+    read_after,
+    "\"url\":\"https://shopify-draft-proxy.local",
+  )
   assert list.length(store.get_log(outcome.store)) == 1
 }
 
@@ -263,15 +280,15 @@ pub fn run_query_accepts_group_objects_true_false_and_default_test() {
   let response = json.to_string(outcome.data)
   assert string.contains(
     response,
-    "\"default\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+    "\"default\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/1\",\"status\":\"CREATED\",\"type\":\"QUERY\"",
   )
   assert string.contains(
     response,
-    "\"explicitTrue\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/2\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+    "\"explicitTrue\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/2\",\"status\":\"CREATED\",\"type\":\"QUERY\"",
   )
   assert string.contains(
     response,
-    "\"explicitFalse\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/3\",\"status\":\"COMPLETED\",\"type\":\"QUERY\"",
+    "\"explicitFalse\":{\"bulkOperation\":{\"id\":\"gid://shopify/BulkOperation/3\",\"status\":\"CREATED\",\"type\":\"QUERY\"",
   )
   assert string.contains(response, "\"default\":{")
   assert string.contains(response, "\"explicitTrue\":{")
@@ -306,10 +323,22 @@ pub fn run_query_exports_product_jsonl_and_metadata_test() {
       empty_upstream_context(),
     )
   let response = json.to_string(outcome.data)
-  assert string.contains(response, "\"status\":\"COMPLETED\"")
-  assert string.contains(response, "\"objectCount\":\"2\"")
-  assert string.contains(response, "\"rootObjectCount\":\"2\"")
+  assert string.contains(response, "\"status\":\"CREATED\"")
+  assert string.contains(response, "\"objectCount\":\"0\"")
+  assert string.contains(response, "\"rootObjectCount\":\"0\"")
+  assert string.contains(response, "\"fileSize\":null")
+  assert string.contains(response, "\"url\":null")
   let assert [operation_id, ..] = outcome.staged_resource_ids
+  let read_after =
+    run(
+      outcome.store,
+      "{ bulkOperation(id: \""
+        <> operation_id
+        <> "\") { id status objectCount rootObjectCount fileSize url query } }",
+    )
+  assert string.contains(read_after, "\"status\":\"COMPLETED\"")
+  assert string.contains(read_after, "\"objectCount\":\"2\"")
+  assert string.contains(read_after, "\"rootObjectCount\":\"2\"")
   let assert Some(jsonl) =
     store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
   assert jsonl
@@ -545,10 +574,23 @@ pub fn run_mutation_product_create_import_stages_product_and_result_test() {
       empty_upstream_context(),
     )
   let response = json.to_string(outcome.data)
-  assert string.contains(response, "\"status\":\"COMPLETED\"")
-  assert string.contains(response, "\"objectCount\":\"1\"")
+  assert string.contains(response, "\"status\":\"CREATED\"")
+  assert string.contains(response, "\"objectCount\":\"0\"")
+  assert string.contains(response, "\"rootObjectCount\":\"0\"")
+  assert string.contains(response, "\"fileSize\":null")
+  assert string.contains(response, "\"url\":null")
   assert string.contains(response, "\"userErrors\":[]")
   let assert [operation_id, ..] = outcome.staged_resource_ids
+  let read_after =
+    run(
+      outcome.store,
+      "{ bulkOperation(id: \""
+        <> operation_id
+        <> "\") { id status type objectCount rootObjectCount fileSize url query } }",
+    )
+  assert string.contains(read_after, "\"status\":\"COMPLETED\"")
+  assert string.contains(read_after, "\"objectCount\":\"1\"")
+  assert string.contains(read_after, "\"rootObjectCount\":\"1\"")
   let assert Ok(product) =
     store.list_effective_products(outcome.store)
     |> list.find(fn(record) { record.title == "Bulk Created Board" })

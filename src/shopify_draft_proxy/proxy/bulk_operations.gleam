@@ -300,6 +300,22 @@ fn bulk_operation_cursor(
   option.unwrap(operation.cursor, operation.id)
 }
 
+fn created_bulk_operation_response(
+  operation: BulkOperationRecord,
+) -> BulkOperationRecord {
+  BulkOperationRecord(
+    ..operation,
+    status: "CREATED",
+    error_code: None,
+    completed_at: None,
+    object_count: "0",
+    root_object_count: "0",
+    file_size: None,
+    url: None,
+    partial_data_url: None,
+  )
+}
+
 fn sort_bulk_operations(
   operations: List(BulkOperationRecord),
   sort_key: String,
@@ -616,7 +632,7 @@ fn handle_bulk_operation_run_query(
               key: key,
               payload: serialize_run_query_payload(
                 field,
-                Some(staged),
+                Some(created_bulk_operation_response(staged)),
                 [],
                 fragments,
               ),
@@ -1408,7 +1424,7 @@ fn stage_supported_run_mutation(
       key: key,
       payload: serialize_run_mutation_payload(
         field,
-        Some(operation),
+        Some(created_bulk_operation_response(operation)),
         [],
         fragments,
       ),
@@ -1737,20 +1753,19 @@ fn build_and_stage_mutation_operation(
   result_jsonl: String,
   object_count: Int,
 ) -> #(BulkOperationRecord, Store, SyntheticIdentityRegistry) {
-  let #(completed_at, identity_after_completed) =
-    synthetic_identity.make_synthetic_timestamp(identity)
   let #(operation_id, identity_after_id) =
-    synthetic_identity.make_synthetic_gid(
-      identity_after_completed,
-      "BulkOperation",
-    )
+    synthetic_identity.make_synthetic_gid(identity, "BulkOperation")
+  let #(created_at, identity_after_created) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let #(completed_at, identity_after_completed) =
+    synthetic_identity.make_synthetic_timestamp(identity_after_created)
   let operation =
     BulkOperationRecord(
       id: operation_id,
       status: status,
       type_: "MUTATION",
       error_code: None,
-      created_at: completed_at,
+      created_at: created_at,
       completed_at: Some(completed_at),
       object_count: int.to_string(object_count),
       root_object_count: int.to_string(object_count),
@@ -1763,7 +1778,7 @@ fn build_and_stage_mutation_operation(
     )
   let #(staged, next_store) =
     store.stage_bulk_operation_result(store, operation, result_jsonl)
-  #(staged, next_store, identity_after_id)
+  #(staged, next_store, identity_after_completed)
 }
 
 fn variables_dict_decoder() -> decode.Decoder(
