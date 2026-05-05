@@ -1,0 +1,1902 @@
+{
+  "capturedAt": "2026-05-05T05:17:35.679Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "initialCatalog": {
+      "name": "initialLocationCatalog",
+      "query": "#graphql\n  query LocationEditCatalog {\n    locations(first: 100) {\n      nodes {\n        id\n        name\n        isActive\n        fulfillsOnlineOrders\n        hasUnfulfilledOrders\n        isFulfillmentService\n        address {\n          address1\n          address2\n          city\n          country\n          countryCode\n          provinceCode\n          zip\n        }\n      }\n    }\n  }\n",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "isActive": true,
+                  "fulfillsOnlineOrders": true,
+                  "hasUnfulfilledOrders": false,
+                  "isFulfillmentService": false,
+                  "address": {
+                    "address1": "123 Broadway",
+                    "address2": null,
+                    "city": "New York",
+                    "country": "United States",
+                    "countryCode": "US",
+                    "provinceCode": "NY",
+                    "zip": "10006"
+                  }
+                },
+                {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "isActive": true,
+                  "fulfillsOnlineOrders": true,
+                  "hasUnfulfilledOrders": false,
+                  "isFulfillmentService": false,
+                  "address": {
+                    "address1": "123 Broadway",
+                    "address2": null,
+                    "city": "New York",
+                    "country": "United States",
+                    "countryCode": "US",
+                    "provinceCode": "NY",
+                    "zip": "10006"
+                  }
+                },
+                {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352",
+                  "isActive": true,
+                  "fulfillsOnlineOrders": true,
+                  "hasUnfulfilledOrders": false,
+                  "isFulfillmentService": false,
+                  "address": {
+                    "address1": "1 Spadina",
+                    "address2": null,
+                    "city": "Toronto",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "M5T 2C2"
+                  }
+                },
+                {
+                  "id": "gid://shopify/Location/112833069362",
+                  "name": "HAR-654 Sub 20260505044352",
+                  "isActive": true,
+                  "fulfillsOnlineOrders": false,
+                  "hasUnfulfilledOrders": false,
+                  "isFulfillmentService": false,
+                  "address": {
+                    "address1": "2 Spadina",
+                    "address2": null,
+                    "city": "Toronto",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "M5T 2C3"
+                  }
+                },
+                {
+                  "id": "gid://shopify/Location/112831103282",
+                  "name": "HAR-658 lifecycle 20260505013332",
+                  "isActive": true,
+                  "fulfillsOnlineOrders": false,
+                  "hasUnfulfilledOrders": false,
+                  "isFulfillmentService": false,
+                  "address": {
+                    "address1": "1 Test St",
+                    "address2": null,
+                    "city": "Boston",
+                    "country": "United States",
+                    "countryCode": "US",
+                    "provinceCode": "MA",
+                    "zip": "02110"
+                  }
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true,
+                  "fulfillsOnlineOrders": true,
+                  "hasUnfulfilledOrders": false,
+                  "isFulfillmentService": false,
+                  "address": {
+                    "address1": "123 Main St",
+                    "address2": null,
+                    "city": "Toronto",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "A1A 1A1"
+                  }
+                },
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "fulfillsOnlineOrders": true,
+                  "hasUnfulfilledOrders": true,
+                  "isFulfillmentService": false,
+                  "address": {
+                    "address1": "103 ossington",
+                    "address2": null,
+                    "city": "Ottawa",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "K1S 3B7"
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "primaryCreate": {
+      "name": "primaryLocationAdd",
+      "query": "#graphql\n  mutation LocationEditFixtureAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        fulfillsOnlineOrders\n        address {\n          address1\n          city\n          countryCode\n          provinceCode\n          zip\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "HAR-661 Primary 20260505051735",
+          "fulfillsOnlineOrders": true,
+          "address": {
+            "address1": "1 Test St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112833495346",
+                "name": "HAR-661 Primary 20260505051735",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "address": {
+                  "address1": "1 Test St",
+                  "city": "Boston",
+                  "countryCode": "US",
+                  "provinceCode": "MA",
+                  "zip": "02110"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupCreate": {
+      "name": "backupLocationAdd",
+      "query": "#graphql\n  mutation LocationEditFixtureAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        fulfillsOnlineOrders\n        address {\n          address1\n          city\n          countryCode\n          provinceCode\n          zip\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "name": "HAR-661 Backup 20260505051735",
+          "fulfillsOnlineOrders": true,
+          "address": {
+            "address1": "2 Test St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02111"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112833528114",
+                "name": "HAR-661 Backup 20260505051735",
+                "isActive": true,
+                "fulfillsOnlineOrders": true,
+                "address": {
+                  "address1": "2 Test St",
+                  "city": "Boston",
+                  "countryCode": "US",
+                  "provinceCode": "MA",
+                  "zip": "02111"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "primaryHydrate": {
+      "name": "primaryLocationHydrateForProxyCassette",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112833495346",
+              "legacyResourceId": "112833495346",
+              "name": "HAR-661 Primary 20260505051735",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T05:17:35Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T05:17:36Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "1 Test St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["1 Test St", "Boston MA 02110", "United States"],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "1 Jess St",
+                  "countryCode": "US",
+                  "formatted": ["1 Jess St", "Boston MA 02130", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupHydrate": {
+      "name": "backupLocationHydrateForProxyCassette",
+      "query": "query StorePropertiesLocationHydrate($id: ID!) { location(id: $id) { id legacyResourceId name activatable addressVerified createdAt deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory hasUnfulfilledOrders isActive isFulfillmentService shipsInventory updatedAt fulfillmentService { id handle serviceName } address { address1 address2 city country countryCode formatted latitude longitude phone province provinceCode zip } suggestedAddresses { address1 countryCode formatted } metafield(namespace: \"custom\", key: \"hours\") { id namespace key value type } metafields(first: 3) { nodes { id namespace key value type } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } inventoryLevels(first: 3) { nodes { id item { id } location { id name } quantities(names: [\"available\", \"committed\", \"on_hand\"]) { name quantity updatedAt } } pageInfo { hasNextPage hasPreviousPage startCursor endCursor } } } }",
+      "variables": {
+        "id": "gid://shopify/Location/112833528114"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112833528114",
+              "legacyResourceId": "112833528114",
+              "name": "HAR-661 Backup 20260505051735",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T05:17:36Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T05:17:36Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "2 Test St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["2 Test St", "Boston MA 02111", "United States"],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02111"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "2 State St",
+                  "countryCode": "US",
+                  "formatted": ["2 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "onlyOnlineSetupDisables": [
+      {
+        "name": "disableExternalOnline:gid://shopify/Location/112829759794",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/112829759794",
+          "input": {
+            "fulfillsOnlineOrders": false,
+            "address": {
+              "address1": "123 Broadway",
+              "city": "New York",
+              "countryCode": "US",
+              "provinceCode": "NY",
+              "zip": "10006"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "fulfillsOnlineOrders": false,
+                  "updatedAt": "2026-05-05T00:06:19Z",
+                  "address": {
+                    "address1": "123 Broadway",
+                    "address2": null,
+                    "city": "New York",
+                    "country": "United States",
+                    "countryCode": "US",
+                    "provinceCode": "NY",
+                    "zip": "10006"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "disableExternalOnline:gid://shopify/Location/112829956402",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/112829956402",
+          "input": {
+            "fulfillsOnlineOrders": false,
+            "address": {
+              "address1": "123 Broadway",
+              "city": "New York",
+              "countryCode": "US",
+              "provinceCode": "NY",
+              "zip": "10006"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "fulfillsOnlineOrders": false,
+                  "updatedAt": "2026-05-05T00:08:57Z",
+                  "address": {
+                    "address1": "123 Broadway",
+                    "address2": null,
+                    "city": "New York",
+                    "country": "United States",
+                    "countryCode": "US",
+                    "provinceCode": "NY",
+                    "zip": "10006"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "disableExternalOnline:gid://shopify/Location/112833036594",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/112833036594",
+          "input": {
+            "fulfillsOnlineOrders": false,
+            "address": {
+              "address1": "1 Spadina",
+              "city": "Toronto",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "M5T 2C2"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352",
+                  "fulfillsOnlineOrders": false,
+                  "updatedAt": "2026-05-05T04:43:52Z",
+                  "address": {
+                    "address1": "1 Spadina",
+                    "address2": null,
+                    "city": "Toronto",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "M5T 2C2"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "disableExternalOnline:gid://shopify/Location/106318463282",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/106318463282",
+          "input": {
+            "fulfillsOnlineOrders": false,
+            "address": {
+              "address1": "123 Main St",
+              "city": "Toronto",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "A1A 1A1"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "fulfillsOnlineOrders": false,
+                  "updatedAt": "2026-05-05T05:14:29Z",
+                  "address": {
+                    "address1": "123 Main St",
+                    "address2": null,
+                    "city": "Toronto",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "A1A 1A1"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "disableExternalOnline:gid://shopify/Location/106318430514",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/106318430514",
+          "input": {
+            "fulfillsOnlineOrders": false,
+            "address": {
+              "address1": "103 ossington",
+              "city": "Ottawa",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "K1S 3B7"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "fulfillsOnlineOrders": false,
+                  "updatedAt": "2026-05-05T05:03:01Z",
+                  "address": {
+                    "address1": "103 ossington",
+                    "address2": null,
+                    "city": "Ottawa",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "K1S 3B7"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ],
+    "externalRestoreCases": [
+      {
+        "name": "restoreExternalOnline:gid://shopify/Location/112829759794",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/112829759794",
+          "input": {
+            "fulfillsOnlineOrders": true,
+            "address": {
+              "address1": "123 Broadway",
+              "city": "New York",
+              "countryCode": "US",
+              "provinceCode": "NY",
+              "zip": "10006"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "fulfillsOnlineOrders": true,
+                  "updatedAt": "2026-05-05T00:06:19Z",
+                  "address": {
+                    "address1": "123 Broadway",
+                    "address2": null,
+                    "city": "New York",
+                    "country": "United States",
+                    "countryCode": "US",
+                    "provinceCode": "NY",
+                    "zip": "10006"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "restoreExternalOnline:gid://shopify/Location/112829956402",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/112829956402",
+          "input": {
+            "fulfillsOnlineOrders": true,
+            "address": {
+              "address1": "123 Broadway",
+              "city": "New York",
+              "countryCode": "US",
+              "provinceCode": "NY",
+              "zip": "10006"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "fulfillsOnlineOrders": true,
+                  "updatedAt": "2026-05-05T00:08:57Z",
+                  "address": {
+                    "address1": "123 Broadway",
+                    "address2": null,
+                    "city": "New York",
+                    "country": "United States",
+                    "countryCode": "US",
+                    "provinceCode": "NY",
+                    "zip": "10006"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "restoreExternalOnline:gid://shopify/Location/112833036594",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/112833036594",
+          "input": {
+            "fulfillsOnlineOrders": true,
+            "address": {
+              "address1": "1 Spadina",
+              "city": "Toronto",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "M5T 2C2"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352",
+                  "fulfillsOnlineOrders": true,
+                  "updatedAt": "2026-05-05T04:43:52Z",
+                  "address": {
+                    "address1": "1 Spadina",
+                    "address2": null,
+                    "city": "Toronto",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "M5T 2C2"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "restoreExternalOnline:gid://shopify/Location/106318463282",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/106318463282",
+          "input": {
+            "fulfillsOnlineOrders": true,
+            "address": {
+              "address1": "123 Main St",
+              "city": "Toronto",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "A1A 1A1"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "fulfillsOnlineOrders": true,
+                  "updatedAt": "2026-05-05T05:14:29Z",
+                  "address": {
+                    "address1": "123 Main St",
+                    "address2": null,
+                    "city": "Toronto",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "A1A 1A1"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "restoreExternalOnline:gid://shopify/Location/106318430514",
+        "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Location/106318430514",
+          "input": {
+            "fulfillsOnlineOrders": true,
+            "address": {
+              "address1": "103 ossington",
+              "city": "Ottawa",
+              "countryCode": "CA",
+              "provinceCode": "ON",
+              "zip": "K1S 3B7"
+            }
+          }
+        },
+        "response": {
+          "status": 200,
+          "payload": {
+            "data": {
+              "locationEdit": {
+                "location": {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "fulfillsOnlineOrders": true,
+                  "updatedAt": "2026-05-05T05:03:01Z",
+                  "address": {
+                    "address1": "103 ossington",
+                    "address2": null,
+                    "city": "Ottawa",
+                    "country": "Canada",
+                    "countryCode": "CA",
+                    "provinceCode": "ON",
+                    "zip": "K1S 3B7"
+                  },
+                  "metafield": null,
+                  "metafields": {
+                    "nodes": [],
+                    "pageInfo": {
+                      "hasNextPage": false,
+                      "hasPreviousPage": false
+                    }
+                  }
+                },
+                "userErrors": []
+              }
+            },
+            "extensions": {
+              "cost": {
+                "requestedQueryCost": 16,
+                "actualQueryCost": 16,
+                "throttleStatus": {
+                  "maximumAvailable": 2000,
+                  "currentlyAvailable": 1984,
+                  "restoreRate": 100
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "cases": {
+    "editName": {
+      "name": "editName",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346",
+        "input": {
+          "name": "HAR-661 Edited 20260505051735"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationEdit": {
+              "location": {
+                "id": "gid://shopify/Location/112833495346",
+                "name": "HAR-661 Edited 20260505051735",
+                "fulfillsOnlineOrders": true,
+                "updatedAt": "2026-05-05T05:17:37Z",
+                "address": {
+                  "address1": "1 Test St",
+                  "address2": null,
+                  "city": "Boston",
+                  "country": "United States",
+                  "countryCode": "US",
+                  "provinceCode": "MA",
+                  "zip": "02110"
+                },
+                "metafield": null,
+                "metafields": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "editAddress": {
+      "name": "editAddress",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346",
+        "input": {
+          "address": {
+            "city": "Toronto",
+            "countryCode": "CA",
+            "provinceCode": "ON",
+            "zip": "M5T 2C2"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationEdit": {
+              "location": {
+                "id": "gid://shopify/Location/112833495346",
+                "name": "HAR-661 Edited 20260505051735",
+                "fulfillsOnlineOrders": true,
+                "updatedAt": "2026-05-05T05:17:37Z",
+                "address": {
+                  "address1": "1 Test St",
+                  "address2": null,
+                  "city": "Toronto",
+                  "country": "Canada",
+                  "countryCode": "CA",
+                  "provinceCode": "ON",
+                  "zip": "M5T 2C2"
+                },
+                "metafield": null,
+                "metafields": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidCountry": {
+      "name": "invalidCountryEnum",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346",
+        "input": {
+          "address": {
+            "countryCode": "XX"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type LocationEditInput! was provided invalid value for address.countryCode (Expected \"XX\" to be one of: AF, AX, AL, DZ, AD, AO, AI, AG, AR, AM, AW, AC, AU, AT, AZ, BS, BH, BD, BB, BY, BE, BZ, BJ, BM, BT, BO, BA, BW, BV, BR, IO, BN, BG, BF, BI, KH, CA, CV, BQ, KY, CF, TD, CL, CN, CX, CC, CO, KM, CG, CD, CK, CR, HR, CU, CW, CY, CZ, CI, DK, DJ, DM, DO, EC, EG, SV, GQ, ER, EE, SZ, ET, FK, FO, FJ, FI, FR, GF, PF, TF, GA, GM, GE, DE, GH, GI, GR, GL, GD, GP, GT, GG, GN, GW, GY, HT, HM, VA, HN, HK, HU, IS, IN, ID, IR, IQ, IE, IM, IL, IT, JM, JP, JE, JO, KZ, KE, KI, KP, XK, KW, KG, LA, LV, LB, LS, LR, LY, LI, LT, LU, MO, MG, MW, MY, MV, ML, MT, MQ, MR, MU, YT, MX, MD, MC, MN, ME, MS, MA, MZ, MM, NA, NR, NP, NL, AN, NC, NZ, NI, NE, NG, NU, NF, MK, NO, OM, PK, PS, PA, PG, PY, PE, PH, PN, PL, PT, QA, CM, RE, RO, RU, RW, BL, SH, KN, LC, MF, PM, WS, SM, ST, SA, SN, RS, SC, SL, SG, SX, SK, SI, SB, SO, ZA, GS, KR, SS, ES, LK, VC, SD, SR, SJ, SE, CH, SY, TW, TJ, TZ, TH, TL, TG, TK, TO, TT, TA, TN, TR, TM, TC, TV, UG, UA, AE, GB, US, UM, UY, UZ, VU, VE, VN, VG, WF, EH, YE, ZM, ZW, ZZ)",
+              "locations": [
+                {
+                  "line": 40,
+                  "column": 56
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "address": {
+                    "countryCode": "XX"
+                  }
+                },
+                "problems": [
+                  {
+                    "path": ["address", "countryCode"],
+                    "explanation": "Expected \"XX\" to be one of: AF, AX, AL, DZ, AD, AO, AI, AG, AR, AM, AW, AC, AU, AT, AZ, BS, BH, BD, BB, BY, BE, BZ, BJ, BM, BT, BO, BA, BW, BV, BR, IO, BN, BG, BF, BI, KH, CA, CV, BQ, KY, CF, TD, CL, CN, CX, CC, CO, KM, CG, CD, CK, CR, HR, CU, CW, CY, CZ, CI, DK, DJ, DM, DO, EC, EG, SV, GQ, ER, EE, SZ, ET, FK, FO, FJ, FI, FR, GF, PF, TF, GA, GM, GE, DE, GH, GI, GR, GL, GD, GP, GT, GG, GN, GW, GY, HT, HM, VA, HN, HK, HU, IS, IN, ID, IR, IQ, IE, IM, IL, IT, JM, JP, JE, JO, KZ, KE, KI, KP, XK, KW, KG, LA, LV, LB, LS, LR, LY, LI, LT, LU, MO, MG, MW, MY, MV, ML, MT, MQ, MR, MU, YT, MX, MD, MC, MN, ME, MS, MA, MZ, MM, NA, NR, NP, NL, AN, NC, NZ, NI, NE, NG, NU, NF, MK, NO, OM, PK, PS, PA, PG, PY, PE, PH, PN, PL, PT, QA, CM, RE, RO, RU, RW, BL, SH, KN, LC, MF, PM, WS, SM, ST, SA, SN, RS, SC, SL, SG, SX, SK, SI, SB, SO, ZA, GS, KR, SS, ES, LK, VC, SD, SR, SJ, SE, CH, SY, TW, TJ, TZ, TH, TL, TG, TK, TO, TT, TA, TN, TR, TM, TC, TV, UG, UA, AE, GB, US, UM, UY, UZ, VU, VE, VN, VG, WF, EH, YE, ZM, ZW, ZZ"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "metafieldSet": {
+      "name": "metafieldSet",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346",
+        "input": {
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "har661",
+              "value": "1",
+              "type": "single_line_text_field"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationEdit": {
+              "location": {
+                "id": "gid://shopify/Location/112833495346",
+                "name": "HAR-661 Edited 20260505051735",
+                "fulfillsOnlineOrders": true,
+                "updatedAt": "2026-05-05T05:17:37Z",
+                "address": {
+                  "address1": "1 Test St",
+                  "address2": null,
+                  "city": "Toronto",
+                  "country": "Canada",
+                  "countryCode": "CA",
+                  "provinceCode": "ON",
+                  "zip": "M5T 2C2"
+                },
+                "metafield": {
+                  "id": "gid://shopify/Metafield/43094545727794",
+                  "namespace": "custom",
+                  "key": "har661",
+                  "value": "1",
+                  "type": "single_line_text_field"
+                },
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43094545727794",
+                      "namespace": "custom",
+                      "key": "har661",
+                      "value": "1",
+                      "type": "single_line_text_field"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "readAfterMetafield": {
+      "name": "readAfterMetafield",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  query LocationEditRead($id: ID!) {\n    location(id: $id) {\n      ...LocationEditFields\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112833495346",
+              "name": "HAR-661 Edited 20260505051735",
+              "fulfillsOnlineOrders": true,
+              "updatedAt": "2026-05-05T05:17:37Z",
+              "address": {
+                "address1": "1 Test St",
+                "address2": null,
+                "city": "Toronto",
+                "country": "Canada",
+                "countryCode": "CA",
+                "provinceCode": "ON",
+                "zip": "M5T 2C2"
+              },
+              "metafield": {
+                "id": "gid://shopify/Metafield/43094545727794",
+                "namespace": "custom",
+                "key": "har661",
+                "value": "1",
+                "type": "single_line_text_field"
+              },
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/43094545727794",
+                    "namespace": "custom",
+                    "key": "har661",
+                    "value": "1",
+                    "type": "single_line_text_field"
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "invalidMetafieldType": {
+      "name": "invalidMetafieldType",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346",
+        "input": {
+          "metafields": [
+            {
+              "namespace": "custom",
+              "key": "har661-bad",
+              "value": "1",
+              "type": "not_a_real_type"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationEdit": {
+              "location": null,
+              "userErrors": [
+                {
+                  "field": ["input", "metafields", "1", "type"],
+                  "message": "Type must be one of the following: antenna_gain, area, battery_charge_capacity, battery_energy_capacity, boolean, capacitance, color, concentration, data_storage_capacity, data_transfer_rate, date_time, date, dimension, display_density, distance, duration, electric_current, electrical_resistance, energy, float, frequency, id, illuminance, inductance, integer, json_string, json, language, link, list.antenna_gain, list.area, list.battery_charge_capacity, list.battery_energy_capacity, list.boolean, list.capacitance, list.color, list.concentration, list.data_storage_capacity, list.data_transfer_rate, list.date_time, list.date, list.dimension, list.display_density, list.distance, list.duration, list.electric_current, list.electrical_resistance, list.energy, list.frequency, list.illuminance, list.inductance, list.link, list.luminous_flux, list.mass_flow_rate, list.multi_line_text_field, list.number_decimal, list.number_integer, list.power, list.pressure, list.rating, list.resolution, list.rotational_speed, list.single_line_text_field, list.sound_level, list.speed, list.temperature, list.thermal_power, list.url, list.voltage, list.volume, list.volumetric_flow_rate, list.weight, luminous_flux, mass_flow_rate, money, multi_line_text_field, number_decimal, number_integer, power, pressure, rating, resolution, rich_text_field, rotational_speed, single_line_text_field, sound_level, speed, string, temperature, thermal_power, url, voltage, volume, volumetric_flow_rate, weight, company_reference, list.company_reference, customer_reference, list.customer_reference, product_reference, list.product_reference, collection_reference, list.collection_reference, variant_reference, list.variant_reference, file_reference, list.file_reference, product_taxonomy_value_reference, list.product_taxonomy_value_reference, metaobject_reference, list.metaobject_reference, mixed_reference, list.mixed_reference, page_reference, list.page_reference, article_reference, list.article_reference, order_reference, list.order_reference.",
+                  "code": "INVALID_TYPE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "nonblockingDisable": {
+      "name": "nonblockingDisableOnlineFulfillment",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833528114",
+        "input": {
+          "fulfillsOnlineOrders": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationEdit": {
+              "location": {
+                "id": "gid://shopify/Location/112833528114",
+                "name": "HAR-661 Backup 20260505051735",
+                "fulfillsOnlineOrders": false,
+                "updatedAt": "2026-05-05T05:17:36Z",
+                "address": {
+                  "address1": "2 Test St",
+                  "address2": null,
+                  "city": "Boston",
+                  "country": "United States",
+                  "countryCode": "US",
+                  "provinceCode": "MA",
+                  "zip": "02111"
+                },
+                "metafield": null,
+                "metafields": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "onlyOnlineDisable": {
+      "name": "onlyOnlineDisableRejected",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346",
+        "input": {
+          "fulfillsOnlineOrders": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationEdit": {
+              "location": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Online order fulfillment could not be disabled for this location as it is the only location that fulfills online orders.",
+                  "code": "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "cleanupDisableOnlineFulfillment",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833528114",
+        "input": {
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "1 Test St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationEdit": {
+              "location": {
+                "id": "gid://shopify/Location/112833528114",
+                "name": "HAR-661 Backup 20260505051735",
+                "fulfillsOnlineOrders": false,
+                "updatedAt": "2026-05-05T05:17:40Z",
+                "address": {
+                  "address1": "1 Test St",
+                  "address2": null,
+                  "city": "Boston",
+                  "country": "United States",
+                  "countryCode": "US",
+                  "provinceCode": "MA",
+                  "zip": "02110"
+                },
+                "metafield": null,
+                "metafields": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 16,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1984,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDeactivate",
+      "query": "#graphql\n  mutation LocationEditFixtureDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n        fulfillsOnlineOrders\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112833528114",
+        "idempotencyKey": "location-edit-fields-and-state-machine-cleanup-deactivate-20260505051735-112833528114"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112833528114",
+                "isActive": false,
+                "fulfillsOnlineOrders": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDelete",
+      "query": "#graphql\n  mutation LocationEditFixtureDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112833528114"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/112833528114",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDisableOnlineFulfillment",
+      "query": "#graphql\n  #graphql\n  fragment LocationEditFields on Location {\n    id\n    name\n    fulfillsOnlineOrders\n    updatedAt\n    address {\n      address1\n      address2\n      city\n      country\n      countryCode\n      provinceCode\n      zip\n    }\n    metafield(namespace: \"custom\", key: \"har661\") {\n      id\n      namespace\n      key\n      value\n      type\n    }\n    metafields(first: 5, namespace: \"custom\") {\n      nodes {\n        id\n        namespace\n        key\n        value\n        type\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }\n\n\n  mutation LocationEditFieldsAndStateMachine($id: ID!, $input: LocationEditInput!) {\n    locationEdit(id: $id, input: $input) {\n      location {\n        ...LocationEditFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346",
+        "input": {
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "1 Test St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationEdit": {
+              "location": {
+                "id": "gid://shopify/Location/112833495346",
+                "name": "HAR-661 Edited 20260505051735",
+                "fulfillsOnlineOrders": false,
+                "updatedAt": "2026-05-05T05:17:41Z",
+                "address": {
+                  "address1": "1 Test St",
+                  "address2": null,
+                  "city": "Boston",
+                  "country": "United States",
+                  "countryCode": "US",
+                  "provinceCode": "MA",
+                  "zip": "02110"
+                },
+                "metafield": {
+                  "id": "gid://shopify/Metafield/43094545727794",
+                  "namespace": "custom",
+                  "key": "har661",
+                  "value": "1",
+                  "type": "single_line_text_field"
+                },
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43094545727794",
+                      "namespace": "custom",
+                      "key": "har661",
+                      "value": "1",
+                      "type": "single_line_text_field"
+                    }
+                  ],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 16,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDeactivate",
+      "query": "#graphql\n  mutation LocationEditFixtureDeactivate($locationId: ID!, $idempotencyKey: String!) {\n    locationDeactivate(locationId: $locationId) @idempotent(key: $idempotencyKey) {\n      location {\n        id\n        isActive\n        fulfillsOnlineOrders\n      }\n      locationDeactivateUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112833495346",
+        "idempotencyKey": "location-edit-fields-and-state-machine-cleanup-deactivate-20260505051735-112833495346"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112833495346",
+                "isActive": false,
+                "fulfillsOnlineOrders": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "cleanupDelete",
+      "query": "#graphql\n  mutation LocationEditFixtureDelete($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        code\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "locationId": "gid://shopify/Location/112833495346"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/112833495346",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112833495346"
+      },
+      "query": "sha256:19a15256637a43c788e0a98df946af8dd51a0cd01517c6c62cc4fe2f12e0f8b8",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112833495346",
+              "legacyResourceId": "112833495346",
+              "name": "HAR-661 Primary 20260505051735",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T05:17:35Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T05:17:36Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "1 Test St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["1 Test St", "Boston MA 02110", "United States"],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "1 Jess St",
+                  "countryCode": "US",
+                  "formatted": ["1 Jess St", "Boston MA 02130", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112833528114"
+      },
+      "query": "sha256:19a15256637a43c788e0a98df946af8dd51a0cd01517c6c62cc4fe2f12e0f8b8",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112833528114",
+              "legacyResourceId": "112833528114",
+              "name": "HAR-661 Backup 20260505051735",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T05:17:36Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T05:17:36Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "2 Test St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["2 Test St", "Boston MA 02111", "United States"],
+                "latitude": 42.3390059,
+                "longitude": -71.0913587,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02111"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "2 State St",
+                  "countryCode": "US",
+                  "formatted": ["2 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

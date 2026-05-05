@@ -9,7 +9,8 @@ import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
   type ShopPolicyRecord, type ShopRecord, type StorePropertyRecord,
-  type StorePropertyValue, PaymentSettingsRecord, ShopAddressRecord,
+  type StorePropertyValue, CapturedArray, CapturedObject, CapturedString,
+  DeliveryProfileRecord, PaymentSettingsRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
   ShopPlanRecord, ShopPolicyRecord, ShopRecord, ShopResourceLimitsRecord,
@@ -178,6 +179,26 @@ fn make_location(
     #("hasActiveInventory", StorePropertyBool(False)),
     #("shipsInventory", StorePropertyBool(is_active)),
   ])
+}
+
+fn location_address(
+  address1: String,
+  city: String,
+  country: String,
+  country_code: String,
+  province_code: String,
+  zip: String,
+) -> StorePropertyValue {
+  StorePropertyObject(
+    dict.from_list([
+      #("address1", StorePropertyString(address1)),
+      #("city", StorePropertyString(city)),
+      #("country", StorePropertyString(country)),
+      #("countryCode", StorePropertyString(country_code)),
+      #("provinceCode", StorePropertyString(province_code)),
+      #("zip", StorePropertyString(zip)),
+    ]),
+  )
 }
 
 pub fn empty_shop_read_returns_null_test() {
@@ -375,6 +396,238 @@ pub fn location_reads_and_local_mutations_use_store_state_test() {
   assert string.contains(serialized_state, "\"stagedState\":{")
   assert string.contains(serialized_state, "\"locations\":{")
   assert string.contains(serialized_state, "\"name\":\"Annex\"")
+}
+
+pub fn location_edit_updates_address_fulfillment_and_metafields_test() {
+  let target =
+    make_raw_record("gid://shopify/Location/1", "Location", [
+      #("name", StorePropertyString("Main")),
+      #("isActive", StorePropertyBool(True)),
+      #("fulfillsOnlineOrders", StorePropertyBool(True)),
+      #(
+        "address",
+        location_address(
+          "1 Test St",
+          "Boston",
+          "United States",
+          "US",
+          "MA",
+          "02110",
+        ),
+      ),
+    ])
+  let backup =
+    make_raw_record("gid://shopify/Location/2", "Location", [
+      #("name", StorePropertyString("Backup")),
+      #("isActive", StorePropertyBool(True)),
+      #("fulfillsOnlineOrders", StorePropertyBool(True)),
+      #(
+        "address",
+        location_address(
+          "2 Test St",
+          "Boston",
+          "United States",
+          "US",
+          "MA",
+          "02110",
+        ),
+      ),
+    ])
+  let proxy = draft_proxy.new()
+  let store =
+    proxy.store
+    |> store.upsert_base_store_property_location(target)
+    |> store.upsert_base_store_property_location(backup)
+  let proxy = proxy_state.DraftProxy(..proxy, store: store)
+  let edit_body =
+    "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id name fulfillsOnlineOrders address { address1 city country countryCode provinceCode zip } metafield(namespace: \\\"custom\\\", key: \\\"x\\\") { id namespace key type value } metafields(first: 5) { nodes { namespace key value type } pageInfo { hasNextPage hasPreviousPage } } } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"input\":{\"name\":\"Annex\",\"address\":{\"city\":\"Toronto\",\"countryCode\":\"CA\",\"provinceCode\":\"ON\",\"zip\":\"M5T 2C2\"},\"fulfillsOnlineOrders\":false,\"metafields\":[{\"namespace\":\"custom\",\"key\":\"x\",\"value\":\"1\",\"type\":\"single_line_text_field\"}]}}}"
+  let #(proxy_state.Response(status: edit_status, body: edit_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(edit_body))
+  let edited = json.to_string(edit_json)
+  assert edit_status == 200
+  assert string.contains(edited, "\"name\":\"Annex\"")
+  assert string.contains(edited, "\"fulfillsOnlineOrders\":false")
+  assert string.contains(edited, "\"city\":\"Toronto\"")
+  assert string.contains(edited, "\"country\":\"Canada\"")
+  assert string.contains(edited, "\"namespace\":\"custom\"")
+  assert string.contains(edited, "\"key\":\"x\"")
+  assert string.contains(edited, "\"value\":\"1\"")
+  assert string.contains(edited, "\"userErrors\":[]")
+
+  let read_body =
+    "{\"query\":\"query($id: ID!) { location(id: $id) { id name fulfillsOnlineOrders address { city countryCode } metafield(namespace: \\\"custom\\\", key: \\\"x\\\") { namespace key value type } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\"}}"
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read = json.to_string(read_json)
+  assert read_status == 200
+  assert string.contains(read, "\"name\":\"Annex\"")
+  assert string.contains(read, "\"fulfillsOnlineOrders\":false")
+  assert string.contains(read, "\"city\":\"Toronto\"")
+  assert string.contains(read, "\"value\":\"1\"")
+}
+
+pub fn location_edit_invalid_metafield_type_returns_typed_error_test() {
+  let location =
+    make_raw_record("gid://shopify/Location/1", "Location", [
+      #("name", StorePropertyString("Main")),
+      #("isActive", StorePropertyBool(True)),
+      #("fulfillsOnlineOrders", StorePropertyBool(True)),
+      #(
+        "address",
+        location_address(
+          "1 Test St",
+          "Boston",
+          "United States",
+          "US",
+          "MA",
+          "02110",
+        ),
+      ),
+    ])
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.upsert_base_store_property_location(proxy.store, location),
+    )
+  let body =
+    "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"input\":{\"metafields\":[{\"namespace\":\"custom\",\"key\":\"bad\",\"value\":\"1\",\"type\":\"not_a_real_type\"}]}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+  assert status == 200
+  assert string.contains(serialized, "\"location\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"metafields\",\"0\",\"type\"]",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID_TYPE\"")
+  assert !string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "locationEdit",
+  )
+}
+
+pub fn location_edit_invalid_country_code_returns_invalid_variable_error_test() {
+  let proxy = draft_proxy.new()
+  let body =
+    "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"input\":{\"address\":{\"countryCode\":\"XX\"}}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(serialized, "\"path\":[\"address\",\"countryCode\"]")
+  assert string.contains(serialized, "Expected \\\"XX\\\" to be one of:")
+  assert !string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "locationEdit",
+  )
+}
+
+pub fn location_edit_rejects_disabling_only_online_location_test() {
+  let location =
+    make_location("gid://shopify/Location/1", "Only", True, False, True, True)
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.upsert_base_store_property_location(proxy.store, location),
+    )
+  let body =
+    "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id fulfillsOnlineOrders } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"input\":{\"fulfillsOnlineOrders\":false}}}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_body)
+  assert status == 200
+  assert string.contains(serialized, "\"location\":null")
+  assert string.contains(
+    serialized,
+    "\"code\":\"CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT\"",
+  )
+  assert !string.contains(
+    json.to_string(draft_proxy.get_log_snapshot(proxy)),
+    "locationEdit",
+  )
+}
+
+pub fn location_edit_rejects_modeled_pending_and_delivery_profile_blockers_test() {
+  let pending =
+    make_raw_record("gid://shopify/Location/1", "Location", [
+      #("name", StorePropertyString("Pending")),
+      #("isActive", StorePropertyBool(True)),
+      #("fulfillsOnlineOrders", StorePropertyBool(True)),
+      #("hasUnfulfilledOrders", StorePropertyBool(True)),
+    ])
+  let delivery_profile_location =
+    make_location(
+      "gid://shopify/Location/2",
+      "Profile",
+      True,
+      False,
+      True,
+      True,
+    )
+  let backup =
+    make_location("gid://shopify/Location/3", "Backup", True, False, True, True)
+  let profile =
+    DeliveryProfileRecord(
+      id: "gid://shopify/DeliveryProfile/1",
+      cursor: None,
+      merchant_owned: True,
+      data: CapturedObject([
+        #(
+          "profileLocationGroups",
+          CapturedArray([
+            CapturedObject([
+              #(
+                "locationGroup",
+                CapturedObject([
+                  #(
+                    "locations",
+                    CapturedArray([
+                      CapturedObject([
+                        #("id", CapturedString("gid://shopify/Location/2")),
+                      ]),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ]),
+        ),
+      ]),
+    )
+  let proxy = draft_proxy.new()
+  let seeded =
+    proxy.store
+    |> store.upsert_base_store_property_location(pending)
+    |> store.upsert_base_store_property_location(delivery_profile_location)
+    |> store.upsert_base_store_property_location(backup)
+    |> store.upsert_base_delivery_profiles([profile])
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded)
+  let body =
+    "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id fulfillsOnlineOrders } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Location/1\",\"input\":{\"fulfillsOnlineOrders\":false}}}"
+  let #(
+    proxy_state.Response(status: pending_status, body: pending_json, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(body))
+  assert pending_status == 200
+  assert string.contains(
+    json.to_string(pending_json),
+    "\"code\":\"CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT\"",
+  )
+
+  let body =
+    "{\"query\":\"mutation($id: ID!, $input: LocationEditInput!) { locationEdit(id: $id, input: $input) { location { id fulfillsOnlineOrders } userErrors { field message code } } }\",\"variables\":{\"id\":\"gid://shopify/Location/2\",\"input\":{\"fulfillsOnlineOrders\":false}}}"
+  let #(proxy_state.Response(status: profile_status, body: profile_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  assert profile_status == 200
+  assert string.contains(
+    json.to_string(profile_json),
+    "\"code\":\"CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT\"",
+  )
 }
 
 pub fn location_activate_deactivate_stage_and_read_back_test() {
