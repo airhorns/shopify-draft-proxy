@@ -1344,6 +1344,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'payments',
+    captureId: 'payment-customization-metafields-and-handle-update',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-payment-customization-metafields-conformance.ts',
+    purpose:
+      'paymentCustomizationCreate/paymentCustomizationUpdate metafield persistence, functionHandle input update, and downstream paymentCustomization readback.',
+    requiredAuthScopes: ['read_payment_customizations', 'write_payment_customizations', 'shopifyFunctions read access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}payment-customization-metafields-and-handle-update.json`,
+      'config/parity-specs/payments/payment-customization-metafields-and-handle-update.json',
+      'config/parity-requests/payments/payment-customization-metafields-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable payment customization, captures create/update/read behavior, then deletes the payment customization.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The active 2026-04 PaymentCustomization output type does not expose functionHandle, so parity compares Shopify’s resolved functionId and runtime tests cover local functionHandle projection.',
+  },
+  {
     domain: 'admin-platform',
     captureId: 'admin-platform',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
