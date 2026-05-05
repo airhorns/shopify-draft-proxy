@@ -1,0 +1,169 @@
+{
+  "capturedAt": "2026-05-05T19:34:38.751Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "H729-mot1202i",
+  "notes": [
+    "HAR-729 capture for saved-search query grammar validation.",
+    "ORDER savedSearchCreate rejects reference_location_id as a reserved filter with field [\"input\", \"query\"].",
+    "PRODUCT savedSearchCreate rejects collection_id combined with tag, error_feedback, or published_status.",
+    "PRODUCT savedSearchCreate accepts collection_id alone and cleanup deletes that disposable saved search.",
+    "PRODUCT savedSearchUpdate with collection_id+tag returns a non-null payload echo plus userErrors and is not expected to persist locally."
+  ],
+  "savedSearchCreateValidation": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-create.graphql",
+    "variables": {
+      "orderReserved": {
+        "resourceType": "ORDER",
+        "name": "H729 Reserved H729-mot1202i",
+        "query": "reference_location_id:1"
+      },
+      "productCollectionTag": {
+        "resourceType": "PRODUCT",
+        "name": "H729 Collection Tag H729-mot1202i",
+        "query": "collection_id:\"123\" tag:\"AAA\""
+      },
+      "productCollectionPublished": {
+        "resourceType": "PRODUCT",
+        "name": "H729 Published H729-mot1202i",
+        "query": "collection_id:\"123\" published_status:published"
+      },
+      "productCollectionErrorFeedback": {
+        "resourceType": "PRODUCT",
+        "name": "H729 Error H729-mot1202i",
+        "query": "collection_id:\"123\" error_feedback:\"x\""
+      },
+      "productPositive": {
+        "resourceType": "PRODUCT",
+        "name": "H729 Positive H729-mot1202i",
+        "query": "collection_id:\"12345\""
+      }
+    },
+    "payload": {
+      "data": {
+        "orderReserved": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "query"],
+              "message": "Search terms is invalid, 'reference_location_id' is a reserved filter name"
+            }
+          ]
+        },
+        "productCollectionTag": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "query"],
+              "message": "Query has incompatible filters: collection_id, tag"
+            }
+          ]
+        },
+        "productCollectionPublished": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "query"],
+              "message": "Query has incompatible filters: collection_id, published_status"
+            }
+          ]
+        },
+        "productCollectionErrorFeedback": {
+          "savedSearch": null,
+          "userErrors": [
+            {
+              "field": ["input", "query"],
+              "message": "Query has incompatible filters: collection_id, error_feedback"
+            }
+          ]
+        },
+        "productPositive": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4007869088050",
+            "name": "H729 Positive H729-mot1202i",
+            "query": "collection_id:\"12345\"",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 50,
+          "actualQueryCost": 50,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1950,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchUpdateCollectionTag": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-validation-update.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4007869088050",
+        "query": "collection_id:\"123\" tag:\"AAA\""
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchUpdate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4007869088050",
+            "name": "H729 Positive H729-mot1202i",
+            "query": "collection_id:\"123\" tag:\"AAA\"",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": [
+            {
+              "field": ["input", "query"],
+              "message": "Query has incompatible filters: collection_id, tag"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1959,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanupDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4007869088050"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4007869088050",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1961,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

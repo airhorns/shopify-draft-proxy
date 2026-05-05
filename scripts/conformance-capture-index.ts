@@ -724,6 +724,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-query-grammar-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-query-grammar-validation-conformance.ts',
+    purpose: 'SavedSearch reserved-filter and per-resource filter-compatibility query validation for create/update.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-query-grammar-validation.json`,
+      'config/parity-specs/saved-searches/saved-search-query-grammar-validation.json',
+      'config/parity-requests/saved-searches/saved-search-query-grammar-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product saved search for positive/update validation and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-delete-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-delete-shop-payload-conformance.ts',
