@@ -1,0 +1,74 @@
+{
+  "capturedAt": "2026-05-05T04:00:00.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenario": "app-revoke-access-scopes-codes",
+  "notes": [
+    "Runtime fixture backed by Gleam apps mutation tests for HAR-650.",
+    "The primary parity request bootstraps the local current app installation without calling Shopify at runtime.",
+    "Shopify source behavior treats unknown scopes as handles absent from the Shopify scope catalog, rejects required-scope revocation atomically, and returns error codes on userErrors."
+  ],
+  "operationNames": ["appPurchaseOneTimeCreate", "appRevokeAccessScopes"],
+  "upstreamCalls": [],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "unknownScope": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": [],
+              "userErrors": [
+                {
+                  "field": ["scopes"],
+                  "message": "The requested list of scopes to revoke includes invalid handles.",
+                  "code": "UNKNOWN_SCOPES"
+                }
+              ]
+            }
+          }
+        },
+        "mixedUnknownScope": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": [],
+              "userErrors": [
+                {
+                  "field": ["scopes"],
+                  "message": "The requested list of scopes to revoke includes invalid handles.",
+                  "code": "UNKNOWN_SCOPES"
+                }
+              ]
+            }
+          }
+        },
+        "requiredScope": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": [],
+              "userErrors": [
+                {
+                  "field": ["scopes"],
+                  "message": "Required access scopes can't be revoked.",
+                  "code": "CANNOT_REVOKE_REQUIRED_SCOPES"
+                }
+              ]
+            }
+          }
+        },
+        "optionalGrant": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": [
+                {
+                  "handle": "write_orders",
+                  "description": null
+                }
+              ],
+              "userErrors": []
+            }
+          }
+        }
+      }
+    }
+  }
+}
