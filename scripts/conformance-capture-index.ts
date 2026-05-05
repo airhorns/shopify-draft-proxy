@@ -981,6 +981,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'store-properties',
+    captureId: 'location-delete-state-and-scope',
+    scriptPath: 'scripts/capture-location-delete-state-and-scope-conformance.mts',
+    purpose:
+      'locationDelete guard parity for active, inventory, primary, and fulfillment-service-managed Location state.',
+    requiredAuthScopes: ['read_locations', 'write_locations', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}location-delete-state-and-scope.json`,
+      'config/parity-specs/store-properties/location-delete-state-and-scope.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable merchant-managed locations, temporary products/inventory levels, and a fulfillment service, then cleans them up after guard capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'store-properties',
     captureId: 'shop-policies',
     scriptPath: 'scripts/capture-shop-policy-conformance.ts',
     purpose: 'shopPolicyUpdate and legal-policy read/write behavior.',
