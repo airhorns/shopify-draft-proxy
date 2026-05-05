@@ -17,11 +17,14 @@ import gleam/order.{Eq}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Selection, Field, FragmentDefinition, FragmentSpread, InlineFragment,
-  NamedType, SelectionSet,
+  type Location, type ObjectField, type Selection, Argument, Field,
+  FragmentDefinition, FragmentSpread, InlineFragment, NamedType, ObjectField,
+  ObjectValue, SelectionSet,
 }
+import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source as graphql_source
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionWindow, SelectedFieldOptions,
@@ -94,6 +97,12 @@ type UserError {
 
 type BulkDeleteJob {
   BulkDeleteJob(id: String, done: Bool)
+}
+
+type BulkDeleteWhere {
+  BulkDeleteByIds(List(String))
+  BulkDeleteByType(String)
+  BulkDeleteNoSelector
 }
 
 type MutationFieldResult {
@@ -463,14 +472,28 @@ pub fn process_mutation(
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      handle_mutation_fields(
-        store,
-        identity,
-        fields,
-        fragments,
-        variables,
-        upstream,
-      )
+      case bulk_delete_where_exactly_one_errors(fields, variables, document) {
+        [] ->
+          handle_mutation_fields(
+            store,
+            identity,
+            fields,
+            fragments,
+            variables,
+            upstream,
+          )
+        errors ->
+          MutationOutcome(
+            data: json.object([
+              #("errors", json.preprocessed_array(errors)),
+              #("data", json.object([#("metaobjectBulkDelete", json.null())])),
+            ]),
+            store: store,
+            identity: identity,
+            staged_resource_ids: [],
+            log_drafts: [],
+          )
+      }
     }
   }
 }
@@ -549,6 +572,124 @@ fn handle_mutation_fields(
       _ -> []
     },
   )
+}
+
+fn bulk_delete_where_exactly_one_errors(
+  fields: List(Selection),
+  variables: Dict(String, root_field.ResolvedValue),
+  source_body: String,
+) -> List(Json) {
+  list.filter_map(fields, fn(field) {
+    case field {
+      Field(name: name, ..) ->
+        case name.value == "metaobjectBulkDelete" {
+          False -> Error(Nil)
+          True -> {
+            let args = graphql_helpers.field_args(field, variables)
+            case read_object(args, "where") {
+              None -> Error(Nil)
+              Some(where) -> {
+                let provided =
+                  bool_to_int(dict.has_key(where, "type"))
+                  + bool_to_int(dict.has_key(where, "ids"))
+                case provided == 1 {
+                  True -> Error(Nil)
+                  False -> Ok(bulk_delete_exactly_one_error(field, source_body))
+                }
+              }
+            }
+          }
+        }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn bool_to_int(value: Bool) -> Int {
+  case value {
+    True -> 1
+    False -> 0
+  }
+}
+
+fn bulk_delete_exactly_one_error(
+  field: Selection,
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "MetaobjectBulkDeleteWhereCondition requires exactly one of type, ids",
+      ),
+    ),
+  ]
+  let with_locations = case bulk_delete_where_locations(field, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", json.array(["metaobjectBulkDelete"], json.string)),
+      #(
+        "extensions",
+        json.object([#("code", json.string("INVALID_FIELD_ARGUMENTS"))]),
+      ),
+    ]),
+  )
+}
+
+fn bulk_delete_where_locations(
+  field: Selection,
+  source_body: String,
+) -> Option(Json) {
+  case field {
+    Field(arguments: arguments, loc: field_loc, ..) ->
+      case mutation_helpers.find_argument(arguments, "where") {
+        Some(Argument(value: ObjectValue(fields: fields, ..), ..)) ->
+          json_locations(
+            [field_loc, bulk_delete_conflicting_field_location(fields)],
+            source_body,
+          )
+        _ -> json_locations([field_loc], source_body)
+      }
+    _ -> None
+  }
+}
+
+fn bulk_delete_conflicting_field_location(
+  fields: List(ObjectField),
+) -> Option(Location) {
+  case fields {
+    [] -> None
+    [ObjectField(name: name, loc: loc, ..), ..rest] ->
+      case name.value == "ids" {
+        True -> loc
+        False -> bulk_delete_conflicting_field_location(rest)
+      }
+  }
+}
+
+fn json_locations(
+  locations: List(Option(Location)),
+  source_body: String,
+) -> Option(Json) {
+  let encoded =
+    list.filter_map(locations, fn(location) {
+      use loc <- result.try(option_to_result(location))
+      let source = graphql_source.new(source_body)
+      let computed = graphql_location.get_location(source, position: loc.start)
+      Ok(
+        json.object([
+          #("line", json.int(computed.line)),
+          #("column", json.int(computed.column)),
+        ]),
+      )
+    })
+  case encoded {
+    [] -> None
+    _ -> Some(json.preprocessed_array(encoded))
+  }
 }
 
 fn dispatch_mutation_field(
@@ -1368,27 +1509,72 @@ fn handle_metaobject_bulk_delete(
   // Pattern 2: type-scoped bulk delete needs the upstream selection set
   // before staging local deletes; downstream reads observe local markers.
   let store = maybe_hydrate_bulk_delete_selection(store, args, upstream)
-  let ids = read_bulk_delete_ids(store, args)
+  case read_bulk_delete_where(args) {
+    BulkDeleteByType(type_) ->
+      case find_effective_metaobject_definition_by_type(store, type_) {
+        None -> {
+          let err =
+            UserError(
+              Some(["where", "type"]),
+              "No metaobject definition exists for type \"" <> type_ <> "\"",
+              "RECORD_NOT_FOUND",
+              None,
+              None,
+            )
+          #(
+            MutationFieldResult(
+              key,
+              bulk_delete_payload(field, fragments, None, [err]),
+              [],
+              [],
+              [],
+            ),
+            store,
+            identity,
+          )
+        }
+        Some(_) -> {
+          let ids = read_bulk_delete_ids(store, args)
+          bulk_delete_selected_ids(store, identity, key, field, fragments, ids)
+        }
+      }
+    BulkDeleteByIds(ids) ->
+      bulk_delete_selected_ids(
+        store,
+        identity,
+        key,
+        field,
+        fragments,
+        list.take(ids, 250),
+      )
+    BulkDeleteNoSelector ->
+      bulk_delete_selected_ids(store, identity, key, field, fragments, [])
+  }
+}
+
+fn bulk_delete_selected_ids(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  ids: List(String),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   case ids {
     [] -> {
-      let err =
-        UserError(
-          Some(["where"]),
-          "No metaobjects were selected for deletion.",
-          "NO_OBJECTS_SELECTED",
-          None,
-          None,
-        )
+      let #(job_id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "Job")
+      let job = BulkDeleteJob(id: job_id, done: False)
       #(
         MutationFieldResult(
           key,
-          bulk_delete_payload(field, fragments, None, [err]),
+          bulk_delete_payload(field, fragments, Some(job), []),
+          [job_id],
           [],
-          [],
-          [],
+          [log_draft("metaobjectBulkDelete", [job_id])],
         ),
         store,
-        identity,
+        next_identity,
       )
     }
     _ -> {
@@ -1544,7 +1730,7 @@ fn maybe_hydrate_bulk_delete_selection(
   upstream: UpstreamContext,
 ) -> Store {
   let explicit_ids = case read_object(args, "where") {
-    Some(where) -> read_string_list(where, "ids")
+    Some(where) -> read_string_list(where, "ids") |> list.take(250)
     None -> []
   }
   case explicit_ids {
@@ -1557,13 +1743,17 @@ fn maybe_hydrate_bulk_delete_selection(
         Some(where) ->
           case read_string(where, "type") {
             Some(type_) ->
-              fetch_and_hydrate(
-                store,
-                upstream,
-                "MetaobjectBulkDeleteHydrateByType",
-                metaobject_bulk_delete_hydrate_query(),
-                json.object([#("type", json.string(type_))]),
-              )
+              case list_effective_metaobject_definitions(store) {
+                [] ->
+                  fetch_and_hydrate(
+                    store,
+                    upstream,
+                    "MetaobjectBulkDeleteHydrateByType",
+                    metaobject_bulk_delete_hydrate_query(),
+                    json.object([#("type", json.string(type_))]),
+                  )
+                _ -> store
+              }
             None -> store
           }
         None -> store
@@ -5494,25 +5684,31 @@ fn read_bulk_delete_ids(
   store: Store,
   args: Dict(String, root_field.ResolvedValue),
 ) -> List(String) {
-  let explicit_ids = case read_object(args, "where") {
-    Some(where) -> read_string_list(where, "ids")
-    None -> []
+  case read_bulk_delete_where(args) {
+    BulkDeleteByIds(ids) -> list.take(ids, 250)
+    BulkDeleteByType(type_) ->
+      list.map(list_effective_metaobjects_by_type(store, type_), fn(item) {
+        item.id
+      })
+      |> list.take(250)
+    BulkDeleteNoSelector -> []
   }
-  case explicit_ids {
-    [_, ..] -> explicit_ids
-    [] ->
-      case read_object(args, "where") {
-        Some(where) ->
+}
+
+fn read_bulk_delete_where(
+  args: Dict(String, root_field.ResolvedValue),
+) -> BulkDeleteWhere {
+  case read_object(args, "where") {
+    Some(where) ->
+      case dict.has_key(where, "ids") {
+        True -> BulkDeleteByIds(read_string_list(where, "ids"))
+        False ->
           case read_string(where, "type") {
-            Some(type_) ->
-              list.map(
-                list_effective_metaobjects_by_type(store, type_),
-                fn(item) { item.id },
-              )
-            None -> []
+            Some(type_) -> BulkDeleteByType(type_)
+            None -> BulkDeleteNoSelector
           }
-        None -> []
       }
+    None -> BulkDeleteNoSelector
   }
 }
 

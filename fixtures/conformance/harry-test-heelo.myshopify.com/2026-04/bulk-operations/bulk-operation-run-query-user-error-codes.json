@@ -1,0 +1,75 @@
+{
+  "scenarioId": "bulk-operation-run-query-user-error-codes",
+  "capturedAt": "2026-05-05T11:24:21.821Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "validations": {
+    "noConnectionWithCode": {
+      "operationName": "BulkOperationRunQueryUserErrorCodes",
+      "query": "mutation BulkOperationRunQueryUserErrorCodes($query: String!) {\n  bulkOperationRunQuery(query: $query) {\n    bulkOperation {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "query": "{ shop { id } }"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "Bulk queries must contain at least one connection.",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "emptyQuery": {
+      "operationName": "BulkOperationRunQueryUserErrorCodes",
+      "query": "mutation BulkOperationRunQueryUserErrorCodes($query: String!) {\n  bulkOperationRunQuery(query: $query) {\n    bulkOperation {\n      id\n      status\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "variables": {
+        "query": ""
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "bulkOperationRunQuery": {
+            "bulkOperation": null,
+            "userErrors": [
+              {
+                "field": ["query"],
+                "message": "Invalid bulk query: syntax error, unexpected end of file",
+                "code": "INVALID"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

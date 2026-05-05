@@ -150,6 +150,7 @@
         "name": "trial-extend-payload",
         "capturePath": "$.evidence.parity.expected.trialExtend.data.appSubscriptionTrialExtend",
         "proxyPath": "$.data.appSubscriptionTrialExtend",
+        "selectedPaths": ["$.appSubscription", "$.userErrors"],
         "proxyRequest": {
           "documentPath": "config/parity-requests/apps/appSubscriptionTrialExtend-local-lifecycle.graphql",
           "variables": {
@@ -158,13 +159,7 @@
             }
           }
         },
-        "expectedDifferences": [
-          {
-            "path": "$.appSubscription.id",
-            "matcher": "shopify-gid:AppSubscription",
-            "reason": "The proxy keeps the locally staged subscription ID stable."
-          }
-        ]
+        "expectedDifferences": []
       },
       {
         "name": "subscription-cancel-payload",

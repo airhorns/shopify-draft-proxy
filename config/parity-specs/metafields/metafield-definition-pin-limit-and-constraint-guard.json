@@ -1,0 +1,77 @@
+{
+  "scenarioId": "metafield-definition-pin-limit-and-constraint-guard",
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldDefinitionPin",
+    "metafieldDefinitionUnpin",
+    "metafieldDefinitions"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write", "connection-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-pin-limit-and-constraint-guard.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-pin-limit-and-constraint-guard.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "pin-first-success",
+        "capturePath": "$.primary.response.data.pin01",
+        "proxyPath": "$.data.pin01",
+        "expectedDifferences": [
+          {
+            "path": "$.pinnedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "pin-limit-reached-userErrors",
+        "capturePath": "$.primary.response.data.pin21",
+        "proxyPath": "$.data.pin21"
+      },
+      {
+        "name": "pin-constrained-definition-userErrors",
+        "capturePath": "$.primary.response.data.constrainedPin",
+        "proxyPath": "$.data.constrainedPin"
+      },
+      {
+        "name": "pinned-definitions-listing",
+        "capturePath": "$.pinnedDefinitionsListing.data.metafieldDefinitions",
+        "proxyPath": "$.data.metafieldDefinitions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-pin-limit-listing.graphql",
+          "variablesCapturePath": "$.variables"
+        }
+      },
+      {
+        "name": "unpin-still-compacts-after-limit-guard",
+        "capturePath": "$.unpinFirst.response.data.metafieldDefinitionUnpin",
+        "proxyPath": "$.data.metafieldDefinitionUnpin",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-pin-limit-unpin.graphql",
+          "variables": {
+            "definitionId": {
+              "fromPrimaryProxyPath": "$.data.pin01.pinnedDefinition.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.unpinnedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy unpins the locally staged synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "HAR-699 captures the default 2025-01 Shopify product-owner cap of 20 pinned metafield definitions. The live capture temporarily unpins existing product definitions so the scenario can create and pin exactly 20 disposable definitions, observes `PINNED_LIMIT_REACHED` on the 21st pin, verifies constrained definitions return `UNSUPPORTED_PINNING`, lists the 20 pinned definitions in descending `PINNED_POSITION` order, and then unpins one definition to keep compaction covered."
+}

@@ -1,0 +1,135 @@
+{
+  "mutation": {
+    "variables": {
+      "email": "hermes-data-sale-defaults-1777987208140@example.com"
+    },
+    "response": {
+      "data": {
+        "dataSaleOptOut": {
+          "customerId": "gid://shopify/Customer/10581448687922",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Customer/10581448687922"
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10581448687922",
+          "email": "hermes-data-sale-defaults-1777987208140@example.com",
+          "tags": ["created-by-dns-form"],
+          "locale": "en",
+          "verifiedEmail": true,
+          "state": "DISABLED",
+          "defaultEmailAddress": {
+            "emailAddress": "hermes-data-sale-defaults-1777987208140@example.com"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 2,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "tagSearchRead": {
+    "variables": {
+      "query": "tag:created-by-dns-form",
+      "first": 5
+    },
+    "response": {
+      "data": {
+        "customers": {
+          "nodes": [
+            {
+              "id": "gid://shopify/Customer/10581448687922",
+              "email": "hermes-data-sale-defaults-1777987208140@example.com",
+              "tags": ["created-by-dns-form"]
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "eyJsYXN0X2lkIjoxMDU4MTQ0ODY4NzkyMiwibGFzdF92YWx1ZSI6MTA1ODE0NDg2ODc5MjJ9",
+            "endCursor": "eyJsYXN0X2lkIjoxMDU4MTQ0ODY4NzkyMiwibGFzdF92YWx1ZSI6MTA1ODE0NDg2ODc5MjJ9"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 5,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "unknownEmailCustomer": {
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10581448687922",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DataSaleOptOutCustomerLookup",
+      "variables": {
+        "identifier": {
+          "emailAddress": "hermes-data-sale-defaults-1777987208140@example.com"
+        }
+      },
+      "query": "sha:hand-synthesized-from-data-sale-opt-out-new-customer-defaults",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerByIdentifier": null
+          }
+        }
+      }
+    }
+  ]
+}

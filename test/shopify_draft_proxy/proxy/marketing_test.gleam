@@ -11,7 +11,8 @@ import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  MarketingBool, MarketingObject, MarketingRecord, MarketingString,
+  MarketingBool, MarketingNull, MarketingObject, MarketingRecord,
+  MarketingString,
 }
 
 fn empty_vars() {
@@ -89,6 +90,121 @@ fn activity(id: String, title: String, remote_id: String, created_at: String) {
         ),
       ),
       #("marketingEvent", MarketingObject(event)),
+    ]),
+  )
+}
+
+fn external_activity_with_details(
+  id: String,
+  remote_id: String,
+  title: String,
+  channel_handle: String,
+  url_parameter_value: String,
+  parent_remote_id: String,
+  hierarchy_level: String,
+) {
+  let event_id = "gid://shopify/MarketingEvent/" <> string.drop_start(id, 34)
+  let event =
+    dict.from_list([
+      #("__typename", MarketingString("MarketingEvent")),
+      #("id", MarketingString(event_id)),
+      #("type", MarketingString("NEWSLETTER")),
+      #("remoteId", MarketingString(remote_id)),
+      #("description", MarketingString(title)),
+      #("startedAt", MarketingString("2026-05-05T00:00:00Z")),
+      #("sourceAndMedium", MarketingString("Email newsletter")),
+      #("channelHandle", MarketingString(channel_handle)),
+    ])
+  MarketingRecord(
+    id: id,
+    cursor: None,
+    data: dict.from_list([
+      #("__typename", MarketingString("MarketingActivity")),
+      #("id", MarketingString(id)),
+      #("title", MarketingString(title)),
+      #("createdAt", MarketingString("2026-05-05T00:00:00Z")),
+      #("updatedAt", MarketingString("2026-05-05T00:00:00Z")),
+      #("status", MarketingString("ACTIVE")),
+      #("statusLabel", MarketingString("Sending")),
+      #("tactic", MarketingString("NEWSLETTER")),
+      #("marketingChannelType", MarketingString("EMAIL")),
+      #("sourceAndMedium", MarketingString("Email newsletter")),
+      #("isExternal", MarketingBool(True)),
+      #("remoteId", MarketingString(remote_id)),
+      #("urlParameterValue", MarketingString(url_parameter_value)),
+      #("parentRemoteId", MarketingString(parent_remote_id)),
+      #("hierarchyLevel", MarketingString(hierarchy_level)),
+      #(
+        "utmParameters",
+        MarketingObject(
+          dict.from_list([
+            #("campaign", MarketingString("campaign")),
+            #("source", MarketingString("email")),
+            #("medium", MarketingString("newsletter")),
+          ]),
+        ),
+      ),
+      #("marketingEvent", MarketingObject(event)),
+    ]),
+  )
+}
+
+fn marketing_event(id: String, remote_id: String) {
+  MarketingRecord(
+    id: id,
+    cursor: None,
+    data: dict.from_list([
+      #("__typename", MarketingString("MarketingEvent")),
+      #("id", MarketingString(id)),
+      #("type", MarketingString("NEWSLETTER")),
+      #("remoteId", MarketingString(remote_id)),
+      #("description", MarketingString(remote_id)),
+      #("startedAt", MarketingString("2026-05-05T00:00:00Z")),
+      #("sourceAndMedium", MarketingString("Email newsletter")),
+    ]),
+  )
+}
+
+fn non_external_activity(id: String, remote_id: String) {
+  MarketingRecord(
+    id: id,
+    cursor: None,
+    data: dict.from_list([
+      #("__typename", MarketingString("MarketingActivity")),
+      #("id", MarketingString(id)),
+      #("title", MarketingString("Native")),
+      #("createdAt", MarketingString("2026-05-05T00:00:00Z")),
+      #("updatedAt", MarketingString("2026-05-05T00:00:00Z")),
+      #("status", MarketingString("ACTIVE")),
+      #("statusLabel", MarketingString("Sending")),
+      #("tactic", MarketingString("NEWSLETTER")),
+      #("marketingChannelType", MarketingString("EMAIL")),
+      #("sourceAndMedium", MarketingString("Email newsletter")),
+      #("isExternal", MarketingBool(False)),
+      #("remoteId", MarketingString(remote_id)),
+      #("marketingEvent", MarketingNull),
+    ]),
+  )
+}
+
+fn external_activity_without_event(id: String, remote_id: String) {
+  MarketingRecord(
+    id: id,
+    cursor: None,
+    data: dict.from_list([
+      #("__typename", MarketingString("MarketingActivity")),
+      #("id", MarketingString(id)),
+      #("title", MarketingString("Orphan external")),
+      #("createdAt", MarketingString("2026-05-05T00:00:00Z")),
+      #("updatedAt", MarketingString("2026-05-05T00:00:00Z")),
+      #("status", MarketingString("ACTIVE")),
+      #("statusLabel", MarketingString("Sending")),
+      #("tactic", MarketingString("NEWSLETTER")),
+      #("marketingChannelType", MarketingString("EMAIL")),
+      #("sourceAndMedium", MarketingString("Email newsletter")),
+      #("isExternal", MarketingBool(True)),
+      #("remoteId", MarketingString(remote_id)),
+      #("marketingEvent", MarketingNull),
     ]),
   )
 }
@@ -314,6 +430,170 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
     )
   assert read_after_delete
     == "{\"marketingActivity\":null,\"marketingEvent\":null}"
+}
+
+pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let activity_id = "gid://shopify/MarketingActivity/501"
+  let source =
+    store.upsert_base_marketing_activities(store.new(), [
+      external_activity_with_details(
+        activity_id,
+        "remote-immutable",
+        "Immutable child",
+        "channel-a",
+        "promo-1",
+        "parent-a",
+        "CAMPAIGN",
+      ),
+    ])
+  let source =
+    store.upsert_base_marketing_events(source, [
+      marketing_event("gid://shopify/MarketingEvent/701", "parent-a"),
+      marketing_event("gid://shopify/MarketingEvent/702", "parent-b"),
+    ])
+
+  let channel_changed =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-b\", utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  let channel_response = json.to_string(channel_changed.data)
+  assert string.contains(channel_response, "\"marketingActivity\":null")
+  assert string.contains(channel_response, "\"field\":[\"input\"]")
+  assert string.contains(
+    channel_response,
+    "\"code\":\"IMMUTABLE_CHANNEL_HANDLE\"",
+  )
+  assert run(
+      channel_changed.store,
+      "{ marketingActivity(id: \"" <> activity_id <> "\") { title } }",
+    )
+    == "{\"marketingActivity\":{\"title\":\"Immutable child\"}}"
+
+  let url_cleared =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-a\", urlParameterValue: null, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  assert string.contains(
+    json.to_string(url_cleared.data),
+    "\"code\":\"IMMUTABLE_URL_PARAMETER\"",
+  )
+
+  let utm_changed =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-a\", urlParameterValue: \"promo-1\", parentRemoteId: \"parent-a\", hierarchyLevel: CAMPAIGN, utm: { campaign: \"changed\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  assert string.contains(
+    json.to_string(utm_changed.data),
+    "\"code\":\"IMMUTABLE_UTM_PARAMETERS\"",
+  )
+
+  let missing_parent =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-a\", urlParameterValue: \"promo-1\", parentRemoteId: \"missing-parent\", hierarchyLevel: CAMPAIGN, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  assert string.contains(
+    json.to_string(missing_parent.data),
+    "\"code\":\"INVALID_REMOTE_ID\"",
+  )
+
+  let parent_changed =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpdateExternal(remoteId: \"remote-immutable\", input: { title: \"Changed\", parentRemoteId: \"parent-b\" }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  assert string.contains(
+    json.to_string(parent_changed.data),
+    "\"code\":\"IMMUTABLE_PARENT_ID\"",
+  )
+
+  let hierarchy_changed =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpdateExternal(remoteId: \"remote-immutable\", input: { title: \"Changed\", hierarchyLevel: AD_GROUP }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  assert string.contains(
+    json.to_string(hierarchy_changed.data),
+    "\"code\":\"IMMUTABLE_HIERARCHY_LEVEL\"",
+  )
+}
+
+pub fn external_activity_update_and_upsert_reject_non_external_or_orphan_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let source =
+    store.upsert_base_marketing_activities(store.new(), [
+      non_external_activity(
+        "gid://shopify/MarketingActivity/601",
+        "native-remote",
+      ),
+      external_activity_without_event(
+        "gid://shopify/MarketingActivity/602",
+        "orphan-remote",
+      ),
+    ])
+
+  let non_external =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpsertExternal(input: { remoteId: \"native-remote\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  assert string.contains(
+    json.to_string(non_external.data),
+    "\"code\":\"ACTIVITY_NOT_EXTERNAL\"",
+  )
+
+  let orphan =
+    marketing.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      "mutation { marketingActivityUpdateExternal(remoteId: \"orphan-remote\", input: { title: \"Changed\" }) { marketingActivity { id title } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  assert string.contains(
+    json.to_string(orphan.data),
+    "\"code\":\"MARKETING_EVENT_DOES_NOT_EXIST\"",
+  )
+}
+
+pub fn update_external_requires_a_selector_test() {
+  let result =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityUpdateExternal(input: { title: \"Changed\" }) { marketingActivity { id } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  assert string.contains(
+    json.to_string(result.data),
+    "\"code\":\"INVALID_MARKETING_ACTIVITY_EXTERNAL_ARGUMENTS\"",
+  )
 }
 
 pub fn native_activity_validation_update_and_log_test() {

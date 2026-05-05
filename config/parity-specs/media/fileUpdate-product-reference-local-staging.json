@@ -23,7 +23,7 @@
     }
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "HAR-429 adds executable local parity for the Files API product-reference lifecycle: `fileCreate` stages a Files API MediaImage, `fileUpdate.referencesToAdd` attaches it to an existing product, and downstream `product.media` plus top-level `files` reads observe the same READY file. Live Files API create/update fixtures cover the payload family; this local-runtime scenario avoids inventing external upload-byte transfer behavior, which remains outside the proxy boundary.",
+  "notes": "HAR-702 updates this local-runtime scenario so `fileUpdate.referencesToAdd` validates product existence but rejects a locally staged UPLOADED file with NON_READY_STATE instead of attaching it or promoting it to READY. READY-file product reference attachment remains covered by seeded/hydrated media behavior rather than by treating fileUpdate as a processing-state transition.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
