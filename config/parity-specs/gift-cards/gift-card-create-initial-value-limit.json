@@ -1,0 +1,46 @@
+{
+  "scenarioId": "gift-card-create-initial-value-limit",
+  "operationNames": ["giftCardCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-create-initial-value-limit.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-create-initial-value-limit.graphql",
+    "variablesCapturePath": "$.proxyVariables.initialValueLimit"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-767 captures giftCardCreate initial value validation against the shop giftCardConfiguration.issueLimit. The live fixture documents the configured CAD issue limit and records boundary success at the limit plus GIFT_CARD_LIMIT_EXCEEDED for one cent over and for a well-over-limit value. Proxy replay uses a cassette-backed read-only giftCardConfiguration fetch before local create staging; supported giftCardCreate remains local-only.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "boundary initial value equal to issue limit succeeds",
+        "capturePath": "$.operations.initialValueLimit.response.payload.data.boundarySuccess",
+        "proxyPath": "$.data.boundarySuccess",
+        "expectedDifferences": [
+          {
+            "path": "$.giftCard.id",
+            "matcher": "shopify-gid:GiftCard",
+            "reason": "The proxy stages giftCardCreate locally and returns a synthetic GiftCard GID."
+          }
+        ]
+      },
+      {
+        "name": "initial value one cent over issue limit is rejected",
+        "capturePath": "$.operations.initialValueLimit.response.payload.data.overByCent",
+        "proxyPath": "$.data.overByCent",
+        "selectedPaths": ["$.giftCard", "$.userErrors"]
+      },
+      {
+        "name": "well over issue limit is rejected",
+        "capturePath": "$.operations.initialValueLimit.response.payload.data.wellOver",
+        "proxyPath": "$.data.wellOver",
+        "selectedPaths": ["$.giftCard", "$.userErrors"]
+      }
+    ]
+  }
+}

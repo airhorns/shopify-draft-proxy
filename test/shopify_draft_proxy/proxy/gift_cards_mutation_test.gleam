@@ -19,8 +19,8 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type CustomerRecord, type GiftCardRecord, type Money, type ShopRecord,
   CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
-  CustomerRecord, GiftCardRecord, Money, PaymentSettingsRecord,
-  ShopAddressRecord, ShopBundlesFeatureRecord,
+  CustomerRecord, GiftCardConfigurationRecord, GiftCardRecord, Money,
+  PaymentSettingsRecord, ShopAddressRecord, ShopBundlesFeatureRecord,
   ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
   ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
   ShopResourceLimitsRecord,
@@ -74,6 +74,19 @@ fn money(amount: String, currency: String) -> Money {
 fn seed_card(store_in: store.Store, record: GiftCardRecord) -> store.Store {
   let #(_, s) = store.stage_create_gift_card(store_in, record)
   s
+}
+
+fn seed_gift_card_configuration(
+  store_in: store.Store,
+  issue_limit: Money,
+) -> store.Store {
+  store.upsert_base_gift_card_configuration(
+    store_in,
+    GiftCardConfigurationRecord(
+      issue_limit: issue_limit,
+      purchase_limit: issue_limit,
+    ),
+  )
 }
 
 fn notification_card(
@@ -380,6 +393,61 @@ pub fn gift_card_create_rejects_missing_customer_test() {
     )
   assert body
     == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"customerId\"],\"code\":\"CUSTOMER_NOT_FOUND\",\"message\":\"The customer could not be found.\"}]}}}"
+}
+
+pub fn gift_card_create_rejects_initial_value_over_issue_limit_test() {
+  let configured_store =
+    store.new()
+    |> seed_gift_card_configuration(money("1000.0", "CAD"))
+  let outcome =
+    run_mutation_outcome(
+      configured_store,
+      "mutation { giftCardCreate(input: { initialValue: \"999999\" }) { giftCard { id } giftCardCode userErrors { field code message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"initialValue\"],\"code\":\"GIFT_CARD_LIMIT_EXCEEDED\",\"message\":\"can't exceed $1,000.00 CAD\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_gift_cards(outcome.store) == []
+}
+
+pub fn gift_card_create_allows_initial_value_equal_to_issue_limit_test() {
+  let configured_store =
+    store.new()
+    |> seed_gift_card_configuration(money("1000.0", "CAD"))
+  let body =
+    run_mutation(
+      configured_store,
+      "mutation { giftCardCreate(input: { initialValue: \"1000\" }) { giftCard { id initialValue { amount currencyCode } balance { amount currencyCode } } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic\",\"initialValue\":{\"amount\":\"1000.0\",\"currencyCode\":\"CAD\"},\"balance\":{\"amount\":\"1000.0\",\"currencyCode\":\"CAD\"}},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_create_skips_zero_cad_placeholder_issue_limit_test() {
+  let placeholder_store =
+    store.new()
+    |> seed_gift_card_configuration(money("0.0", "CAD"))
+  let body =
+    run_mutation(
+      placeholder_store,
+      "mutation { giftCardCreate(input: { initialValue: \"999999\" }) { giftCard { id balance { amount currencyCode } } userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/1?shopify-draft-proxy=synthetic\",\"balance\":{\"amount\":\"999999.0\",\"currencyCode\":\"CAD\"}},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_create_runs_code_validation_before_issue_limit_test() {
+  let configured_store =
+    store.new()
+    |> seed_gift_card_configuration(money("1000.0", "CAD"))
+  let body =
+    run_mutation(
+      configured_store,
+      "mutation { giftCardCreate(input: { initialValue: \"999999\", code: \"abc\" }) { giftCard { id } giftCardCode userErrors { field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"giftCardCreate\":{\"giftCard\":null,\"giftCardCode\":null,\"userErrors\":[{\"field\":[\"input\",\"code\"],\"code\":\"TOO_SHORT\",\"message\":\"Code must be at least 8 characters long\"}]}}}"
 }
 
 // ----------- giftCardUpdate -----------
