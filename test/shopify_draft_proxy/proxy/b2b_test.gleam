@@ -25,6 +25,25 @@ fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   draft_proxy.process_request(proxy, request)
 }
 
+fn graphql_with_variables(
+  proxy: draft_proxy.DraftProxy,
+  query: String,
+  variables: String,
+) {
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2026-04/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\""
+        <> escape(query)
+        <> "\",\"variables\":"
+        <> variables
+        <> "}",
+    )
+  draft_proxy.process_request(proxy, request)
+}
+
 fn escape(value: String) -> String {
   value
   |> string.replace("\\", "\\\\")
@@ -79,6 +98,7 @@ fn customer(id: String, email: Option(String)) -> CustomerRecord {
     email_marketing_consent: None,
     sms_marketing_consent: None,
     default_address: None,
+    account_activation_token: None,
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-01T00:00:00.000Z"),
   )
@@ -114,6 +134,7 @@ fn proxy_with_company_at_contact_cap(
         #("name", StorePropertyString("HAR 606 Cap")),
       ]),
       contact_ids: contact_ids(10_000),
+      main_contact_id: None,
       location_ids: [],
       contact_role_ids: [],
     )
@@ -642,6 +663,124 @@ pub fn b2b_location_update_rejects_billing_and_tax_guardrails_test() {
   assert !string.contains(read_json, "Null Tax")
 }
 
+pub fn b2b_tax_settings_update_validates_required_and_nullable_args_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Tax\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: empty_status, body: empty_body, ..), proxy) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxEmpty($locationId: ID!) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId) { companyLocation { id taxSettings { taxExempt taxExemptions } } userErrors { field message code } } }",
+      "{\"locationId\":\"" <> location_id <> "\"}",
+    )
+  assert empty_status == 200
+  let empty_json = json.to_string(empty_body)
+  assert string.contains(empty_json, "\"companyLocation\":null")
+  assert string.contains(empty_json, "\"field\":[\"companyLocationId\"]")
+  assert string.contains(empty_json, "\"code\":\"NO_INPUT\"")
+
+  let #(Response(status: null_status, body: null_body, ..), _) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxNull($locationId: ID!, $taxExempt: Boolean) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId, taxExempt: $taxExempt) { companyLocation { id taxSettings { taxExempt } } userErrors { field message code } } }",
+      "{\"locationId\":\"" <> location_id <> "\",\"taxExempt\":null}",
+    )
+  assert null_status == 200
+  let null_json = json.to_string(null_body)
+  assert string.contains(null_json, "\"companyLocation\":null")
+  assert string.contains(null_json, "\"field\":[\"taxExempt\"]")
+  assert string.contains(null_json, "\"code\":\"INVALID_INPUT\"")
+}
+
+pub fn b2b_tax_settings_update_rejects_invalid_tax_exemption_enum_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Tax\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: literal_status, body: literal_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationTaxSettingsUpdate(companyLocationId: \""
+        <> location_id
+        <> "\", exemptionsToAssign: [\"NOT_A_REAL_EXEMPTION\"]) { companyLocation { id taxSettings { taxExemptions } } userErrors { field message code } } }",
+    )
+  assert literal_status == 200
+  let literal_json = json.to_string(literal_body)
+  assert string.contains(literal_json, "\"errors\"")
+  assert string.contains(
+    literal_json,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(literal_json, "NOT_A_REAL_EXEMPTION")
+  assert string.contains(literal_json, "CA_STATUS_CARD_EXEMPTION")
+  assert !string.contains(literal_json, "\"taxExemptions\"")
+
+  let #(Response(status: invalid_status, body: invalid_body, ..), _) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxInvalid($locationId: ID!, $exemptionsToAssign: [TaxExemption!]) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToAssign: $exemptionsToAssign) { companyLocation { id taxSettings { taxExemptions } } userErrors { field message code } } }",
+      "{\"locationId\":\""
+        <> location_id
+        <> "\",\"exemptionsToAssign\":[\"NOT_A_REAL_EXEMPTION\"]}",
+    )
+  assert invalid_status == 200
+  let invalid_json = json.to_string(invalid_body)
+  assert string.contains(invalid_json, "\"errors\"")
+  assert string.contains(invalid_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(invalid_json, "NOT_A_REAL_EXEMPTION")
+  assert string.contains(invalid_json, "CA_STATUS_CARD_EXEMPTION")
+}
+
+pub fn b2b_tax_settings_update_stages_valid_assign_and_remove_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Tax\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxAssign($locationId: ID!, $assign: [TaxExemption!]) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToAssign: $assign) { companyLocation { id taxSettings { taxExemptions } } userErrors { field message code } } }",
+      "{\"locationId\":\""
+        <> location_id
+        <> "\",\"assign\":[\"CA_BC_RESELLER_EXEMPTION\",\"US_CA_RESELLER_EXEMPTION\"]}",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"userErrors\":[]")
+  assert string.contains(assign_json, "CA_BC_RESELLER_EXEMPTION")
+  assert string.contains(assign_json, "US_CA_RESELLER_EXEMPTION")
+
+  let #(Response(status: remove_status, body: remove_body, ..), _) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxRemove($locationId: ID!, $remove: [TaxExemption!]) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToRemove: $remove) { companyLocation { id taxSettings { taxExemptions } } userErrors { field message code } } }",
+      "{\"locationId\":\""
+        <> location_id
+        <> "\",\"remove\":[\"CA_BC_RESELLER_EXEMPTION\"]}",
+    )
+  assert remove_status == 200
+  let remove_json = json.to_string(remove_body)
+  assert string.contains(remove_json, "\"userErrors\":[]")
+  assert !string.contains(remove_json, "CA_BC_RESELLER_EXEMPTION")
+  assert string.contains(remove_json, "US_CA_RESELLER_EXEMPTION")
+}
+
 pub fn b2b_location_create_uses_shipping_address1_name_fallback_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(
@@ -925,6 +1064,143 @@ pub fn b2b_contact_create_and_update_reject_duplicate_email_and_phone_test() {
     phone_update_json,
     "\"field\":[\"input\",\"phone\"],\"message\":\"Phone number has already been taken.\",\"code\":\"TAKEN\"",
   )
+}
+
+pub fn b2b_assign_main_contact_rejects_wrong_company_contact_test() {
+  let proxy = draft_proxy.new()
+  let create_first =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 First\" }, companyContact: { email: \"first618@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id mainContact { id isMainContact } } userErrors { code } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(proxy, create_first)
+  assert first_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+
+  let create_second =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 Second\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql(proxy, create_second)
+  assert second_status == 200
+  assert string.contains(json.to_string(second_body), "\"userErrors\":[]")
+
+  let assign_wrong_company =
+    "mutation { companyAssignMainContact(companyId: \"gid://shopify/Company/9?shopify-draft-proxy=synthetic\", companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\") { company { id mainContact { id } } userErrors { field message code } } }"
+  let #(Response(status: assign_status, body: assign_body, ..), _) =
+    graphql(proxy, assign_wrong_company)
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"company\":null")
+  assert string.contains(assign_json, "\"field\":[\"companyContactId\"]")
+  assert string.contains(assign_json, "\"code\":\"INVALID_INPUT\"")
+  assert !string.contains(assign_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+}
+
+pub fn b2b_main_contact_state_uses_company_pointer_test() {
+  let create =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 Pointer\" }, companyContact: { email: \"pointer618@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id mainContact { id isMainContact } contacts(first: 5) { nodes { id isMainContact } } } userErrors { code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(draft_proxy.new(), create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let state_request =
+    Request(method: "GET", path: "/__meta/state", headers: dict.new(), body: "")
+  let #(Response(status: state_status, body: state_body, ..), _) =
+    draft_proxy.process_request(proxy, state_request)
+  assert state_status == 200
+  let state_json = json.to_string(state_body)
+  assert string.contains(
+    state_json,
+    "\"mainContactId\":\"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\"",
+  )
+  assert !string.contains(state_json, "\"isMainContact\"")
+}
+
+pub fn b2b_revoke_main_contact_derives_contact_booleans_from_pointer_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 Revoke\" }, companyContact: { email: \"revoke-main618@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let create_contact =
+    "mutation { companyContactCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { email: \"revoke-secondary618@example.com\" }) { companyContact { id isMainContact } userErrors { code } } }"
+  let #(Response(status: contact_status, body: contact_body, ..), proxy) =
+    graphql(proxy, create_contact)
+  assert contact_status == 200
+  assert string.contains(json.to_string(contact_body), "\"userErrors\":[]")
+
+  let assign =
+    "mutation { companyAssignMainContact(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", companyContactId: \"gid://shopify/CompanyContact/9?shopify-draft-proxy=synthetic\") { company { mainContact { id isMainContact } contacts(first: 5) { nodes { id isMainContact } } } userErrors { code } } }"
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(proxy, assign)
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"userErrors\":[]")
+  assert string.contains(
+    assign_json,
+    "\"mainContact\":{\"id\":\"gid://shopify/CompanyContact/9?shopify-draft-proxy=synthetic\",\"isMainContact\":true}",
+  )
+  assert string.contains(
+    assign_json,
+    "\"id\":\"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\",\"isMainContact\":false",
+  )
+
+  let revoke =
+    "mutation { companyRevokeMainContact(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { company { mainContact { id } contacts(first: 5) { nodes { id isMainContact } } } userErrors { code } } }"
+  let #(Response(status: revoke_status, body: revoke_body, ..), proxy) =
+    graphql(proxy, revoke)
+  assert revoke_status == 200
+  let revoke_json = json.to_string(revoke_body)
+  assert string.contains(revoke_json, "\"mainContact\":null")
+  assert string.contains(revoke_json, "\"isMainContact\":false")
+  assert !string.contains(revoke_json, "\"isMainContact\":true")
+
+  let read =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { mainContact { id } contacts(first: 5) { nodes { id isMainContact } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"mainContact\":null")
+  assert string.contains(read_json, "\"isMainContact\":false")
+  assert !string.contains(read_json, "\"isMainContact\":true")
+}
+
+pub fn b2b_deleting_main_contact_clears_company_pointer_test() {
+  let create =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 Delete\" }, companyContact: { email: \"delete-main618@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id mainContact { id isMainContact } } userErrors { code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(draft_proxy.new(), create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let delete_contact =
+    "mutation { companyContactDelete(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\") { deletedCompanyContactId userErrors { code } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(proxy, delete_contact)
+  assert delete_status == 200
+  assert string.contains(
+    json.to_string(delete_body),
+    "\"deletedCompanyContactId\":\"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\"",
+  )
+
+  let read =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { mainContact { id } contacts(first: 5) { nodes { id isMainContact } } } }"
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql(proxy, read)
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"mainContact\":null")
+
+  let state_request =
+    Request(method: "GET", path: "/__meta/state", headers: dict.new(), body: "")
+  let #(Response(status: state_status, body: state_body, ..), _) =
+    draft_proxy.process_request(proxy, state_request)
+  assert state_status == 200
+  let state_json = json.to_string(state_body)
+  assert string.contains(state_json, "\"mainContactId\":null")
+  assert !string.contains(state_json, "\"isMainContact\"")
 }
 
 pub fn b2b_assign_customer_as_contact_rejects_unknown_customer_test() {

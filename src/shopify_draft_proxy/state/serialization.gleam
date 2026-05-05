@@ -1683,6 +1683,7 @@ fn b2b_company_json(record: types.B2BCompanyRecord) -> Json {
     #("id", json.string(record.id)),
     #("cursor", optional_string(record.cursor)),
     #("data", store_property_data_json(record.data)),
+    #("mainContactId", optional_string(record.main_contact_id)),
     #("contactIds", json.array(record.contact_ids, json.string)),
     #("locationIds", json.array(record.location_ids, json.string)),
     #("contactRoleIds", json.array(record.contact_role_ids, json.string)),
@@ -3035,6 +3036,10 @@ fn customer_json(record: types.CustomerRecord) -> Json {
     #(
       "defaultAddress",
       optional_to_json(record.default_address, customer_default_address_json),
+    ),
+    #(
+      "accountActivationToken",
+      optional_string(record.account_activation_token),
     ),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),

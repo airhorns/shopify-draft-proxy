@@ -77,7 +77,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-lifecycle-conformance.mts',
     purpose:
-      'B2B company lifecycle, customer-as-contact assignment, main-contact assignment/revocation, bulk delete, explicit delete, and post-delete empty reads.',
+      'B2B company lifecycle, customer-as-contact assignment, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
     requiredAuthScopes: ['read_companies', 'write_companies', 'read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-company-contact-main-delete.json`,
@@ -1210,6 +1210,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-create-handle-dedupe',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-handle-dedupe-conformance.mts',
+    purpose: 'marketCreate generated handle slug dedupe for distinct names that collide after Shopify slugification.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-create-handle-dedupe.json`,
+      'config/parity-specs/markets/market-create-handle-dedupe.json',
+      'config/parity-requests/markets/market-create-handle-dedupe.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable Europe and Europe! markets, records duplicate-name validation and generated handle dedupe, then deletes created markets in reverse creation order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-localization-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-localization-lifecycle-conformance.mts',
@@ -1811,6 +1827,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Creates a disposable code discount and deletes it after redeem-code bulk probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-update-edge-cases',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-update-edge-cases-conformance.ts',
+    purpose:
+      'discountCodeBasicUpdate update-only guardrails for redeem-code bulk rules, BXGY-to-basic coercion, and unknown-id errors.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-update-edge-cases.json`,
+      'config/parity-specs/discounts/discount-update-edge-cases.json',
+      'config/parity-requests/discounts/discount-update-edge-cases-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable products, one disposable code-basic discount, and one disposable code-BXGY discount; deletes discounts and products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public 2026-04 conformance store still returns null error codes for the update-only rejection branches; HAR-605 intentionally models INVALID from the referenced Shopify source path.',
   },
   {
     domain: 'discounts',

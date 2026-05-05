@@ -1117,7 +1117,7 @@ fn handle_market_create(
     [] -> {
       let #(id, next_identity) =
         synthetic_identity.make_synthetic_gid(identity, "Market")
-      let data = market_data(id, input, None)
+      let data = market_data(store, id, input, None)
       let #(_, next_store) =
         store.upsert_staged_market(store, MarketRecord(id, Some(id), data))
       mutation_result(
@@ -1155,7 +1155,9 @@ fn market_create_input_errors(
   name: String,
 ) -> List(CapturedJsonValue) {
   market_create_name_errors(name)
+  |> list.append(market_create_duplicate_name_errors(store, name))
   |> list.append(market_create_status_enabled_errors(input))
+  |> list.append(market_create_handle_errors(store, input, None))
   |> list.append(market_create_plan_limit_errors(store))
   |> list.append(market_create_currency_errors(store, input))
   |> list.append(market_create_region_errors(store, input))
@@ -1185,12 +1187,36 @@ fn market_create_name_errors(name: String) -> List(CapturedJsonValue) {
   }
 }
 
+fn market_create_duplicate_name_errors(
+  store: Store,
+  name: String,
+) -> List(CapturedJsonValue) {
+  case string.trim(name) {
+    "" -> []
+    trimmed ->
+      case string.length(trimmed) < 2 {
+        True -> []
+        False ->
+          case market_name_in_use(store, name) {
+            True -> [
+              user_error(
+                ["input", "name"],
+                "Name has already been taken",
+                "TAKEN",
+              ),
+            ]
+            False -> []
+          }
+      }
+  }
+}
+
 fn market_create_status_enabled_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
   let status =
     graphql_helpers.read_arg_string_nonempty(input, "status")
-    |> option.unwrap("ACTIVE")
+    |> option.unwrap("DRAFT")
   let enabled =
     graphql_helpers.read_arg_bool(input, "enabled")
     |> option.unwrap(status == "ACTIVE")
@@ -1203,6 +1229,27 @@ fn market_create_status_enabled_errors(
         "INVALID_STATUS_AND_ENABLED_COMBINATION",
       ),
     ]
+  }
+}
+
+fn market_create_handle_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  current_id: Option(String),
+) -> List(CapturedJsonValue) {
+  case read_explicit_market_handle(input) {
+    Some(handle) ->
+      case market_handle_in_use(store, handle, current_id) {
+        True -> [
+          user_error(
+            ["input", "handle"],
+            "Generated handle has already been taken",
+            "GENERATED_DUPLICATED_HANDLE",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
   }
 }
 
@@ -1304,7 +1351,7 @@ fn handle_market_update(
     Some(id) ->
       case store.get_effective_market_by_id(store, id) {
         Some(existing) -> {
-          let data = market_data(id, input, Some(existing.data))
+          let data = market_data(store, id, input, Some(existing.data))
           let #(_, next_store) =
             store.upsert_staged_market(
               store,
@@ -3380,6 +3427,7 @@ fn markets_log_draft(root_name: String, staged_ids: List(String)) -> LogDraft {
 }
 
 fn market_data(
+  store: Store,
   id: String,
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(CapturedJsonValue),
@@ -3393,10 +3441,11 @@ fn market_data(
   let status =
     graphql_helpers.read_arg_string_nonempty(input, "status")
     |> option.or(captured_string_field(existing_value, "status"))
-    |> option.unwrap("ACTIVE")
+    |> option.unwrap("DRAFT")
   let enabled =
     graphql_helpers.read_arg_bool(input, "enabled")
     |> option.unwrap(status == "ACTIVE")
+  let handle = market_data_handle(store, id, input, existing_value, name)
   let market_type = case region_inputs {
     [] ->
       captured_string_field(existing_value, "type")
@@ -3407,7 +3456,7 @@ fn market_data(
     #("__typename", CapturedString("Market")),
     #("id", CapturedString(id)),
     #("name", CapturedString(name)),
-    #("handle", CapturedString(market_handle(name))),
+    #("handle", CapturedString(handle)),
     #("status", CapturedString(status)),
     #("enabled", CapturedBool(enabled)),
     #("type", CapturedString(market_type)),
@@ -3434,10 +3483,107 @@ fn market_data(
   ])
 }
 
+fn market_data_handle(
+  store: Store,
+  id: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing_value: CapturedJsonValue,
+  name: String,
+) -> String {
+  case read_explicit_market_handle(input) {
+    Some(handle) -> handle
+    None -> {
+      let base =
+        captured_string_field(existing_value, "handle")
+        |> option.unwrap(market_handle(name))
+      ensure_unique_market_handle(store, base, Some(id), 0)
+    }
+  }
+}
+
+fn read_explicit_market_handle(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case read_arg_string_allow_empty(input, "handle") {
+    Some(handle) -> Some(market_handle(handle))
+    None -> None
+  }
+}
+
 fn market_handle(name: String) -> String {
   string.trim(name)
   |> string.lowercase
-  |> string.replace(" ", "-")
+  |> string.to_graphemes
+  |> list.fold(#([], ""), fn(acc, grapheme) {
+    let #(parts, current) = acc
+    case is_market_handle_grapheme(grapheme) {
+      True -> #(parts, current <> grapheme)
+      False ->
+        case current {
+          "" -> #(parts, "")
+          _ -> #([current, ..parts], "")
+        }
+    }
+  })
+  |> finish_market_handle_parts
+}
+
+fn finish_market_handle_parts(parts_state: #(List(String), String)) -> String {
+  let #(parts, current) = parts_state
+  let parts = case current {
+    "" -> parts
+    _ -> [current, ..parts]
+  }
+  parts
+  |> list.reverse
+  |> string.join("-")
+}
+
+fn is_market_handle_grapheme(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" -> True
+    "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" -> True
+    "u" | "v" | "w" | "x" | "y" | "z" -> True
+    _ -> False
+  }
+}
+
+fn ensure_unique_market_handle(
+  store: Store,
+  handle: String,
+  current_id: Option(String),
+  suffix: Int,
+) -> String {
+  let candidate = case suffix {
+    0 -> handle
+    _ -> handle <> "-" <> int.to_string(suffix)
+  }
+  case market_handle_in_use(store, candidate, current_id) {
+    True -> ensure_unique_market_handle(store, handle, current_id, suffix + 1)
+    False -> candidate
+  }
+}
+
+fn market_handle_in_use(
+  store: Store,
+  handle: String,
+  current_id: Option(String),
+) -> Bool {
+  store.list_effective_markets(store)
+  |> list.any(fn(record) {
+    case current_id == Some(record.id) {
+      True -> False
+      False -> captured_string_field(record.data, "handle") == Some(handle)
+    }
+  })
+}
+
+fn market_name_in_use(store: Store, name: String) -> Bool {
+  store.list_effective_markets(store)
+  |> list.any(fn(record) {
+    captured_string_field(record.data, "name") == Some(name)
+  })
 }
 
 fn read_market_region_inputs(
