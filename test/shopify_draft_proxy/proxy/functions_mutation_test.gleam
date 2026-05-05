@@ -7,7 +7,9 @@
 //// reuse-vs-mint behavior.
 
 import gleam/dict
+import gleam/int
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/mutation_helpers
@@ -15,8 +17,8 @@ import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type ShopifyFunctionRecord, type ValidationRecord, ShopifyFunctionRecord,
-  ValidationRecord,
+  type CartTransformRecord, type ShopifyFunctionRecord, type ValidationRecord,
+  CartTransformRecord, ShopifyFunctionRecord, ValidationRecord,
 }
 
 // ----------- Helpers -----------
@@ -85,6 +87,46 @@ fn seed_validation(
   record: ValidationRecord,
 ) -> store.Store {
   let #(_, s) = store.upsert_staged_validation(store_in, record)
+  s
+}
+
+fn seed_active_validations(
+  store_in: store.Store,
+  fn_record: ShopifyFunctionRecord,
+  index: Int,
+  count: Int,
+) -> store.Store {
+  case index > count {
+    True -> store_in
+    False ->
+      seed_active_validations(
+        seed_validation(
+          store_in,
+          ValidationRecord(
+            id: "gid://shopify/Validation/active-" <> int.to_string(index),
+            title: Some("Active " <> int.to_string(index)),
+            enable: Some(True),
+            block_on_failure: Some(False),
+            function_id: Some(fn_record.id),
+            function_handle: Some("cap"),
+            shopify_function_id: Some(fn_record.id),
+            metafields: [],
+            created_at: None,
+            updated_at: None,
+          ),
+        ),
+        fn_record,
+        index + 1,
+        count,
+      )
+  }
+}
+
+fn seed_cart_transform(
+  store_in: store.Store,
+  record: CartTransformRecord,
+) -> store.Store {
+  let #(_, s) = store.upsert_staged_cart_transform(store_in, record)
   s
 }
 
@@ -167,7 +209,7 @@ pub fn validation_create_missing_function_emits_user_error_test() {
       "mutation { validationCreate(validation: { title: \"No function\" }) { validation { id } userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"functionHandle\"],\"message\":\"Function handle or function ID must be provided\",\"code\":\"MISSING_FUNCTION\"}]}}}"
+    == "{\"data\":{\"validationCreate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"functionHandle\"],\"message\":\"Function handle or function ID must be provided\",\"code\":\"MISSING_FUNCTION_IDENTIFIER\"}]}}}"
 }
 
 pub fn validation_create_reuses_existing_function_test() {
@@ -220,6 +262,7 @@ pub fn validation_update_changes_title_and_enable_test() {
       function_id: None,
       function_handle: Some("checkout-validator"),
       shopify_function_id: Some(fn_record.id),
+      metafields: [],
       created_at: Some("2024-01-01T00:00:00.000Z"),
       updated_at: Some("2024-01-01T00:00:00.000Z"),
     )
@@ -234,6 +277,116 @@ pub fn validation_update_changes_title_and_enable_test() {
     )
   assert body
     == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/77\",\"title\":\"Renamed\",\"enable\":false},\"userErrors\":[]}}}"
+}
+
+pub fn validation_update_function_inputs_do_not_rebind_test() {
+  let fn_a =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/function-a",
+      "function-a",
+      "VALIDATION",
+    )
+  let fn_b =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/function-b",
+      "function-b",
+      "VALIDATION",
+    )
+  let v =
+    ValidationRecord(
+      id: "gid://shopify/Validation/rebind",
+      title: Some("Original"),
+      enable: Some(True),
+      block_on_failure: Some(False),
+      function_id: Some(fn_a.id),
+      function_handle: Some("function-a"),
+      shopify_function_id: Some(fn_a.id),
+      metafields: [],
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let outcome =
+    run_mutation_outcome(
+      store.new()
+        |> seed_function(fn_a)
+        |> seed_function(fn_b)
+        |> seed_validation(v),
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/rebind\", validation: { functionId: \"gid://shopify/ShopifyFunction/function-b\", title: \"Still A\" }) { validation { id title functionId functionHandle shopifyFunction { id handle } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/rebind\",\"title\":\"Still A\",\"functionId\":\"gid://shopify/ShopifyFunction/function-a\",\"functionHandle\":\"function-a\",\"shopifyFunction\":{\"id\":\"gid://shopify/ShopifyFunction/function-a\",\"handle\":\"function-a\"}},\"userErrors\":[]}}}"
+  let assert Some(updated) =
+    store.get_effective_validation_by_id(
+      outcome.store,
+      "gid://shopify/Validation/rebind",
+    )
+  assert updated.function_id == Some(fn_a.id)
+  assert updated.function_handle == Some("function-a")
+  assert updated.shopify_function_id == Some(fn_a.id)
+}
+
+pub fn validation_update_reenable_enforces_active_cap_test() {
+  let fn_record =
+    shopify_fn("gid://shopify/ShopifyFunction/cap", "cap", "VALIDATION")
+  let seeded =
+    seed_active_validations(
+      seed_function(store.new(), fn_record),
+      fn_record,
+      1,
+      10,
+    )
+  let inactive =
+    ValidationRecord(
+      id: "gid://shopify/Validation/inactive-11",
+      title: Some("Inactive"),
+      enable: Some(False),
+      block_on_failure: Some(False),
+      function_id: Some(fn_record.id),
+      function_handle: Some("cap"),
+      shopify_function_id: Some(fn_record.id),
+      metafields: [],
+      created_at: None,
+      updated_at: None,
+    )
+  let outcome =
+    run_mutation_outcome(
+      seed_validation(seeded, inactive),
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/inactive-11\", validation: { enable: true }) { validation { id enable } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":null,\"userErrors\":[{\"field\":[\"validation\",\"enable\"],\"message\":\"The maximum number of active validations has been reached.\",\"code\":\"MAX_VALIDATIONS_ACTIVATED\"}]}}}"
+  let assert Some(unchanged) =
+    store.get_effective_validation_by_id(
+      outcome.store,
+      "gid://shopify/Validation/inactive-11",
+    )
+  assert unchanged.enable == Some(False)
+}
+
+pub fn validation_update_persists_metafields_for_downstream_reads_test() {
+  let create_outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { validationCreate(validation: { functionHandle: \"metafield-validation\", title: \"Metafield validation\" }) { validation { id } userErrors { field } } }",
+    )
+  let update_outcome =
+    run_mutation_outcome(
+      create_outcome.store,
+      "mutation { validationUpdate(id: \"gid://shopify/Validation/1\", validation: { metafields: [{ namespace: \"custom\", key: \"mode\", type: \"single_line_text_field\", value: \"strict\" }] }) { validation { id metafields(first: 5) { nodes { namespace key value } } } userErrors { field message code } } }",
+    )
+  assert json.to_string(update_outcome.data)
+    == "{\"data\":{\"validationUpdate\":{\"validation\":{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}},\"userErrors\":[]}}}"
+
+  let assert Ok(read_data) =
+    functions.handle_function_query(
+      update_outcome.store,
+      "{ validations(first: 5) { nodes { id metafields(first: 5) { nodes { namespace key value } } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"validations\":{\"nodes\":[{\"id\":\"gid://shopify/Validation/1\",\"metafields\":{\"nodes\":[{\"namespace\":\"custom\",\"key\":\"mode\",\"value\":\"strict\"}]}}]}}"
 }
 
 pub fn validation_update_unknown_id_emits_user_error_test() {
@@ -264,6 +417,7 @@ pub fn validation_delete_removes_record_test() {
       function_id: None,
       function_handle: Some("checkout-validator"),
       shopify_function_id: Some(fn_record.id),
+      metafields: [],
       created_at: None,
       updated_at: None,
     )
@@ -300,9 +454,18 @@ pub fn validation_delete_unknown_id_emits_user_error_test() {
 // ----------- cartTransformCreate -----------
 
 pub fn cart_transform_create_with_handle_mints_records_test() {
+  let s =
+    seed_function(
+      store.new(),
+      shopify_fn(
+        "gid://shopify/ShopifyFunction/cart-transformer",
+        "cart-transformer",
+        "CART_TRANSFORM",
+      ),
+    )
   let body =
     run_mutation(
-      store.new(),
+      s,
       "mutation { cartTransformCreate(cartTransform: { functionHandle: \"cart-transformer\", title: \"My transformer\" }) { cartTransform { id title functionHandle blockOnFailure } userErrors { field } } }",
     )
   assert body
@@ -312,9 +475,18 @@ pub fn cart_transform_create_with_handle_mints_records_test() {
 pub fn cart_transform_create_falls_back_to_top_level_args_test() {
   // TS quirk: cartTransformCreate accepts either nested input (cartTransform: {...})
   // or top-level args (functionHandle directly).
+  let s =
+    seed_function(
+      store.new(),
+      shopify_fn(
+        "gid://shopify/ShopifyFunction/cart-transformer",
+        "cart-transformer",
+        "CART_TRANSFORM",
+      ),
+    )
   let body =
     run_mutation(
-      store.new(),
+      s,
       "mutation { cartTransformCreate(functionHandle: \"cart-transformer\") { cartTransform { id functionHandle } userErrors { field } } }",
     )
   assert body
@@ -322,22 +494,117 @@ pub fn cart_transform_create_falls_back_to_top_level_args_test() {
 }
 
 pub fn cart_transform_create_missing_function_emits_user_error_test() {
-  let body =
-    run_mutation(
+  let outcome =
+    run_mutation_outcome(
       store.new(),
       "mutation { cartTransformCreate(cartTransform: { title: \"No function\" }) { cartTransform { id } userErrors { field message code } } }",
     )
+  let body = json.to_string(outcome.data)
   assert body
-    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Function handle or function ID must be provided\",\"code\":\"MISSING_FUNCTION\"}]}}}"
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Either function_id or function_handle must be provided.\",\"code\":\"MISSING_FUNCTION_IDENTIFIER\"}]}}}"
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+  assert list.is_empty(store.list_effective_shopify_functions(outcome.store))
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_with_both_function_identifiers_errors_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { cartTransformCreate(cartTransform: { functionId: \"gid://shopify/ShopifyFunction/cart-transformer\", functionHandle: \"cart-transformer\" }) { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionHandle\"],\"message\":\"Only one of function_id or function_handle can be provided, not both.\",\"code\":\"MULTIPLE_FUNCTION_IDENTIFIERS\"}]}}}"
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+  assert list.is_empty(store.list_effective_shopify_functions(outcome.store))
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_unknown_function_id_errors_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { cartTransformCreate(cartTransform: { functionId: \"gid://shopify/ShopifyFunction/missing\" }) { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Function gid://shopify/ShopifyFunction/missing not found. Ensure that it is released in the current app (347082227713), and that the app is installed.\",\"code\":\"FUNCTION_NOT_FOUND\"}]}}}"
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+  assert list.is_empty(store.list_effective_shopify_functions(outcome.store))
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_rejects_non_cart_transform_function_test() {
+  let s =
+    seed_function(
+      store.new(),
+      shopify_fn(
+        "gid://shopify/ShopifyFunction/checkout-validator",
+        "checkout-validator",
+        "VALIDATION",
+      ),
+    )
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(cartTransform: { functionId: \"gid://shopify/ShopifyFunction/checkout-validator\" }) { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Unexpected Function API. The provided function must implement one of the following extension targets: [purchase.cart-transform.run, cart.transform.run].\",\"code\":\"FUNCTION_DOES_NOT_IMPLEMENT\"}]}}}"
+  assert list.is_empty(store.list_effective_cart_transforms(outcome.store))
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.get_log(outcome.store))
+}
+
+pub fn cart_transform_create_rejects_duplicate_function_id_test() {
+  let function_id = "gid://shopify/ShopifyFunction/cart-transformer"
+  let fn_record = shopify_fn(function_id, "cart-transformer", "CART_TRANSFORM")
+  let existing =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/existing",
+      title: Some("Existing"),
+      block_on_failure: Some(False),
+      function_id: Some(function_id),
+      function_handle: Some("cart-transformer"),
+      shopify_function_id: Some(function_id),
+      created_at: Some("2024-01-01T00:00:00.000Z"),
+      updated_at: Some("2024-01-01T00:00:00.000Z"),
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_cart_transform(existing)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformCreate(cartTransform: { functionId: \"gid://shopify/ShopifyFunction/cart-transformer\" }) { cartTransform { id } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"cartTransformCreate\":{\"cartTransform\":null,\"userErrors\":[{\"field\":[\"functionId\"],\"message\":\"Could not enable cart transform because it is already registered\",\"code\":\"FUNCTION_ALREADY_REGISTERED\"}]}}}"
+  let assert [_] = store.list_effective_cart_transforms(outcome.store)
+  let assert [_] = store.list_effective_shopify_functions(outcome.store)
+  assert list.is_empty(store.get_log(outcome.store))
 }
 
 // ----------- cartTransformDelete -----------
 
 pub fn cart_transform_delete_removes_record_test() {
   // Pre-stage by minting via create.
+  let s =
+    seed_function(
+      store.new(),
+      shopify_fn(
+        "gid://shopify/ShopifyFunction/cart-transformer",
+        "cart-transformer",
+        "CART_TRANSFORM",
+      ),
+    )
   let create_outcome =
     run_mutation_outcome(
-      store.new(),
+      s,
       "mutation { cartTransformCreate(cartTransform: { functionHandle: \"cart-transformer\" }) { cartTransform { id } } }",
     )
   let body =

@@ -15,9 +15,15 @@ import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/ast.{
+  type Argument, type Selection, Field, FragmentDefinition, FragmentSpread,
+  InlineFragment, Mutation, OperationDefinition, Query, SelectionSet,
+  Subscription,
+}
 import shopify_draft_proxy/graphql/parse_operation
+import shopify_draft_proxy/graphql/parser
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/graphql/source
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, ConnectionWindow,
@@ -379,6 +385,16 @@ pub type UserError {
   UserError(field: Option(List(String)), message: String, code: Option(String))
 }
 
+type InnerMutationValidationError {
+  InnerMutationParseError(String)
+  InnerMutationInvalidOperationType
+  InnerMutationAnalysisErrors(List(String))
+}
+
+const max_bulk_query_connections: Int = 5
+
+const max_bulk_query_connection_depth: Int = 2
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -529,7 +545,7 @@ fn handle_bulk_operation_run_query(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  let query = graphql_helpers.read_arg_string_nonempty(args, "query")
+  let query = graphql_helpers.read_arg_string(args, "query")
   let group_objects =
     option.unwrap(graphql_helpers.read_arg_bool(args, "groupObjects"), False)
   case query, group_objects {
@@ -577,15 +593,10 @@ fn handle_bulk_operation_run_query(
     )
     Some(query_string), False ->
       case build_run_query_jsonl(store, query_string, upstream) {
-        Error(error) -> #(
+        Error(errors) -> #(
           MutationFieldResult(
             key: key,
-            payload: serialize_run_query_payload(
-              field,
-              None,
-              [error],
-              fragments,
-            ),
+            payload: serialize_run_query_payload(field, None, errors, fragments),
             staged_resource_ids: [],
             log_drafts: [],
           ),
@@ -655,60 +666,78 @@ fn build_run_query_jsonl(
   store: Store,
   query_string: String,
   upstream: UpstreamContext,
-) -> Result(BulkQueryResult, UserError) {
+) -> Result(BulkQueryResult, List(UserError)) {
   case root_field.get_root_fields(query_string) {
-    Ok([root]) ->
-      case selected_bulk_query_node_fields(root) {
-        Some(node_fields) ->
-          case root_field_name(root) {
-            Some("products") -> {
-              let fragments = get_document_fragments(query_string)
-              let products = store.list_effective_products(store)
-              let root_count =
-                local_or_upstream_products_count(products, root, upstream)
-              Ok(BulkQueryResult(
-                result_jsonl: make_jsonl(
-                  list.map(products, fn(product) {
-                    project_graphql_value(
-                      product_export_source(product),
-                      node_fields,
-                      fragments,
-                    )
-                  }),
+    Ok(fields) -> {
+      let fragments = get_document_fragments(query_string)
+      let validation_errors = validate_admin_bulk_query(fields, fragments)
+      case validation_errors {
+        [_, ..] -> Error(validation_errors)
+        [] ->
+          case fields {
+            [root] ->
+              case selected_bulk_query_node_fields(root, fragments) {
+                Some(node_fields) ->
+                  case root_field_name(root) {
+                    Some("products") -> {
+                      let products = store.list_effective_products(store)
+                      let root_count =
+                        local_or_upstream_products_count(
+                          products,
+                          root,
+                          upstream,
+                        )
+                      Ok(BulkQueryResult(
+                        result_jsonl: make_jsonl(
+                          list.map(products, fn(product) {
+                            project_graphql_value(
+                              product_export_source(product),
+                              node_fields,
+                              fragments,
+                            )
+                          }),
+                        ),
+                        object_count: root_count,
+                        root_object_count: root_count,
+                      ))
+                    }
+                    Some("productVariants") -> {
+                      let variants =
+                        store.list_effective_product_variants(store)
+                      let root_count = list.length(variants)
+                      Ok(BulkQueryResult(
+                        result_jsonl: make_jsonl(
+                          list.map(variants, fn(variant) {
+                            project_graphql_value(
+                              product_variant_export_source(store, variant),
+                              node_fields,
+                              fragments,
+                            )
+                          }),
+                        ),
+                        object_count: root_count,
+                        root_object_count: root_count,
+                      ))
+                    }
+                    _ -> Error([no_connection_bulk_query_error()])
+                  }
+                None -> Error([no_connection_bulk_query_error()])
+              }
+            _ ->
+              Error([
+                UserError(
+                  field: Some(["query"]),
+                  message: "Bulk queries must contain exactly one top-level field.",
+                  code: Some("INVALID"),
                 ),
-                object_count: root_count,
-                root_object_count: root_count,
-              ))
-            }
-            Some("productVariants") -> {
-              let fragments = get_document_fragments(query_string)
-              let variants = store.list_effective_product_variants(store)
-              let root_count = list.length(variants)
-              Ok(BulkQueryResult(
-                result_jsonl: make_jsonl(
-                  list.map(variants, fn(variant) {
-                    project_graphql_value(
-                      product_variant_export_source(store, variant),
-                      node_fields,
-                      fragments,
-                    )
-                  }),
-                ),
-                object_count: root_count,
-                root_object_count: root_count,
-              ))
-            }
-            _ -> Error(no_connection_bulk_query_error())
+              ])
           }
-        None -> Error(no_connection_bulk_query_error())
       }
-    Ok(_) ->
-      Error(UserError(
-        field: Some(["query"]),
-        message: "Bulk queries must contain exactly one top-level field.",
-        code: Some("INVALID"),
-      ))
-    Error(_) -> Error(no_connection_bulk_query_error())
+    }
+    Error(_) ->
+      Error([
+        invalid_bulk_query_error("syntax error, unexpected end of file"),
+      ])
   }
 }
 
@@ -772,33 +801,291 @@ fn no_connection_bulk_query_error() -> UserError {
   )
 }
 
-fn selected_bulk_query_node_fields(root: Selection) -> Option(List(Selection)) {
-  let children =
-    get_selected_child_fields(root, default_selected_field_options())
-  case find_child_field(children, "nodes") {
-    Some(nodes_field) ->
-      Some(get_selected_child_fields(
-        nodes_field,
-        default_selected_field_options(),
-      ))
-    None ->
-      case find_child_field(children, "edges") {
-        Some(edges_field) ->
-          find_child_field(
-            get_selected_child_fields(
-              edges_field,
-              default_selected_field_options(),
+fn invalid_bulk_query_error(reason: String) -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: "Invalid bulk query: " <> reason,
+    code: Some("INVALID"),
+  )
+}
+
+type BulkQueryAnalysis {
+  BulkQueryAnalysis(
+    connection_count: Int,
+    max_connection_depth: Int,
+    top_level_node: Bool,
+    connections_without_node: List(String),
+    nested_connections_without_parent_id: List(String),
+  )
+}
+
+fn empty_bulk_query_analysis() -> BulkQueryAnalysis {
+  BulkQueryAnalysis(
+    connection_count: 0,
+    max_connection_depth: 0,
+    top_level_node: False,
+    connections_without_node: [],
+    nested_connections_without_parent_id: [],
+  )
+}
+
+type ConnectionSelection {
+  ConnectionSelection(
+    name: String,
+    nodes_field: Option(Selection),
+    edges_node_field: Option(Selection),
+  )
+}
+
+fn validate_admin_bulk_query(
+  root_fields: List(Selection),
+  fragments: FragmentMap,
+) -> List(UserError) {
+  let analysis =
+    list.fold(root_fields, empty_bulk_query_analysis(), fn(acc, field) {
+      let acc = case field {
+        Field(name: name, ..) if name.value == "node" ->
+          BulkQueryAnalysis(..acc, top_level_node: True)
+        _ -> acc
+      }
+      analyze_bulk_query_field(field, fragments, -1, acc)
+    })
+  let structural_errors =
+    []
+    |> append_errors(case analysis.top_level_node {
+      True -> [top_level_node_bulk_query_error()]
+      False -> []
+    })
+    |> append_errors(
+      case analysis.connection_count > max_bulk_query_connections {
+        True -> [too_many_connections_bulk_query_error()]
+        False -> []
+      },
+    )
+    |> append_errors(
+      case analysis.max_connection_depth > max_bulk_query_connection_depth {
+        True -> [connection_nested_too_deep_bulk_query_error()]
+        False -> []
+      },
+    )
+    |> append_errors(case analysis.connections_without_node {
+      [] -> []
+      names -> [connection_without_node_field_error(names)]
+    })
+    |> append_errors(case analysis.nested_connections_without_parent_id {
+      [] -> []
+      names -> [nested_connection_without_parent_id_field_error(names)]
+    })
+
+  case analysis.connection_count {
+    0 -> list.append(structural_errors, [no_connection_bulk_query_error()])
+    _ -> structural_errors
+  }
+}
+
+fn append_errors(
+  errors: List(UserError),
+  next_errors: List(UserError),
+) -> List(UserError) {
+  list.append(errors, next_errors)
+}
+
+fn analyze_bulk_query_field(
+  field: Selection,
+  fragments: FragmentMap,
+  connection_depth: Int,
+  analysis: BulkQueryAnalysis,
+) -> BulkQueryAnalysis {
+  case connection_selection(field, fragments) {
+    Some(connection) -> {
+      let next_depth = connection_depth + 1
+      let analysis =
+        BulkQueryAnalysis(
+          ..analysis,
+          connection_count: analysis.connection_count + 1,
+          max_connection_depth: int.max(
+            analysis.max_connection_depth,
+            next_depth,
+          ),
+        )
+      let analysis = case connection.edges_node_field, connection.nodes_field {
+        Some(_), None -> analysis
+        _, _ ->
+          BulkQueryAnalysis(
+            ..analysis,
+            connections_without_node: append_unique_string(
+              analysis.connections_without_node,
+              connection.name,
             ),
+          )
+      }
+      analyze_connection_node_selections(
+        connection,
+        fragments,
+        next_depth,
+        analysis,
+      )
+    }
+    None ->
+      direct_field_children(field, fragments)
+      |> list.fold(analysis, fn(acc, child) {
+        analyze_bulk_query_field(child, fragments, connection_depth, acc)
+      })
+  }
+}
+
+fn analyze_connection_node_selections(
+  connection: ConnectionSelection,
+  fragments: FragmentMap,
+  connection_depth: Int,
+  analysis: BulkQueryAnalysis,
+) -> BulkQueryAnalysis {
+  let node_fields =
+    []
+    |> append_optional_selection(connection.edges_node_field)
+    |> append_optional_selection(connection.nodes_field)
+
+  list.fold(node_fields, analysis, fn(acc, node_field) {
+    let node_has_id = node_selection_has_unaliased_id(node_field, fragments)
+    let acc = case
+      node_has_id,
+      node_selection_contains_connection(node_field, fragments)
+    {
+      False, True ->
+        BulkQueryAnalysis(
+          ..acc,
+          nested_connections_without_parent_id: append_unique_string(
+            acc.nested_connections_without_parent_id,
+            connection.name,
+          ),
+        )
+      _, _ -> acc
+    }
+    direct_field_children(node_field, fragments)
+    |> list.fold(acc, fn(inner_acc, child) {
+      analyze_bulk_query_field(child, fragments, connection_depth, inner_acc)
+    })
+  })
+}
+
+fn node_selection_contains_connection(
+  field: Selection,
+  fragments: FragmentMap,
+) -> Bool {
+  direct_field_children(field, fragments)
+  |> list.any(fn(child) {
+    case connection_selection(child, fragments) {
+      Some(_) -> True
+      None -> node_selection_contains_connection(child, fragments)
+    }
+  })
+}
+
+fn append_optional_selection(
+  selections: List(Selection),
+  maybe_selection: Option(Selection),
+) -> List(Selection) {
+  case maybe_selection {
+    Some(selection) -> list.append(selections, [selection])
+    None -> selections
+  }
+}
+
+fn connection_selection(
+  field: Selection,
+  fragments: FragmentMap,
+) -> Option(ConnectionSelection) {
+  case field {
+    Field(name: name, ..) -> {
+      let children = direct_field_children(field, fragments)
+      let nodes_field = find_child_field(children, "nodes")
+      let edges_node_field =
+        find_child_field(children, "edges")
+        |> option.then(fn(edges_field) {
+          find_child_field(
+            direct_field_children(edges_field, fragments),
             "node",
           )
-          |> option.map(fn(node_field) {
-            get_selected_child_fields(
-              node_field,
-              default_selected_field_options(),
-            )
-          })
-        None -> None
+        })
+      case nodes_field, find_child_field(children, "edges") {
+        None, None -> None
+        _, _ ->
+          Some(ConnectionSelection(
+            name: name.value,
+            nodes_field: nodes_field,
+            edges_node_field: edges_node_field,
+          ))
       }
+    }
+    _ -> None
+  }
+}
+
+fn node_selection_has_unaliased_id(
+  node_field: Selection,
+  fragments: FragmentMap,
+) -> Bool {
+  direct_field_children(node_field, fragments)
+  |> list.any(fn(child) {
+    case child {
+      Field(alias: None, name: name, ..) if name.value == "id" -> True
+      _ -> False
+    }
+  })
+}
+
+fn direct_field_children(
+  field: Selection,
+  fragments: FragmentMap,
+) -> List(Selection) {
+  let selections = case field {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
+      selections
+    _ -> []
+  }
+  flatten_bulk_query_selections(selections, fragments)
+}
+
+fn flatten_bulk_query_selections(
+  selections: List(Selection),
+  fragments: FragmentMap,
+) -> List(Selection) {
+  list.flat_map(selections, fn(selection) {
+    case selection {
+      Field(..) -> [selection]
+      InlineFragment(selection_set: SelectionSet(selections: inner, ..), ..) ->
+        flatten_bulk_query_selections(inner, fragments)
+      FragmentSpread(name: name, ..) ->
+        case dict.get(fragments, name.value) {
+          Ok(FragmentDefinition(
+            selection_set: SelectionSet(selections: inner, ..),
+            ..,
+          )) -> flatten_bulk_query_selections(inner, fragments)
+          _ -> []
+        }
+    }
+  })
+}
+
+fn append_unique_string(values: List(String), value: String) -> List(String) {
+  case list.contains(values, value) {
+    True -> values
+    False -> list.append(values, [value])
+  }
+}
+
+fn selected_bulk_query_node_fields(
+  root: Selection,
+  fragments: FragmentMap,
+) -> Option(List(Selection)) {
+  let children = direct_field_children(root, fragments)
+  case find_child_field(children, "edges") {
+    Some(edges_field) ->
+      find_child_field(direct_field_children(edges_field, fragments), "node")
+      |> option.map(fn(node_field) {
+        direct_field_children(node_field, fragments)
+      })
+    None -> None
   }
 }
 
@@ -820,6 +1107,64 @@ fn root_field_name(field: Selection) -> Option(String) {
     Field(name: name, ..) -> Some(name.value)
     _ -> None
   }
+}
+
+fn top_level_node_bulk_query_error() -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: "Bulk queries cannot contain a top level `node` field.",
+    code: Some("INVALID"),
+  )
+}
+
+fn too_many_connections_bulk_query_error() -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: "Bulk queries cannot contain more than 5 connections.",
+    code: Some("INVALID"),
+  )
+}
+
+fn connection_nested_too_deep_bulk_query_error() -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: "Bulk queries cannot contain connections with a nesting depth greater than 2.",
+    code: Some("INVALID"),
+  )
+}
+
+fn connection_without_node_field_error(names: List(String)) -> UserError {
+  let example = case names {
+    [name, ..] -> name <> " { edges { node {"
+    [] -> "products { edges { node {"
+  }
+  UserError(
+    field: Some(["query"]),
+    message: "All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: '"
+      <> example
+      <> "'. Selecting via 'nodes' is not supported. Invalid connection fields: "
+      <> quoted_field_names(names)
+      <> ".",
+    code: Some("INVALID"),
+  )
+}
+
+fn nested_connection_without_parent_id_field_error(
+  names: List(String),
+) -> UserError {
+  UserError(
+    field: Some(["query"]),
+    message: "The parent 'node' field for a nested connection must select the 'id' field without an alias and must be of 'ID' return type. Connection fields without 'id': "
+      <> string.join(names, ", ")
+      <> ".",
+    code: Some("INVALID"),
+  )
+}
+
+fn quoted_field_names(names: List(String)) -> String {
+  names
+  |> list.map(fn(name) { "'" <> name <> "'" })
+  |> string.join(", ")
 }
 
 fn product_export_source(product: ProductRecord) -> SourceValue {
@@ -936,26 +1281,18 @@ fn handle_bulk_operation_run_mutation(
       identity,
     )
     Some(mutation_string), Some(path) ->
-      case store.get_staged_upload_content(store, path) {
-        None ->
-          stage_failed_run_mutation(
+      case validate_inner_bulk_mutation(mutation_string) {
+        Error(validation_error) ->
+          return_run_mutation_validation_error(
             store,
             identity,
             field,
             fragments,
             key,
-            mutation_string,
-            "",
-            [
-              UserError(
-                field: Some(["stagedUploadPath"]),
-                message: "Staged upload content was not found for the provided stagedUploadPath.",
-                code: None,
-              ),
-            ],
+            validation_error,
           )
-        Some(content) ->
-          case supported_inner_mutation_root(mutation_string) {
+        Ok(_inner_root) ->
+          case store.get_staged_upload_content(store, path) {
             None ->
               stage_failed_run_mutation(
                 store,
@@ -964,36 +1301,16 @@ fn handle_bulk_operation_run_mutation(
                 fragments,
                 key,
                 mutation_string,
-                make_jsonl([
-                  json.object([
-                    #("line", json.null()),
-                    #(
-                      "errors",
-                      json.array(
-                        [
-                          json.object([
-                            #(
-                              "message",
-                              json.string(
-                                "bulkOperationRunMutation locally supports only single-root Admin mutations with local staging support in the proxy.",
-                              ),
-                            ),
-                          ]),
-                        ],
-                        fn(row) { row },
-                      ),
-                    ),
-                  ]),
-                ]),
+                "",
                 [
                   UserError(
-                    field: Some(["mutation"]),
-                    message: "Unsupported bulk mutation import root. The proxy did not send this bulk import upstream at runtime.",
+                    field: Some(["stagedUploadPath"]),
+                    message: "Staged upload content was not found for the provided stagedUploadPath.",
                     code: None,
                   ),
                 ],
               )
-            Some(_inner_root) ->
+            Some(content) ->
               stage_supported_run_mutation(
                 store,
                 identity,
@@ -1006,6 +1323,56 @@ fn handle_bulk_operation_run_mutation(
               )
           }
       }
+  }
+}
+
+fn return_run_mutation_validation_error(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  key: String,
+  validation_error: InnerMutationValidationError,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: serialize_run_mutation_payload(
+        field,
+        None,
+        inner_mutation_validation_user_errors(validation_error),
+        fragments,
+      ),
+      staged_resource_ids: [],
+      log_drafts: [],
+    ),
+    store,
+    identity,
+  )
+}
+
+fn inner_mutation_validation_user_errors(
+  validation_error: InnerMutationValidationError,
+) -> List(UserError) {
+  case validation_error {
+    InnerMutationParseError(message) -> [
+      UserError(
+        field: None,
+        message: "Failed to parse the mutation - " <> message,
+        code: Some("INVALID_MUTATION"),
+      ),
+    ]
+    InnerMutationInvalidOperationType -> [
+      UserError(
+        field: None,
+        message: "Invalid operation type. Only `mutation` operations are supported.",
+        code: Some("INVALID_MUTATION"),
+      ),
+    ]
+    InnerMutationAnalysisErrors(messages) ->
+      list.map(messages, fn(message) {
+        UserError(field: Some(["mutation"]), message: message, code: None)
+      })
   }
 }
 
@@ -1276,19 +1643,145 @@ fn import_error_row(line_number: Int, message: String) -> Json {
   ])
 }
 
-fn supported_inner_mutation_root(mutation: String) -> Option(String) {
-  case root_field.get_root_fields(mutation) {
-    Ok([field]) ->
-      case root_field_name(field) {
-        Some(name) ->
-          case products.is_products_mutation_root(name) {
-            True -> Some(name)
-            False -> None
+fn validate_inner_bulk_mutation(
+  mutation: String,
+) -> Result(String, InnerMutationValidationError) {
+  case parser.parse(source.new(mutation)) {
+    Error(parser.ParseError(message: message, ..)) ->
+      Error(InnerMutationParseError(message))
+    Ok(document) ->
+      case parse_operation.find_operation(document.definitions) {
+        Some(OperationDefinition(operation: Query, ..))
+        | Some(OperationDefinition(operation: Subscription, ..)) ->
+          Error(InnerMutationInvalidOperationType)
+        Some(OperationDefinition(
+          operation: Mutation,
+          selection_set: selection_set,
+          ..,
+        )) -> {
+          let SelectionSet(selections: selections, ..) = selection_set
+          let root_fields = top_level_fields(selections)
+          let root_count_errors = case root_fields {
+            [single_root] ->
+              case root_field_name(single_root) {
+                Some(name) ->
+                  case products.is_products_mutation_root(name) {
+                    True -> []
+                    False -> ["You must use an allowed mutation name."]
+                  }
+                None -> ["You must use an allowed mutation name."]
+              }
+            _ -> ["You must specify a single top level mutation."]
           }
-        None -> None
+          let analysis_errors = case root_fields {
+            [single_root] ->
+              list.append(
+                root_count_errors,
+                connection_analysis_errors(single_root),
+              )
+            _ -> root_count_errors
+          }
+          case analysis_errors {
+            [] -> {
+              let assert [single_root] = root_fields
+              case root_field_name(single_root) {
+                Some(name) -> Ok(name)
+                None ->
+                  Error(
+                    InnerMutationAnalysisErrors([
+                      "You must use an allowed mutation name.",
+                    ]),
+                  )
+              }
+            }
+            [_, ..] -> Error(InnerMutationAnalysisErrors(analysis_errors))
+          }
+        }
+        _ -> Error(InnerMutationInvalidOperationType)
       }
-    _ -> None
   }
+}
+
+fn top_level_fields(selections: List(Selection)) -> List(Selection) {
+  list.filter(selections, fn(selection) {
+    case selection {
+      Field(..) -> True
+      _ -> False
+    }
+  })
+}
+
+fn connection_analysis_errors(root: Selection) -> List(String) {
+  let connection_depths = selected_connection_depths(root, 0)
+  let connection_count_error = case list.length(connection_depths) > 1 {
+    True -> ["Bulk mutations cannot contain more than 1 connection."]
+    False -> []
+  }
+  let nesting_error = case
+    list.any(connection_depths, fn(depth) { depth > 1 })
+  {
+    True -> [
+      "Bulk mutations cannot contain connections with a nesting depth greater than 1.",
+    ]
+    False -> []
+  }
+  list.append(connection_count_error, nesting_error)
+}
+
+fn selected_connection_depths(
+  selection: Selection,
+  parent_connection_depth: Int,
+) -> List(Int) {
+  case selection {
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) -> {
+      let connection_depth = case is_connection_selection(selection) {
+        True -> parent_connection_depth + 1
+        False -> parent_connection_depth
+      }
+      let current = case is_connection_selection(selection) {
+        True -> [connection_depth]
+        False -> []
+      }
+      selections
+      |> list.map(fn(child) {
+        selected_connection_depths(child, connection_depth)
+      })
+      |> list.flatten
+      |> list.append(current)
+    }
+    InlineFragment(selection_set: SelectionSet(selections: selections, ..), ..) ->
+      selections
+      |> list.map(fn(child) {
+        selected_connection_depths(child, parent_connection_depth)
+      })
+      |> list.flatten
+    Field(..) | FragmentSpread(..) -> []
+  }
+}
+
+fn is_connection_selection(selection: Selection) -> Bool {
+  case selection {
+    Field(
+      arguments: arguments,
+      selection_set: Some(SelectionSet(selections: selections, ..)),
+      ..,
+    ) ->
+      has_connection_window_argument(arguments)
+      && list.any(selections, fn(child) {
+        case child {
+          Field(name: name, ..) ->
+            name.value == "edges" || name.value == "nodes"
+          _ -> False
+        }
+      })
+    _ -> False
+  }
+}
+
+fn has_connection_window_argument(arguments: List(Argument)) -> Bool {
+  list.any(arguments, fn(argument) {
+    argument.name.value == "first" || argument.name.value == "last"
+  })
 }
 
 fn build_and_stage_mutation_operation(

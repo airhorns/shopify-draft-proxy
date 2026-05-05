@@ -1,0 +1,15 @@
+mutation ValidationUpdateMaxActive($id: ID!) {
+  validationUpdate(id: $id, validation: { enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
