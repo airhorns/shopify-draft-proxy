@@ -1,0 +1,12 @@
+mutation ShippingUserErrorCodesCarrierUpdate($input: DeliveryCarrierServiceUpdateInput!) {
+  carrierServiceUpdate(input: $input) {
+    carrierService {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

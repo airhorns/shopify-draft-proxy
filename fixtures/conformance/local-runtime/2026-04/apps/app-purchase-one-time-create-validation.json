@@ -1,0 +1,103 @@
+{
+  "capturedAt": "2026-05-05T12:24:00.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenario": "app-purchase-one-time-create-validation",
+  "notes": [
+    "Runtime fixture enforced by test/shopify_draft_proxy/proxy/apps_mutation_test.gleam and config/parity-specs/apps/app-purchase-one-time-create-validation.json.",
+    "Live HAR-646 sampling against harry-test-heelo.myshopify.com on 2026-05-05 returned Custom apps cannot use the Billing API for appPurchaseOneTimeCreate service branches, so price/name/currency validation remains local-runtime-backed for this credential.",
+    "The same live sampling confirmed missing returnUrl and blank returnUrl are Shopify GraphQL coercion errors before billing service execution; the local harness preserves missing returnUrl as a coercion error and covers blank returnUrl through focused supported-mutation userError tests."
+  ],
+  "operationNames": ["appPurchaseOneTimeCreate"],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "blankName": {
+          "data": {
+            "appPurchaseOneTimeCreate": {
+              "appPurchaseOneTime": null,
+              "confirmationUrl": null,
+              "userErrors": [
+                {
+                  "field": ["name"],
+                  "message": "Name can't be blank",
+                  "code": null
+                }
+              ]
+            }
+          }
+        },
+        "zeroPrice": {
+          "data": {
+            "appPurchaseOneTimeCreate": {
+              "appPurchaseOneTime": null,
+              "confirmationUrl": null,
+              "userErrors": [
+                {
+                  "field": ["price"],
+                  "message": "Price must be at least 0.50 USD.",
+                  "code": "PRICE_TOO_LOW"
+                }
+              ]
+            }
+          }
+        },
+        "currencyMismatch": {
+          "data": {
+            "appPurchaseOneTimeCreate": {
+              "appPurchaseOneTime": null,
+              "confirmationUrl": null,
+              "userErrors": [
+                {
+                  "field": ["price"],
+                  "message": "Price currency must match shop billing currency USD.",
+                  "code": null
+                }
+              ]
+            }
+          }
+        },
+        "missingReturnUrl": {
+          "errors": [
+            {
+              "message": "Field 'appPurchaseOneTimeCreate' is missing required arguments: returnUrl",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
+              "path": ["mutation AppPurchaseOneTimeCreateValidationMissingReturnUrl", "appPurchaseOneTimeCreate"],
+              "extensions": {
+                "code": "missingRequiredArguments",
+                "className": "Field",
+                "name": "appPurchaseOneTimeCreate",
+                "arguments": "returnUrl"
+              }
+            }
+          ]
+        },
+        "success": {
+          "data": {
+            "appPurchaseOneTimeCreate": {
+              "appPurchaseOneTime": {
+                "id": "gid://shopify/AppPurchaseOneTime/expected",
+                "name": "HAR-646 valid test",
+                "status": "PENDING",
+                "test": true,
+                "createdAt": "2024-01-01T00:00:00.000Z",
+                "price": {
+                  "amount": "5.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "userErrors": []
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

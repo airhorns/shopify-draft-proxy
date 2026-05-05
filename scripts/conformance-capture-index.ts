@@ -327,6 +327,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'staged-upload-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-staged-upload-validation-conformance.ts',
+    purpose: 'stagedUploadsCreate resource, fileSize, MIME validation, and representative success branches.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-staged-uploads-create-validation.json`,
+      'config/parity-specs/media/media-staged-uploads-create-validation.json',
+    ],
+    cleanupBehavior: 'Requests signed upload metadata only; does not upload bytes and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'file-acknowledge-update-failed',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
@@ -349,6 +363,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_products', 'write_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}product-option-mutation-*.json`],
     cleanupBehavior: 'Creates disposable products/options and deletes the products in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
+    captureId: 'product-option-validation',
+    scriptPath: 'scripts/capture-product-option-validation-conformance.mts',
+    purpose:
+      'productOptionsCreate option-limit, duplicate, required-value, and CREATE variant-limit validation branches.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [`${CAPTURE_ROOT}product-options-create-limits-and-duplicates-parity.json`],
+    cleanupBehavior: 'Creates disposable products/options/variants and deletes the products in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -428,6 +453,28 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'blocker notes when store topology is insufficient',
     ],
     cleanupBehavior: 'Creates disposable products; some success paths require a second safe location before capture.',
+    expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-deactivate-validation',
+    scriptPath: 'scripts/capture-inventory-deactivate-validation-conformance.mts',
+    purpose:
+      'inventoryDeactivate validation for 2026-04 non-zero committed/incoming/reserved quantities, missing inventory levels, only-location errors, and inventoryActivate available conflicts.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_inventory',
+      'write_inventory',
+      'read_locations',
+      'write_orders',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventory-deactivate-validation-2026-04.json`,
+      'config/parity-specs/products/inventoryDeactivate-non-zero-quantities-parity.json',
+      'config/parity-specs/products/inventoryDeactivate-only-location-parity.json',
+    ],
+    cleanupBehavior: 'Creates disposable products and deletes them after recording validation branches.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
   },
   {
@@ -908,6 +955,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable product, enables Spanish only when needed, registers/removes one market-scoped title translation, deletes the product, and restores the locale when the script enabled it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'localization',
+    captureId: 'localization-payload-shapes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-localization-payload-shapes-conformance.mts',
+    purpose:
+      'ShopLocale marketWebPresences payload projection, primary-disable error locale nulling, and mixed translationsRegister partial-success payloads.',
+    requiredAuthScopes: [
+      'read_markets',
+      'read_products',
+      'read_translations',
+      'write_translations',
+      'read_locales',
+      'write_locales',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}localization-payload-shapes.json`,
+      'config/parity-specs/localization/localization-payload-shapes.json',
+      'config/parity-requests/localization/localization-payload-shapes-*.graphql',
+    ],
+    cleanupBehavior:
+      'Enables French with an existing market web presence, removes the staged product-title translation, and disables or restores French locale settings according to the pre-capture shop state.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1730,6 +1801,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'shipping-fulfillments',
+    captureId: 'shipping-user-error-codes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-shipping-user-error-codes-conformance.ts',
+    purpose:
+      'Typed carrier-service userError.code parity for blank-create and unknown-id update/delete validation branches.',
+    requiredAuthScopes: ['read_shipping', 'write_shipping'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}shipping-user-error-codes.json`,
+      'config/parity-specs/shipping-fulfillments/shipping-user-error-codes.json',
+    ],
+    cleanupBehavior: 'No persistent setup or cleanup; all captures are validation-only carrier-service branches.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
     captureId: 'delivery-profiles',
     scriptPath: 'scripts/capture-delivery-profile-conformance.ts',
     purpose: 'Delivery profile read/write lifecycle behavior.',
@@ -1842,6 +1928,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
     notes:
       'Records current public Admin GraphQL userErrors, including generic URI errors emitted alongside the structural validator messages.',
+  },
+  {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-topic-format-name-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-topic-format-name-validation.ts',
+    purpose: 'Webhook subscription topic/format, cloud format, name, and duplicate active registration userErrors.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [`${CAPTURE_ROOT}webhook-subscription-topic-format-name-validation.json`],
+    cleanupBehavior: 'Creates one temporary SHOP_UPDATE webhook subscription and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'gift-cards',
