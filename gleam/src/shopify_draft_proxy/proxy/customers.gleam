@@ -4622,65 +4622,81 @@ fn handle_customer_address_update(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   let address_id = graphql_helpers.read_arg_string_nonempty(args, "addressId")
   let address_input =
     graphql_helpers.read_arg_object(args, "address")
     |> option.unwrap(dict.new())
   let set_default =
     graphql_helpers.read_arg_bool(args, "setAsDefault") |> option.unwrap(False)
-  case address_id {
-    Some(id) ->
-      case store.get_effective_customer_address_by_id(store, id) {
-        Some(existing) -> {
-          let updated = merge_address(existing, address_input)
-          let #(_, store_after_address) =
-            store.stage_upsert_customer_address(store, updated)
-          let next_store = case set_default {
-            True ->
-              case
-                store.get_effective_customer_by_id(
-                  store_after_address,
-                  updated.customer_id,
-                )
-              {
-                Some(customer) -> {
-                  let #(_, s) =
-                    store.stage_update_customer(
-                      store_after_address,
-                      CustomerRecord(
-                        ..customer,
-                        default_address: Some(address_to_default(updated)),
-                      ),
+  case customer_id, address_id {
+    Some(cid), Some(aid) ->
+      case store.get_effective_customer_by_id(store, cid) {
+        Some(customer) ->
+          case store.get_effective_customer_address_by_id(store, aid) {
+            Some(existing) ->
+              case existing.customer_id == customer.id {
+                True -> {
+                  let updated = merge_address(existing, address_input)
+                  let #(_, store_after_address) =
+                    store.stage_upsert_customer_address(store, updated)
+                  let next_store = case set_default {
+                    True -> {
+                      let #(_, s) =
+                        store.stage_update_customer(
+                          store_after_address,
+                          CustomerRecord(
+                            ..customer,
+                            default_address: Some(address_to_default(updated)),
+                          ),
+                        )
+                      s
+                    }
+                    False -> store_after_address
+                  }
+                  let payload =
+                    address_payload_json(
+                      next_store,
+                      "CustomerAddressUpdatePayload",
+                      Some(updated),
+                      None,
+                      [],
+                      field,
+                      fragments,
                     )
-                  s
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [updated.id],
+                      "customerAddressUpdate",
+                    ),
+                    next_store,
+                    identity,
+                  )
                 }
-                None -> store_after_address
+                False ->
+                  address_ownership_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "CustomerAddressUpdatePayload",
+                    "customerAddressUpdate",
+                  )
               }
-            False -> store_after_address
+            None ->
+              address_unknown_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "CustomerAddressUpdatePayload",
+                "customerAddressUpdate",
+              )
           }
-          let payload =
-            address_payload_json(
-              next_store,
-              "CustomerAddressUpdatePayload",
-              Some(updated),
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [updated.id],
-              "customerAddressUpdate",
-            ),
-            next_store,
-            identity,
-          )
-        }
         None ->
-          address_unknown_result(
+          address_customer_missing_result(
             store,
             identity,
             field,
@@ -4689,7 +4705,7 @@ fn handle_customer_address_update(
             "customerAddressUpdate",
           )
       }
-    None ->
+    _, _ ->
       address_unknown_result(
         store,
         identity,
@@ -4709,69 +4725,89 @@ fn handle_customer_address_delete(
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let args = graphql_helpers.field_args(field, variables)
+  let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
   let address_id = graphql_helpers.read_arg_string_nonempty(args, "addressId")
-  case address_id {
-    Some(id) ->
-      case store.get_effective_customer_address_by_id(store, id) {
-        Some(address) -> {
-          let store_after_delete =
-            store.stage_delete_customer_address(store, id)
-          let next_store = case
-            store.get_effective_customer_by_id(
-              store_after_delete,
-              address.customer_id,
-            )
-          {
-            Some(customer) -> {
-              let current_default =
-                customer.default_address |> option.then(fn(a) { a.id })
-              case current_default == Some(id) {
+  case customer_id, address_id {
+    Some(cid), Some(aid) ->
+      case store.get_effective_customer_by_id(store, cid) {
+        Some(customer) ->
+          case store.get_effective_customer_address_by_id(store, aid) {
+            Some(address) ->
+              case address.customer_id == customer.id {
                 True -> {
-                  let replacement =
-                    store.list_effective_customer_addresses(
-                      store_after_delete,
-                      address.customer_id,
+                  let store_after_delete =
+                    store.stage_delete_customer_address(store, aid)
+                  let next_store = {
+                    let current_default =
+                      customer.default_address |> option.then(fn(a) { a.id })
+                    case current_default == Some(aid) {
+                      True -> {
+                        let replacement =
+                          store.list_effective_customer_addresses(
+                            store_after_delete,
+                            customer.id,
+                          )
+                          |> list.first()
+                          |> result_to_option()
+                        let updated =
+                          CustomerRecord(
+                            ..customer,
+                            default_address: replacement
+                              |> option.map(address_to_default),
+                          )
+                        let #(_, s) =
+                          store.stage_update_customer(
+                            store_after_delete,
+                            updated,
+                          )
+                        s
+                      }
+                      False -> store_after_delete
+                    }
+                  }
+                  let payload =
+                    address_payload_json(
+                      next_store,
+                      "CustomerAddressDeletePayload",
+                      None,
+                      Some(aid),
+                      [],
+                      field,
+                      fragments,
                     )
-                    |> list.first()
-                    |> result_to_option()
-                  let updated =
-                    CustomerRecord(
-                      ..customer,
-                      default_address: replacement
-                        |> option.map(address_to_default),
-                    )
-                  let #(_, s) =
-                    store.stage_update_customer(store_after_delete, updated)
-                  s
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [aid],
+                      "customerAddressDelete",
+                    ),
+                    next_store,
+                    identity,
+                  )
                 }
-                False -> store_after_delete
+                False ->
+                  address_ownership_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "CustomerAddressDeletePayload",
+                    "customerAddressDelete",
+                  )
               }
-            }
-            None -> store_after_delete
+            None ->
+              address_unknown_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "CustomerAddressDeletePayload",
+                "customerAddressDelete",
+              )
           }
-          let payload =
-            address_payload_json(
-              next_store,
-              "CustomerAddressDeletePayload",
-              None,
-              Some(id),
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [id],
-              "customerAddressDelete",
-            ),
-            next_store,
-            identity,
-          )
-        }
         None ->
-          address_unknown_result(
+          address_customer_missing_result(
             store,
             identity,
             field,
@@ -4780,7 +4816,7 @@ fn handle_customer_address_delete(
             "customerAddressDelete",
           )
       }
-    None ->
+    _, _ ->
       address_unknown_result(
         store,
         identity,
@@ -4804,47 +4840,73 @@ fn handle_customer_update_default_address(
   let address_id = graphql_helpers.read_arg_string_nonempty(args, "addressId")
   case customer_id, address_id {
     Some(cid), Some(aid) ->
-      case
-        store.get_effective_customer_by_id(store, cid),
-        store.get_effective_customer_address_by_id(store, aid)
-      {
-        Some(customer), Some(address) -> {
-          let updated =
-            CustomerRecord(
-              ..customer,
-              default_address: Some(address_to_default(address)),
-            )
-          let #(_, next_store) = store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerUpdateDefaultAddressPayload",
-              Some(updated),
-              None,
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [cid, aid],
-              "customerUpdateDefaultAddress",
-            ),
-            next_store,
-            identity,
-          )
-        }
-        _, _ ->
-          unknown_customer_result(
+      case store.get_effective_customer_by_id(store, cid) {
+        Some(customer) ->
+          case store.get_effective_customer_address_by_id(store, aid) {
+            Some(address) ->
+              case address.customer_id == customer.id {
+                True -> {
+                  let updated =
+                    CustomerRecord(
+                      ..customer,
+                      default_address: Some(address_to_default(address)),
+                    )
+                  let #(_, next_store) =
+                    store.stage_update_customer(store, updated)
+                  let payload =
+                    customer_payload_json(
+                      next_store,
+                      "CustomerUpdateDefaultAddressPayload",
+                      Some(updated),
+                      None,
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [cid, aid],
+                      "customerUpdateDefaultAddress",
+                    ),
+                    next_store,
+                    identity,
+                  )
+                }
+                False ->
+                  customer_address_ownership_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "CustomerUpdateDefaultAddressPayload",
+                    "customerUpdateDefaultAddress",
+                    customer,
+                  )
+              }
+            None ->
+              unknown_customer_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "CustomerUpdateDefaultAddressPayload",
+                "customerUpdateDefaultAddress",
+              )
+          }
+        None ->
+          customer_missing_result(
             store,
             identity,
             field,
             fragments,
             "CustomerUpdateDefaultAddressPayload",
             "customerUpdateDefaultAddress",
+            ["customerId"],
+            "Customer does not exist",
+            Some("CUSTOMER_DOES_NOT_EXIST"),
           )
       }
     _, _ ->
@@ -6070,6 +6132,82 @@ fn address_unknown_result(store, identity, field, fragments, typename, root) {
           Some("CUSTOMER_DOES_NOT_EXIST"),
         ),
       ],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(get_field_response_key(field), payload, [], root),
+    store,
+    identity,
+  )
+}
+
+fn address_customer_missing_result(
+  store,
+  identity,
+  field,
+  fragments,
+  typename,
+  root,
+) {
+  let payload =
+    address_payload_json(
+      store,
+      typename,
+      None,
+      None,
+      [
+        UserError(
+          ["customerId"],
+          "Customer does not exist",
+          Some("CUSTOMER_DOES_NOT_EXIST"),
+        ),
+      ],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(get_field_response_key(field), payload, [], root),
+    store,
+    identity,
+  )
+}
+
+fn address_ownership_result(store, identity, field, fragments, typename, root) {
+  let payload =
+    address_payload_json(
+      store,
+      typename,
+      None,
+      None,
+      [UserError(["addressId"], "Address does not exist", None)],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(get_field_response_key(field), payload, [], root),
+    store,
+    identity,
+  )
+}
+
+fn customer_address_ownership_result(
+  store,
+  identity,
+  field,
+  fragments,
+  typename,
+  root,
+  customer,
+) {
+  let payload =
+    customer_payload_json(
+      store,
+      typename,
+      Some(customer),
+      None,
+      None,
+      [UserError(["addressId"], "Address does not exist", None)],
       field,
       fragments,
     )
