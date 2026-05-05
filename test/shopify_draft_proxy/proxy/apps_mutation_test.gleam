@@ -442,12 +442,12 @@ pub fn delegate_token_create_round_trip_test() {
   let outcome =
     run_mutation_outcome(
       store.new(),
-      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes createdAt expiresIn } shop { id name } userErrors { field message code } } }",
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes createdAt expiresIn } shop { id name currencyCode } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   // Token id is the first synthetic gid (#1). Raw token = "shpat_delegate_proxy_1".
   assert body
-    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"expiresIn\":3600},\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\",\"name\":\"Shopify Draft Proxy\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"expiresIn\":3600},\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\",\"name\":\"Shopify Draft Proxy\",\"currencyCode\":\"USD\"},\"userErrors\":[]}}}"
   // The store must hold a record whose sha256 matches the raw token's hash.
   let assert Some(record) =
     store.find_delegated_access_token_by_hash(
@@ -483,10 +483,10 @@ pub fn delegate_token_create_rejects_empty_scope_list_test() {
   let outcome =
     run_mutation_outcome(
       store.new(),
-      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [] }) { delegateAccessToken { accessToken accessScopes } userErrors { field message code } } }",
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [] }) { delegateAccessToken { accessToken accessScopes } shop { id } userErrors { field message code } } }",
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The access scope can't be empty.\",\"code\":\"EMPTY_ACCESS_SCOPE\"}]}}}"
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[{\"field\":null,\"message\":\"The access scope can't be empty.\",\"code\":\"EMPTY_ACCESS_SCOPE\"}]}}}"
   assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
   let assert [
     mutation_helpers.LogDraft(status: store.Failed, staged_resource_ids: [], ..),
@@ -557,10 +557,10 @@ pub fn delegate_token_destroy_marks_destroyed_test() {
   let document =
     "mutation { delegateAccessTokenDestroy(accessToken: \""
     <> raw
-    <> "\") { status userErrors { field message code } } }"
+    <> "\") { shop { id currencyCode } status userErrors { field message code } } }"
   let outcome = run_mutation_outcome(s, document)
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"delegateAccessTokenDestroy\":{\"status\":true,\"userErrors\":[]}}}"
+    == "{\"data\":{\"delegateAccessTokenDestroy\":{\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\",\"currencyCode\":\"USD\"},\"status\":true,\"userErrors\":[]}}}"
   // Destroyed delegated tokens are no longer discoverable by raw token hash.
   assert store.find_delegated_access_token_by_hash(
       outcome.store,
@@ -573,10 +573,10 @@ pub fn delegate_token_destroy_unknown_emits_user_error_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { delegateAccessTokenDestroy(accessToken: \"shpat_does_not_exist\") { status userErrors { field message code } } }",
+      "mutation { delegateAccessTokenDestroy(accessToken: \"shpat_does_not_exist\") { shop { id } status userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"delegateAccessTokenDestroy\":{\"status\":false,\"userErrors\":[{\"field\":[\"accessToken\"],\"message\":\"Access token not found.\",\"code\":\"ACCESS_TOKEN_NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"delegateAccessTokenDestroy\":{\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\"},\"status\":false,\"userErrors\":[{\"field\":null,\"message\":\"Access token does not exist.\",\"code\":\"ACCESS_TOKEN_NOT_FOUND\"}]}}}"
 }
 
 // ----------- appPurchaseOneTimeCreate -----------

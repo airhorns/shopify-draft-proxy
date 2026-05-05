@@ -1,0 +1,13 @@
+mutation DelegateAccessTokenDestroyShopPayloadUnknown {
+  delegateAccessTokenDestroy(accessToken: "shpat_unknown") {
+    shop {
+      id
+    }
+    status
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

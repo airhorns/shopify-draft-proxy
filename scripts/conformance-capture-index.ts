@@ -2068,6 +2068,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'apps',
+    captureId: 'delegate-access-token-shop-payload',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-delegate-access-token-shop-payload-conformance.ts',
+    purpose: 'Delegate access token create/destroy payload shop nullability on success and userError branches.',
+    requiredAuthScopes: ['delegate access token create/destroy for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}delegate-access-token-shop-payload.json`,
+      'config/parity-specs/apps/delegate-access-token-shop-payload.json',
+      'config/parity-requests/apps/delegateAccessTokenCreate-shop-payload.graphql',
+      'config/parity-requests/apps/delegateAccessTokenDestroy-shop-payload.graphql',
+      'config/parity-requests/apps/delegateAccessTokenDestroy-shop-payload-unknown.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one short-lived delegate access token and destroys it during the scenario; unknown-token validation has no cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'functions',
     captureId: 'function-ownership',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },

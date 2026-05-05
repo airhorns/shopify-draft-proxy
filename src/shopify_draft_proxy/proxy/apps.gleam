@@ -1751,11 +1751,12 @@ fn handle_delegate_destroy(
     None -> {
       let payload =
         project_delegate_destroy_payload(
+          store,
           False,
           [
-            UserError(
-              field: ["accessToken"],
-              message: "Access token not found.",
+            DelegateAccessTokenUserError(
+              field: None,
+              message: "Access token does not exist.",
               code: Some("ACCESS_TOKEN_NOT_FOUND"),
             ),
           ],
@@ -1779,7 +1780,14 @@ fn handle_delegate_destroy(
         synthetic_identity.make_synthetic_timestamp(identity)
       let store_after =
         store.destroy_delegated_access_token(store, record.id, timestamp)
-      let payload = project_delegate_destroy_payload(True, [], field, fragments)
+      let payload =
+        project_delegate_destroy_payload(
+          store_after,
+          True,
+          [],
+          field,
+          fragments,
+        )
       let draft =
         make_log_draft("delegateAccessTokenDestroy", [record.id], store.Staged)
       #(
@@ -3522,6 +3530,8 @@ fn project_delegate_create_payload(
   project_payload(payload, field, fragments)
 }
 
+/// Return the Apps payload `Shop` source from hydrated store state when it is
+/// available, otherwise use a stable local fallback for non-null payload fields.
 fn current_shop_source(store: Store) -> SourceValue {
   case store.get_effective_shop(store) {
     Some(shop) -> store_properties.shop_source(shop)
@@ -3535,6 +3545,7 @@ fn synthetic_shop_source() -> SourceValue {
     #("id", SrcString(synthetic_shop_id)),
     #("name", SrcString("Shopify Draft Proxy")),
     #("myshopifyDomain", SrcString("shopify-draft-proxy.myshopify.com")),
+    #("currencyCode", SrcString(default_billing_currency)),
   ])
 }
 
@@ -3566,16 +3577,17 @@ fn delegate_user_error_to_source(
 }
 
 fn project_delegate_destroy_payload(
+  store: Store,
   status: Bool,
-  user_errors: List(UserError),
+  user_errors: List(DelegateAccessTokenUserError),
   field: Selection,
   fragments: FragmentMap,
 ) -> Json {
   let payload =
     src_object([
       #("status", SrcBool(status)),
-      #("shop", SrcNull),
-      #("userErrors", user_errors_source(user_errors)),
+      #("shop", current_shop_source(store)),
+      #("userErrors", delegate_user_errors_source(user_errors)),
     ])
   project_payload(payload, field, fragments)
 }
