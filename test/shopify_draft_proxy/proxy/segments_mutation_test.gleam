@@ -6,7 +6,9 @@
 //// and the `resolveUniqueSegmentName` " (N)" suffix collision logic.
 
 import gleam/dict
+import gleam/int
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/mutation_helpers
@@ -53,6 +55,29 @@ fn segment_record(id: String, name: String, query: String) -> SegmentRecord {
     creation_date: Some("2024-01-01T00:00:00.000Z"),
     last_edit_date: Some("2024-01-01T00:00:00.000Z"),
   )
+}
+
+fn seed_segment_count(
+  store_in: store.Store,
+  next: Int,
+  remaining: Int,
+) -> store.Store {
+  case remaining <= 0 {
+    True -> store_in
+    False -> {
+      let suffix = int.to_string(next)
+      let seeded =
+        seed(
+          store_in,
+          segment_record(
+            "gid://shopify/Segment/" <> suffix,
+            "Seed " <> suffix,
+            "number_of_orders >= 1",
+          ),
+        )
+      seed_segment_count(seeded, next + 1, remaining - 1)
+    }
+  }
 }
 
 fn customer(
@@ -247,6 +272,52 @@ pub fn segment_create_customer_tags_equals_emits_operator_error_test() {
     == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query Line 1 Column 14: customer_tags does not support operator '='\"}]}}}"
 }
 
+pub fn segment_create_overlong_name_emits_user_error_test() {
+  let long_name = string.repeat("N", times: 256)
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { segmentCreate(name: \""
+        <> long_name
+        <> "\", query: \"number_of_orders >= 5\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name is too long (maximum is 255 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_segments(outcome.store) == []
+}
+
+pub fn segment_create_overlong_query_emits_length_error_before_grammar_test() {
+  let long_query = "number_of_orders >= 5 " <> string.repeat("x", times: 5000)
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { segmentCreate(name: \"Big\", query: \""
+        <> long_query
+        <> "\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query is too long (maximum is 5000 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_segments(outcome.store) == []
+}
+
+pub fn segment_create_at_shop_segment_limit_emits_user_error_test() {
+  let full_store = seed_segment_count(store.new(), 1, 6000)
+  let outcome =
+    run_mutation_outcome(
+      full_store,
+      "mutation { segmentCreate(name: \"extra\", query: \"number_of_orders >= 1\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Segment limit reached\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert list.length(store.list_effective_segments(outcome.store)) == 6000
+}
+
 // ----------- segmentUpdate -----------
 
 pub fn segment_update_happy_path_test() {
@@ -299,6 +370,42 @@ pub fn segment_update_blank_name_emits_user_error_test() {
     )
   assert body
     == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name can't be blank\"}]}}}"
+}
+
+pub fn segment_update_overlong_name_emits_user_error_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/103", "Keep", "number_of_orders >= 2")
+  let s = seed(store.new(), existing)
+  let long_name = string.repeat("N", times: 256)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/103\", name: \""
+        <> long_name
+        <> "\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name is too long (maximum is 255 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn segment_update_overlong_query_emits_length_error_before_grammar_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/104", "Keep", "number_of_orders >= 2")
+  let s = seed(store.new(), existing)
+  let long_query = "number_of_orders >= 5 " <> string.repeat("x", times: 5000)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/104\", query: \""
+        <> long_query
+        <> "\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query is too long (maximum is 5000 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 // ----------- segmentDelete -----------

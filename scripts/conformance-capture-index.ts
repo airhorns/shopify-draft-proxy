@@ -958,6 +958,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-validation-limits',
+    scriptPath: 'scripts/capture-segment-validation-limits-conformance.ts',
+    purpose: 'segmentCreate/segmentUpdate name and query length validation plus local segment-limit replay setup.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segments-create-update-validation-limits.json`,
+      'config/parity-specs/segments/segments-create-update-validation-limits.json',
+      'config/parity-requests/segments/segment-*-validation-limits.graphql',
+      'config/parity-requests/segments/segment-create-limit-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment for update validation, deletes it during cleanup, and avoids thousands of live segment-limit setup writes by using local parity-runner setup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'customer-segment-members-query-create-validation-and-shape',
     scriptPath: 'scripts/capture-customer-segment-members-query-create-conformance.ts',
     purpose:
