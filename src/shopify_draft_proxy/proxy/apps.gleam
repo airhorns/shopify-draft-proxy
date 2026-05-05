@@ -1680,11 +1680,15 @@ fn stage_valid_purchase_create(
     )
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity_after_id)
+  let status = case is_test {
+    True -> "ACTIVE"
+    False -> "PENDING"
+  }
   let purchase =
     AppOneTimePurchaseRecord(
       id: purchase_gid,
       name: name,
-      status: "PENDING",
+      status: status,
       is_test: is_test,
       created_at: timestamp,
       price: price,
@@ -1766,15 +1770,25 @@ fn handle_subscription_create(
     )
   let #(timestamp, identity_after_ts) =
     synthetic_identity.make_synthetic_timestamp(identity_after_lis)
+  let is_test =
+    graphql_helpers.read_arg_bool(args, "test")
+    |> option.unwrap(False)
+  let status = case is_test {
+    True -> "ACTIVE"
+    False -> "PENDING"
+  }
+  let current_period_end = case status {
+    "ACTIVE" -> compute_current_period_end(timestamp, line_items, args)
+    _ -> None
+  }
   let subscription =
     AppSubscriptionRecord(
       id: sub_gid,
       name: option.unwrap(graphql_helpers.read_arg_string(args, "name"), ""),
-      status: "PENDING",
-      is_test: graphql_helpers.read_arg_bool(args, "test")
-        |> option.unwrap(False),
+      status: status,
+      is_test: is_test,
       trial_days: graphql_helpers.read_arg_int(args, "trialDays"),
-      current_period_end: None,
+      current_period_end: current_period_end,
       created_at: timestamp,
       line_item_ids: list.map(line_items, fn(li) { li.id }),
     )
@@ -1786,6 +1800,11 @@ fn handle_subscription_create(
       all_subscription_ids: list.append(installation.all_subscription_ids, [
         subscription.id,
       ]),
+      active_subscription_ids: case subscription.status {
+        "ACTIVE" ->
+          append_unique(installation.active_subscription_ids, subscription.id)
+        _ -> installation.active_subscription_ids
+      },
     )
   let #(_, store_staged) =
     store.stage_app_installation(store_after_sub, updated_installation)
@@ -3174,6 +3193,55 @@ fn read_line_item_plan(
       plan: AppSubscriptionLineItemPlan(pricing_details: pricing),
     )
   #(record, identity_after)
+}
+
+fn compute_current_period_end(
+  activated_at: String,
+  line_items: List(AppSubscriptionLineItemRecord),
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  let trial_days =
+    graphql_helpers.read_arg_int(args, "trialDays")
+    |> option.unwrap(0)
+  let interval = subscription_interval(line_items)
+  case iso_timestamp.parse_iso(activated_at) {
+    Ok(ms) ->
+      Some(iso_timestamp.format_iso(
+        ms + days_to_ms(interval_days(interval) + trial_days),
+      ))
+    Error(_) -> None
+  }
+}
+
+fn subscription_interval(
+  line_items: List(AppSubscriptionLineItemRecord),
+) -> String {
+  case line_items {
+    [first, ..] ->
+      case first.plan.pricing_details {
+        AppRecurringPricing(interval: interval, ..) -> interval
+        AppUsagePricing(interval: interval, ..) -> interval
+      }
+    [] -> "EVERY_30_DAYS"
+  }
+}
+
+fn interval_days(interval: String) -> Int {
+  case interval {
+    "ANNUAL" -> 365
+    _ -> 30
+  }
+}
+
+fn days_to_ms(days: Int) -> Int {
+  days * 24 * 60 * 60 * 1000
+}
+
+fn append_unique(values: List(String), value: String) -> List(String) {
+  case list.contains(values, value) {
+    True -> values
+    False -> list.append(values, [value])
+  }
 }
 
 fn make_log_draft(

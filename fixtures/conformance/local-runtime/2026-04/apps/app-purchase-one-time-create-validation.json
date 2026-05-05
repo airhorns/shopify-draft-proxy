@@ -83,7 +83,7 @@
               "appPurchaseOneTime": {
                 "id": "gid://shopify/AppPurchaseOneTime/expected",
                 "name": "HAR-646 valid test",
-                "status": "PENDING",
+                "status": "ACTIVE",
                 "test": true,
                 "createdAt": "2024-01-01T00:00:00.000Z",
                 "price": {

@@ -7,7 +7,7 @@
   "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
   "comparisonMode": "captured-vs-proxy-request",
   "proxyRequest": {
-    "documentPath": "config/parity-requests/apps/appSubscriptionCreate-local-lifecycle.graphql",
+    "documentPath": "config/parity-requests/apps/appSubscriptionCreate-pending-local-lifecycle.graphql",
     "variables": {
       "lineItems": [
         {
@@ -94,5 +94,5 @@
       }
     ]
   },
-  "notes": "The generic parity runner covers days bounds, unknown id, and PENDING subscription validation without upstream calls. Runtime tests cover forced ACTIVE success and ACTIVE expired-trial branches because the parity runner intentionally does not pre-seed or force-activate app subscription status."
+  "notes": "The generic parity runner covers days bounds, unknown id, and PENDING subscription validation by creating an explicit non-test subscription without upstream calls. Runtime tests cover test-charge ACTIVE success and ACTIVE expired-trial branches because test subscriptions auto-activate locally for HAR-653."
 }

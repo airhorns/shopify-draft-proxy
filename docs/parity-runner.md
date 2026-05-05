@@ -35,6 +35,21 @@ There is **no per-domain "hydrate from upstream" pass** and no uniform
 its own, whether it needs an upstream read and what to do with the
 result. See _Per-operation upstream access_ below.
 
+### Apps billing test-charge activation
+
+Real Shopify app billing charges remain pending until the merchant opens
+the billing confirmation URL. For local parity and agent flows, the apps
+handler treats `appSubscriptionCreate(test: true)` and
+`appPurchaseOneTimeCreate(test: true)` as accepted test charges and stages
+them with `status: "ACTIVE"` immediately. This does not write to upstream;
+the synthetic confirmation URL is still returned for shape fidelity.
+
+Activated test subscriptions are added to
+`AppInstallation.activeSubscriptions` and receive a deterministic
+`currentPeriodEnd` from the activation timestamp plus the line item's
+billing interval and `trialDays`. The executable local-runtime proof is
+`config/parity-specs/apps/app-subscription-activation-readback.json`.
+
 ## Spec shape
 
 ```jsonc
