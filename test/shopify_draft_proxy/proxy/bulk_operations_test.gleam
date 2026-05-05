@@ -254,6 +254,13 @@ pub fn run_query_without_connection_returns_shopify_error_test() {
   assert outcome.staged_resource_ids == []
 }
 
+pub fn run_query_empty_string_returns_invalid_bulk_query_error_test() {
+  let response = run_query_mutation("")
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Invalid bulk query: syntax error, unexpected end of file\",\"code\":\"INVALID\"}]}}}"
+}
+
 pub fn run_query_rejects_top_level_node_with_shopify_error_test() {
   let response =
     run_query_mutation("{ node(id: \\\"gid://shopify/Product/1\\\") { id } }")
