@@ -76,18 +76,19 @@ import shopify_draft_proxy/state/types.{
   type PublicationRecord, type SellingPlanGroupRecord, type SellingPlanRecord,
   type ShopResourceFeedbackRecord, CapturedArray, CapturedBool, CapturedFloat,
   CapturedInt, CapturedNull, CapturedObject, CapturedString, CollectionRecord,
-  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
-  InventoryMeasurementRecord, InventoryQuantityRecord,
-  InventoryShipmentLineItemRecord, InventoryShipmentRecord,
-  InventoryShipmentTrackingRecord, InventoryTransferLineItemRecord,
-  InventoryTransferLocationSnapshotRecord, InventoryTransferRecord,
-  InventoryWeightFloat, InventoryWeightInt, InventoryWeightRecord,
-  LocationRecord, ProductCollectionRecord, ProductFeedRecord, ProductMediaRecord,
-  ProductMetafieldRecord, ProductOperationRecord,
-  ProductOperationUserErrorRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductResourceFeedbackRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
-  SellingPlanGroupRecord, SellingPlanRecord, ShopResourceFeedbackRecord,
+  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
+  InventoryLevelRecord, InventoryLocationRecord, InventoryMeasurementRecord,
+  InventoryQuantityRecord, InventoryShipmentLineItemRecord,
+  InventoryShipmentRecord, InventoryShipmentTrackingRecord,
+  InventoryTransferLineItemRecord, InventoryTransferLocationSnapshotRecord,
+  InventoryTransferRecord, InventoryWeightFloat, InventoryWeightInt,
+  InventoryWeightRecord, LocationRecord, ProductCollectionRecord,
+  ProductFeedRecord, ProductMediaRecord, ProductMetafieldRecord,
+  ProductOperationRecord, ProductOperationUserErrorRecord, ProductOptionRecord,
+  ProductOptionValueRecord, ProductRecord, ProductResourceFeedbackRecord,
+  ProductSeoRecord, ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  PublicationRecord, SellingPlanGroupRecord, SellingPlanRecord,
+  ShopResourceFeedbackRecord,
 }
 
 pub type ProductsError {
@@ -115,6 +116,10 @@ const product_set_inventory_quantities_limit = 250
 const product_tag_limit = 250
 
 const product_tag_character_limit = 255
+
+const collection_title_character_limit = 255
+
+const collection_handle_character_limit = 255
 
 pub fn is_products_query_root(name: String) -> Bool {
   case name {
@@ -4254,13 +4259,55 @@ fn collection_source_with_store_and_publication(
     #("availablePublicationsCount", count_source(publication_count)),
     #("resourcePublicationsCount", count_source(publication_count)),
     #("publicationCount", count_source(publication_count)),
+    #(
+      "productsCount",
+      count_source(collection_products_count(store, collection)),
+    ),
     #("sortOrder", graphql_helpers.option_string_source(collection.sort_order)),
     #(
       "templateSuffix",
       graphql_helpers.option_string_source(collection.template_suffix),
     ),
+    #("ruleSet", collection_rule_set_source(collection.rule_set)),
     #("products", collection_products_connection_source(store, collection)),
   ])
+}
+
+fn collection_products_count(
+  store: Store,
+  collection: CollectionRecord,
+) -> Int {
+  collection.products_count
+  |> option.unwrap(
+    list.length(store.list_effective_products_for_collection(
+      store,
+      collection.id,
+    )),
+  )
+}
+
+fn collection_rule_set_source(
+  rule_set: Option(CollectionRuleSetRecord),
+) -> SourceValue {
+  case rule_set {
+    None -> SrcNull
+    Some(rule_set) ->
+      src_object([
+        #("appliedDisjunctively", SrcBool(rule_set.applied_disjunctively)),
+        #(
+          "rules",
+          SrcList(
+            list.map(rule_set.rules, fn(rule) {
+              src_object([
+                #("column", SrcString(rule.column)),
+                #("relation", SrcString(rule.relation)),
+                #("condition", SrcString(rule.condition)),
+              ])
+            }),
+          ),
+        ),
+      ])
+  }
 }
 
 fn collection_products_connection_source(
@@ -5364,6 +5411,10 @@ query ProductsHydrateNodes($ids: [ID!]!) {
       sortOrder
       templateSuffix
       seo { title description }
+      ruleSet {
+        appliedDisjunctively
+        rules { column relation condition }
+      }
       metafields(first: 250) {
         nodes {
           id
@@ -6224,14 +6275,44 @@ fn collection_record_from_json(
           title: json_string_field_at(node, ["seo", "title"]),
           description: json_string_field_at(node, ["seo", "description"]),
         ),
-        rule_set: None,
+        rule_set: collection_rule_set_from_json(node),
         products_count: json_int_field_at(node, ["productsCount", "count"]),
-        is_smart: False,
+        is_smart: collection_rule_set_from_json(node)
+          |> option.map(collection_rule_set_has_rules)
+          |> option.unwrap(False),
         cursor: None,
         title_cursor: None,
         updated_at_cursor: None,
       ))
   }
+}
+
+fn collection_rule_set_from_json(
+  node: commit.JsonValue,
+) -> Option(CollectionRuleSetRecord) {
+  use rule_set <- option.then(json_field(node, ["ruleSet"]))
+  let rules =
+    json_array_field(rule_set, ["rules"])
+    |> list.filter_map(fn(rule) {
+      case
+        json_string_field(rule, "column"),
+        json_string_field(rule, "relation"),
+        json_string_field(rule, "condition")
+      {
+        Some(column), Some(relation), Some(condition) ->
+          Ok(CollectionRuleRecord(
+            column: column,
+            relation: relation,
+            condition: condition,
+          ))
+        _, _, _ -> Error(Nil)
+      }
+    })
+  Some(CollectionRuleSetRecord(
+    applied_disjunctively: json_bool_field(rule_set, "appliedDisjunctively")
+      |> option.unwrap(False),
+    rules: rules,
+  ))
 }
 
 fn product_option_from_json(
@@ -17450,6 +17531,128 @@ fn product_tag_values_validation_error(
   }
 }
 
+fn collection_create_validation_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  let title_errors = case read_non_empty_string_field(input, "title") {
+    None -> [
+      ProductUserError(["input", "title"], "Collection title is required", None),
+    ]
+    Some(title) -> collection_title_validation_errors(title)
+  }
+  list.append(title_errors, collection_handle_validation_errors(input))
+}
+
+fn collection_update_validation_errors(
+  collection: CollectionRecord,
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  let title_errors = case read_string_field(input, "title") {
+    Some(title) -> collection_title_validation_errors(title)
+    _ -> []
+  }
+  list.append(
+    title_errors,
+    list.append(
+      collection_handle_validation_errors(input),
+      collection_type_update_errors(collection, input),
+    ),
+  )
+}
+
+fn collection_title_validation_errors(title: String) -> List(ProductUserError) {
+  case string.length(title) > collection_title_character_limit {
+    True -> [
+      ProductUserError(
+        ["title"],
+        "Title is too long (maximum is 255 characters)",
+        Some("INVALID"),
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn collection_handle_validation_errors(
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  case read_string_field(input, "handle") {
+    Some(handle) ->
+      case string.length(handle) > collection_handle_character_limit {
+        True -> [
+          ProductUserError(
+            ["handle"],
+            "Handle is too long (maximum is 255 characters)",
+            Some("INVALID"),
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
+fn collection_type_update_errors(
+  collection: CollectionRecord,
+  input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  case collection_is_smart(collection), collection_rule_set_presence(input) {
+    False, RuleSetSmart -> [
+      ProductUserError(
+        ["id"],
+        "Cannot update rule set of a custom collection",
+        None,
+      ),
+    ]
+    True, RuleSetCustom -> [
+      ProductUserError(
+        ["id"],
+        "Cannot update rule set of a smart collection",
+        None,
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+type CollectionRuleSetPresence {
+  RuleSetAbsent
+  RuleSetCustom
+  RuleSetSmart
+}
+
+fn collection_rule_set_presence(
+  input: Dict(String, ResolvedValue),
+) -> CollectionRuleSetPresence {
+  case dict.get(input, "ruleSet") {
+    Error(_) -> RuleSetAbsent
+    Ok(ObjectVal(_)) ->
+      case read_collection_rule_set(input) {
+        Some(rule_set) ->
+          case collection_rule_set_has_rules(rule_set) {
+            True -> RuleSetSmart
+            False -> RuleSetCustom
+          }
+        None -> RuleSetCustom
+      }
+    _ -> RuleSetCustom
+  }
+}
+
+fn collection_is_smart(collection: CollectionRecord) -> Bool {
+  case collection.rule_set {
+    Some(rule_set) -> collection_rule_set_has_rules(rule_set)
+    None -> collection.is_smart
+  }
+}
+
+fn collection_rule_set_has_rules(rule_set: CollectionRuleSetRecord) -> Bool {
+  case rule_set.rules {
+    [] -> False
+    _ -> True
+  }
+}
+
 fn handle_collection_update(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -17500,23 +17703,43 @@ fn handle_collection_update(
             [],
           )
         Some(collection), Some(input) -> {
-          let #(next_collection, next_identity) =
-            updated_collection_record(identity, collection, input)
-          let next_store =
-            store.upsert_staged_collections(store, [next_collection])
-          mutation_result(
-            key,
-            collection_update_payload(
-              next_store,
-              Some(next_collection),
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            next_identity,
-            [next_collection.id],
-          )
+          let user_errors =
+            collection_update_validation_errors(collection, input)
+          case user_errors {
+            [] -> {
+              let #(next_collection, next_identity) =
+                updated_collection_record(identity, collection, input)
+              let next_store =
+                store.upsert_staged_collections(store, [next_collection])
+              mutation_result(
+                key,
+                collection_update_payload(
+                  next_store,
+                  Some(next_collection),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                next_identity,
+                [next_collection.id],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                collection_update_payload(
+                  store,
+                  None,
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+          }
         }
         Some(_), None ->
           mutation_result(
@@ -17553,20 +17776,14 @@ fn handle_collection_create(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  case read_non_empty_string_field(input, "title") {
-    None ->
+  case collection_create_validation_errors(input) {
+    [_, ..] as user_errors ->
       mutation_result(
         key,
         collection_create_payload(
           store,
           None,
-          [
-            ProductUserError(
-              ["input", "title"],
-              "Collection title is required",
-              None,
-            ),
-          ],
+          user_errors,
           field,
           fragments,
           variables,
@@ -17576,7 +17793,7 @@ fn handle_collection_create(
         identity,
         [],
       )
-    Some(_) -> {
+    [] -> {
       let #(collection, next_identity) =
         created_collection_record(store, identity, input)
       let product_ids = read_collection_product_ids(input)
@@ -17814,7 +18031,7 @@ fn add_products_to_collection(
       ),
     ])
     _ ->
-      case collection.is_smart {
+      case collection_is_smart(collection) {
         True -> #(store, None, [
           ProductUserError(
             ["id"],
@@ -18020,38 +18237,60 @@ fn handle_collection_remove_products(
             identity,
             [],
           )
-        Some(collection) -> {
-          let next_store =
-            remove_products_from_collection(
-              store,
-              collection,
-              read_arg_string_list(args, "productIds"),
-            )
-          let next_count =
-            store.list_effective_products_for_collection(
-              next_store,
-              collection.id,
-            )
-            |> list.length
-          let next_collection =
-            CollectionRecord(..collection, products_count: Some(next_count))
-          let next_store =
-            store.upsert_staged_collections(next_store, [next_collection])
-          let #(job_id, next_identity) =
-            synthetic_identity.make_synthetic_gid(identity, "Job")
-          mutation_result(
-            key,
-            collection_remove_products_payload(
-              Some(job_id),
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            next_identity,
-            [collection.id],
-          )
-        }
+        Some(collection) ->
+          case collection_is_smart(collection) {
+            True ->
+              mutation_result(
+                key,
+                collection_remove_products_payload(
+                  None,
+                  [
+                    ProductUserError(
+                      ["id"],
+                      "Can't manually remove products from a smart collection",
+                      None,
+                    ),
+                  ],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            False -> {
+              let next_store =
+                remove_products_from_collection(
+                  store,
+                  collection,
+                  read_arg_string_list(args, "productIds"),
+                )
+              let next_count =
+                store.list_effective_products_for_collection(
+                  next_store,
+                  collection.id,
+                )
+                |> list.length
+              let next_collection =
+                CollectionRecord(..collection, products_count: Some(next_count))
+              let next_store =
+                store.upsert_staged_collections(next_store, [next_collection])
+              let #(job_id, next_identity) =
+                synthetic_identity.make_synthetic_gid(identity, "Job")
+              mutation_result(
+                key,
+                collection_remove_products_payload(
+                  Some(job_id),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                next_identity,
+                [collection.id],
+              )
+            }
+          }
       }
   }
 }
@@ -23149,6 +23388,9 @@ fn updated_collection_record(
   let handle =
     read_non_empty_string_field(input, "handle")
     |> option.unwrap(collection.handle)
+  let rule_set =
+    read_collection_rule_set(input)
+    |> option.or(collection.rule_set)
   #(
     CollectionRecord(
       ..collection,
@@ -23164,6 +23406,10 @@ fn updated_collection_record(
       template_suffix: read_string_field(input, "templateSuffix")
         |> option.or(collection.template_suffix),
       seo: updated_product_seo(collection.seo, input),
+      rule_set: rule_set,
+      is_smart: rule_set
+        |> option.map(collection_rule_set_has_rules)
+        |> option.unwrap(collection.is_smart),
     ),
     next_identity,
   )
@@ -23188,6 +23434,7 @@ fn created_collection_record(
     Some(handle) -> normalize_product_handle(handle)
     None -> slugify_collection_handle(title)
   }
+  let rule_set = read_collection_rule_set(input)
   #(
     CollectionRecord(
       id: id,
@@ -23201,15 +23448,17 @@ fn created_collection_record(
         |> option.or(Some("")),
       image: None,
       sort_order: read_string_field(input, "sortOrder")
-        |> option.or(Some("MANUAL")),
+        |> option.or(Some("BEST_SELLING")),
       template_suffix: read_string_field(input, "templateSuffix"),
       seo: updated_product_seo(
         ProductSeoRecord(title: None, description: None),
         input,
       ),
-      rule_set: None,
+      rule_set: rule_set,
       products_count: Some(0),
-      is_smart: False,
+      is_smart: rule_set
+        |> option.map(collection_rule_set_has_rules)
+        |> option.unwrap(False),
       cursor: None,
       title_cursor: None,
       updated_at_cursor: None,
@@ -23231,10 +23480,49 @@ fn slugify_collection_handle(title: String) -> String {
 }
 
 fn ensure_unique_collection_handle(store: Store, handle: String) -> String {
-  case store.get_effective_collection_by_handle(store, handle) {
-    Some(_) -> ensure_unique_collection_handle(store, handle <> "-1")
-    None -> handle
+  ensure_unique_collection_handle_with_suffix(store, handle, 0)
+}
+
+fn ensure_unique_collection_handle_with_suffix(
+  store: Store,
+  handle: String,
+  suffix: Int,
+) -> String {
+  let candidate = case suffix {
+    0 -> handle
+    _ -> handle <> "-" <> int.to_string(suffix)
   }
+  case store.get_effective_collection_by_handle(store, candidate) {
+    Some(_) ->
+      ensure_unique_collection_handle_with_suffix(store, handle, suffix + 1)
+    None -> candidate
+  }
+}
+
+fn read_collection_rule_set(
+  input: Dict(String, ResolvedValue),
+) -> Option(CollectionRuleSetRecord) {
+  use rule_set <- option.then(read_object_field(input, "ruleSet"))
+  Some(CollectionRuleSetRecord(
+    applied_disjunctively: read_bool_field(rule_set, "appliedDisjunctively")
+      |> option.unwrap(False),
+    rules: read_object_list_field(rule_set, "rules")
+      |> list.filter_map(fn(rule) {
+        case
+          read_string_field(rule, "column"),
+          read_string_field(rule, "relation"),
+          read_string_field(rule, "condition")
+        {
+          Some(column), Some(relation), Some(condition) ->
+            Ok(CollectionRuleRecord(
+              column: column,
+              relation: relation,
+              condition: condition,
+            ))
+          _, _, _ -> Error(Nil)
+        }
+      }),
+  ))
 }
 
 fn read_explicit_product_handle(

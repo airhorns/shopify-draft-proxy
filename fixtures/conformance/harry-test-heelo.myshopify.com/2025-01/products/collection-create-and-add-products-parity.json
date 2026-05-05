@@ -1,0 +1,378 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "seedProduct": {
+    "id": "gid://shopify/Product/10170561036594",
+    "title": "Hermes Variant Search Conformance 1777150673975",
+    "handle": "hermes-variant-search-conformance-1777150673975",
+    "status": "DRAFT"
+  },
+  "longTitle": {
+    "variables": {
+      "input": {
+        "title": "TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT"
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": null,
+          "userErrors": [
+            {
+              "field": ["title"],
+              "message": "Title is too long (maximum is 255 characters)"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "reservedLike": {
+    "variables": {
+      "input": {
+        "title": "Frontpage HAR-594 1777981514748"
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/512421429554",
+            "title": "Frontpage HAR-594 1777981514748",
+            "handle": "frontpage-har-594-1777981514748",
+            "sortOrder": "BEST_SELLING",
+            "ruleSet": null,
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "invalidSort": {
+    "variables": {
+      "input": {
+        "title": "HAR-594 invalid sort 1777981514748",
+        "sortOrder": "INVALID_VALUE"
+      }
+    },
+    "response": {
+      "errors": [
+        {
+          "message": "Variable $input of type CollectionInput! was provided invalid value for sortOrder (Expected \"INVALID_VALUE\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC)",
+          "locations": [
+            {
+              "line": 1,
+              "column": 33
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": {
+              "title": "HAR-594 invalid sort 1777981514748",
+              "sortOrder": "INVALID_VALUE"
+            },
+            "problems": [
+              {
+                "path": ["sortOrder"],
+                "explanation": "Expected \"INVALID_VALUE\" to be one of: ALPHA_ASC, ALPHA_DESC, BEST_SELLING, CREATED, CREATED_DESC, MANUAL, PRICE_ASC, PRICE_DESC"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "smartCreate": {
+    "variables": {
+      "input": {
+        "title": "HAR-594 Smart 1777981514748",
+        "ruleSet": {
+          "appliedDisjunctively": false,
+          "rules": [
+            {
+              "column": "TITLE",
+              "relation": "CONTAINS",
+              "condition": "HAR-594"
+            }
+          ]
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/512421462322",
+            "title": "HAR-594 Smart 1777981514748",
+            "handle": "har-594-smart-1777981514748",
+            "sortOrder": "BEST_SELLING",
+            "ruleSet": {
+              "appliedDisjunctively": false,
+              "rules": [
+                {
+                  "column": "TITLE",
+                  "relation": "CONTAINS",
+                  "condition": "HAR-594"
+                }
+              ]
+            },
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "smartAdd": {
+    "variables": {
+      "id": "gid://shopify/Collection/512421462322",
+      "productIds": ["gid://shopify/Product/10170561036594"]
+    },
+    "response": {
+      "data": {
+        "collectionAddProducts": {
+          "collection": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Can't manually add products to a smart collection"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "smartRemove": {
+    "variables": {
+      "id": "gid://shopify/Collection/512421462322",
+      "productIds": ["gid://shopify/Product/10170561036594"]
+    },
+    "response": {
+      "data": {
+        "collectionRemoveProducts": {
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Can't manually remove products from a smart collection"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customCreate": {
+    "variables": {
+      "input": {
+        "title": "HAR-594 Custom 1777981514748"
+      }
+    },
+    "response": {
+      "data": {
+        "collectionCreate": {
+          "collection": {
+            "id": "gid://shopify/Collection/512421495090",
+            "title": "HAR-594 Custom 1777981514748",
+            "handle": "har-594-custom-1777981514748",
+            "sortOrder": "BEST_SELLING",
+            "ruleSet": null,
+            "productsCount": {
+              "count": 0,
+              "precision": "EXACT"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customAdd": {
+    "variables": {
+      "id": "gid://shopify/Collection/512421495090",
+      "productIds": ["gid://shopify/Product/10170561036594"]
+    },
+    "response": {
+      "data": {
+        "collectionAddProducts": {
+          "collection": {
+            "id": "gid://shopify/Collection/512421495090",
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/10170561036594",
+                  "title": "Hermes Variant Search Conformance 1777150673975",
+                  "handle": "hermes-variant-search-conformance-1777150673975"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 15,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "customRead": {
+    "variables": {
+      "id": "gid://shopify/Collection/512421495090"
+    },
+    "response": {
+      "data": {
+        "collection": {
+          "id": "gid://shopify/Collection/512421495090",
+          "productsCount": {
+            "count": 1,
+            "precision": "EXACT"
+          },
+          "products": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10170561036594",
+                "title": "Hermes Variant Search Conformance 1777150673975",
+                "handle": "hermes-variant-search-conformance-1777150673975"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 7,
+          "actualQueryCost": 5,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1995,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10170561036594"]
+      },
+      "query": "hand-synthesized from HAR-594 live seed product for mutation hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Product/10170561036594",
+                "title": "Hermes Variant Search Conformance 1777150673975",
+                "handle": "hermes-variant-search-conformance-1777150673975",
+                "status": "DRAFT",
+                "collections": {
+                  "nodes": [],
+                  "pageInfo": {
+                    "hasNextPage": false,
+                    "hasPreviousPage": false
+                  }
+                },
+                "variants": {
+                  "nodes": []
+                },
+                "options": [],
+                "media": {
+                  "nodes": []
+                },
+                "metafields": {
+                  "nodes": []
+                },
+                "sellingPlanGroups": {
+                  "nodes": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

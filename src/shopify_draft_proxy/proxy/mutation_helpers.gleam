@@ -712,39 +712,81 @@ fn collect_value_problems_inner(
         _ -> []
       }
     mutation_schema.NamedType(name: io_name) ->
-      case mutation_schema_lookup.get_input_object(schema, io_name) {
-        None -> []
-        Some(io) ->
-          case resolved {
-            root_field.ObjectVal(fields) ->
-              list.flat_map(io.input_fields, fn(field) {
-                let field_path = list.append(path, [StringSegment(field.name)])
-                let required =
-                  mutation_schema.is_non_null(field.type_)
-                  && option.is_none(field.default_value)
-                  && inside_list
-                case dict.get(fields, field.name), required {
-                  Error(_), True -> [
-                    ValueProblem(
-                      path: field_path,
-                      explanation: "Expected value to not be null",
-                    ),
-                  ]
-                  Error(_), False -> []
-                  Ok(child), _ ->
-                    collect_value_problems_inner(
-                      child,
-                      field.type_,
-                      schema,
-                      field_path,
-                      inside_list:,
-                    )
-                }
-              })
-            _ -> []
+      case enum_value_problem(io_name, resolved, path) {
+        Some(problem) -> [problem]
+        None ->
+          case mutation_schema_lookup.get_input_object(schema, io_name) {
+            None -> []
+            Some(io) ->
+              case resolved {
+                root_field.ObjectVal(fields) ->
+                  list.flat_map(io.input_fields, fn(field) {
+                    let field_path =
+                      list.append(path, [StringSegment(field.name)])
+                    let required =
+                      mutation_schema.is_non_null(field.type_)
+                      && option.is_none(field.default_value)
+                      && inside_list
+                    case dict.get(fields, field.name), required {
+                      Error(_), True -> [
+                        ValueProblem(
+                          path: field_path,
+                          explanation: "Expected value to not be null",
+                        ),
+                      ]
+                      Error(_), False -> []
+                      Ok(child), _ ->
+                        collect_value_problems_inner(
+                          child,
+                          field.type_,
+                          schema,
+                          field_path,
+                          inside_list:,
+                        )
+                    }
+                  })
+                _ -> []
+              }
           }
       }
   }
+}
+
+fn enum_value_problem(
+  type_name: String,
+  resolved: root_field.ResolvedValue,
+  path: List(PathSegment),
+) -> Option(ValueProblem) {
+  case dict.get(enum_value_sets(), type_name), resolved {
+    Ok(allowed), root_field.StringVal(value) ->
+      case list.contains(allowed, value) {
+        True -> None
+        False ->
+          Some(ValueProblem(
+            path: path,
+            explanation: "Expected \""
+              <> value
+              <> "\" to be one of: "
+              <> string.join(allowed, ", "),
+          ))
+      }
+    _, _ -> None
+  }
+}
+
+fn enum_value_sets() -> Dict(String, List(String)) {
+  dict.from_list([
+    #("CollectionSortOrder", [
+      "ALPHA_ASC",
+      "ALPHA_DESC",
+      "BEST_SELLING",
+      "CREATED",
+      "CREATED_DESC",
+      "MANUAL",
+      "PRICE_ASC",
+      "PRICE_DESC",
+    ]),
+  ])
 }
 
 fn build_invalid_variable_problems_error(
