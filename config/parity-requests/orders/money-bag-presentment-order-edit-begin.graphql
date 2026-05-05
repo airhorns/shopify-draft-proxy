@@ -1,0 +1,24 @@
+mutation MoneyBagPresentmentOrderEditBegin($id: ID!) {
+  orderEditBegin(id: $id) {
+    calculatedOrder {
+      id
+      originalOrder {
+        id
+      }
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
