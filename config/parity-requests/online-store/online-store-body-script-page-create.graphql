@@ -1,0 +1,15 @@
+mutation OnlineStoreBodyScriptPageCreate($page: PageCreateInput!) {
+  pageCreate(page: $page) {
+    page {
+      id
+      title
+      body
+      bodySummary
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

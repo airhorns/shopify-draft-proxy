@@ -1,0 +1,15 @@
+mutation OnlineStoreBodyScriptArticleCreate($article: ArticleCreateInput!) {
+  articleCreate(article: $article) {
+    article {
+      id
+      title
+      body
+      summary
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

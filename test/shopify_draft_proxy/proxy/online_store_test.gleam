@@ -525,15 +525,15 @@ pub fn page_update_omitted_title_preserves_existing_title_test() {
   assert record.id == "gid://shopify/Page/1?shopify-draft-proxy=synthetic"
 }
 
-pub fn page_body_html_is_scrubbed_on_create_update_and_read_test() {
+pub fn page_body_html_is_preserved_on_create_update_and_read_test() {
   let proxy = draft_proxy.new()
   let create_query =
-    "mutation { pageCreate(page: { title: \"Scrubbed Page\", body: \"<script>alert(1)</script><p onclick='alert(2)' class='safe'>Hi</p>\" }) { page { id body bodySummary } userErrors { field message code } } }"
+    "mutation { pageCreate(page: { title: \"Verbatim Page\", body: \"<script>alert(1)</script><p onclick='alert(2)' class='safe'>Hi</p>\" }) { page { id body bodySummary } userErrors { field message code } } }"
   let #(Response(status: create_status, body: create_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(create_query))
   assert create_status == 200
   assert json.to_string(create_body)
-    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<p class='safe'>Hi</p>\",\"bodySummary\":\"Hi\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"pageCreate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<script>alert(1)</script><p onclick='alert(2)' class='safe'>Hi</p>\",\"bodySummary\":\"alert(1)Hi\"},\"userErrors\":[]}}}"
 
   let read_after_create =
     "query { page(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\") { id body bodySummary } }"
@@ -541,7 +541,7 @@ pub fn page_body_html_is_scrubbed_on_create_update_and_read_test() {
     draft_proxy.process_request(proxy, graphql_request(read_after_create))
   assert read_create_status == 200
   assert json.to_string(read_create_body)
-    == "{\"data\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<p class='safe'>Hi</p>\",\"bodySummary\":\"Hi\"}}}"
+    == "{\"data\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<script>alert(1)</script><p onclick='alert(2)' class='safe'>Hi</p>\",\"bodySummary\":\"alert(1)Hi\"}}}"
 
   let update_query =
     "mutation { pageUpdate(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\", page: { body: \"<div><script>outer<script>inner</script></script><iframe src='https://example.com/embed'>fallback</iframe><p onmouseover='bad'>After</p></div>\" }) { page { id body bodySummary } userErrors { field message code } } }"
@@ -549,7 +549,7 @@ pub fn page_body_html_is_scrubbed_on_create_update_and_read_test() {
     draft_proxy.process_request(proxy, graphql_request(update_query))
   assert update_status == 200
   assert json.to_string(update_body)
-    == "{\"data\":{\"pageUpdate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<div><p>After</p></div>\",\"bodySummary\":\"After\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"pageUpdate\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<div><script>outer<script>inner</script></script><iframe src='https://example.com/embed'>fallback</iframe><p onmouseover='bad'>After</p></div>\",\"bodySummary\":\"outerinnerfallbackAfter\"},\"userErrors\":[]}}}"
 
   let read_after_update =
     "query { page(id: \"gid://shopify/Page/1?shopify-draft-proxy=synthetic\") { id body bodySummary } }"
@@ -557,26 +557,26 @@ pub fn page_body_html_is_scrubbed_on_create_update_and_read_test() {
     draft_proxy.process_request(proxy, graphql_request(read_after_update))
   assert read_update_status == 200
   assert json.to_string(read_update_body)
-    == "{\"data\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<div><p>After</p></div>\",\"bodySummary\":\"After\"}}}"
+    == "{\"data\":{\"page\":{\"id\":\"gid://shopify/Page/1?shopify-draft-proxy=synthetic\",\"body\":\"<div><script>outer<script>inner</script></script><iframe src='https://example.com/embed'>fallback</iframe><p onmouseover='bad'>After</p></div>\",\"bodySummary\":\"outerinnerfallbackAfter\"}}}"
 }
 
-pub fn article_body_html_is_scrubbed_on_create_update_and_read_test() {
+pub fn article_body_html_is_preserved_on_create_update_and_read_test() {
   let proxy = draft_proxy.new()
   let blog_query =
-    "mutation { blogCreate(blog: { title: \"Scrubbed Blog\" }) { blog { id title } userErrors { field message code } } }"
+    "mutation { blogCreate(blog: { title: \"Verbatim Blog\" }) { blog { id title } userErrors { field message code } } }"
   let #(Response(status: blog_status, body: blog_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(blog_query))
   assert blog_status == 200
   assert json.to_string(blog_body)
-    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Scrubbed Blog\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Verbatim Blog\"},\"userErrors\":[]}}}"
 
   let create_query =
-    "mutation { articleCreate(article: { title: \"Scrubbed Article\", body: \"<p onclick='bad'>Hi</p><script>alert(1)</script>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Scrubber\" } }) { article { id body summary } userErrors { field message code } } }"
+    "mutation { articleCreate(article: { title: \"Verbatim Article\", body: \"<p onclick='bad'>Hi</p><script>alert(1)</script>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"HAR 741 Probe\" } }) { article { id body summary } userErrors { field message code } } }"
   let #(Response(status: create_status, body: create_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(create_query))
   assert create_status == 200
   assert json.to_string(create_body)
-    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<p>Hi</p>\",\"summary\":\"\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<p onclick='bad'>Hi</p><script>alert(1)</script>\",\"summary\":null},\"userErrors\":[]}}}"
 
   let update_query =
     "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { body: \"<section><iframe src='x'></iframe><script>outer<script>inner</script></script><p onload='bad' data-ok='yes'>After</p></section>\" }) { article { id body } userErrors { field message code } } }"
@@ -584,7 +584,7 @@ pub fn article_body_html_is_scrubbed_on_create_update_and_read_test() {
     draft_proxy.process_request(proxy, graphql_request(update_query))
   assert update_status == 200
   assert json.to_string(update_body)
-    == "{\"data\":{\"articleUpdate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<section><p data-ok='yes'>After</p></section>\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"articleUpdate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<section><iframe src='x'></iframe><script>outer<script>inner</script></script><p onload='bad' data-ok='yes'>After</p></section>\"},\"userErrors\":[]}}}"
 
   let read_after_update =
     "query { article(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { id body } }"
@@ -592,7 +592,7 @@ pub fn article_body_html_is_scrubbed_on_create_update_and_read_test() {
     draft_proxy.process_request(proxy, graphql_request(read_after_update))
   assert read_status == 200
   assert json.to_string(read_body)
-    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<section><p data-ok='yes'>After</p></section>\"}}}"
+    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"body\":\"<section><iframe src='x'></iframe><script>outer<script>inner</script></script><p onload='bad' data-ok='yes'>After</p></section>\"}}}"
 }
 
 pub fn page_handles_slugify_dedupe_and_reject_taken_updates_test() {

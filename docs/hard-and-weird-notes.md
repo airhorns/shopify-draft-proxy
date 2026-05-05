@@ -64,14 +64,16 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
-## Current: Online-store body scrubber evidence conflicts with live Admin capture
+## Current: Online-store body HTML is not scrubbed by Admin GraphQL
 
-HAR-561 implements the ticketed local page/article body scrubber behavior, but the live conformance probe is a fidelity trap: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned a `pageCreate` body containing a script block verbatim, and the immediate `page(id:)` read returned the same verbatim body and body summary text.
+HAR-741 resolves the HAR-561 source-of-truth mismatch: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned page/article bodies containing script blocks and event-handler attributes verbatim in create payloads and immediate detail reads.
 
 Practical rule:
 
-- do not add `online-store/page-body-script-scrubbed` as a captured parity spec until the Shopify behavior/source-of-truth disagreement is resolved; checking in the live fixture would assert the opposite of the ticketed behavior, while adding expected differences for `body` / `bodySummary` would mask the field under test.
-- keep local scrubber coverage in runtime tests, and re-probe Shopify before using this scenario as live fidelity evidence.
+- do not scrub `Page.body` or `Article.body` in the local online-store model unless a later version-specific capture proves Shopify changed this behavior.
+- `Page.bodySummary` strips tags but preserves script text, matching the captured Admin payloads.
+- `Article.summary` remains `null` when omitted.
+- executable evidence lives in `online-store/body-script-verbatim-2025-01` and `online-store/body-script-verbatim-2026-04`.
 
 ## Current: B2B same-as-shipping exposes separate public address IDs in 2026-04
 

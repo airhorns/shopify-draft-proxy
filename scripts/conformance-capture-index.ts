@@ -1465,6 +1465,38 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-body-script-verbatim-2025-01',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-online-store-body-script-verbatim-conformance.ts',
+    purpose:
+      'pageCreate/articleCreate body HTML script and event-attribute persistence, including immediate downstream detail reads.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-body-script-verbatim.json`,
+      'config/parity-specs/online-store/online-store-body-script-verbatim-2025-01.json',
+      'config/parity-requests/online-store/online-store-body-script-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable blog, page, and article, then deletes all created records during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-body-script-verbatim-2026-04',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-online-store-body-script-verbatim-conformance.ts',
+    purpose:
+      'pageCreate/articleCreate body HTML script and event-attribute persistence, including immediate downstream detail reads.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-body-script-verbatim.json`,
+      'config/parity-specs/online-store/online-store-body-script-verbatim-2026-04.json',
+      'config/parity-requests/online-store/online-store-body-script-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable blog, page, and article, then deletes all created records during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-content-required-fields',
     scriptPath: 'scripts/capture-online-store-content-required-fields-conformance.ts',
     purpose:
