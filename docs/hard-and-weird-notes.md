@@ -2406,7 +2406,7 @@ Practical rule:
 
 The HAR-154 customer mutation capture added `taxExemptions`, `customer.metafield(...)`, and `customer.metafields(...)` to the existing customer CRUD parity fixture.
 
-Captured facts:
+Captured and ticketed facts:
 
 - `customerUpdate(input.taxExemptions)` replaces the customer's applied tax exemption list independently from the boolean `taxExempt`
 - `CustomerInput.metafields` can create a customer-owned metafield and the immediate mutation payload plus downstream `customer(id:)` read expose it through both singular `metafield(namespace:, key:)` and the `metafields` connection
@@ -2820,14 +2820,14 @@ Captured facts:
 - `CustomerSetIdentifiers` uses `email` and `phone`, while `customerByIdentifier` uses `emailAddress` and `phoneNumber`
 - no-identifier `customerSet` creates a customer when the input has a name, phone, or email
 - `identifier.email` upserts: a missing email identifier creates a customer, and a later call with the same identifier updates that customer
-- unknown `identifier.id` returns payload `userErrors` with `field: ["input"]` and message `Resource matching the identifier was not found.`
+- HAR-770 source-level evidence says unknown `identifier.id` is id-first and update-like: it returns payload `userErrors` with `field: ["input", "id"]`, `code: "INVALID"`, and message `Customer does not exist`; it must not fall back to create even when email or phone inputs are also present
 - `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
 - `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
 - `identifier.phone` follows the same upsert/update pattern as `identifier.email`; downstream `customerByIdentifier(identifier: { phoneNumber })` observes the staged customer locally
 - no-identifier creates reject duplicate native identifiers: duplicate email returns `field: ["input", "email"]` / `Email has already been taken`, and duplicate phone returns `field: ["input", "phone"]` / `Phone has already been taken`
 - identifier/input alignment errors are not field-specific beyond `["input"]`: missing corresponding input fields return `The input field corresponding to the identifier is required.`, while mismatches return `The identifier value does not match the value of the corresponding field in the input.`
 - `addresses: null` is a successful no-op for an existing customer, while `taxExempt: null` returns `field: ["input", "taxExempt"]` / `Tax exempt is of unexpected type NilClass`
-- after a customer is deleted, `customerSet(identifier: { id: deletedId })` returns the same `Resource matching the identifier was not found.` payload userError as an unknown id
+- after a customer is deleted, `customerSet(identifier: { id: deletedId })` should follow the same id-first missing-customer branch as an unknown id
 
 Practical rule:
 
