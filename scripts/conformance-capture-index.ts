@@ -458,6 +458,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'saved-searches',
+    captureId: 'saved-search-delete-shop-payload',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-delete-shop-payload-conformance.ts',
+    purpose: 'savedSearchDelete success and missing-id payloads include non-null shop { id }.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-delete-shop-payload.json`,
+      'config/parity-specs/saved-searches/saved-search-delete-shop-payload.json',
+      'config/parity-requests/saved-searches/saved-search-delete-shop-payload-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable product saved search and deletes it during the scenario.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-relationship-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
