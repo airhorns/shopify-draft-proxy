@@ -2065,6 +2065,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-customer-gets-value-multiple-types',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-customer-gets-value-multiple-types-conformance.ts',
+    purpose: 'Discount customerGets.value multiple-branch BadRequest parity for basic create/update inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-customer-gets-value-multiple-types.json`,
+      'config/parity-specs/discounts/discount-customer-gets-value-multiple-types.json',
+      'config/parity-requests/discounts/discount-customer-gets-value-multiple-types-*.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-combines-with-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-combines-with-validation-conformance.ts',
