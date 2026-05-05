@@ -42,21 +42,25 @@
           {
             "path": "$.segment.percentageSnapshot",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot compute Shopify's segment percentage snapshot locally."
           },
           {
             "path": "$.segment.percentageSnapshotUpdatedAt",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot compute Shopify's segment percentage snapshot timestamp locally."
           },
           {
             "path": "$.segment.translation",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot compute Shopify's segment translation locally."
           },
           {
             "path": "$.segment.author",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot infer Shopify's segment author locally."
           }
         ]
@@ -84,21 +88,25 @@
           {
             "path": "$.segment.percentageSnapshot",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot compute Shopify's segment percentage snapshot locally."
           },
           {
             "path": "$.segment.percentageSnapshotUpdatedAt",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot compute Shopify's segment percentage snapshot timestamp locally."
           },
           {
             "path": "$.segment.translation",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot compute Shopify's segment translation locally."
           },
           {
             "path": "$.segment.author",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot infer Shopify's segment author locally."
           }
         ],
@@ -142,21 +150,25 @@
           {
             "path": "$.segment.percentageSnapshot",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot compute Shopify's segment percentage snapshot locally."
           },
           {
             "path": "$.segment.percentageSnapshotUpdatedAt",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot compute Shopify's segment percentage snapshot timestamp locally."
           },
           {
             "path": "$.segment.translation",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot compute Shopify's segment translation locally."
           },
           {
             "path": "$.segment.author",
             "ignore": true,
+            "regrettable": true,
             "reason": "Proxy cannot infer Shopify's segment author locally."
           }
         ],
