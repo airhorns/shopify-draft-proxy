@@ -195,5 +195,5 @@
       }
     ]
   },
-  "notes": "Runtime evidence for HAR-242 local metaobject definition lifecycle staging. The convention-driven parity runner now executes the create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets; the integration test continues to cover meta API log/state visibility, no runtime Shopify writes, the captured merchant-owned access.admin guardrail, and the explicit unsupported delete branch for definitions with associated entries."
+  "notes": "Runtime evidence for HAR-242 local metaobject definition lifecycle staging. The convention-driven parity runner now executes the create/update/delete/read-after-write and bounded standard-enable flow against the local proxy harness with strict JSON comparison targets; the integration test continues to cover meta API log/state visibility, no runtime Shopify writes, and the captured merchant-owned access.admin guardrail. HAR-675 adds associated-entry cascade coverage in the dedicated metaobject-definition-delete-cascade scenario."
 }

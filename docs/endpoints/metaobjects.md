@@ -92,7 +92,7 @@ Update support stages scalar definition changes, access/capability merges, field
 
 When an effective definition changes, downstream row reads project existing row values through the current effective definition instead of returning stale field metadata. Existing row values whose field definitions still exist remain visible in the updated definition order, removed field definitions are omitted from `fields` and return `null` from `field(key:)`, changed field types update the serialized `type` / field-definition reference, and `displayName` is recomputed from the current `displayNameKey`. Rows that predate a newly required field remain readable; subsequent create/update/upsert requests are validated against the current effective definition, so missing required fields and writes to removed field keys return local userErrors.
 
-Delete support stages deletion for definitions whose effective `metaobjectsCount` is zero and hides deleted base/staged definitions from downstream reads through a staged tombstone. Definitions with associated entries return an explicit local `UNSUPPORTED` userError because entry records and cascade semantics are not modeled yet; this keeps the known branch local and visible instead of pretending Shopify's destructive cascade has been faithfully emulated.
+Delete support stages deletion for definitions regardless of effective `metaobjectsCount`. The local cascade records a tombstone for the definition and for every effective metaobject of that definition type, then downstream `metaobjectDefinition`, `metaobjectDefinitionByType`, `metaobject`, `metaobjectByHandle`, and `metaobjects(type:)` reads observe Shopify-like null or empty results. The mutation response returns the input definition GID as `deletedId`; unknown or stale definition ids continue to return `RECORD_NOT_FOUND`.
 
 `standardMetaobjectDefinitionEnable` is limited to the bounded local template catalog currently represented by runtime tests. Known templates stage a standard definition locally with `standardTemplate` metadata; unknown template types return `TEMPLATE_NOT_FOUND` locally.
 
@@ -148,7 +148,6 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 
 ### Planned local-staging posture
 
-- Definition delete support deliberately stops short of destructive associated-entry cascades. The local proxy returns an explicit `UNSUPPORTED` userError when effective `metaobjectsCount` is nonzero; future cascade behavior needs conformance-backed migration, deletion ordering, and downstream-read evidence before support widens.
 - Metaobject relationship edges are modeled only for metaobject-owned `metaobject_reference` and `list.metaobject_reference` fields. Broader owners, generic metafield-backed relations, and `mixed_reference` need separate conformance evidence before support is widened.
 - Broader bulk delete selection semantics still need additional live conformance before widening beyond the local ids/type branches. HAR-450 captures the `where.type` branch and confirms Shopify returns an async job while immediate downstream reads already hide selected rows and report the definition's `metaobjectsCount` as zero. HAR-680 captures the edge cases for empty `where.ids`, unknown `where.type`, known-empty `where.type`, and invalid combined selectors.
 - Upsert support covers handle-scoped create/update behavior in the local model; additional conflict/userError branches should be expanded when captured.
@@ -162,7 +161,6 @@ Rows created after publishable capability is disabled serialize `capabilities.pu
 
 ### Conformance evidence still needed before widening support
 
-- Capture associated-entry `metaobjectDefinitionDelete` cascade behavior before replacing the current local `UNSUPPORTED` guardrail for definitions with entries.
 - Capture additional `metaobjectBulkDelete` selector branches before widening beyond the current `where.ids` / captured `where.type` local branches.
 - Capture more `metaobjectUpdate` / `metaobjectUpsert` conflict and validation branches, especially field type families beyond the current scalar/JSON/reference slice.
 - Expand `standardMetaobjectDefinitionEnable` success captures for additional standard templates before broadening the bounded local template catalog.
