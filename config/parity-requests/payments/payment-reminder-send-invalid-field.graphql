@@ -1,0 +1,13 @@
+mutation PaymentReminderSendInvalidField($paymentScheduleId: ID!) {
+  paymentReminderSend(paymentScheduleId: $paymentScheduleId) {
+    customerPaymentMethod {
+      id
+    }
+    success
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

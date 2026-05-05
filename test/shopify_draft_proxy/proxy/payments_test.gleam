@@ -362,6 +362,33 @@ pub fn payment_reminder_stages_for_overdue_open_order_schedule_test() {
   assert dict.size(proxy.store.staged_state.payment_reminder_sends) == 1
 }
 
+pub fn payment_reminder_rejects_customer_payment_method_selection_test() {
+  let schedule_id = "gid://shopify/PaymentSchedule/shape"
+  let proxy =
+    seeded_proxy(
+      open_order("gid://shopify/Order/shape-owner"),
+      overdue_terms(
+        "gid://shopify/PaymentTerms/shape",
+        "gid://shopify/Order/shape-owner",
+        [schedule(schedule_id, None)],
+      ),
+    )
+  let query =
+    "mutation { paymentReminderSend(paymentScheduleId: \""
+    <> schedule_id
+    <> "\") { customerPaymentMethod { id } success userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql_with_proxy(proxy, query)
+
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"errors\":[")
+  assert string.contains(body_json, "customerPaymentMethod")
+  assert string.contains(body_json, "PaymentReminderSendPayload")
+  assert !string.contains(body_json, "\"data\"")
+  assert dict.size(proxy.store.staged_state.payment_reminder_sends) == 0
+}
+
 pub fn payment_reminder_rejects_paid_or_not_overdue_schedule_test() {
   let paid_schedule_id = "gid://shopify/PaymentSchedule/paid"
   let not_overdue_schedule_id = "gid://shopify/PaymentSchedule/current"
