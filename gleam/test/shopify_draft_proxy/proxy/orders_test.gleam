@@ -2510,21 +2510,23 @@ pub fn orders_fulfillment_order_cancel_rejects_closed_orders_test() {
       }
     }
   "
-  let assert Ok(first_cancel) =
+  let first_cancel =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+      empty_upstream_context(),
     )
-  let assert Ok(second_cancel) =
+  let second_cancel =
     orders.process_mutation(
       first_cancel.store,
       first_cancel.identity,
       "/admin/api/2026-04/graphql.json",
       cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(second_cancel.data)
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order is not in cancelable request state and can't be canceled.\",\"code\":\"fulfillment_order_cannot_be_cancelled\"}]}}}"
@@ -2559,13 +2561,14 @@ pub fn orders_fulfillment_order_cancel_rejects_manually_reported_progress_test()
       }
     }
   "
-  let assert Ok(progress_outcome) =
+  let progress_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       report_mutation,
       dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+      empty_upstream_context(),
     )
 
   let cancel_mutation =
@@ -2586,13 +2589,14 @@ pub fn orders_fulfillment_order_cancel_rejects_manually_reported_progress_test()
       }
     }
   "
-  let assert Ok(cancel_outcome) =
+  let cancel_outcome =
     orders.process_mutation(
       progress_outcome.store,
       progress_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(cancel_outcome.data)
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
