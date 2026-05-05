@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 200: HAR-562 order edit user-error payloads
+## 2026-05-04 - Pass 201: HAR-562 order edit user-error payloads
 
 Aligns the Gleam order-edit handlers with Shopify's mutation payload contract
 for local user-error branches without sending supported mutations upstream.
@@ -32,12 +32,12 @@ Validation:
 - `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm parity:record orderEdit-lifecycle-userErrors`
 - `cd gleam && gleam test --target javascript -- parity_test` (853 passed)
 - `corepack pnpm gleam:format:check`
-- `cd gleam && gleam test --target javascript` (859 passed after merging
+- `cd gleam && gleam test --target javascript` (862 passed after merging
   `origin/main`)
 - `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
   known `gleam_json` OTP 27+ requirement
 - `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
-  (OTP 28, 850 passed after merging `origin/main`)
+  (OTP 28, 853 passed after merging `origin/main`)
 - `corepack pnpm conformance:capture:check` (9 passed)
 - `corepack pnpm conformance:check` (1444 passed)
 - `corepack pnpm typecheck`
@@ -61,6 +61,50 @@ Validation:
 - The new unknown-target messages are local approximations anchored to the
   ticket's field/code acceptance criteria. Fresh live capture can tighten exact
   wording later if Shopify exposes different translated text in the target shop.
+
+---
+
+## 2026-05-04 - Pass 200: HAR-567 local-pickup validation parity
+
+Aligns `locationLocalPickupEnable` with captured Shopify validation for custom
+local-pickup times while preserving local staging for standard pickup windows.
+
+| Module / fixture                                                                                                                                                                                                                  | Change                                                                                                                                                                                                  |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam`                                                                                                                                                                 | Validates pickup times before staging settings, returns `CUSTOM_PICKUP_TIME_NOT_ALLOWED` for `CUSTOM`/non-standard values, and keeps unknown/inactive location failures on `ACTIVE_LOCATION_NOT_FOUND`. |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam`                                                                                                                                                           | Adds local coverage for custom pickup-time rejection, inactive-location rejection, and the captured multi-day standard values.                                                                          |
+| `scripts/capture-shipping-settings-conformance.ts` / `fixtures/conformance/.../shipping-settings-package-pickup-constraints.json` / `config/parity-specs/shipping-fulfillments/shipping-settings-package-pickup-constraints.json` | Extends the existing shipping-settings scenario with the captured `CUSTOM_PICKUP_TIME_NOT_ALLOWED` payload branch.                                                                                      |
+| `docs/endpoints/shipping-fulfillments.md`                                                                                                                                                                                         | Documents the local-pickup standard value allow-list and custom pickup-time error boundary.                                                                                                             |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- ad hoc live 2026-04 probes for `TWO_DAYS`, `MULTIPLE_DAYS`, `CUSTOM`,
+  `TWO_TO_FOUR_DAYS`, and `FIVE_OR_MORE_DAYS`; cleanup disabled local pickup on
+  the probed location
+- `corepack pnpm conformance:capture -- --run shipping-settings`
+- `corepack pnpm parity:record shipping-settings-package-pickup-constraints`
+- `cd gleam && gleam test --target javascript -- shipping_fulfillments_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+- `cd gleam && gleam test --target javascript` (853 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 844 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm conformance:check`
+
+### Findings
+
+- Admin GraphQL 2026-04 rejects `TWO_DAYS` and `MULTIPLE_DAYS` during variable
+  coercion with top-level `INVALID_VARIABLE`. The resolver-level coded userError
+  is produced by `pickupTime: CUSTOM`.
+- Shopify accepts `TWO_TO_FOUR_DAYS` and `FIVE_OR_MORE_DAYS` as standard pickup
+  windows for this mutation, so the local allow-list includes them.
+
+### Risks / open items
+
+- The parity recorder cannot synthesize the primary availability cassette for
+  this scenario on JS, so the existing hand-synthesized primary upstream call
+  remains in the fixture.
 
 ---
 
