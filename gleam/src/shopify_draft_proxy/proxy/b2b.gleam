@@ -881,12 +881,31 @@ fn serialize_contact(
                 fragments,
               ),
             )
+            "note" ->
+              source_field(
+                src_object([#("note", contact_notes_source(contact))]),
+                child,
+                fragments,
+              )
+            "notes" ->
+              source_field(
+                src_object([#("notes", contact_notes_source(contact))]),
+                child,
+                fragments,
+              )
             _ -> source_field(source, child, fragments)
           }
         _ -> #(key, json.null())
       }
     }),
   )
+}
+
+fn contact_notes_source(contact: B2BCompanyContactRecord) -> SourceValue {
+  case data_get(contact.data, "notes") {
+    SrcNull -> data_get(contact.data, "note")
+    other -> other
+  }
 }
 
 fn serialize_location(
@@ -1628,6 +1647,348 @@ fn contact_data_from_input(
   |> dict.insert("updatedAt", StorePropertyString(now))
 }
 
+fn prepare_contact_create_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(Dict(String, root_field.ResolvedValue), List(UserError)) {
+  prepare_contact_input(store, ensure_contact_locale(store, input), None, True)
+}
+
+fn prepare_contact_update_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  contact_id: String,
+) -> #(Dict(String, root_field.ResolvedValue), List(UserError)) {
+  prepare_contact_input(store, input, Some(contact_id), False)
+}
+
+fn prepare_contact_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  exclude_contact_id: Option(String),
+  default_locale: Bool,
+) -> #(Dict(String, root_field.ResolvedValue), List(UserError)) {
+  let input = case default_locale {
+    True -> ensure_contact_locale(store, input)
+    False -> input
+  }
+  let input = rename_contact_note_input(input)
+  let #(input, phone_errors) = normalize_contact_phone_input(store, input)
+  let errors =
+    []
+    |> list.append(phone_errors)
+    |> list.append(validate_contact_locale_input(input))
+    |> list.append(validate_contact_notes_input(input))
+    |> list.append(validate_contact_duplicate_email(
+      store,
+      input,
+      exclude_contact_id,
+    ))
+    |> list.append(validate_contact_duplicate_phone(
+      store,
+      input,
+      exclude_contact_id,
+    ))
+  #(input, errors)
+}
+
+fn ensure_contact_locale(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case dict.has_key(input, "locale") {
+    True -> input
+    False ->
+      dict.insert(input, "locale", root_field.StringVal(primary_locale(store)))
+  }
+}
+
+fn primary_locale(store: Store) -> String {
+  store.list_effective_shop_locales(store, None)
+  |> list.find(fn(locale) { locale.primary })
+  |> result.map(fn(locale) { locale.locale })
+  |> result.unwrap("en")
+}
+
+fn rename_contact_note_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case dict.get(input, "note") {
+    Ok(value) -> input |> dict.delete("note") |> dict.insert("notes", value)
+    Error(_) -> input
+  }
+}
+
+fn normalize_contact_phone_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> #(Dict(String, root_field.ResolvedValue), List(UserError)) {
+  case dict.get(input, "phone") {
+    Ok(root_field.StringVal(value)) ->
+      case normalize_phone(store, value) {
+        Ok(phone) -> #(
+          dict.insert(input, "phone", root_field.StringVal(phone)),
+          [],
+        )
+        Error(_) -> #(input, [
+          user_error(
+            Some(["input", "phone"]),
+            "Phone is invalid",
+            user_error_code.invalid,
+          ),
+        ])
+      }
+    _ -> #(input, [])
+  }
+}
+
+fn validate_contact_locale_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "locale") {
+    Ok(root_field.StringVal(value)) ->
+      case valid_locale_format(value) {
+        True -> []
+        False -> [
+          user_error(
+            Some(["input", "locale"]),
+            "Invalid locale format.",
+            user_error_code.invalid,
+          ),
+        ]
+      }
+    _ -> []
+  }
+}
+
+fn validate_contact_notes_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "notes") {
+    Ok(root_field.StringVal(value)) ->
+      case contains_html_tag(value) {
+        True -> [
+          user_error(
+            Some(["input", "note"]),
+            "Notes cannot contain HTML tags",
+            user_error_code.contains_html_tags,
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_contact_duplicate_email(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  exclude_contact_id: Option(String),
+) -> List(UserError) {
+  case read_string(input, "email") {
+    Some(email) ->
+      case contact_email_exists(store, email, exclude_contact_id) {
+        True -> [
+          user_error(
+            Some(["input", "email"]),
+            "Email address has already been taken.",
+            user_error_code.taken,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn validate_contact_duplicate_phone(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  exclude_contact_id: Option(String),
+) -> List(UserError) {
+  case read_string(input, "phone") {
+    Some(phone) ->
+      case contact_phone_exists(store, phone, exclude_contact_id) {
+        True -> [
+          user_error(
+            Some(["input", "phone"]),
+            "Phone number has already been taken.",
+            user_error_code.taken,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn contact_email_exists(
+  store: Store,
+  email: String,
+  exclude_contact_id: Option(String),
+) -> Bool {
+  let excluded = option.unwrap(exclude_contact_id, "")
+  store.list_effective_b2b_company_contacts(store)
+  |> list.any(fn(contact) {
+    contact.id != excluded
+    && source_string(data_get(contact.data, "email")) |> string.lowercase
+    == string.lowercase(email)
+  })
+}
+
+fn contact_phone_exists(
+  store: Store,
+  phone: String,
+  exclude_contact_id: Option(String),
+) -> Bool {
+  let excluded = option.unwrap(exclude_contact_id, "")
+  store.list_effective_b2b_company_contacts(store)
+  |> list.any(fn(contact) {
+    contact.id != excluded
+    && case source_string(data_get(contact.data, "phone")) {
+      "" -> False
+      existing ->
+        case normalize_phone(store, existing) {
+          Ok(normalized) -> normalized == phone
+          Error(_) -> existing == phone
+        }
+    }
+  })
+}
+
+fn normalize_phone(store: Store, phone: String) -> Result(String, Nil) {
+  let trimmed = string.trim(phone)
+  let digits = digits_only(trimmed)
+  case string.starts_with(trimmed, "+") {
+    True -> validate_e164_digits(digits)
+    False -> {
+      let calling_code = country_calling_code(shop_country_code(store))
+      let local_digits = case
+        string.starts_with(digits, calling_code) && string.length(digits) > 10
+      {
+        True -> digits
+        False -> calling_code <> digits
+      }
+      validate_e164_digits(local_digits)
+    }
+  }
+}
+
+fn validate_e164_digits(digits: String) -> Result(String, Nil) {
+  let length = string.length(digits)
+  case length >= 8 && length <= 15 && all_digits(digits) {
+    True -> Ok("+" <> digits)
+    False -> Error(Nil)
+  }
+}
+
+fn shop_country_code(store: Store) -> String {
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      shop.shop_address.country_code_v2
+      |> option.map(string.uppercase)
+      |> option.unwrap("US")
+    None -> "US"
+  }
+}
+
+fn country_calling_code(country_code: String) -> String {
+  case country_code {
+    "US" | "CA" -> "1"
+    "GB" | "GG" | "IM" | "JE" -> "44"
+    "AU" -> "61"
+    "NZ" -> "64"
+    "FR" -> "33"
+    "DE" -> "49"
+    "ES" -> "34"
+    "IT" -> "39"
+    "NL" -> "31"
+    "BE" -> "32"
+    "CH" -> "41"
+    "AT" -> "43"
+    "DK" -> "45"
+    "FI" -> "358"
+    "IE" -> "353"
+    "NO" -> "47"
+    "SE" -> "46"
+    "BR" -> "55"
+    "MX" -> "52"
+    "JP" -> "81"
+    "SG" -> "65"
+    _ -> "1"
+  }
+}
+
+fn digits_only(value: String) -> String {
+  case string.pop_grapheme(value) {
+    Error(_) -> ""
+    Ok(#(grapheme, rest)) ->
+      case is_digit_string(grapheme) {
+        True -> grapheme <> digits_only(rest)
+        False -> digits_only(rest)
+      }
+  }
+}
+
+fn all_digits(value: String) -> Bool {
+  case string.pop_grapheme(value) {
+    Error(_) -> True
+    Ok(#(grapheme, rest)) -> is_digit_string(grapheme) && all_digits(rest)
+  }
+}
+
+fn is_digit_string(grapheme: String) -> Bool {
+  string.contains("0123456789", grapheme)
+}
+
+fn valid_locale_format(locale: String) -> Bool {
+  case string.split(locale, on: "-") {
+    [language, ..subtags] ->
+      valid_locale_language(language) && list.all(subtags, valid_locale_subtag)
+    _ -> False
+  }
+}
+
+fn valid_locale_language(language: String) -> Bool {
+  let length = string.length(language)
+  case length >= 2 && length <= 3 {
+    True -> all_alpha(language)
+    False -> False
+  }
+}
+
+fn valid_locale_subtag(subtag: String) -> Bool {
+  let length = string.length(subtag)
+  length >= 1 && length <= 8 && all_alphanumeric(subtag)
+}
+
+fn all_alpha(value: String) -> Bool {
+  case string.pop_grapheme(value) {
+    Error(_) -> True
+    Ok(#(grapheme, rest)) -> is_alpha(grapheme) && all_alpha(rest)
+  }
+}
+
+fn all_alphanumeric(value: String) -> Bool {
+  case string.pop_grapheme(value) {
+    Error(_) -> True
+    Ok(#(grapheme, rest)) ->
+      { is_alpha(grapheme) || is_digit_string(grapheme) }
+      && all_alphanumeric(rest)
+  }
+}
+
+fn is_alpha(grapheme: String) -> Bool {
+  string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    grapheme,
+  )
+}
+
+fn contains_html_tag(value: String) -> Bool {
+  string.contains(value, "<") && string.contains(value, ">")
+}
+
 fn address_from_input(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
@@ -1911,9 +2272,11 @@ fn handle_company_create(
     dict.get(input, "companyContact")
   {
     Ok(root_field.ObjectVal(raw_contact_input)) -> {
-      let #(validated, errors) =
-        validate_contact_input(raw_contact_input, ["input", "companyContact"])
-      #(Some(validated), errors)
+      let #(prepared, prepare_errors) =
+        prepare_contact_create_input(store, raw_contact_input)
+      let #(validated, validation_errors) =
+        validate_contact_input(prepared, ["input", "companyContact"])
+      #(Some(validated), list.append(prepare_errors, validation_errors))
     }
     _ -> #(None, [])
   }
@@ -1945,14 +2308,13 @@ fn handle_company_create(
         create_default_roles(store, identity, company_id)
       let #(location, store, identity) =
         create_location(store, identity, company_id, location_input, name)
-      let #(contact, store, identity) = case dict.get(input, "companyContact") {
-        Ok(root_field.ObjectVal(_)) -> {
-          let assert Some(contact_input) = contact_input
+      let #(contact, store, identity) = case contact_input {
+        Some(contact_input) -> {
           let #(created, next_store, next_identity) =
             create_contact(store, identity, company_id, contact_input, True)
           #(Some(created), next_store, next_identity)
         }
-        _ -> #(None, store, identity)
+        None -> #(None, store, identity)
       }
       let company =
         B2BCompanyRecord(
@@ -2218,11 +2580,19 @@ fn handle_contact_create(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
+          let #(prepared, prepare_errors) =
+            prepare_contact_create_input(store, read_object(args, "input"))
           let #(input, validation_errors) =
-            validate_contact_input(read_object(args, "input"), ["input"])
-          case validation_errors {
+            validate_contact_input(prepared, ["input"])
+          let errors = list.append(prepare_errors, validation_errors)
+          case errors {
             [_, ..] ->
-              RootResult(empty_payload(validation_errors), store, identity, [])
+              RootResult(
+                Payload(..empty_payload(errors), company_contact: None),
+                store,
+                identity,
+                [],
+              )
             [] -> {
               let #(contact, store, identity) =
                 create_contact(store, identity, company_id, input, False)
@@ -2259,11 +2629,23 @@ fn handle_contact_update(
     Some(contact_id) ->
       case store.get_effective_b2b_company_contact_by_id(store, contact_id) {
         Some(contact) -> {
+          let #(prepared, prepare_errors) =
+            prepare_contact_update_input(
+              store,
+              read_object(args, "input"),
+              contact_id,
+            )
           let #(input, validation_errors) =
-            validate_contact_input(read_object(args, "input"), ["input"])
-          case validation_errors {
+            validate_contact_input(prepared, ["input"])
+          let errors = list.append(prepare_errors, validation_errors)
+          case errors {
             [_, ..] ->
-              RootResult(empty_payload(validation_errors), store, identity, [])
+              RootResult(
+                Payload(..empty_payload(errors), company_contact: None),
+                store,
+                identity,
+                [],
+              )
             [] -> {
               let #(now, identity) = timestamp(identity)
               let updated =
@@ -2450,39 +2832,54 @@ fn handle_assign_customer_as_contact(
     Some(company_id), Some(customer_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let #(contact, store, identity) =
-            create_contact(store, identity, company_id, dict.new(), False)
-          let contact =
-            B2BCompanyContactRecord(
-              ..contact,
-              data: contact.data
-                |> dict.insert("customerId", StorePropertyString(customer_id))
-                |> dict.insert(
-                  "customer",
-                  source_to_value(
-                    src_object([
-                      #("__typename", SrcString("Customer")),
-                      #("id", SrcString(customer_id)),
-                    ]),
+          let #(input, errors) = prepare_contact_create_input(store, dict.new())
+          case errors {
+            [_, ..] ->
+              RootResult(
+                Payload(..empty_payload(errors), company_contact: None),
+                store,
+                identity,
+                [],
+              )
+            [] -> {
+              let #(contact, store, identity) =
+                create_contact(store, identity, company_id, input, False)
+              let contact =
+                B2BCompanyContactRecord(
+                  ..contact,
+                  data: contact.data
+                    |> dict.insert(
+                      "customerId",
+                      StorePropertyString(customer_id),
+                    )
+                    |> dict.insert(
+                      "customer",
+                      source_to_value(
+                        src_object([
+                          #("__typename", SrcString("Customer")),
+                          #("id", SrcString(customer_id)),
+                        ]),
+                      ),
+                    ),
+                )
+              let #(contact, store) =
+                store.upsert_staged_b2b_company_contact(store, contact)
+              let #(company, store) =
+                stage_company(
+                  store,
+                  B2BCompanyRecord(
+                    ..company,
+                    contact_ids: append_unique(company.contact_ids, contact.id),
                   ),
-                ),
-            )
-          let #(contact, store) =
-            store.upsert_staged_b2b_company_contact(store, contact)
-          let #(company, store) =
-            stage_company(
-              store,
-              B2BCompanyRecord(
-                ..company,
-                contact_ids: append_unique(company.contact_ids, contact.id),
-              ),
-            )
-          RootResult(
-            Payload(..empty_payload([]), company_contact: Some(contact)),
-            store,
-            identity,
-            [contact.id, company.id],
-          )
+                )
+              RootResult(
+                Payload(..empty_payload([]), company_contact: Some(contact)),
+                store,
+                identity,
+                [contact.id, company.id],
+              )
+            }
+          }
         }
         None ->
           not_found_result(store, identity, "companyContact", ["companyId"])
