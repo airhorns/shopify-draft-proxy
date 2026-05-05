@@ -267,13 +267,13 @@ pub fn purchase_create_returns_confirmation_url_test() {
   let outcome =
     run_mutation_outcome(
       seeded_with_installation(),
-      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id name status price { amount currencyCode } test } confirmationUrl userErrors { field message } } }",
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", returnUrl: \"https://app.example.test/return\", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id name status createdAt price { amount currencyCode } test } confirmationUrl userErrors { field message } } }",
     )
   let body = json.to_string(outcome.data)
   // The synthetic gid for the purchase is #1. Confirmation url uses the
   // trailing segment + "ApplicationCharge" + signature.
   assert body
-    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":{\"id\":\"gid://shopify/AppPurchaseOneTime/1\",\"name\":\"Pro\",\"status\":\"PENDING\",\"price\":{\"amount\":\"19.00\",\"currencyCode\":\"USD\"},\"test\":true},\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/1/ApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"userErrors\":[]}}}"
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":{\"id\":\"gid://shopify/AppPurchaseOneTime/1\",\"name\":\"Pro\",\"status\":\"PENDING\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"price\":{\"amount\":\"19.00\",\"currencyCode\":\"USD\"},\"test\":true},\"confirmationUrl\":\"https://shopify.example/admin/charges/shopify-draft-proxy/1/ApplicationCharge/confirm?signature=shopify-draft-proxy-local-redacted\",\"userErrors\":[]}}}"
   // The installation tracks the new purchase id.
   let assert Some(install) =
     store.get_effective_app_installation_by_id(
@@ -281,6 +281,48 @@ pub fn purchase_create_returns_confirmation_url_test() {
       "gid://shopify/AppInstallation/100",
     )
   assert install.one_time_purchase_ids == ["gid://shopify/AppPurchaseOneTime/1"]
+}
+
+pub fn purchase_create_requires_return_url_test() {
+  let outcome =
+    run_mutation_outcome(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"returnUrl\"],\"message\":\"Return URL is required.\",\"code\":null}]}}}"
+  assert dict.size(outcome.store.staged_state.app_one_time_purchases) == 0
+}
+
+pub fn purchase_create_rejects_blank_return_url_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", returnUrl: \"   \", price: { amount: \"19.00\", currencyCode: USD }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"returnUrl\"],\"message\":\"Return URL must be a valid URL.\",\"code\":null}]}}}"
+}
+
+pub fn purchase_create_rejects_blank_name_and_low_price_test() {
+  let outcome =
+    run_mutation_outcome(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"  \", returnUrl: \"https://app.example.test/return\", price: { amount: \"0.49\", currencyCode: USD }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name can't be blank\",\"code\":null},{\"field\":[\"price\"],\"message\":\"Price must be at least 0.50 USD.\",\"code\":\"PRICE_TOO_LOW\"}]}}}"
+  assert dict.size(outcome.store.staged_state.app_one_time_purchases) == 0
+}
+
+pub fn purchase_create_rejects_currency_mismatch_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appPurchaseOneTimeCreate(name: \"Pro\", returnUrl: \"https://app.example.test/return\", price: { amount: \"5.00\", currencyCode: EUR }, test: true) { appPurchaseOneTime { id } confirmationUrl userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appPurchaseOneTimeCreate\":{\"appPurchaseOneTime\":null,\"confirmationUrl\":null,\"userErrors\":[{\"field\":[\"price\"],\"message\":\"Price currency must match shop billing currency USD.\",\"code\":null}]}}}"
 }
 
 // ----------- appSubscriptionCreate -----------

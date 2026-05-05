@@ -887,6 +887,12 @@ pub type UserError {
   UserError(field: List(String), message: String, code: Option(String))
 }
 
+const default_billing_currency = "USD"
+
+const minimum_one_time_purchase_amount = 0.5
+
+const minimum_one_time_purchase_amount_label = "0.50"
+
 type MutationFieldResult {
   MutationFieldResult(
     key: String,
@@ -1331,6 +1337,59 @@ fn handle_purchase_create(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
+  let name = graphql_helpers.read_arg_string(args, "name")
+  let price = read_money_input(args, "price")
+  let billing_currency = shop_billing_currency(store)
+  let validation_errors =
+    purchase_create_validation_errors(args, name, price, billing_currency)
+  case validation_errors {
+    [] ->
+      stage_valid_purchase_create(
+        store,
+        identity,
+        origin,
+        key,
+        name |> option.unwrap(""),
+        price,
+        graphql_helpers.read_arg_bool(args, "test") |> option.unwrap(False),
+        field,
+        fragments,
+      )
+    _ -> {
+      let payload =
+        project_purchase_create_payload(
+          None,
+          None,
+          validation_errors,
+          field,
+          fragments,
+        )
+      let draft = make_log_draft("appPurchaseOneTimeCreate", [], store.Failed)
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: payload,
+          staged_resource_ids: [],
+          log_drafts: [draft],
+        ),
+        store,
+        identity,
+      )
+    }
+  }
+}
+
+fn stage_valid_purchase_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  origin: String,
+  key: String,
+  name: String,
+  price: Money,
+  is_test: Bool,
+  field: Selection,
+  fragments: FragmentMap,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let #(installation, store_after_ensure, identity_after_ensure) =
     ensure_current_installation(store, identity, origin)
   let #(purchase_gid, identity_after_id) =
@@ -1343,12 +1402,11 @@ fn handle_purchase_create(
   let purchase =
     AppOneTimePurchaseRecord(
       id: purchase_gid,
-      name: option.unwrap(graphql_helpers.read_arg_string(args, "name"), ""),
+      name: name,
       status: "PENDING",
-      is_test: graphql_helpers.read_arg_bool(args, "test")
-        |> option.unwrap(False),
+      is_test: is_test,
       created_at: timestamp,
-      price: read_money_input(args, "price"),
+      price: price,
     )
   let #(_, store_with_purchase) =
     store.stage_app_one_time_purchase(store_after_ensure, purchase)
@@ -2030,6 +2088,136 @@ fn read_money_input(
     }
     _ -> Money(amount: "0.0", currency_code: "USD")
   }
+}
+
+fn purchase_create_validation_errors(
+  args: Dict(String, root_field.ResolvedValue),
+  name: Option(String),
+  price: Money,
+  billing_currency: String,
+) -> List(UserError) {
+  let name_errors = case name {
+    Some(raw) ->
+      case string.trim(raw) {
+        "" -> blank_purchase_name_error()
+        _ -> []
+      }
+    _ -> [
+      UserError(field: ["name"], message: "Name can't be blank", code: None),
+    ]
+  }
+  let return_url_errors =
+    purchase_return_url_errors(graphql_helpers.read_arg_string(
+      args,
+      "returnUrl",
+    ))
+  let price_errors = purchase_price_errors(price, billing_currency)
+  list.append(name_errors, return_url_errors) |> list.append(price_errors)
+}
+
+fn blank_purchase_name_error() -> List(UserError) {
+  [
+    UserError(field: ["name"], message: "Name can't be blank", code: None),
+  ]
+}
+
+fn purchase_return_url_errors(return_url: Option(String)) -> List(UserError) {
+  case return_url {
+    Some(raw) -> {
+      let trimmed = string.trim(raw)
+      case
+        trimmed != ""
+        && {
+          string.starts_with(trimmed, "https://")
+          || string.starts_with(trimmed, "http://")
+        }
+      {
+        True -> []
+        False -> [
+          UserError(
+            field: ["returnUrl"],
+            message: "Return URL must be a valid URL.",
+            code: None,
+          ),
+        ]
+      }
+    }
+    None -> [
+      UserError(
+        field: ["returnUrl"],
+        message: "Return URL is required.",
+        code: None,
+      ),
+    ]
+  }
+}
+
+fn purchase_price_errors(
+  price: Money,
+  billing_currency: String,
+) -> List(UserError) {
+  let amount = parse_money_amount(price.amount)
+  let amount_errors = case amount <. minimum_one_time_purchase_amount {
+    True -> [
+      UserError(
+        field: ["price"],
+        message: price_too_low_message(billing_currency),
+        code: Some("PRICE_TOO_LOW"),
+      ),
+    ]
+    False -> []
+  }
+  let currency_errors = case
+    normalize_currency(price.currency_code)
+    == normalize_currency(billing_currency)
+  {
+    True -> []
+    False -> [
+      UserError(
+        field: ["price"],
+        message: "Price currency must match shop billing currency "
+          <> billing_currency
+          <> ".",
+        code: None,
+      ),
+    ]
+  }
+  list.append(amount_errors, currency_errors)
+}
+
+fn price_too_low_message(currency_code: String) -> String {
+  "Price must be at least "
+  <> minimum_one_time_purchase_amount_label
+  <> " "
+  <> currency_code
+  <> "."
+}
+
+fn parse_money_amount(raw: String) -> Float {
+  let trimmed = string.trim(raw)
+  case float.parse(trimmed) {
+    Ok(value) -> value
+    Error(_) ->
+      case int.parse(trimmed) {
+        Ok(value) -> int.to_float(value)
+        Error(_) -> 0.0
+      }
+  }
+}
+
+fn shop_billing_currency(store: Store) -> String {
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      case string.trim(shop.currency_code) {
+        "" -> default_billing_currency
+        code -> normalize_currency(code)
+      }
+    None -> default_billing_currency
+  }
+}
+
+fn normalize_currency(code: String) -> String {
+  string.uppercase(string.trim(code))
 }
 
 fn read_line_item_plan(
