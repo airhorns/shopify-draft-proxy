@@ -1,5 +1,5 @@
-mutation DelegateAccessTokenCreateCurrentInputLocalLifecycle {
-  delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 3600 }) {
+mutation DelegateAccessTokenCreateUnknownScopeValidation {
+  delegateAccessTokenCreate(input: { delegateAccessScope: ["fake_scope"] }) {
     delegateAccessToken {
       accessToken
       accessScopes

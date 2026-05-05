@@ -87,6 +87,14 @@ fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
 ) -> mutation_helpers.MutationOutcome {
+  run_mutation_outcome_with_headers(store_in, document, dict.new())
+}
+
+fn run_mutation_outcome_with_headers(
+  store_in: store.Store,
+  document: String,
+  headers: dict.Dict(String, String),
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
   let outcome =
     apps.process_mutation(
@@ -98,7 +106,7 @@ fn run_mutation_outcome(
       upstream_query.UpstreamContext(
         transport: None,
         origin: "https://shopify.example",
-        headers: dict.new(),
+        headers: headers,
       ),
     )
   outcome
@@ -610,12 +618,12 @@ pub fn delegate_token_create_round_trip_test() {
   let outcome =
     run_mutation_outcome(
       store.new(),
-      "mutation { delegateAccessTokenCreate(input: { accessScopes: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes createdAt expiresIn } userErrors { field message } } }",
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes createdAt expiresIn } shop { id name } userErrors { field message code } } }",
     )
   let body = json.to_string(outcome.data)
   // Token id is the first synthetic gid (#1). Raw token = "shpat_delegate_proxy_1".
   assert body
-    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"expiresIn\":3600},\"userErrors\":[]}}}"
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"expiresIn\":3600},\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\",\"name\":\"Shopify Draft Proxy\"},\"userErrors\":[]}}}"
   // The store must hold a record whose sha256 matches the raw token's hash.
   let assert Some(record) =
     store.find_delegated_access_token_by_hash(
@@ -624,6 +632,87 @@ pub fn delegate_token_create_round_trip_test() {
     )
   assert record.access_scopes == ["read_products"]
   assert record.destroyed_at == None
+}
+
+pub fn delegate_token_create_legacy_access_scopes_fallback_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { accessScopes: [\"read_products\"], expiresIn: 3600 }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":{\"accessToken\":\"shpat_delegate_proxy_1\",\"accessScopes\":[\"read_products\"],\"expiresIn\":3600},\"userErrors\":[]}}}"
+}
+
+pub fn delegate_token_create_delegate_scope_presence_blocks_legacy_fallback_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [], accessScopes: [\"read_products\"] }) { delegateAccessToken { accessScopes } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The access scope can't be empty.\",\"code\":\"EMPTY_ACCESS_SCOPE\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+}
+
+pub fn delegate_token_create_rejects_empty_scope_list_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [] }) { delegateAccessToken { accessToken accessScopes } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The access scope can't be empty.\",\"code\":\"EMPTY_ACCESS_SCOPE\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+  let assert [
+    mutation_helpers.LogDraft(status: store.Failed, staged_resource_ids: [], ..),
+  ] = outcome.log_drafts
+}
+
+pub fn delegate_token_create_rejects_non_positive_expires_in_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"], expiresIn: -1 }) { delegateAccessToken { accessToken accessScopes expiresIn } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The expires_in value must be greater than 0.\",\"code\":\"NEGATIVE_EXPIRES_IN\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+}
+
+pub fn delegate_token_create_rejects_unknown_scope_handles_test() {
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"fake_scope\", \"another_fake_scope\"] }) { delegateAccessToken { accessScopes } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The access scope is invalid: fake_scope, another_fake_scope\",\"code\":\"UNKNOWN_SCOPES\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
+}
+
+pub fn delegate_token_create_rejects_active_delegate_parent_test() {
+  let raw = "shpat_delegate_parent"
+  let record =
+    DelegatedAccessTokenRecord(
+      id: "gid://shopify/DelegateAccessToken/parent",
+      access_token_sha256: shopify_sha256_of(raw),
+      access_token_preview: "[redacted]rent",
+      access_scopes: ["read_products"],
+      created_at: "2024-01-01T00:00:00.000Z",
+      expires_in: Some(3600),
+      destroyed_at: None,
+    )
+  let #(_, s) = store.stage_delegated_access_token(store.new(), record)
+  let outcome =
+    run_mutation_outcome_with_headers(
+      s,
+      "mutation { delegateAccessTokenCreate(input: { delegateAccessScope: [\"read_products\"] }) { delegateAccessToken { accessScopes } userErrors { field message code } } }",
+      dict.from_list([#("X-Shopify-Access-Token", raw)]),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"userErrors\":[{\"field\":null,\"message\":\"The parent access token can't be a delegate token.\",\"code\":\"DELEGATE_ACCESS_TOKEN\"}]}}}"
+  assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 1
 }
 
 pub fn delegate_token_destroy_marks_destroyed_test() {
