@@ -25,6 +25,25 @@ fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   draft_proxy.process_request(proxy, request)
 }
 
+fn graphql_with_variables(
+  proxy: draft_proxy.DraftProxy,
+  query: String,
+  variables: String,
+) {
+  let request =
+    Request(
+      method: "POST",
+      path: "/admin/api/2026-04/graphql.json",
+      headers: dict.new(),
+      body: "{\"query\":\""
+        <> escape(query)
+        <> "\",\"variables\":"
+        <> variables
+        <> "}",
+    )
+  draft_proxy.process_request(proxy, request)
+}
+
 fn escape(value: String) -> String {
   value
   |> string.replace("\\", "\\\\")
@@ -640,6 +659,124 @@ pub fn b2b_location_update_rejects_billing_and_tax_guardrails_test() {
   assert !string.contains(read_json, "Conflict")
   assert !string.contains(read_json, "Missing Billing")
   assert !string.contains(read_json, "Null Tax")
+}
+
+pub fn b2b_tax_settings_update_validates_required_and_nullable_args_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Tax\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: empty_status, body: empty_body, ..), proxy) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxEmpty($locationId: ID!) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId) { companyLocation { id taxSettings { taxExempt taxExemptions } } userErrors { field message code } } }",
+      "{\"locationId\":\"" <> location_id <> "\"}",
+    )
+  assert empty_status == 200
+  let empty_json = json.to_string(empty_body)
+  assert string.contains(empty_json, "\"companyLocation\":null")
+  assert string.contains(empty_json, "\"field\":[\"companyLocationId\"]")
+  assert string.contains(empty_json, "\"code\":\"NO_INPUT\"")
+
+  let #(Response(status: null_status, body: null_body, ..), _) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxNull($locationId: ID!, $taxExempt: Boolean) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId, taxExempt: $taxExempt) { companyLocation { id taxSettings { taxExempt } } userErrors { field message code } } }",
+      "{\"locationId\":\"" <> location_id <> "\",\"taxExempt\":null}",
+    )
+  assert null_status == 200
+  let null_json = json.to_string(null_body)
+  assert string.contains(null_json, "\"companyLocation\":null")
+  assert string.contains(null_json, "\"field\":[\"taxExempt\"]")
+  assert string.contains(null_json, "\"code\":\"INVALID_INPUT\"")
+}
+
+pub fn b2b_tax_settings_update_rejects_invalid_tax_exemption_enum_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Tax\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: literal_status, body: literal_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationTaxSettingsUpdate(companyLocationId: \""
+        <> location_id
+        <> "\", exemptionsToAssign: [\"NOT_A_REAL_EXEMPTION\"]) { companyLocation { id taxSettings { taxExemptions } } userErrors { field message code } } }",
+    )
+  assert literal_status == 200
+  let literal_json = json.to_string(literal_body)
+  assert string.contains(literal_json, "\"errors\"")
+  assert string.contains(
+    literal_json,
+    "\"code\":\"argumentLiteralsIncompatible\"",
+  )
+  assert string.contains(literal_json, "NOT_A_REAL_EXEMPTION")
+  assert string.contains(literal_json, "CA_STATUS_CARD_EXEMPTION")
+  assert !string.contains(literal_json, "\"taxExemptions\"")
+
+  let #(Response(status: invalid_status, body: invalid_body, ..), _) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxInvalid($locationId: ID!, $exemptionsToAssign: [TaxExemption!]) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToAssign: $exemptionsToAssign) { companyLocation { id taxSettings { taxExemptions } } userErrors { field message code } } }",
+      "{\"locationId\":\""
+        <> location_id
+        <> "\",\"exemptionsToAssign\":[\"NOT_A_REAL_EXEMPTION\"]}",
+    )
+  assert invalid_status == 200
+  let invalid_json = json.to_string(invalid_body)
+  assert string.contains(invalid_json, "\"errors\"")
+  assert string.contains(invalid_json, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(invalid_json, "NOT_A_REAL_EXEMPTION")
+  assert string.contains(invalid_json, "CA_STATUS_CARD_EXEMPTION")
+}
+
+pub fn b2b_tax_settings_update_stages_valid_assign_and_remove_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Tax\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxAssign($locationId: ID!, $assign: [TaxExemption!]) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToAssign: $assign) { companyLocation { id taxSettings { taxExemptions } } userErrors { field message code } } }",
+      "{\"locationId\":\""
+        <> location_id
+        <> "\",\"assign\":[\"CA_BC_RESELLER_EXEMPTION\",\"US_CA_RESELLER_EXEMPTION\"]}",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"userErrors\":[]")
+  assert string.contains(assign_json, "CA_BC_RESELLER_EXEMPTION")
+  assert string.contains(assign_json, "US_CA_RESELLER_EXEMPTION")
+
+  let #(Response(status: remove_status, body: remove_body, ..), _) =
+    graphql_with_variables(
+      proxy,
+      "mutation TaxRemove($locationId: ID!, $remove: [TaxExemption!]) { companyLocationTaxSettingsUpdate(companyLocationId: $locationId, exemptionsToRemove: $remove) { companyLocation { id taxSettings { taxExemptions } } userErrors { field message code } } }",
+      "{\"locationId\":\""
+        <> location_id
+        <> "\",\"remove\":[\"CA_BC_RESELLER_EXEMPTION\"]}",
+    )
+  assert remove_status == 200
+  let remove_json = json.to_string(remove_body)
+  assert string.contains(remove_json, "\"userErrors\":[]")
+  assert !string.contains(remove_json, "CA_BC_RESELLER_EXEMPTION")
+  assert string.contains(remove_json, "US_CA_RESELLER_EXEMPTION")
 }
 
 pub fn b2b_location_create_uses_shipping_address1_name_fallback_test() {

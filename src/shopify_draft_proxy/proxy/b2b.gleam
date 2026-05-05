@@ -4689,41 +4689,56 @@ fn handle_tax_settings_update(
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
-          let current_exemptions =
-            read_string_values(data_get(location.data, "taxExemptions"))
-            |> list.append(read_string_list(args, "exemptionsToAssign"))
-            |> list.filter(fn(item) {
-              !list.contains(read_string_list(args, "exemptionsToRemove"), item)
-            })
-          let #(now, identity) = timestamp(identity)
-          let data =
-            location.data
-            |> dict.insert(
-              "taxExemptions",
-              StorePropertyList(list.map(
-                current_exemptions,
-                StorePropertyString,
-              )),
-            )
-            |> dict.insert("updatedAt", StorePropertyString(now))
-            |> maybe_put_string(args, "taxRegistrationId")
-            |> maybe_put_bool(args, "taxExempt")
-          let tax_settings =
-            src_object([
-              #("taxRegistrationId", data_get(data, "taxRegistrationId")),
-              #("taxExempt", data_get(data, "taxExempt")),
-              #("taxExemptions", data_get(data, "taxExemptions")),
-            ])
-          let data = put_source(data, "taxSettings", tax_settings)
-          let updated = B2BCompanyLocationRecord(..location, data: data)
-          let #(updated, store) =
-            store.upsert_staged_b2b_company_location(store, updated)
-          RootResult(
-            Payload(..empty_payload([]), company_location: Some(updated)),
-            store,
-            identity,
-            [updated.id],
-          )
+          let errors = validate_tax_settings_update_args(args)
+          case errors {
+            [_, ..] ->
+              RootResult(
+                Payload(..empty_payload(errors), company_location: None),
+                store,
+                identity,
+                [],
+              )
+            [] -> {
+              let current_exemptions =
+                read_string_values(data_get(location.data, "taxExemptions"))
+                |> list.append(read_string_list(args, "exemptionsToAssign"))
+                |> list.filter(fn(item) {
+                  !list.contains(
+                    read_string_list(args, "exemptionsToRemove"),
+                    item,
+                  )
+                })
+              let #(now, identity) = timestamp(identity)
+              let data =
+                location.data
+                |> dict.insert(
+                  "taxExemptions",
+                  StorePropertyList(list.map(
+                    current_exemptions,
+                    StorePropertyString,
+                  )),
+                )
+                |> dict.insert("updatedAt", StorePropertyString(now))
+                |> maybe_put_string(args, "taxRegistrationId")
+                |> maybe_put_bool(args, "taxExempt")
+              let tax_settings =
+                src_object([
+                  #("taxRegistrationId", data_get(data, "taxRegistrationId")),
+                  #("taxExempt", data_get(data, "taxExempt")),
+                  #("taxExemptions", data_get(data, "taxExemptions")),
+                ])
+              let data = put_source(data, "taxSettings", tax_settings)
+              let updated = B2BCompanyLocationRecord(..location, data: data)
+              let #(updated, store) =
+                store.upsert_staged_b2b_company_location(store, updated)
+              RootResult(
+                Payload(..empty_payload([]), company_location: Some(updated)),
+                store,
+                identity,
+                [updated.id],
+              )
+            }
+          }
         }
         None ->
           RootResult(
@@ -4759,6 +4774,40 @@ fn handle_tax_settings_update(
         [],
       )
   }
+}
+
+fn validate_tax_settings_update_args(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(args, "taxExempt") {
+    Ok(root_field.NullVal) -> [
+      user_error(
+        Some(["taxExempt"]),
+        "Invalid input.",
+        user_error_code.invalid_input,
+      ),
+    ]
+    _ ->
+      case has_any_tax_settings_update_input(args) {
+        True -> []
+        False -> [
+          user_error(
+            Some(["companyLocationId"]),
+            "No input provided.",
+            user_error_code.no_input,
+          ),
+        ]
+      }
+  }
+}
+
+fn has_any_tax_settings_update_input(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.has_key(args, "taxRegistrationId")
+  || dict.has_key(args, "taxExempt")
+  || dict.has_key(args, "exemptionsToAssign")
+  || dict.has_key(args, "exemptionsToRemove")
 }
 
 fn read_string_values(value: SourceValue) -> List(String) {

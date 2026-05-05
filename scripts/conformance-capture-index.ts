@@ -1210,6 +1210,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-create-handle-dedupe',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-handle-dedupe-conformance.mts',
+    purpose: 'marketCreate generated handle slug dedupe for distinct names that collide after Shopify slugification.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-create-handle-dedupe.json`,
+      'config/parity-specs/markets/market-create-handle-dedupe.json',
+      'config/parity-requests/markets/market-create-handle-dedupe.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable Europe and Europe! markets, records duplicate-name validation and generated handle dedupe, then deletes created markets in reverse creation order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-localization-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-localization-lifecycle-conformance.mts',

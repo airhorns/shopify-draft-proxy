@@ -114,7 +114,12 @@ Company location tax settings are written by
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`
 shape. The proxy also preserves the earlier flat fields used by local tests for
 compatibility with the staged record data, but `taxSettings` is the
-live-captured 2026-04 readback shape.
+live-captured 2026-04 readback shape. The flat mutation arguments follow
+Shopify's validation boundary: invalid `TaxExemption` variable values are
+rejected as top-level GraphQL `INVALID_VARIABLE` errors before the local
+resolver runs, an update with no tax settings knob returns `NO_INPUT` at
+`companyLocationId`, and explicit `taxExempt: null` returns `INVALID_INPUT` at
+`taxExempt`.
 
 Company location create/update input validation enforces HAR-612's
 `billingSameAsShipping` and `billingAddress` guardrails before local staging:
