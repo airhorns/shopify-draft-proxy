@@ -717,3 +717,125 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
   assert list.length(store.list_effective_marketing_engagements(deleted.store))
     == 1
 }
+
+pub fn engagement_create_rejects_mismatched_input_currencies_test() {
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let engagement =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(remoteId: \"remote-1\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: USD }, sales: { amount: \"30.00\", currencyCode: EUR } }) { marketingEngagement { occurredOn adSpend { amount currencyCode } sales { amount currencyCode } } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(engagement.data)
+  assert string.contains(response, "\"marketingEngagement\":null")
+  assert string.contains(response, "\"field\":[\"marketingEngagement\"]")
+  assert string.contains(response, "\"code\":\"CURRENCY_CODE_MISMATCH_INPUT\"")
+  assert store.list_effective_marketing_engagements(engagement.store) == []
+}
+
+pub fn engagement_create_rejects_activity_currency_mismatch_by_id_test() {
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", budget: { budgetType: DAILY, total: { amount: \"100.00\", currencyCode: USD } }, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let engagement =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(marketingActivityId: \"gid://shopify/MarketingActivity/1\", marketingEngagement: { occurredOn: \"2026-04-27\", adSpend: { amount: \"10.00\", currencyCode: EUR } }) { marketingEngagement { occurredOn adSpend { amount currencyCode } } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(engagement.data)
+  assert string.contains(response, "\"marketingEngagement\":null")
+  assert string.contains(response, "\"field\":[\"marketingEngagement\"]")
+  assert string.contains(
+    response,
+    "\"code\":\"MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH\"",
+  )
+  assert store.list_effective_marketing_engagements(engagement.store) == []
+}
+
+pub fn engagement_create_rejects_activity_currency_mismatch_by_remote_id_test() {
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", adSpend: { amount: \"25.00\", currencyCode: USD }, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let engagement =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(remoteId: \"remote-1\", marketingEngagement: { occurredOn: \"2026-04-27\", sales: { amount: \"30.00\", currencyCode: EUR } }) { marketingEngagement { occurredOn sales { amount currencyCode } } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(engagement.data)
+  assert string.contains(response, "\"marketingEngagement\":null")
+  assert string.contains(response, "\"field\":[\"marketingEngagement\"]")
+  assert string.contains(
+    response,
+    "\"code\":\"MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH\"",
+  )
+  assert store.list_effective_marketing_engagements(engagement.store) == []
+}
+
+pub fn engagement_create_channel_handle_checks_input_currencies_only_test() {
+  let created =
+    marketing.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", budget: { budgetType: DAILY, total: { amount: \"100.00\", currencyCode: USD } }, urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let accepted =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(channelHandle: \"email\", marketingEngagement: { occurredOn: \"2026-04-28\", adSpend: { amount: \"10.00\", currencyCode: EUR }, clicksCount: 3 }) { marketingEngagement { occurredOn channelHandle adSpend { amount currencyCode } clicksCount } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  assert string.contains(json.to_string(accepted.data), "\"userErrors\":[]")
+  assert list.length(store.list_effective_marketing_engagements(accepted.store))
+    == 1
+
+  let rejected =
+    marketing.process_mutation(
+      created.store,
+      created.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation { marketingEngagementCreate(channelHandle: \"email\", marketingEngagement: { occurredOn: \"2026-04-28\", adSpend: { amount: \"10.00\", currencyCode: USD }, sales: { amount: \"30.00\", currencyCode: EUR } }) { marketingEngagement { occurredOn channelHandle adSpend { amount currencyCode } sales { amount currencyCode } } userErrors { field message code } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let response = json.to_string(rejected.data)
+  assert string.contains(response, "\"marketingEngagement\":null")
+  assert string.contains(response, "\"code\":\"CURRENCY_CODE_MISMATCH_INPUT\"")
+  assert store.list_effective_marketing_engagements(rejected.store) == []
+}
