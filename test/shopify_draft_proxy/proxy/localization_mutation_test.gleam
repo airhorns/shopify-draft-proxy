@@ -240,6 +240,41 @@ pub fn translations_register_against_seeded_source_marker_test() {
     == "{\"translatableResource\":{\"resourceId\":\"gid://shopify/Product/1\",\"translations\":[]}}"
 }
 
+pub fn translations_register_accepts_market_id_and_read_filters_by_market_test() {
+  let market_id = "gid://shopify/Market/123"
+  let s =
+    seed_shop_locale(store.new(), "es", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"es\", key: \"title\", value: \"Hola\", marketId: \""
+        <> market_id
+        <> "\", translatableContentDigest: \"abc\" }]) { translations { key value locale outdated market { id __typename } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(register.data)
+    == "{\"data\":{\"translationsRegister\":{\"translations\":[{\"key\":\"title\",\"value\":\"Hola\",\"locale\":\"es\",\"outdated\":false,\"market\":{\"id\":\"gid://shopify/Market/123\",\"__typename\":\"Market\"}}],\"userErrors\":[]}}}"
+
+  let assert Ok(market_read_data) =
+    localization.handle_localization_query(
+      register.store,
+      "{ translatableResource(resourceId: \"gid://shopify/Product/1\") { resourceId translations(locale: \"es\", marketId: \"gid://shopify/Market/123\") { key value locale market { id __typename } } } }",
+      dict.new(),
+    )
+  assert json.to_string(market_read_data)
+    == "{\"translatableResource\":{\"resourceId\":\"gid://shopify/Product/1\",\"translations\":[{\"key\":\"title\",\"value\":\"Hola\",\"locale\":\"es\",\"market\":{\"id\":\"gid://shopify/Market/123\",\"__typename\":\"Market\"}}]}}"
+
+  let assert Ok(default_read_data) =
+    localization.handle_localization_query(
+      register.store,
+      "{ translatableResource(resourceId: \"gid://shopify/Product/1\") { resourceId translations(locale: \"es\") { key value locale market { id } } } }",
+      dict.new(),
+    )
+  assert json.to_string(default_read_data)
+    == "{\"translatableResource\":{\"resourceId\":\"gid://shopify/Product/1\",\"translations\":[]}}"
+}
+
 pub fn translations_register_blank_resource_id_returns_error_test() {
   let body =
     run(
@@ -272,4 +307,37 @@ pub fn translations_remove_blank_keys_returns_error_test() {
   // resource_not_found + blank keys + blank locales — three errors.
   assert body
     == "{\"data\":{\"translationsRemove\":{\"translations\":null,\"userErrors\":[{\"field\":[\"resourceId\"],\"message\":\"Resource does not exist\",\"code\":\"RESOURCE_NOT_FOUND\"},{\"field\":[\"translationKeys\"],\"message\":\"At least one translation key is required\",\"code\":\"BLANK\"},{\"field\":[\"locales\"],\"message\":\"At least one locale is required\",\"code\":\"BLANK\"}]}}}"
+}
+
+pub fn translations_remove_accepts_market_ids_and_clears_market_read_test() {
+  let market_id = "gid://shopify/Market/123"
+  let s =
+    seed_shop_locale(store.new(), "es", False, True)
+    |> seed_source_content_marker("gid://shopify/Product/1", "title", "abc")
+  let register =
+    run_outcome(
+      s,
+      "mutation { translationsRegister(resourceId: \"gid://shopify/Product/1\", translations: [{ locale: \"es\", key: \"title\", value: \"Hola\", marketId: \""
+        <> market_id
+        <> "\", translatableContentDigest: \"abc\" }]) { translations { key } userErrors { code } } }",
+    )
+  let remove =
+    run_outcome(
+      register.store,
+      "mutation { translationsRemove(resourceId: \"gid://shopify/Product/1\", translationKeys: [\"title\"], locales: [\"es\"], marketIds: [\""
+        <> market_id
+        <> "\"]) { translations { key value locale market { id __typename } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(remove.data)
+    == "{\"data\":{\"translationsRemove\":{\"translations\":[{\"key\":\"title\",\"value\":\"Hola\",\"locale\":\"es\",\"market\":{\"id\":\"gid://shopify/Market/123\",\"__typename\":\"Market\"}}],\"userErrors\":[]}}}"
+
+  let assert Ok(read_data) =
+    localization.handle_localization_query(
+      remove.store,
+      "{ translatableResource(resourceId: \"gid://shopify/Product/1\") { resourceId translations(locale: \"es\", marketId: \"gid://shopify/Market/123\") { key value locale market { id } } } }",
+      dict.new(),
+    )
+  assert json.to_string(read_data)
+    == "{\"translatableResource\":{\"resourceId\":\"gid://shopify/Product/1\",\"translations\":[]}}"
 }
