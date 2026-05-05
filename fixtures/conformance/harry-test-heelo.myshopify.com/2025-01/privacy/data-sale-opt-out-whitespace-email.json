@@ -1,0 +1,107 @@
+{
+  "mutation": {
+    "variables": {
+      "email": "hermes data sale whitespace 1778010066809@example.com"
+    },
+    "response": {
+      "data": {
+        "dataSaleOptOut": {
+          "customerId": "gid://shopify/Customer/10582642622770",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "variables": {
+      "id": "gid://shopify/Customer/10582642622770",
+      "identifier": {
+        "id": "gid://shopify/Customer/10582642622770"
+      }
+    },
+    "response": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/10582642622770",
+          "email": "hermesdatasalewhitespace1778010066809@example.com",
+          "dataSaleOptOut": true,
+          "defaultEmailAddress": {
+            "emailAddress": "hermesdatasalewhitespace1778010066809@example.com"
+          }
+        },
+        "customerByIdentifier": {
+          "id": "gid://shopify/Customer/10582642622770",
+          "email": "hermesdatasalewhitespace1778010066809@example.com",
+          "dataSaleOptOut": true,
+          "defaultEmailAddress": {
+            "emailAddress": "hermesdatasalewhitespace1778010066809@example.com"
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 4,
+          "actualQueryCost": 4,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1996,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "whitespaceEmailCustomer": {
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582642622770",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DataSaleOptOutCustomerLookup",
+      "variables": {
+        "identifier": {
+          "emailAddress": "hermesdatasalewhitespace1778010066809@example.com"
+        }
+      },
+      "query": "sha:hand-synthesized-from-data-sale-opt-out-whitespace-email",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "customerByIdentifier": null
+          }
+        }
+      }
+    }
+  ]
+}
