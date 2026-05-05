@@ -1381,6 +1381,21 @@ pub type MarketingEngagementRecord {
 /// Mirrors `ValidationRecord`. `enable`/`blockOnFailure` are nullable
 /// in TS so the same handler can model partial upstream payloads;
 /// here they're `Option(Bool)`.
+pub type ValidationMetafieldRecord {
+  ValidationMetafieldRecord(
+    id: String,
+    validation_id: String,
+    namespace: String,
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    compare_digest: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    owner_type: Option(String),
+  )
+}
+
 pub type ValidationRecord {
   ValidationRecord(
     id: String,
@@ -1390,6 +1405,7 @@ pub type ValidationRecord {
     function_id: Option(String),
     function_handle: Option(String),
     shopify_function_id: Option(String),
+    metafields: List(ValidationMetafieldRecord),
     created_at: Option(String),
     updated_at: Option(String),
   )

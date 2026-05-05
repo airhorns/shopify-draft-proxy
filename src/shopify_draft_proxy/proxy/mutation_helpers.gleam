@@ -28,8 +28,8 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
-  type Argument, type Location, type Selection, Argument, Field, NullValue,
-  VariableValue,
+  type Argument, type Location, type Selection, Argument, Field, ListValue,
+  NullValue, ObjectValue, VariableValue,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parser as graphql_parser
@@ -474,7 +474,18 @@ pub fn validate_mutation_field_against_schema(
           source_body,
           schema,
         )
-      list.append(top_level_errors, variable_errors)
+      let literal_errors =
+        validate_literal_bound_args(
+          mutation,
+          arguments,
+          operation_path,
+          operation_name,
+          source_body,
+          schema,
+        )
+      top_level_errors
+      |> list.append(variable_errors)
+      |> list.append(literal_errors)
     }
   }
 }
@@ -574,6 +585,110 @@ type PathSegment {
 /// `extensions.problems[]`.
 type ValueProblem {
   ValueProblem(path: List(PathSegment), explanation: String)
+}
+
+fn validate_literal_bound_args(
+  mutation: SchemaMutation,
+  arguments: List(Argument),
+  operation_path: String,
+  operation_name: String,
+  source_body: String,
+  schema: MutationSchema,
+) -> List(Json) {
+  list.flat_map(arguments, fn(arg) {
+    case arg {
+      Argument(name: arg_name, value: value, ..) ->
+        case find_schema_arg(mutation.args, arg_name.value) {
+          None -> []
+          Some(schema_arg) ->
+            collect_literal_unknown_field_errors(
+              value,
+              schema_arg.type_,
+              schema,
+              [
+                StringSegment(operation_path),
+                StringSegment(operation_name),
+                StringSegment(arg_name.value),
+              ],
+              source_body,
+            )
+        }
+    }
+  })
+}
+
+fn collect_literal_unknown_field_errors(
+  value: ast.Value,
+  schema_type: mutation_schema.SchemaType,
+  schema: MutationSchema,
+  path: List(PathSegment),
+  source_body: String,
+) -> List(Json) {
+  case schema_type {
+    mutation_schema.NonNullType(of: inner) ->
+      collect_literal_unknown_field_errors(
+        value,
+        inner,
+        schema,
+        path,
+        source_body,
+      )
+    mutation_schema.ListType(of: inner) ->
+      case value {
+        ListValue(values: values, ..) ->
+          list.index_map(values, fn(item, index) {
+            collect_literal_unknown_field_errors(
+              item,
+              inner,
+              schema,
+              list.append(path, [IntSegment(index)]),
+              source_body,
+            )
+          })
+          |> list.flatten
+        _ -> []
+      }
+    mutation_schema.NamedType(name: io_name) ->
+      case mutation_schema_lookup.get_input_object(schema, io_name) {
+        None -> []
+        Some(io) ->
+          case value {
+            ObjectValue(fields: fields, ..) ->
+              list.flat_map(fields, fn(object_field) {
+                let ast.ObjectField(name: field_name, value: child, loc: loc) =
+                  object_field
+                let field_path =
+                  list.append(path, [StringSegment(field_name.value)])
+                case
+                  find_schema_input_field(io.input_fields, field_name.value)
+                {
+                  None ->
+                    case io.name == "ValidationUpdateInput" {
+                      True -> [
+                        build_unknown_input_object_field_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
+                      False -> []
+                    }
+                  Some(schema_field) ->
+                    collect_literal_unknown_field_errors(
+                      child,
+                      schema_field.type_,
+                      schema,
+                      field_path,
+                      source_body,
+                    )
+                }
+              })
+            _ -> []
+          }
+      }
+  }
 }
 
 /// For each top-level arg whose AST value is a `VariableValue`,
@@ -720,36 +835,92 @@ fn collect_value_problems_inner(
             Some(io) ->
               case resolved {
                 root_field.ObjectVal(fields) ->
-                  list.flat_map(io.input_fields, fn(field) {
-                    let field_path =
-                      list.append(path, [StringSegment(field.name)])
-                    let required =
-                      mutation_schema.is_non_null(field.type_)
-                      && option.is_none(field.default_value)
-                      && inside_list
-                    case dict.get(fields, field.name), required {
-                      Error(_), True -> [
-                        ValueProblem(
-                          path: field_path,
-                          explanation: "Expected value to not be null",
-                        ),
-                      ]
-                      Error(_), False -> []
-                      Ok(child), _ ->
-                        collect_value_problems_inner(
-                          child,
-                          field.type_,
-                          schema,
-                          field_path,
-                          inside_list:,
-                        )
-                    }
-                  })
+                  list.append(
+                    list.flat_map(io.input_fields, fn(field) {
+                      let field_path =
+                        list.append(path, [StringSegment(field.name)])
+                      let required =
+                        mutation_schema.is_non_null(field.type_)
+                        && option.is_none(field.default_value)
+                        && inside_list
+                      case dict.get(fields, field.name), required {
+                        Error(_), True -> [
+                          ValueProblem(
+                            path: field_path,
+                            explanation: "Expected value to not be null",
+                          ),
+                        ]
+                        Error(_), False -> []
+                        Ok(child), _ ->
+                          collect_value_problems_inner(
+                            child,
+                            field.type_,
+                            schema,
+                            field_path,
+                            inside_list:,
+                          )
+                      }
+                    }),
+                    collect_unknown_variable_fields(fields, io, path),
+                  )
                 _ -> []
               }
           }
       }
   }
+}
+
+fn collect_unknown_variable_fields(
+  fields: Dict(String, root_field.ResolvedValue),
+  io: mutation_schema.SchemaInputObject,
+  path: List(PathSegment),
+) -> List(ValueProblem) {
+  dict.keys(fields)
+  |> list.filter_map(fn(field_name) {
+    case io.name, find_schema_input_field(io.input_fields, field_name) {
+      _, Some(_) -> Error(Nil)
+      "ValidationUpdateInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+        ))
+      _, None -> Error(Nil)
+    }
+  })
+}
+
+fn build_unknown_input_object_field_error(
+  field_name: String,
+  input_object_type: String,
+  path: List(PathSegment),
+  field_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "Field '" <> field_name <> "' is not defined on " <> input_object_type,
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", path_segments_to_json(path)),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("InputObject")),
+          #("argumentName", json.string(field_name)),
+        ]),
+      ),
+    ]),
+  )
 }
 
 fn country_code_value_problems(
@@ -926,6 +1097,16 @@ fn find_schema_arg(
 ) -> Option(mutation_schema.SchemaArg) {
   case list.find(schema_args, fn(a) { a.name == name }) {
     Ok(v) -> Some(v)
+    Error(_) -> None
+  }
+}
+
+fn find_schema_input_field(
+  schema_fields: List(mutation_schema.SchemaInputField),
+  name: String,
+) -> Option(mutation_schema.SchemaInputField) {
+  case list.find(schema_fields, fn(field) { field.name == name }) {
+    Ok(field) -> Some(field)
     Error(_) -> None
   }
 }

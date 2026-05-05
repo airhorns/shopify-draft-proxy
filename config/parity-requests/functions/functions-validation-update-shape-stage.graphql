@@ -1,0 +1,162 @@
+mutation StageValidationUpdateShape {
+  rebindSubject: validationCreate(
+    validation: { functionHandle: "validation-alpha", title: "Rebind subject", enable: false, blockOnFailure: false }
+  ) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active1: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 1", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active2: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 2", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active3: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 3", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active4: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 4", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active5: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 5", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active6: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 6", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active7: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 7", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active8: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 8", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active9: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 9", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active10: validationCreate(validation: { functionHandle: "validation-alpha", title: "Active 10", enable: true }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  inactiveCapSubject: validationCreate(
+    validation: { functionHandle: "validation-alpha", title: "Inactive cap subject", enable: false }
+  ) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
