@@ -23,7 +23,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, read_optional_string, single_root_log_draft,
+  type MutationOutcome, MutationOutcome,
+  read_optional_string, single_root_log_draft,
 }
 import shopify_draft_proxy/search_query_parser.{
   parse_search_query_term, search_query_term_value,
@@ -423,16 +424,6 @@ pub fn saved_search_cursor(record: SavedSearchRecord) -> String {
 /// Outcome of a saved-search mutation: a JSON `data` envelope plus the
 /// updated store and synthetic identity registry. Callers thread these
 /// forward.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload emitted on validation failure. Mirrors the
 /// `UserError` shape in TS (`field` may be `null`).
 pub type UserError {

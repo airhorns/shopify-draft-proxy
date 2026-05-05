@@ -24,7 +24,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, read_optional_string, single_root_log_draft,
+  type MutationOutcome, MutationOutcome,
+  read_optional_string, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/products
@@ -82,16 +83,6 @@ type MetafieldsDeleteResult {
     deleted_metafields: List(Option(DeletedMetafieldIdentifier)),
     user_errors: List(SimpleUserError),
     store: Store,
-  )
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
   )
 }
 

@@ -37,7 +37,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type MutationOutcome, MutationOutcome,
+  single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
@@ -1110,16 +1111,6 @@ fn compare_gift_cards(
 // ===========================================================================
 
 /// Outcome of a gift-cards mutation.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload. Mirrors `GiftCardUserErrorRecord` (no `code`
 /// field — gift-card user errors are field+message only).
 pub type UserError {

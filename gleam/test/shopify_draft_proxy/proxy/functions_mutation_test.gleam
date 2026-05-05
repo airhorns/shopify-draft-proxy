@@ -23,7 +23,7 @@ import shopify_draft_proxy/state/types.{
 fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
-) -> functions.MutationOutcome {
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
   let request_path = "/admin/api/2025-01/graphql.json"
   let assert Ok(outcome) =
@@ -43,7 +43,7 @@ fn run_mutation_outcome(
       dict.new(),
       outcome.log_drafts,
     )
-  functions.MutationOutcome(
+  mutation_helpers.MutationOutcome(
     ..outcome,
     store: logged_store,
     identity: logged_identity,

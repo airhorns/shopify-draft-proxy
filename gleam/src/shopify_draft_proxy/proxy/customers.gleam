@@ -26,6 +26,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
+}
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/payments
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -60,15 +63,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type CustomersError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-  )
 }
 
 type UserError {
@@ -1996,6 +1990,7 @@ fn handle_mutation_fields(
         store: store,
         identity: identity,
         staged_resource_ids: [],
+        log_drafts: [],
       )
     None ->
       case first_invalid_tax_exemption_error(fields, variables) {
@@ -2007,6 +2002,7 @@ fn handle_mutation_fields(
             store: store,
             identity: identity,
             staged_resource_ids: [],
+            log_drafts: [],
           )
         None ->
           handle_validated_mutation_fields(
@@ -2161,6 +2157,7 @@ fn handle_validated_mutation_fields(
     store: logged_store,
     identity: logged_identity,
     staged_resource_ids: staged_ids,
+    log_drafts: [],
   )
 }
 

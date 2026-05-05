@@ -20,7 +20,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_selected_child_fields, paginate_connection_items, project_graphql_value,
   serialize_connection, serialize_empty_connection, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
+}
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
 }
@@ -35,16 +37,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type MediaError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(mutation_helpers.LogDraft),
-  )
 }
 
 type FilesUserError {

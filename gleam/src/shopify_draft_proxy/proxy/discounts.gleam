@@ -24,7 +24,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_field_response_key, get_selected_child_fields, project_graphql_value,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, type RequiredArgument, RequiredArgument, single_root_log_draft,
+  type MutationOutcome, MutationOutcome,
+  type RequiredArgument, RequiredArgument, single_root_log_draft,
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
@@ -47,16 +48,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type DiscountsError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 type MutationResult {

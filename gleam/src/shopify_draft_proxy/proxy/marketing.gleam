@@ -24,7 +24,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome, MutationOutcome, LogDraft}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -636,16 +636,6 @@ fn matches_id_term(
 // ===========================================================================
 // Mutation path
 // ===========================================================================
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
 
 type UserError {
   UserError(field: Option(List(String)), message: String, code: Option(String))

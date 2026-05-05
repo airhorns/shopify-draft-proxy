@@ -32,6 +32,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
   type LogDraft, read_optional_string, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
@@ -81,16 +82,6 @@ const execution_name = "stage-locally"
 
 pub type MetaobjectDefinitionsError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 type UserError {

@@ -41,7 +41,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
 }
 import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, RequiredArgument, build_null_argument_error, find_argument,
+  type MutationOutcome, MutationOutcome,
+  RequiredArgument, build_null_argument_error, find_argument,
   single_root_log_draft, validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
@@ -5028,16 +5029,6 @@ fn legacy_resource_id_from_gid(id: String) -> String {
       }
     Error(_) -> id
   }
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 type ProductUserError {

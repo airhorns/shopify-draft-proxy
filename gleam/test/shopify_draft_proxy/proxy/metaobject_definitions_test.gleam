@@ -1,6 +1,7 @@
 import gleam/dict
 import gleam/json
 import shopify_draft_proxy/proxy/metaobject_definitions
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 
@@ -15,7 +16,7 @@ fn run_mutation(
   s: store.Store,
   identity: synthetic_identity.SyntheticIdentityRegistry,
   query: String,
-) -> metaobject_definitions.MutationOutcome {
+) -> mutation_helpers.MutationOutcome {
   let assert Ok(outcome) =
     metaobject_definitions.process_mutation(
       s,

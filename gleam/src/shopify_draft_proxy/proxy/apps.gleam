@@ -37,6 +37,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
   type LogDraft, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
@@ -880,16 +881,6 @@ fn page_info_source(
 /// Outcome of an apps mutation. Mirrors the saved-search/webhook-subscription
 /// outcome shape: a JSON envelope (`{"data": ...}` or `{"errors": ...}`),
 /// the updated store and identity registry, and the staged GIDs.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload emitted on a mutation failure. Mirrors the apps
 /// `UserError` shape in TS: an optional `code` and a path that defaults
 /// to an empty list.

@@ -27,7 +27,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_selected_child_fields, paginate_connection_items, project_graphql_value,
   serialize_connection, src_object,
 }
-import shopify_draft_proxy/proxy/mutation_helpers.{type LogDraft, LogDraft}
+import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome, MutationOutcome, type LogDraft, LogDraft}
 import shopify_draft_proxy/proxy/products
 import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
@@ -352,16 +352,6 @@ fn last_gid_segment(id: String) -> String {
 // ===========================================================================
 // Mutation path
 // ===========================================================================
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
 
 pub type UserError {
   UserError(field: Option(List(String)), message: String, code: Option(String))

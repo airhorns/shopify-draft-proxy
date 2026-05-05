@@ -3,10 +3,11 @@
 import gleam/dict
 import gleam/json
 import shopify_draft_proxy/proxy/discounts
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 
-fn run_mutation(document: String) -> discounts.MutationOutcome {
+fn run_mutation(document: String) -> mutation_helpers.MutationOutcome {
   let assert Ok(outcome) =
     discounts.process_mutation(
       store.new(),

@@ -38,7 +38,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, serialize_connection, serialize_empty_connection,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, read_optional_string_array, single_root_log_draft,
+  type MutationOutcome, MutationOutcome,
+  read_optional_string_array, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
@@ -60,16 +61,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type LocalizationError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 /// Validation user-error variant. Translation register/remove emits

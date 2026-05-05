@@ -3,6 +3,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/webhooks
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -675,7 +676,7 @@ fn run_mutation(store_in: store.Store, document: String) -> String {
 fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
-) -> webhooks.MutationOutcome {
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
   let assert Ok(outcome) =
     webhooks.process_mutation(

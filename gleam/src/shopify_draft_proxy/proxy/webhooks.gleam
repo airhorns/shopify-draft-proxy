@@ -41,6 +41,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
   type LogDraft, RequiredArgument, read_optional_string,
   read_optional_string_array, single_root_log_draft,
   validate_required_field_arguments, validate_required_id_argument,
@@ -654,16 +655,6 @@ fn endpoint_to_source(
 /// Outcome of a webhook-subscription mutation. Mirrors the saved-search
 /// outcome shape: a JSON envelope (`{"data": ...}` or `{"errors": ...}`),
 /// the updated store and identity registry, and the staged GIDs.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload emitted on validation failure. Mirrors the
 /// `WebhookSubscriptionUserError` shape in TS.
 pub type UserError {

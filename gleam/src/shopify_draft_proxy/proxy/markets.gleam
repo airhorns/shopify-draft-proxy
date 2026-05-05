@@ -25,6 +25,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, serialize_empty_connection,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
   type LogDraft, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -49,16 +50,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type MarketsError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 type MarketConnectionItem {

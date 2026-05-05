@@ -36,7 +36,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection_with_field_serializers, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type MutationOutcome, MutationOutcome,
+  single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -1221,16 +1222,6 @@ fn serialize_membership_items(
 // ===========================================================================
 
 /// Outcome of a segments mutation.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload. Mirrors `SegmentUserError` (field+message only).
 pub type UserError {
   UserError(field: List(String), message: String)

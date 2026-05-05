@@ -925,6 +925,26 @@ pub type LogDraft {
   )
 }
 
+/// Standard shape returned by every domain `process_mutation`
+/// implementation. Bundles the JSON response body, the next `Store`,
+/// the next `SyntheticIdentityRegistry`, the resource ids that were
+/// staged this turn (used by the dispatcher to thread through the log
+/// entry), and the per-mutation `LogDraft` list that the dispatcher
+/// records via `record_log_drafts`.
+///
+/// Defined once here so all domain modules share one constructor; the
+/// dispatcher's `finalize_mutation_outcome` only needs to know about
+/// this single type.
+pub type MutationOutcome {
+  MutationOutcome(
+    data: Json,
+    store: Store,
+    identity: SyntheticIdentityRegistry,
+    staged_resource_ids: List(String),
+    log_drafts: List(LogDraft),
+  )
+}
+
 /// Build a `LogDraft` for a single-root-field mutation. Mirrors the
 /// shape that webhooks/apps/saved_searches/functions all
 /// historically produced inline. `domain` and `execution` are the

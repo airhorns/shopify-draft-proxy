@@ -31,10 +31,10 @@ fn empty_vars() {
 /// see the drafts the module emitted; centralized recording is the
 /// dispatcher's responsibility post-refactor.
 fn record_drafts(
-  outcome: admin_platform.MutationOutcome,
+  outcome: mutation_helpers.MutationOutcome,
   request_path: String,
   document: String,
-) -> admin_platform.MutationOutcome {
+) -> mutation_helpers.MutationOutcome {
   let #(logged_store, logged_identity) =
     mutation_helpers.record_log_drafts(
       outcome.store,
@@ -44,7 +44,7 @@ fn record_drafts(
       dict.new(),
       outcome.log_drafts,
     )
-  admin_platform.MutationOutcome(
+  mutation_helpers.MutationOutcome(
     ..outcome,
     store: logged_store,
     identity: logged_identity,

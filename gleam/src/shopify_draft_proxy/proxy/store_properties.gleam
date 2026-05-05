@@ -25,6 +25,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
+}
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
@@ -75,15 +78,6 @@ const location_hydrate_query: String = "query StorePropertiesLocationHydrate($id
 
 pub type StorePropertiesError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-  )
 }
 
 type ShopPolicyUserError {
@@ -576,6 +570,7 @@ pub fn process_mutation_with_upstream(
     store: final_store,
     identity: final_identity,
     staged_resource_ids: staged_ids,
+    log_drafts: [],
   ))
 }
 

@@ -12,6 +12,7 @@ import gleam/json
 import gleam/list
 import gleam/option.{None, Some}
 import shopify_draft_proxy/proxy/apps
+import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -63,7 +64,7 @@ fn installation(id: String, app_id: String) -> AppInstallationRecord {
 fn run_mutation_outcome(
   store_in: store.Store,
   document: String,
-) -> apps.MutationOutcome {
+) -> mutation_helpers.MutationOutcome {
   let identity = synthetic_identity.new()
   let assert Ok(outcome) =
     apps.process_mutation(

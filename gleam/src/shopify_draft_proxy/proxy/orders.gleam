@@ -30,6 +30,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
   type LogDraft, RequiredArgument, find_argument, single_root_log_draft,
   validate_required_field_arguments,
 }
@@ -58,16 +59,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type OrdersError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 pub fn is_orders_query_root(name: String) -> Bool {
