@@ -3508,6 +3508,8 @@ fn delete_contact(store: Store, contact_id: String) -> #(Store, List(String)) {
   case store.get_effective_b2b_company_contact_by_id(store, contact_id) {
     None -> #(store, [])
     Some(contact) -> {
+      let #(store, cascade_ids) =
+        remove_role_assignments_for_contact(store, contact_id)
       let store = case
         store.get_effective_b2b_company_by_id(store, contact.company_id)
       {
@@ -3529,7 +3531,7 @@ fn delete_contact(store: Store, contact_id: String) -> #(Store, List(String)) {
         None -> store
       }
       let store = store.delete_staged_b2b_company_contact(store, contact_id)
-      #(store, [contact_id, contact.company_id])
+      #(store, [contact_id, contact.company_id] |> list.append(cascade_ids))
     }
   }
 }
@@ -4251,6 +4253,41 @@ fn remove_role_assignments_for_location(
   )
 }
 
+fn remove_role_assignments_for_contact(
+  store: Store,
+  contact_id: String,
+) -> #(Store, List(String)) {
+  list.fold(
+    store.list_effective_b2b_company_locations(store),
+    #(store, []),
+    fn(acc, location) {
+      let #(current_store, staged_ids) = acc
+      let current =
+        read_object_sources(data_get(location.data, "roleAssignments"))
+      let #(kept, removed_ids) =
+        remove_assignments_matching_contact(current, contact_id)
+      case list.length(kept) == list.length(current) {
+        True -> acc
+        False -> {
+          let updated =
+            B2BCompanyLocationRecord(
+              ..location,
+              data: put_source(location.data, "roleAssignments", SrcList(kept)),
+            )
+          let #(_, next_store) =
+            store.upsert_staged_b2b_company_location(current_store, updated)
+          #(
+            next_store,
+            staged_ids
+              |> list.append([location.id])
+              |> list.append(removed_ids),
+          )
+        }
+      }
+    },
+  )
+}
+
 fn remove_assignments_matching_location(
   assignments: List(SourceValue),
   location_id: String,
@@ -4259,6 +4296,22 @@ fn remove_assignments_matching_location(
     let #(kept, removed) = acc
     case assignment_ref(assignment, "companyLocationId") {
       Some(id) if id == location_id -> #(
+        kept,
+        list.append(removed, [source_id(assignment)]),
+      )
+      _ -> #(list.append(kept, [assignment]), removed)
+    }
+  })
+}
+
+fn remove_assignments_matching_contact(
+  assignments: List(SourceValue),
+  contact_id: String,
+) -> #(List(SourceValue), List(String)) {
+  list.fold(assignments, #([], []), fn(acc, assignment) {
+    let #(kept, removed) = acc
+    case assignment_ref(assignment, "companyContactId") {
+      Some(id) if id == contact_id -> #(
         kept,
         list.append(removed, [source_id(assignment)]),
       )
