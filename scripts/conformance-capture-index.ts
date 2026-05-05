@@ -2093,6 +2093,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-uri-whitespace',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-uri-whitespace.ts',
+    purpose: 'Webhook subscription URI whitespace validation branches for create.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-uri-whitespace.json`,
+      'config/parity-specs/webhooks/webhook-subscription-uri-whitespace.json',
+    ],
+    cleanupBehavior:
+      'Whitespace-only branch is validation-only; leading/trailing-whitespace HTTPS branch creates a temporary subscription and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'gift-cards',
     captureId: 'gift-cards',
     scriptPath: 'scripts/capture-gift-card-conformance.ts',
