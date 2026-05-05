@@ -114,6 +114,28 @@ Two nearby 2026-04 traps from the same capture:
   returns `addresses: null` and a single `INVALID_INPUT` userError with
   `field: null` and message `Invalid input.`
 
+## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
+
+HAR-755 is implemented from the Business Customers package guardrail that caps
+bulk action inputs at 50 entries before per-entry processing. A live feasibility
+probe against `harry-test-heelo.myshopify.com` on Admin GraphQL 2026-04 did not
+produce one clean parity fixture for that contract:
+
+- `companiesDelete(companyIds: <51 missing-style gids>)` returned
+  `LIMIT_REACHED`, but with message
+  `Exceeded max input size of 50. Consider using BulkOperation.` and
+  `deletedCompanyIds: null`.
+- `companyContactAssignRoles(rolesToAssign: <51 valid role specs>)` accepted
+  the request and created 51 role assignments on a disposable company.
+- `currentStaffMember` and `staffMembers` remain access denied for the current
+  conformance token, so valid staff-assignment bulk limit evidence cannot be
+  captured on this host.
+
+Practical rule: keep HAR-755 runtime coverage focused on the internal B2B
+request guard contract and avoid adding a checked-in parity spec for the public
+2026-04 probe until a future live target reproduces the intended branch across
+the affected roots.
+
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
 HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:

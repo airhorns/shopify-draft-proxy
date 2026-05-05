@@ -1,0 +1,13 @@
+mutation DiscountContextCustomerSelectionConflictBasicUpdate($id: ID!, $input: DiscountCodeBasicInput!) {
+  discountCodeBasicUpdate(id: $id, basicCodeDiscount: $input) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

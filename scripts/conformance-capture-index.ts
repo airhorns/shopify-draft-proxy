@@ -2089,6 +2089,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-context-customer-selection-conflict',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-context-customer-selection-conflict-conformance.ts',
+    purpose:
+      'Discount context and deprecated customerSelection mutual-exclusion userErrors across create roots that accept both fields.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-context-customer-selection-conflict.json`,
+      'config/parity-specs/discounts/discount-context-customer-selection-conflict.json',
+      'config/parity-requests/discounts/discount-context-customer-selection-conflict.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable customers for realistic conflict IDs and deletes them after validation capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-bulk-selector-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-bulk-selector-validation-conformance.ts',
@@ -2098,6 +2115,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}discount-bulk-selector-validation.json`,
       'config/parity-specs/discounts/discount-bulk-selector-validation.json',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-customer-gets-value-multiple-types',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-customer-gets-value-multiple-types-conformance.ts',
+    purpose: 'Discount customerGets.value multiple-branch BadRequest parity for basic create/update inputs.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-customer-gets-value-multiple-types.json`,
+      'config/parity-specs/discounts/discount-customer-gets-value-multiple-types.json',
+      'config/parity-requests/discounts/discount-customer-gets-value-multiple-types-*.graphql',
     ],
     cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,

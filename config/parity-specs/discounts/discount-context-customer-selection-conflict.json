@@ -1,0 +1,95 @@
+{
+  "scenarioId": "discount-context-customer-selection-conflict",
+  "operationNames": [
+    "discountCodeBasicCreate",
+    "discountCodeBasicUpdate",
+    "discountCodeBxgyCreate",
+    "discountCodeBxgyUpdate",
+    "discountCodeFreeShippingCreate",
+    "discountCodeFreeShippingUpdate",
+    "discountCodeAppCreate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-context-customer-selection-conflict.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-context-customer-selection-conflict-setup.graphql",
+    "variablesCapturePath": "$.setup.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-context-customer-selection-conflict-setup",
+        "capturePath": "$.setup.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.basicCode.userErrors", "$.bxgyCode.userErrors", "$.freeShippingCode.userErrors"]
+      },
+      {
+        "name": "discount-context-customer-selection-conflict-create",
+        "capturePath": "$.conflictCreate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-context-customer-selection-conflict.graphql",
+          "variablesCapturePath": "$.conflictCreate.variables"
+        }
+      },
+      {
+        "name": "discount-context-customer-selection-conflict-basic-update",
+        "capturePath": "$.basicUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBasicUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-context-customer-selection-conflict-basic-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.basicCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.basicUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "discount-context-customer-selection-conflict-bxgy-update",
+        "capturePath": "$.bxgyUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBxgyUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-context-customer-selection-conflict-bxgy-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.bxgyCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.bxgyUpdate.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "discount-context-customer-selection-conflict-free-shipping-update",
+        "capturePath": "$.freeShippingUpdate.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeFreeShippingUpdate.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-context-customer-selection-conflict-free-shipping-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.freeShippingCode.codeDiscountNode.id"
+            },
+            "input": {
+              "fromCapturePath": "$.freeShippingUpdate.variables.input"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify 2026-04 validation evidence that code discount inputs with both context and deprecated customerSelection are rejected with INVALID on the input context field. The capture creates two disposable customers for realistic customer IDs, creates disposable code basic/BXGY/free-shipping discounts for update validation, runs create conflict probes for all code roots that accept both fields, runs update conflict probes for locally supported code update roots, and deletes the setup discounts/customers during cleanup. The 2026-04 schema rejects customerSelection as an undefined field on automatic discount inputs, so automatic roots are not part of this live userErrors parity request."
+}
