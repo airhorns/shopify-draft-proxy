@@ -71,6 +71,13 @@
         "name": "automatic-app-deactivate-payload",
         "capturePath": "$.automaticLifecycle.deactivate.response.data",
         "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.discountAutomaticDeactivate.automaticDiscountNode.automaticDiscount.endsAt",
+            "matcher": "iso-timestamp",
+            "reason": "Synthetic timestamps are sourced from the proxy clock and move independently from the recorded Shopify capture."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/discounts/discount-app-automatic-lifecycle-deactivate.graphql",
           "variables": {

@@ -1367,6 +1367,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-timestamps-monotonic',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-timestamps-monotonic-conformance.ts',
+    purpose: 'Code discount basic createdAt/updatedAt monotonic lifecycle behavior.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-timestamps-monotonic.json`,
+      'config/parity-specs/discounts/discount-timestamps-monotonic.json',
+    ],
+    cleanupBehavior: 'Creates two disposable code discounts and deletes both after timestamp probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-validation-conformance.ts',
