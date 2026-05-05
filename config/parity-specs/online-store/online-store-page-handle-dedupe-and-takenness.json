@@ -1,0 +1,78 @@
+{
+  "scenarioId": "online-store/page-handle-dedupe-and-takenness",
+  "operationNames": ["pageCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-page-handle-dedupe-and-takenness.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-page-handle-dedupe-and-takenness.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-551 captures Shopify page handle generation for auto-derived collision dedupe, explicit TAKEN collisions, and punctuation stripping. The capture uses run-unique titles to avoid collisions with pre-existing live store content, then compares stable handles and userErrors while excluding volatile page IDs and timestamps.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "first pageCreate derives normalized handle",
+        "capturePath": "$.interactions[0].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "selectedPaths": ["$.page.title", "$.page.handle", "$.userErrors"]
+      },
+      {
+        "name": "second pageCreate auto-dedupes colliding derived handle",
+        "capturePath": "$.interactions[1].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-page-handle-dedupe-and-takenness.graphql",
+          "variables": {
+            "page": {
+              "title": {
+                "fromCapturePath": "$.interactions[1].request.variables.page.title"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.page.title", "$.page.handle", "$.userErrors"]
+      },
+      {
+        "name": "explicit colliding page handle returns TAKEN",
+        "capturePath": "$.interactions[2].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-page-handle-dedupe-and-takenness.graphql",
+          "variables": {
+            "page": {
+              "title": {
+                "fromCapturePath": "$.interactions[2].request.variables.page.title"
+              },
+              "handle": {
+                "fromCapturePath": "$.interactions[2].request.variables.page.handle"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.page", "$.userErrors"]
+      },
+      {
+        "name": "punctuation pageCreate strips punctuation from derived handle",
+        "capturePath": "$.interactions[3].response.data.pageCreate",
+        "proxyPath": "$.data.pageCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-page-handle-dedupe-and-takenness.graphql",
+          "variables": {
+            "page": {
+              "title": {
+                "fromCapturePath": "$.interactions[3].request.variables.page.title"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.page.title", "$.page.handle", "$.userErrors"]
+      }
+    ]
+  }
+}

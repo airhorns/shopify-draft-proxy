@@ -1,0 +1,121 @@
+{
+  "scenarioId": "orderCancel-state-transitions",
+  "operationNames": ["orderCreate", "orderCancel"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "user-errors-parity", "no-upstream-passthrough"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/orders/orderCancel-state-transitions.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql",
+    "variablesCapturePath": "$.setup.freshOrderCreate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-fresh-order",
+        "capturePath": "$.expected.freshOrderCreate.data.orderCreate.userErrors",
+        "proxyPath": "$.data.orderCreate.userErrors"
+      },
+      {
+        "name": "setup-create-cancelled-order",
+        "capturePath": "$.expected.cancelledOrderCreate.data.orderCreate.userErrors",
+        "proxyPath": "$.data.orderCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCancel-state-transitions-order-create.graphql",
+          "variablesCapturePath": "$.setup.cancelledOrderCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "setup-cancel-order",
+        "capturePath": "$.expected.cancelOrderSuccess.data.orderCancel",
+        "proxyPath": "$.data.orderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCancel-state-transitions-setup-cancel.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "setup-create-cancelled-order",
+              "path": "$.data.orderCreate.order.id"
+            },
+            "restock": false,
+            "reason": "OTHER"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "already-cancelled",
+        "capturePath": "$.expected.alreadyCancelled.data.orderCancel",
+        "proxyPath": "$.data.orderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCancel-state-transitions.graphql",
+          "variables": {
+            "orderId": {
+              "fromProxyResponse": "setup-create-cancelled-order",
+              "path": "$.data.orderCreate.order.id"
+            },
+            "restock": false,
+            "reason": "OTHER"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "staff-note-too-long",
+        "capturePath": "$.expected.staffNoteTooLong.data.orderCancel",
+        "proxyPath": "$.data.orderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCancel-state-transitions.graphql",
+          "variables": {
+            "orderId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "restock": false,
+            "reason": "OTHER",
+            "staffNote": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "refund-and-refund-method-conflict",
+        "capturePath": "$.expected.refundAndRefundMethodConflict.data.orderCancel",
+        "proxyPath": "$.data.orderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCancel-state-transitions.graphql",
+          "variables": {
+            "orderId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "restock": false,
+            "reason": "OTHER",
+            "refund": true,
+            "refundMethod": {
+              "originalPaymentMethodsRefund": true
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unknown-order",
+        "capturePath": "$.expected.unknownOrder.data.orderCancel",
+        "proxyPath": "$.data.orderCancel",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderCancel-state-transitions.graphql",
+          "variables": {
+            "orderId": "gid://shopify/Order/404",
+            "restock": false,
+            "reason": "OTHER"
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-560 executable local-runtime parity for orderCancel validation guardrails. The replay creates a fresh local order, creates and cancels a second local order to establish an already-cancelled state, then verifies already-cancelled, overlong staffNote, refund/refundMethod conflict, and unknown-order payloads with coded userErrors and null job/order responses. Refunded and open-return local-state rejection branches are covered by the Gleam runtime test referenced above because the generic parity runner does not yet support direct order-state fixture pre-seeding."
+}

@@ -2874,6 +2874,7 @@ fn gift_card_json(record: types.GiftCardRecord) -> Json {
     #("lastCharacters", json.string(record.last_characters)),
     #("maskedCode", json.string(record.masked_code)),
     #("enabled", json.bool(record.enabled)),
+    #("notify", json.bool(record.notify)),
     #("deactivatedAt", optional_string(record.deactivated_at)),
     #("expiresOn", optional_string(record.expires_on)),
     #("note", optional_string(record.note)),
@@ -2925,6 +2926,7 @@ fn customer_segment_members_query_json(
     #("id", json.string(record.id)),
     #("query", optional_string(record.query)),
     #("segmentId", optional_string(record.segment_id)),
+    #("status", json.string(record.status)),
     #("currentCount", json.int(record.current_count)),
     #("done", json.bool(record.done)),
   ])
@@ -5836,6 +5838,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
   use last_characters <- decode.field("lastCharacters", decode.string)
   use masked_code <- decode.field("maskedCode", decode.string)
   use enabled <- decode.field("enabled", decode.bool)
+  use notify <- optional_field("notify", True, decode.bool)
   use deactivated_at <- optional_string_field("deactivatedAt")
   use expires_on <- optional_string_field("expiresOn")
   use note <- optional_string_field("note")
@@ -5863,6 +5866,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
     last_characters: last_characters,
     masked_code: masked_code,
     enabled: enabled,
+    notify: notify,
     deactivated_at: deactivated_at,
     expires_on: expires_on,
     note: note,
@@ -5911,12 +5915,14 @@ fn customer_segment_members_query_decoder() -> Decoder(
   use id <- decode.field("id", decode.string)
   use query <- optional_string_field("query")
   use segment_id <- optional_string_field("segmentId")
+  use status <- optional_field("status", "INITIALIZED", decode.string)
   use current_count <- decode.field("currentCount", decode.int)
   use done <- decode.field("done", decode.bool)
   decode.success(types.CustomerSegmentMembersQueryRecord(
     id: id,
     query: query,
     segment_id: segment_id,
+    status: status,
     current_count: current_count,
     done: done,
   ))

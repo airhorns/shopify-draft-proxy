@@ -45,6 +45,15 @@ type FileReadData = {
   } | null;
 };
 
+type FilesReadData = {
+  files?: {
+    nodes?: Array<{
+      id?: string | null;
+      fileStatus?: string | null;
+    } | null> | null;
+  } | null;
+};
+
 type ProductCreateData = {
   productCreate?: {
     product?: { id?: string | null } | null;
@@ -167,6 +176,79 @@ const fileReadQuery = `#graphql
   }
 `;
 
+const fileCreateThenImageReadMutation = `#graphql
+  mutation MediaFileCreateThenImageRead($files: [FileCreateInput!]!) {
+    fileCreate(files: $files) {
+      files {
+        id
+        alt
+        createdAt
+        fileStatus
+        ... on MediaImage {
+          image {
+            url
+            width
+            height
+          }
+          preview {
+            image {
+              url
+            }
+          }
+        }
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+const filesAfterCreateReadQuery = `#graphql
+  query MediaFileCreateThenImageReadFiles {
+    files(first: 5, reverse: true) {
+      nodes {
+        id
+        alt
+        createdAt
+        fileStatus
+        ... on MediaImage {
+          image {
+            url
+            width
+            height
+          }
+          preview {
+            image {
+              url
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const fileDeleteTypedGidCreateMutation = `#graphql
+  mutation MediaFileDeleteTypedGidRoundtripCreate($files: [FileCreateInput!]!) {
+    fileCreate(files: $files) {
+      files {
+        id
+        alt
+        createdAt
+        fileStatus
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const productCreateMutation = `#graphql
   mutation FileDeleteMediaReferenceSeedProduct($product: ProductCreateInput!) {
     productCreate(product: $product) {
@@ -280,6 +362,35 @@ function buildFileCreateVariables(runId: string): GraphqlVariables {
   };
 }
 
+function buildFileCreateThenImageReadVariables(runId: string): GraphqlVariables {
+  return {
+    files: [
+      {
+        contentType: 'IMAGE',
+        originalSource: 'https://placehold.co/600x400/png',
+        alt: `Hermes file image read ${runId}`,
+      },
+    ],
+  };
+}
+
+function buildTypedDeleteCreateVariables(runId: string): GraphqlVariables {
+  return {
+    files: [
+      {
+        contentType: 'IMAGE',
+        originalSource: 'https://placehold.co/600x400/png',
+        alt: `Hermes typed delete actual ${runId}`,
+      },
+      {
+        contentType: 'IMAGE',
+        originalSource: 'https://placehold.co/600x400/png',
+        alt: `Hermes typed delete wrong type ${runId}`,
+      },
+    ],
+  };
+}
+
 function buildFileUpdateVariables(fileId: string): GraphqlVariables {
   return {
     files: [
@@ -332,6 +443,9 @@ await mkdir(outputDir, { recursive: true });
 
 const runId = `${Date.now()}`;
 let createdFileId: string | null = null;
+let imageReadFileId: string | null = null;
+let typedDeleteActualFileId: string | null = null;
+let typedDeleteWrongTypeFileId: string | null = null;
 let productId: string | null = null;
 let productMediaId: string | null = null;
 
@@ -381,6 +495,47 @@ try {
   expectNoUserErrors('fileDelete (product media reference)', deleteMediaReferenceResponse.data?.fileDelete?.userErrors);
   const productReadAfterDelete = await runGraphql<ProductMediaReadData>(productMediaReadQuery, { id: productId });
 
+  const imageReadVariables = buildFileCreateThenImageReadVariables(runId);
+  const imageReadCreateResponse = await runGraphql<FileCreateData>(fileCreateThenImageReadMutation, imageReadVariables);
+  expectNoUserErrors('fileCreate (image read scenario)', imageReadCreateResponse.data?.fileCreate?.userErrors);
+  imageReadFileId = requireId(
+    'fileCreate image read files[0]',
+    imageReadCreateResponse.data?.fileCreate?.files?.[0]?.id,
+  );
+  const imageReadAfterCreateResponse = await runGraphql<FilesReadData>(filesAfterCreateReadQuery);
+  const imageReadDeleteVariables = { fileIds: [imageReadFileId] };
+  const imageReadDeleteResponse = await runGraphql<FileDeleteData>(fileDeleteMutation, imageReadDeleteVariables);
+  expectNoUserErrors('fileDelete (image read cleanup)', imageReadDeleteResponse.data?.fileDelete?.userErrors);
+
+  const typedDeleteCreateVariables = buildTypedDeleteCreateVariables(runId);
+  const typedDeleteCreateResponse = await runGraphql<FileCreateData>(
+    fileDeleteTypedGidCreateMutation,
+    typedDeleteCreateVariables,
+  );
+  expectNoUserErrors('fileCreate (typed delete scenario)', typedDeleteCreateResponse.data?.fileCreate?.userErrors);
+  typedDeleteActualFileId = requireId(
+    'typed delete files[0]',
+    typedDeleteCreateResponse.data?.fileCreate?.files?.[0]?.id,
+  );
+  typedDeleteWrongTypeFileId = requireId(
+    'typed delete files[1]',
+    typedDeleteCreateResponse.data?.fileCreate?.files?.[1]?.id,
+  );
+  const typedDeleteActualVariables = { fileIds: [typedDeleteActualFileId] };
+  const typedDeleteActualResponse = await runGraphql<FileDeleteData>(fileDeleteMutation, typedDeleteActualVariables);
+  expectNoUserErrors('fileDelete (typed delete actual gid)', typedDeleteActualResponse.data?.fileDelete?.userErrors);
+  const typedDeleteWrongTypeVariables = {
+    fileIds: [typedDeleteWrongTypeFileId.replace('/MediaImage/', '/Video/')],
+  };
+  const typedDeleteWrongTypeResponse = await runGraphql<FileDeleteData>(
+    fileDeleteMutation,
+    typedDeleteWrongTypeVariables,
+  );
+  expectNoUserErrors(
+    'fileDelete (typed delete wrong type gid)',
+    typedDeleteWrongTypeResponse.data?.fileDelete?.userErrors,
+  );
+
   const captures = {
     'file-create-delete-parity.json': {
       createMutation: {
@@ -429,6 +584,35 @@ try {
       },
       downstreamRead: productReadAfterDelete,
     },
+    'media-file-create-then-image-read.json': {
+      create: {
+        variables: imageReadVariables,
+        response: imageReadCreateResponse,
+      },
+      readAfterCreate: {
+        response: imageReadAfterCreateResponse,
+      },
+      cleanup: {
+        variables: imageReadDeleteVariables,
+        response: imageReadDeleteResponse,
+      },
+      upstreamCalls: [],
+    },
+    'media-file-delete-typed-gid-roundtrip.json': {
+      create: {
+        variables: typedDeleteCreateVariables,
+        response: typedDeleteCreateResponse,
+      },
+      deleteActual: {
+        variables: typedDeleteActualVariables,
+        response: typedDeleteActualResponse,
+      },
+      deleteWrongType: {
+        variables: typedDeleteWrongTypeVariables,
+        response: typedDeleteWrongTypeResponse,
+      },
+      upstreamCalls: [],
+    },
   };
 
   for (const [filename, payload] of Object.entries(captures)) {
@@ -442,6 +626,9 @@ try {
         outputDir,
         files: Object.keys(captures),
         createdFileId,
+        imageReadFileId,
+        typedDeleteActualFileId,
+        typedDeleteWrongTypeFileId,
         productId,
         productMediaId,
       },
@@ -453,6 +640,30 @@ try {
   if (createdFileId) {
     try {
       await runGraphql<ProductDeleteData>(fileDeleteMutation, { fileIds: [createdFileId] });
+    } catch {
+      // Best-effort cleanup only.
+    }
+  }
+
+  if (imageReadFileId) {
+    try {
+      await runGraphql<ProductDeleteData>(fileDeleteMutation, { fileIds: [imageReadFileId] });
+    } catch {
+      // Best-effort cleanup only.
+    }
+  }
+
+  if (typedDeleteActualFileId) {
+    try {
+      await runGraphql<ProductDeleteData>(fileDeleteMutation, { fileIds: [typedDeleteActualFileId] });
+    } catch {
+      // Best-effort cleanup only.
+    }
+  }
+
+  if (typedDeleteWrongTypeFileId) {
+    try {
+      await runGraphql<ProductDeleteData>(fileDeleteMutation, { fileIds: [typedDeleteWrongTypeFileId] });
     } catch {
       // Best-effort cleanup only.
     }

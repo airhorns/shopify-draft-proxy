@@ -2200,6 +2200,259 @@ pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
     == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\",\"fulfillmentHolds\":[]},{\"status\":\"CLOSED\",\"fulfillmentHolds\":[]}]}},\"manualHoldsFulfillmentOrders\":{\"nodes\":[]}}}"
 }
 
+pub fn orders_fulfillment_order_hold_validation_branches_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-hold-validation"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/hold-validation"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/hold-validation"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-order-hold-validation"
+  let seeded =
+    fulfillment_order_lifecycle_store(
+      order_id,
+      fulfillment_order_id,
+      fulfillment_order_line_item_id,
+      line_item_id,
+    )
+  let hold_mutation =
+    "
+    mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+      fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+        fulfillmentHold {
+          handle
+        }
+        fulfillmentOrder {
+          status
+          fulfillmentHolds {
+            handle
+          }
+        }
+        remainingFulfillmentOrder {
+          status
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let first_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-1"), [
+        #(fulfillment_order_line_item_id, 1),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(first_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"appA-1\"},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"appA-1\"}]},\"remainingFulfillmentOrder\":{\"status\":\"OPEN\"},\"userErrors\":[]}}}"
+
+  let second_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-1"), []),
+      empty_upstream_context(),
+    )
+  assert json.to_string(second_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"handle\"],\"message\":\"The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.\",\"code\":\"DUPLICATE_FULFILLMENT_HOLD_HANDLE\"}]}}}"
+
+  let split_held_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-2"), [
+        #(fulfillment_order_line_item_id, 1),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(split_held_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"fulfillmentOrderLineItems\"],\"message\":\"The fulfillment order is not in a splittable state.\",\"code\":\"FULFILLMENT_ORDER_NOT_SPLITTABLE\"}]}}}"
+
+  let append_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-2"), []),
+      empty_upstream_context(),
+    )
+  assert json.to_string(append_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"appA-2\"},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"appA-1\"},{\"handle\":\"appA-2\"}]},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
+
+  let #(limit_ready_store, limit_ready_identity) =
+    [
+      "appA-4",
+      "appA-5",
+      "appA-6",
+      "appA-7",
+      "appA-8",
+      "appA-9",
+      "appA-10",
+      "appA-11",
+    ]
+    |> list.fold(
+      #(append_outcome.store, append_outcome.identity),
+      fn(acc, handle) {
+        let #(current_store, current_identity) = acc
+        let outcome =
+          orders.process_mutation(
+            current_store,
+            current_identity,
+            "/admin/api/2026-04/graphql.json",
+            hold_mutation,
+            fulfillment_order_hold_variables(
+              fulfillment_order_id,
+              Some(handle),
+              [],
+            ),
+            empty_upstream_context(),
+          )
+        #(outcome.store, outcome.identity)
+      },
+    )
+
+  let limit_outcome =
+    orders.process_mutation(
+      limit_ready_store,
+      limit_ready_identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(
+        fulfillment_order_id,
+        Some("appA-12"),
+        [],
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(limit_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.\",\"code\":\"FULFILLMENT_ORDER_HOLD_LIMIT_REACHED\"}]}}}"
+
+  let zero_quantity_outcome =
+    orders.process_mutation(
+      append_outcome.store,
+      append_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-4"), [
+        #(fulfillment_order_line_item_id, 0),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(zero_quantity_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"You must select at least one item to place on partial hold.\",\"code\":\"GREATER_THAN_ZERO\"}]}}}"
+
+  let duplicate_line_item_outcome =
+    orders.process_mutation(
+      append_outcome.store,
+      append_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-4"), [
+        #(fulfillment_order_line_item_id, 1),
+        #(fulfillment_order_line_item_id, 1),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(duplicate_line_item_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"fulfillmentOrderLineItems\"],\"message\":\"must contain unique line item ids\",\"code\":\"DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS\"}]}}}"
+
+  let default_handle_order_id =
+    "gid://shopify/Order/fulfillment-order-hold-default-handle"
+  let default_handle_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/hold-default-handle"
+  let default_handle_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/hold-default-handle"
+  let default_seeded =
+    fulfillment_order_lifecycle_store(
+      default_handle_order_id,
+      default_handle_fulfillment_order_id,
+      default_handle_line_item_id,
+      "gid://shopify/LineItem/fulfillment-order-hold-default-handle",
+    )
+  let default_handle_outcome =
+    orders.process_mutation(
+      default_seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(
+        default_handle_fulfillment_order_id,
+        None,
+        [],
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(default_handle_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"\"},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"\"}]},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
+
+  let too_long_handle_outcome =
+    orders.process_mutation(
+      default_seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(
+        default_handle_fulfillment_order_id,
+        Some(
+          "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        ),
+        [],
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(too_long_handle_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"handle\"],\"message\":\"Handle is too long (maximum is 64 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+}
+
+fn fulfillment_order_hold_variables(
+  fulfillment_order_id: String,
+  handle: Option(String),
+  line_items: List(#(String, Int)),
+) -> Dict(String, root_field.ResolvedValue) {
+  let hold_fields = [
+    #("reason", root_field.StringVal("OTHER")),
+    #("notifyMerchant", root_field.BoolVal(False)),
+  ]
+  let hold_fields = case handle {
+    Some(handle) ->
+      list.append(hold_fields, [#("handle", root_field.StringVal(handle))])
+    None -> hold_fields
+  }
+  let hold_fields = case line_items {
+    [] -> hold_fields
+    [_, ..] ->
+      list.append(hold_fields, [
+        #(
+          "fulfillmentOrderLineItems",
+          root_field.ListVal(
+            list.map(line_items, fn(line_item) {
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("id", root_field.StringVal(line_item.0)),
+                  #("quantity", root_field.IntVal(line_item.1)),
+                ]),
+              )
+            }),
+          ),
+        ),
+      ])
+  }
+  dict.from_list([
+    #("id", root_field.StringVal(fulfillment_order_id)),
+    #("fulfillmentHold", root_field.ObjectVal(dict.from_list(hold_fields))),
+  ])
+}
+
 pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
   let order_id = "gid://shopify/Order/fulfillment-order-lifecycle"
   let fulfillment_order_id = "gid://shopify/FulfillmentOrder/lifecycle"
@@ -5634,6 +5887,162 @@ pub fn orders_order_cancel_read_after_write_test() {
   let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
   assert json.to_string(read)
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"closed\":true,\"closedAt\":\"2024-01-01T00:00:00.000Z\",\"cancelledAt\":\"2024-01-01T00:00:00.000Z\",\"cancelReason\":\"OTHER\"}}}"
+}
+
+pub fn orders_order_cancel_rejects_uncancellable_states_test() {
+  let cancelled_id = "gid://shopify/Order/6830646329578"
+  let refunded_id = "gid://shopify/Order/6830646329579"
+  let open_return_id = "gid://shopify/Order/6830646329580"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_cancel_test_order(
+        cancelled_id,
+        "PAID",
+        Some("2024-02-01T00:00:00.000Z"),
+        [],
+      ),
+      order_cancel_test_order(refunded_id, "REFUNDED", None, []),
+      order_cancel_test_order(open_return_id, "PAID", None, [
+        types.CapturedObject([
+          #("id", types.CapturedString("gid://shopify/Return/1")),
+          #("status", types.CapturedString("OPEN")),
+        ]),
+      ]),
+    ])
+
+  let cancelled_outcome = run_order_cancel(seed: seeded, order_id: cancelled_id)
+  assert json.to_string(cancelled_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order has already been cancelled\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order has already been cancelled\",\"code\":\"INVALID\"}]}}}"
+  assert cancelled_outcome.staged_resource_ids == []
+  assert cancelled_outcome.log_drafts == []
+
+  let refunded_outcome = run_order_cancel(seed: seeded, order_id: refunded_id)
+  assert json.to_string(refunded_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel a refunded order\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel a refunded order\",\"code\":\"INVALID\"}]}}}"
+  assert refunded_outcome.staged_resource_ids == []
+  assert refunded_outcome.log_drafts == []
+
+  let open_return_outcome =
+    run_order_cancel(seed: seeded, order_id: open_return_id)
+  assert json.to_string(open_return_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel an order with open returns\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel an order with open returns\",\"code\":\"INVALID\"}]}}}"
+  assert open_return_outcome.staged_resource_ids == []
+  assert open_return_outcome.log_drafts == []
+}
+
+pub fn orders_order_cancel_rejects_invalid_arguments_test() {
+  let order_id = "gid://shopify/Order/6830646329581"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_cancel_test_order(order_id, "PENDING", None, []),
+    ])
+
+  let refund_method_outcome =
+    run_order_cancel_with_extra_args(
+      seed: seeded,
+      order_id: order_id,
+      extra_args: ", refund: true, refundMethod: { originalPaymentMethodsRefund: true }",
+    )
+  assert json.to_string(refund_method_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"refund\"],\"message\":\"Refund and refundMethod cannot both be present.\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"refund\"],\"message\":\"Refund and refundMethod cannot both be present.\",\"code\":\"INVALID\"}]}}}"
+  assert refund_method_outcome.staged_resource_ids == []
+  assert refund_method_outcome.log_drafts == []
+
+  let staff_note_outcome =
+    run_order_cancel_with_extra_args(
+      seed: seeded,
+      order_id: order_id,
+      extra_args: ", staffNote: \"" <> string.repeat("x", times: 300) <> "\"",
+    )
+  assert json.to_string(staff_note_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"staffNote\"],\"message\":\"Staff note is too long (maximum is 255 characters)\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"staffNote\"],\"message\":\"Staff note is too long (maximum is 255 characters)\",\"code\":\"INVALID\"}]}}}"
+  assert staff_note_outcome.staged_resource_ids == []
+  assert staff_note_outcome.log_drafts == []
+}
+
+pub fn orders_order_cancel_unknown_order_uses_not_found_code_test() {
+  let outcome =
+    run_order_cancel(seed: store.new(), order_id: "gid://shopify/Order/404")
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+fn order_cancel_test_order(
+  id: String,
+  display_financial_status: String,
+  cancelled_at: Option(String),
+  returns: List(types.CapturedJsonValue),
+) -> types.OrderRecord {
+  types.OrderRecord(
+    id: id,
+    cursor: None,
+    data: types.CapturedObject([
+      #("id", types.CapturedString(id)),
+      #("name", types.CapturedString("#1328")),
+      #("closed", types.CapturedBool(False)),
+      #("closedAt", types.CapturedNull),
+      #("cancelledAt", case cancelled_at {
+        Some(timestamp) -> types.CapturedString(timestamp)
+        None -> types.CapturedNull
+      }),
+      #("cancelReason", types.CapturedNull),
+      #(
+        "displayFinancialStatus",
+        types.CapturedString(display_financial_status),
+      ),
+      #("returns", types.CapturedArray(returns)),
+    ]),
+  )
+}
+
+fn run_order_cancel(seed seed: store.Store, order_id order_id: String) {
+  run_order_cancel_with_extra_args(
+    seed: seed,
+    order_id: order_id,
+    extra_args: "",
+  )
+}
+
+fn run_order_cancel_with_extra_args(
+  seed seed: store.Store,
+  order_id order_id: String,
+  extra_args extra_args: String,
+) {
+  let mutation = "
+    mutation {
+      orderCancel(orderId: \"" <> order_id <> "\", restock: true, reason: OTHER" <> extra_args <> ") {
+        order {
+          id
+        }
+        job {
+          id
+          done
+        }
+        orderCancelUserErrors {
+          field
+          message
+          code
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    mutation,
+    dict.new(),
+    empty_upstream_context(),
+  )
 }
 
 pub fn orders_order_invoice_send_payload_test() {
