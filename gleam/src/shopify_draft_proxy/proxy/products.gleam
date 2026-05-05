@@ -113,6 +113,10 @@ const product_set_file_limit = 250
 
 const product_set_inventory_quantities_limit = 250
 
+const product_tag_limit = 250
+
+const product_tag_character_limit = 255
+
 pub fn is_products_query_root(name: String) -> Bool {
   case name {
     "product"
@@ -7265,13 +7269,26 @@ fn handle_mutation_fields(
                   "stage-locally",
                   Some("Gleam staged productUpdate locally."),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "productDuplicate" -> {
@@ -8742,13 +8759,26 @@ fn handle_mutation_fields(
                   "stage-locally",
                   Some("Gleam staged tagsAdd locally."),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             "tagsRemove" -> {
@@ -8770,13 +8800,26 @@ fn handle_mutation_fields(
                   "stage-locally",
                   Some("Gleam staged tagsRemove locally."),
                 )
+              let next_errors = list.append(errors, result.top_level_errors)
+              let next_entries = case result.top_level_errors {
+                [] -> list.append(entries, [#(result.key, result.payload)])
+                _ -> list.append(entries, result.top_level_error_data_entries)
+              }
+              let next_staged = case result.top_level_errors {
+                [] -> list.append(staged_ids, result.staged_resource_ids)
+                _ -> staged_ids
+              }
+              let next_drafts = case result.top_level_errors {
+                [] -> list.append(drafts, [draft])
+                _ -> drafts
+              }
               #(
-                list.append(entries, [#(result.key, result.payload)]),
-                errors,
+                next_entries,
+                next_errors,
                 result.store,
                 result.identity,
-                list.append(staged_ids, result.staged_resource_ids),
-                list.append(drafts, [draft]),
+                next_staged,
+                next_drafts,
               )
             }
             _ -> acc
@@ -8898,57 +8941,69 @@ fn handle_product_create(
         )
       mutation_error_result(key, store, identity, errors)
     }
-    Some(input) -> {
-      let user_errors = product_create_validation_errors(input)
-      case user_errors {
-        [_, ..] ->
-          mutation_result(
-            key,
-            product_create_payload(store, None, user_errors, field, fragments),
-            store,
-            identity,
-            [],
-          )
+    Some(input) ->
+      case
+        product_tags_max_input_size_errors("productCreate", "product", input)
+      {
+        [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
         [] -> {
-          let #(product, identity_after_product) =
-            created_product_record(store, identity, input)
-          let #(options, default_variant, final_identity, graph_ids) =
-            make_product_create_option_graph(
-              identity_after_product,
-              product,
-              read_object_list_field(input, "productOptions"),
-            )
-          let #(_, next_store) = store.upsert_staged_product(store, product)
-          let next_store =
-            next_store
-            |> store.replace_staged_options_for_product(product.id, options)
-            |> store.replace_staged_variants_for_product(product.id, [
-              default_variant,
-            ])
-          let synced_product =
-            ProductRecord(
-              ..product,
-              total_inventory: Some(0),
-              tracks_inventory: Some(False),
-            )
-          let #(_, next_store) =
-            store.upsert_staged_product(next_store, synced_product)
-          mutation_result(
-            key,
-            product_create_payload(
-              next_store,
-              Some(synced_product),
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            final_identity,
-            [synced_product.id, ..graph_ids],
-          )
+          let user_errors = product_create_validation_errors(input)
+          case user_errors {
+            [_, ..] ->
+              mutation_result(
+                key,
+                product_create_payload(
+                  store,
+                  None,
+                  user_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            [] -> {
+              let #(product, identity_after_product) =
+                created_product_record(store, identity, input)
+              let #(options, default_variant, final_identity, graph_ids) =
+                make_product_create_option_graph(
+                  identity_after_product,
+                  product,
+                  read_object_list_field(input, "productOptions"),
+                )
+              let #(_, next_store) = store.upsert_staged_product(store, product)
+              let next_store =
+                next_store
+                |> store.replace_staged_options_for_product(product.id, options)
+                |> store.replace_staged_variants_for_product(product.id, [
+                  default_variant,
+                ])
+              let synced_product =
+                ProductRecord(
+                  ..product,
+                  total_inventory: Some(0),
+                  tracks_inventory: Some(False),
+                )
+              let #(_, next_store) =
+                store.upsert_staged_product(next_store, synced_product)
+              mutation_result(
+                key,
+                product_create_payload(
+                  next_store,
+                  Some(synced_product),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                final_identity,
+                [synced_product.id, ..graph_ids],
+              )
+            }
+          }
         }
       }
-    }
   }
 }
 
@@ -9241,11 +9296,85 @@ fn handle_product_update(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let input = graphql_helpers.read_arg_object(args, "product")
-  let id = case input {
-    Some(input) -> graphql_helpers.read_arg_string(input, "id")
-    None -> None
-  }
-  case id {
+  case input {
+    Some(input) ->
+      case
+        product_tags_max_input_size_errors("productUpdate", "product", input)
+      {
+        [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
+        [] -> {
+          let id = graphql_helpers.read_arg_string(input, "id")
+          case id {
+            None ->
+              mutation_result(
+                key,
+                product_update_payload(
+                  store,
+                  None,
+                  [ProductUserError(["id"], "Product does not exist", None)],
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+                [],
+              )
+            Some(product_id) ->
+              case store.get_effective_product_by_id(store, product_id) {
+                None ->
+                  mutation_result(
+                    key,
+                    product_update_payload(
+                      store,
+                      None,
+                      [ProductUserError(["id"], "Product does not exist", None)],
+                      field,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                    [],
+                  )
+                Some(product) ->
+                  case product_update_validation_error(input) {
+                    Some(error) ->
+                      mutation_result(
+                        key,
+                        product_update_payload(
+                          store,
+                          Some(product),
+                          [error],
+                          field,
+                          fragments,
+                        ),
+                        store,
+                        identity,
+                        [],
+                      )
+                    None -> {
+                      let #(next_product, next_identity) =
+                        updated_product_record(identity, product, input)
+                      let #(_, next_store) =
+                        store.upsert_staged_product(store, next_product)
+                      mutation_result(
+                        key,
+                        product_update_payload(
+                          next_store,
+                          Some(next_product),
+                          [],
+                          field,
+                          fragments,
+                        ),
+                        next_store,
+                        next_identity,
+                        [next_product.id],
+                      )
+                    }
+                  }
+              }
+          }
+        }
+      }
     None ->
       mutation_result(
         key,
@@ -9260,73 +9389,6 @@ fn handle_product_update(
         identity,
         [],
       )
-    Some(product_id) ->
-      case store.get_effective_product_by_id(store, product_id), input {
-        None, _ ->
-          mutation_result(
-            key,
-            product_update_payload(
-              store,
-              None,
-              [ProductUserError(["id"], "Product does not exist", None)],
-              field,
-              fragments,
-            ),
-            store,
-            identity,
-            [],
-          )
-        Some(product), Some(input) ->
-          case product_update_validation_error(input) {
-            Some(error) ->
-              mutation_result(
-                key,
-                product_update_payload(
-                  store,
-                  Some(product),
-                  [error],
-                  field,
-                  fragments,
-                ),
-                store,
-                identity,
-                [],
-              )
-            None -> {
-              let #(next_product, next_identity) =
-                updated_product_record(identity, product, input)
-              let #(_, next_store) =
-                store.upsert_staged_product(store, next_product)
-              mutation_result(
-                key,
-                product_update_payload(
-                  next_store,
-                  Some(next_product),
-                  [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                next_identity,
-                [next_product.id],
-              )
-            }
-          }
-        Some(_), None ->
-          mutation_result(
-            key,
-            product_update_payload(
-              store,
-              None,
-              [ProductUserError(["id"], "Product does not exist", None)],
-              field,
-              fragments,
-            ),
-            store,
-            identity,
-            [],
-          )
-      }
   }
 }
 
@@ -9586,6 +9648,11 @@ fn product_set_max_input_size_errors(
     product_set_variant_max_input_size_errors(input),
     product_set_inventory_quantities_max_input_size_errors(input),
   )
+  |> list.append(product_tags_max_input_size_errors(
+    "productSet",
+    "input",
+    input,
+  ))
 }
 
 fn product_set_variant_max_input_size_errors(
@@ -9643,6 +9710,23 @@ fn max_input_size_error(length: Int, maximum: Int, path: List(String)) -> Json {
       json.object([#("code", json.string("MAX_INPUT_SIZE_EXCEEDED"))]),
     ),
   ])
+}
+
+fn product_tags_max_input_size_errors(
+  root: String,
+  input_name: String,
+  input: Dict(String, ResolvedValue),
+) -> List(Json) {
+  let path = case input_name {
+    "" -> [root, "tags"]
+    _ -> [root, input_name, "tags"]
+  }
+  case read_list_field_length(input, "tags") {
+    Some(length) if length > product_tag_limit -> [
+      max_input_size_error(length, product_tag_limit, path),
+    ]
+    _ -> []
+  }
 }
 
 fn product_set_option_limit_errors(
@@ -17345,9 +17429,9 @@ fn product_create_handle_validation_error(
             "Handle is too long (maximum is 255 characters)",
             None,
           ))
-        False -> None
+        False -> product_tags_validation_error(input)
       }
-    None -> None
+    None -> product_tags_validation_error(input)
   }
 }
 
@@ -17363,9 +17447,34 @@ fn product_update_handle_validation_error(
             "Handle is too long (maximum is 255 characters)",
             None,
           ))
-        False -> None
+        False -> product_tags_validation_error(input)
       }
+    None -> product_tags_validation_error(input)
+  }
+}
+
+fn product_tags_validation_error(
+  input: Dict(String, ResolvedValue),
+) -> Option(ProductUserError) {
+  case read_string_list_field(input, "tags") {
+    Some(tags) -> product_tag_values_validation_error(tags)
     None -> None
+  }
+}
+
+fn product_tag_values_validation_error(
+  tags: List(String),
+) -> Option(ProductUserError) {
+  case
+    list.any(tags, fn(tag) {
+      case trimmed_non_empty(tag) {
+        Ok(trimmed) -> string.length(trimmed) > product_tag_character_limit
+        Error(_) -> False
+      }
+    })
+  {
+    True -> Some(ProductUserError(["tags"], "Product tags is invalid", None))
+    False -> None
   }
 }
 
@@ -18353,24 +18462,12 @@ fn handle_tags_update(
 ) -> MutationFieldResult {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
-  case graphql_helpers.read_arg_string(args, "id") {
-    None ->
-      mutation_result(
-        key,
-        tags_update_payload(
-          store,
-          is_add,
-          None,
-          [ProductUserError(["id"], "Product id is required", None)],
-          field,
-          fragments,
-        ),
-        store,
-        identity,
-        [],
-      )
-    Some(product_id) ->
-      case store.get_effective_product_by_id(store, product_id) {
+  case
+    product_tags_max_input_size_errors(tags_update_root_name(is_add), "", args)
+  {
+    [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
+    [] ->
+      case graphql_helpers.read_arg_string(args, "id") {
         None ->
           mutation_result(
             key,
@@ -18378,7 +18475,7 @@ fn handle_tags_update(
               store,
               is_add,
               None,
-              [ProductUserError(["id"], "Product not found", None)],
+              [ProductUserError(["id"], "Product id is required", None)],
               field,
               fragments,
             ),
@@ -18386,23 +18483,16 @@ fn handle_tags_update(
             identity,
             [],
           )
-        Some(product) -> {
-          let tags = read_tag_inputs(args, is_add)
-          case tags {
-            [] ->
+        Some(product_id) ->
+          case store.get_effective_product_by_id(store, product_id) {
+            None ->
               mutation_result(
                 key,
                 tags_update_payload(
                   store,
                   is_add,
                   None,
-                  [
-                    ProductUserError(
-                      ["tags"],
-                      "At least one tag is required",
-                      None,
-                    ),
-                  ],
+                  [ProductUserError(["id"], "Product not found", None)],
                   field,
                   fragments,
                 ),
@@ -18410,38 +18500,98 @@ fn handle_tags_update(
                 identity,
                 [],
               )
-            _ -> {
-              let next_tags = case is_add {
-                True -> normalize_product_tags(list.append(product.tags, tags))
-                False ->
-                  normalize_product_tags(
-                    list.filter(product.tags, fn(tag) {
-                      !list.contains(tags, tag)
-                    }),
+            Some(product) -> {
+              let tags = read_tag_inputs(args, is_add)
+              case product_tag_values_validation_error(tags) {
+                Some(error) ->
+                  mutation_result(
+                    key,
+                    tags_update_payload(
+                      store,
+                      is_add,
+                      Some(product),
+                      [error],
+                      field,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                    [],
                   )
+                None ->
+                  case tags {
+                    [] ->
+                      mutation_result(
+                        key,
+                        tags_update_payload(
+                          store,
+                          is_add,
+                          None,
+                          [
+                            ProductUserError(
+                              ["tags"],
+                              "At least one tag is required",
+                              None,
+                            ),
+                          ],
+                          field,
+                          fragments,
+                        ),
+                        store,
+                        identity,
+                        [],
+                      )
+                    _ -> {
+                      let next_tags = case is_add {
+                        True ->
+                          normalize_product_tags(list.append(product.tags, tags))
+                        False ->
+                          normalize_product_tags(
+                            remove_product_tags_by_identity(product.tags, tags),
+                          )
+                      }
+                      let next_product =
+                        ProductRecord(..product, tags: next_tags)
+                      let #(_, next_store) =
+                        store.upsert_staged_product(store, next_product)
+                      mutation_result(
+                        key,
+                        tags_update_payload(
+                          next_store,
+                          is_add,
+                          Some(next_product),
+                          [],
+                          field,
+                          fragments,
+                        ),
+                        next_store,
+                        identity,
+                        [next_product.id],
+                      )
+                    }
+                  }
               }
-              let next_product = ProductRecord(..product, tags: next_tags)
-              let #(_, next_store) =
-                store.upsert_staged_product(store, next_product)
-              mutation_result(
-                key,
-                tags_update_payload(
-                  next_store,
-                  is_add,
-                  Some(next_product),
-                  [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                identity,
-                [next_product.id],
-              )
             }
           }
-        }
       }
   }
+}
+
+fn tags_update_root_name(is_add: Bool) -> String {
+  case is_add {
+    True -> "tagsAdd"
+    False -> "tagsRemove"
+  }
+}
+
+fn remove_product_tags_by_identity(
+  current_tags: List(String),
+  tags_to_remove: List(String),
+) -> List(String) {
+  let removal_keys = list.map(tags_to_remove, product_tag_identity_key)
+  list.filter(current_tags, fn(tag) {
+    !list.contains(removal_keys, product_tag_identity_key(tag))
+  })
 }
 
 fn product_delete_input_error(
@@ -22035,11 +22185,21 @@ fn trimmed_non_empty(value: String) -> Result(String, Nil) {
 }
 
 fn normalize_product_tags(tags: List(String)) -> List(String) {
-  tags
-  |> list.filter_map(trimmed_non_empty)
-  |> list.fold(dict.new(), fn(seen, tag) { dict.insert(seen, tag, True) })
-  |> dict.keys()
-  |> list.sort(string.compare)
+  let #(reversed, _) =
+    tags
+    |> list.filter_map(trimmed_non_empty)
+    |> list.fold(#([], dict.new()), fn(acc, tag) {
+      let #(items, seen) = acc
+      let key = product_tag_identity_key(tag)
+      case dict.has_key(seen, key) {
+        True -> #(items, seen)
+        False -> #([tag, ..items], dict.insert(seen, key, True))
+      }
+    })
+
+  reversed
+  |> list.reverse
+  |> list.sort(compare_product_tags)
 }
 
 fn dedupe_preserving_order(values: List(String)) -> List(String) {
@@ -22052,6 +22212,47 @@ fn dedupe_preserving_order(values: List(String)) -> List(String) {
       }
     })
   list.reverse(reversed)
+}
+
+fn compare_product_tags(a: String, b: String) -> order.Order {
+  let a_key = product_tag_identity_key(a)
+  let b_key = product_tag_identity_key(b)
+  case string.compare(a_key, b_key) {
+    order.Eq -> string.compare(a, b)
+    other -> other
+  }
+}
+
+fn product_tag_identity_key(tag: String) -> String {
+  tag
+  |> string.trim
+  |> collapse_product_tag_identity_whitespace
+  |> string.lowercase
+}
+
+fn collapse_product_tag_identity_whitespace(value: String) -> String {
+  let #(reversed, _) =
+    value
+    |> string.to_graphemes
+    |> list.fold(#([], False), fn(acc, grapheme) {
+      let #(items, in_whitespace) = acc
+      case is_product_tag_identity_whitespace(grapheme), in_whitespace {
+        True, True -> #(items, True)
+        True, False -> #([" ", ..items], True)
+        False, _ -> #([grapheme, ..items], False)
+      }
+    })
+
+  reversed
+  |> list.reverse
+  |> string.join("")
+}
+
+fn is_product_tag_identity_whitespace(grapheme: String) -> Bool {
+  case grapheme {
+    " " | "\t" | "\n" | "\r" -> True
+    _ -> False
+  }
 }
 
 fn updated_product_record(
@@ -26018,6 +26219,16 @@ fn read_string_list_field(
           }
         }),
       )
+    _ -> None
+  }
+}
+
+fn read_list_field_length(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Option(Int) {
+  case dict.get(input, name) {
+    Ok(ListVal(values)) -> Some(list.length(values))
     _ -> None
   }
 }

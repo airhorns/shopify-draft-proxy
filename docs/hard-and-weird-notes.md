@@ -158,6 +158,9 @@ HAR-408 captured 2026-04 request-contract drift on `harry-test-heelo.myshopify.c
   `changeFromQuantity`.
 - `inventorySetQuantities` also requires `@idempotent(key:)`, rejects `ignoreCompareQuantity` as an
   undefined input field, and each `InventorySetQuantityInput` includes `changeFromQuantity`.
+- `inventory-quantity-idempotency-directive-2026-04` replays both successful quantity roots through
+  documents with field-level `@idempotent(key:)`; `inventory-idempotency-directive-lifecycle-2026-04`
+  covers the same directive shape for `inventoryActivate` and `inventoryDeactivate`.
 - Missing `changeFromQuantity` fails as a top-level `INVALID_FIELD_ARGUMENTS` error before resolver
   side effects.
 - Missing `@idempotent` fails as a top-level `BAD_REQUEST` error with `data.<root>: null` once the
@@ -1776,6 +1779,7 @@ A small Shopify-specific shape wrinkle worth preserving:
 
 - `tagsAdd` usefully accepts either `[String!]!` values or a comma-separated string in practice, so local staging should normalize both into one trimmed, deduplicated tag list
 - `tagsRemove` is narrower; a good first pass can require an explicit array and ignore unknown/non-member tags rather than fabricating errors for no-op removals
+- HAR-583's live `productUpdate` tag-normalization capture found that tag identity and returned tag text are not the same thing. Shopify trims tag edges, deduplicates case-insensitively, and uses a whitespace-collapsed identity for matching, but it preserved the first kept tag's casing and internal whitespace in the returned `Product.tags` array (`" big   sale "` came back as `"big   sale"`). The same capture returned a top-level `MAX_INPUT_SIZE_EXCEEDED` error for 251 submitted tags and a payload `Product tags is invalid` userError for a 256-character tag.
 
 ## 39. `inventoryItemUpdate` is a useful first inventory metadata mutation, and its unknown-id error message is product-worded
 
@@ -2217,7 +2221,7 @@ company/contact/location create, update, delete, assignment, revoke, address,
 tax, staff, and welcome-email behavior need local lifecycle modeling before
 runtime support.
 
-- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by safe 2026-04 validation captures for missing `@idempotent` and active stocked delete rejection, while happy-path lifecycle captures still require a disposable location setup
+- `locationAdd`, `locationEdit`, `locationActivate`, `locationDeactivate`, and `locationDelete` stage locally at runtime; the lifecycle roots are backed by 2026-04 disposable-location success capture, 2026-04 missing-`@idempotent` validation capture, 2026-01 no-directive success capture, and active stocked delete rejection evidence
 - `shopPolicyUpdate` now stages locally by `ShopPolicyType` when a shop baseline is available; captured 2026-04 evidence shows oversized policy bodies return `field: ["shopPolicy", "body"]`, message `Body is too big (maximum is 512 KB)`, and code `TOO_BIG`
 - generic `publishablePublish` / `publishableUnpublish` now stage Product and Collection targets locally; `publishablePublishToCurrentChannel` / `publishableUnpublishToCurrentChannel` currently have product-scoped local staging only
 - the capture harness now records schema inventory plus safe read-only `shop` / `locations` / `location(id:)` baselines, while mutation validation probes are recorded as a plan instead of executed by default
@@ -2239,13 +2243,17 @@ HAR-170 enabled local staging for `locationActivate`, `locationDeactivate`, and 
 
 Live evidence refreshed on this host:
 
-- Admin GraphQL 2026-04 returns a top-level `BAD_REQUEST` error when `locationActivate` or `locationDeactivate` omits the required `@idempotent` directive, with `data.<root>: null`
+- Admin GraphQL 2026-04 returns a top-level `BAD_REQUEST` error when `locationActivate` or `locationDeactivate` omits the required field-level `@idempotent` directive, with `data.<root>: null`; local staging keeps the directive optional for numeric routes before `2026-04`
+- Admin GraphQL 2026-04 rejects operation-level `@idempotent` with `directiveCannotBeApplied`; lifecycle success capture uses field-level `@idempotent`, and the local required-directive check treats operation-level directives as absent
+- `location-activate-deactivate-with-idempotency-directive` is the executable location lifecycle parity spec for field-level `@idempotent(key:)`; sibling inventory idempotency specs prove the same parser/directive shape across other documented idempotent mutation fields
+- Admin GraphQL 2026-01 accepts `locationDeactivate` without `@idempotent` for the same disposable location shape
+- deactivating and reactivating a disposable non-online-fulfilling, unstocked location keeps `activatable: true`, `deactivatable: true`, and `shipsInventory: false` while flipping `isActive` and `deletable`
 - deleting an active stocked location returns both `LOCATION_IS_ACTIVE` and `LOCATION_HAS_INVENTORY` userErrors without mutating the location
 
 Practical rule for the proxy:
 
 - keep lifecycle success paths local and never proxy them upstream at runtime
-- require `@idempotent(key: "...")` before activate/deactivate staging
+- require field-level `@idempotent(key: "...")` before activate/deactivate staging only on numeric Admin API routes `>= 2026-04`
 - require a valid active destination location before locally deactivating a stocked location, then move effective inventory levels to that destination
 - tombstone successful `locationDelete` results so downstream location and inventory-level reads stop exposing the deleted location while meta/log state retains the staged mutation evidence
 

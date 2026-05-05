@@ -1,0 +1,428 @@
+{
+  "scope": "HAR-583 productUpdate tag normalization parity",
+  "capturedAt": "2026-05-05T00:21:00.784Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "setup": {
+    "create": {
+      "document": "#graphql\n  mutation ProductTagNormalizationCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id tags }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "HAR-583 tag normalization har-583-1777940459467",
+          "status": "DRAFT",
+          "tags": ["base"]
+        }
+      },
+      "response": {
+        "data": {
+          "productCreate": {
+            "product": {
+              "id": "gid://shopify/Product/10176799539506",
+              "tags": ["base"]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "updates": {
+    "mixedCaseWhitespace": {
+      "document": "#graphql\n  mutation ProductUpdateTagNormalization($product: ProductUpdateInput!) {\n    productUpdate(product: $product) {\n      product { id tags }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/10176799539506",
+          "tags": [" Red ", "red", "RED", " big   sale "]
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10176799539506",
+              "tags": ["big   sale", "Red"]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tooManyTags": {
+      "document": "#graphql\n  mutation ProductUpdateTagNormalization($product: ProductUpdateInput!) {\n    productUpdate(product: $product) {\n      product { id tags }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/10176799539506",
+          "tags": [
+            "tag-000",
+            "tag-001",
+            "tag-002",
+            "tag-003",
+            "tag-004",
+            "tag-005",
+            "tag-006",
+            "tag-007",
+            "tag-008",
+            "tag-009",
+            "tag-010",
+            "tag-011",
+            "tag-012",
+            "tag-013",
+            "tag-014",
+            "tag-015",
+            "tag-016",
+            "tag-017",
+            "tag-018",
+            "tag-019",
+            "tag-020",
+            "tag-021",
+            "tag-022",
+            "tag-023",
+            "tag-024",
+            "tag-025",
+            "tag-026",
+            "tag-027",
+            "tag-028",
+            "tag-029",
+            "tag-030",
+            "tag-031",
+            "tag-032",
+            "tag-033",
+            "tag-034",
+            "tag-035",
+            "tag-036",
+            "tag-037",
+            "tag-038",
+            "tag-039",
+            "tag-040",
+            "tag-041",
+            "tag-042",
+            "tag-043",
+            "tag-044",
+            "tag-045",
+            "tag-046",
+            "tag-047",
+            "tag-048",
+            "tag-049",
+            "tag-050",
+            "tag-051",
+            "tag-052",
+            "tag-053",
+            "tag-054",
+            "tag-055",
+            "tag-056",
+            "tag-057",
+            "tag-058",
+            "tag-059",
+            "tag-060",
+            "tag-061",
+            "tag-062",
+            "tag-063",
+            "tag-064",
+            "tag-065",
+            "tag-066",
+            "tag-067",
+            "tag-068",
+            "tag-069",
+            "tag-070",
+            "tag-071",
+            "tag-072",
+            "tag-073",
+            "tag-074",
+            "tag-075",
+            "tag-076",
+            "tag-077",
+            "tag-078",
+            "tag-079",
+            "tag-080",
+            "tag-081",
+            "tag-082",
+            "tag-083",
+            "tag-084",
+            "tag-085",
+            "tag-086",
+            "tag-087",
+            "tag-088",
+            "tag-089",
+            "tag-090",
+            "tag-091",
+            "tag-092",
+            "tag-093",
+            "tag-094",
+            "tag-095",
+            "tag-096",
+            "tag-097",
+            "tag-098",
+            "tag-099",
+            "tag-100",
+            "tag-101",
+            "tag-102",
+            "tag-103",
+            "tag-104",
+            "tag-105",
+            "tag-106",
+            "tag-107",
+            "tag-108",
+            "tag-109",
+            "tag-110",
+            "tag-111",
+            "tag-112",
+            "tag-113",
+            "tag-114",
+            "tag-115",
+            "tag-116",
+            "tag-117",
+            "tag-118",
+            "tag-119",
+            "tag-120",
+            "tag-121",
+            "tag-122",
+            "tag-123",
+            "tag-124",
+            "tag-125",
+            "tag-126",
+            "tag-127",
+            "tag-128",
+            "tag-129",
+            "tag-130",
+            "tag-131",
+            "tag-132",
+            "tag-133",
+            "tag-134",
+            "tag-135",
+            "tag-136",
+            "tag-137",
+            "tag-138",
+            "tag-139",
+            "tag-140",
+            "tag-141",
+            "tag-142",
+            "tag-143",
+            "tag-144",
+            "tag-145",
+            "tag-146",
+            "tag-147",
+            "tag-148",
+            "tag-149",
+            "tag-150",
+            "tag-151",
+            "tag-152",
+            "tag-153",
+            "tag-154",
+            "tag-155",
+            "tag-156",
+            "tag-157",
+            "tag-158",
+            "tag-159",
+            "tag-160",
+            "tag-161",
+            "tag-162",
+            "tag-163",
+            "tag-164",
+            "tag-165",
+            "tag-166",
+            "tag-167",
+            "tag-168",
+            "tag-169",
+            "tag-170",
+            "tag-171",
+            "tag-172",
+            "tag-173",
+            "tag-174",
+            "tag-175",
+            "tag-176",
+            "tag-177",
+            "tag-178",
+            "tag-179",
+            "tag-180",
+            "tag-181",
+            "tag-182",
+            "tag-183",
+            "tag-184",
+            "tag-185",
+            "tag-186",
+            "tag-187",
+            "tag-188",
+            "tag-189",
+            "tag-190",
+            "tag-191",
+            "tag-192",
+            "tag-193",
+            "tag-194",
+            "tag-195",
+            "tag-196",
+            "tag-197",
+            "tag-198",
+            "tag-199",
+            "tag-200",
+            "tag-201",
+            "tag-202",
+            "tag-203",
+            "tag-204",
+            "tag-205",
+            "tag-206",
+            "tag-207",
+            "tag-208",
+            "tag-209",
+            "tag-210",
+            "tag-211",
+            "tag-212",
+            "tag-213",
+            "tag-214",
+            "tag-215",
+            "tag-216",
+            "tag-217",
+            "tag-218",
+            "tag-219",
+            "tag-220",
+            "tag-221",
+            "tag-222",
+            "tag-223",
+            "tag-224",
+            "tag-225",
+            "tag-226",
+            "tag-227",
+            "tag-228",
+            "tag-229",
+            "tag-230",
+            "tag-231",
+            "tag-232",
+            "tag-233",
+            "tag-234",
+            "tag-235",
+            "tag-236",
+            "tag-237",
+            "tag-238",
+            "tag-239",
+            "tag-240",
+            "tag-241",
+            "tag-242",
+            "tag-243",
+            "tag-244",
+            "tag-245",
+            "tag-246",
+            "tag-247",
+            "tag-248",
+            "tag-249",
+            "tag-250"
+          ]
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "The input array size of 251 is greater than the maximum allowed of 250.",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": ["productUpdate", "product", "tags"],
+            "extensions": {
+              "code": "MAX_INPUT_SIZE_EXCEEDED"
+            }
+          }
+        ],
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": null,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "tooLongTag": {
+      "document": "#graphql\n  mutation ProductUpdateTagNormalization($product: ProductUpdateInput!) {\n    productUpdate(product: $product) {\n      product { id tags }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "id": "gid://shopify/Product/10176799539506",
+          "tags": [
+            "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          ]
+        }
+      },
+      "response": {
+        "data": {
+          "productUpdate": {
+            "product": {
+              "id": "gid://shopify/Product/10176799539506",
+              "tags": ["big   sale", "Red"]
+            },
+            "userErrors": [
+              {
+                "field": ["tags"],
+                "message": "Product tags is invalid"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "document": "#graphql\n  mutation ProductTagNormalizationDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors { field message }\n    }\n  }\n",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/Product/10176799539506"
+      }
+    },
+    "response": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10176799539506",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

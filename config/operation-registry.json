@@ -1945,7 +1945,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["locationActivate", "LocationActivate"],
-    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"],
+    "supportNotes": "Stages lifecycle activation locally. Numeric Admin API routes >= 2026-04 require field-level @idempotent(key: ...); earlier numeric routes keep the captured optional-directive behavior. Operation-level @idempotent is treated as absent because live 2026-04 rejects that directive location."
   },
   {
     "name": "locationDeactivate",
@@ -1954,7 +1955,8 @@
     "execution": "stage-locally",
     "implemented": true,
     "matchNames": ["locationDeactivate", "LocationDeactivate"],
-    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"]
+    "runtimeTests": ["tests/integration/location-query-shapes.test.ts"],
+    "supportNotes": "Stages lifecycle deactivation locally. Numeric Admin API routes >= 2026-04 require field-level @idempotent(key: ...); earlier numeric routes keep the captured optional-directive behavior. The captured unstocked disposable-location branch preserves activatable/deactivatable flags and clears local stockability without runtime Shopify writes."
   },
   {
     "name": "locationDelete",
