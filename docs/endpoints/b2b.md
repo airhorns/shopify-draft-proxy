@@ -156,6 +156,22 @@ still does not synthesize a broader staff catalog, but missing staff-member and
 staff-assignment IDs use Shopify's indexed user error paths and null payload
 shape for the failed list-valued fields.
 
+HAR-756 extends the bulk role-assignment surfaces to match Shopify's
+partial-success behavior while preserving those indexed field paths.
+`companyContactAssignRoles` and `companyLocationAssignRoles` validate every
+`rolesToAssign` entry, stage each successful assignment, return successful
+`roleAssignments` in original input order minus failed entries, and report
+indexed `userErrors` for failures. `companyContactRevokeRoles` and
+`companyLocationRevokeRoles` likewise validate every requested assignment ID,
+revoke each valid parent-scoped assignment once, return
+`revokedRoleAssignmentIds` in input order minus failed entries, and keep
+per-index `RESOURCE_NOT_FOUND` errors for invalid IDs. The local runtime also
+echoes the resolved parent contact/location in these payloads when selected, as
+required by the Business Customers contract; the public 2026-04 Admin schema
+used for conformance does not expose those parent payload fields, so live
+parity covers public partial-success fields while focused runtime tests cover
+parent echo selections.
+
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`
