@@ -1,0 +1,54 @@
+{
+  "capturedAt": "2026-05-05T00:23:49.005Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "cases": [
+    {
+      "name": "marketCreateDraftEnabledMismatch",
+      "query": "#graphql\nmutation MarketCreateStatusEnabledMismatch($input: MarketCreateInput!) {\n  marketCreate(input: $input) {\n    market { id name handle status enabled }\n    userErrors { field message code }\n  }\n}",
+      "variables": {
+        "input": {
+          "name": "Mismatch",
+          "status": "DRAFT",
+          "enabled": true,
+          "regions": [
+            {
+              "countryCode": "US"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketCreate": {
+              "market": null,
+              "userErrors": [
+                {
+                  "field": [
+                    "input"
+                  ],
+                  "message": "Invalid status and enabled combination.",
+                  "code": "INVALID_STATUS_AND_ENABLED_COMBINATION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
