@@ -22,7 +22,7 @@ import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{Field}
+import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/parse_operation.{
   type GraphQLOperationType, type ParsedOperation, MutationOperation,
   QueryOperation,
@@ -767,23 +767,74 @@ fn schema_validation_errors(
       }
       list.flat_map(fields, fn(field) {
         case field {
-          Field(name: name, ..) ->
-            mutation_helpers.validate_mutation_field_against_schema(
+          Field(name: name, ..) -> {
+            let schema_errors =
+              mutation_helpers.validate_mutation_field_against_schema(
+                field,
+                variables,
+                name.value,
+                operation_path,
+                query,
+                schema,
+              )
+            schema_errors
+            |> list.append(metaobject_upsert_payload_one_of_errors(
               field,
               variables,
-              name.value,
               operation_path,
               query,
-              schema,
-            )
+            ))
             |> list.append(staged_upload_resource_enum_errors(
               name.value,
               variables,
             ))
+          }
           _ -> []
         }
       })
     }
+  }
+}
+
+fn metaobject_upsert_payload_one_of_errors(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+  operation_path: String,
+  query: String,
+) -> List(Json) {
+  case field {
+    Field(name: name, ..) if name.value == "metaobjectUpsert" -> {
+      let args = case root_field.get_field_arguments(field, variables) {
+        Ok(args) -> args
+        Error(_) -> dict.new()
+      }
+      case
+        has_present_argument(args, "metaobject")
+        || has_present_argument(args, "values")
+      {
+        True -> []
+        False -> [
+          mutation_helpers.build_missing_required_argument_error(
+            "metaobjectUpsert",
+            "metaobject, values",
+            operation_path,
+            None,
+            query,
+          ),
+        ]
+      }
+    }
+    _ -> []
+  }
+}
+
+fn has_present_argument(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(args, name) {
+    Ok(root_field.NullVal) | Error(_) -> False
+    Ok(_) -> True
   }
 }
 
