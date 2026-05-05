@@ -443,6 +443,64 @@ pub fn definition_and_entry_lifecycle_stages_locally_test() {
     == "{\"data\":{\"detail\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"},\"byHandle\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"},\"catalog\":{\"nodes\":[{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"created-entry\",\"displayName\":\"Created title\"}]},\"definition\":{\"metaobjectsCount\":1}}}"
 }
 
+pub fn definition_delete_cascades_associated_entries_locally_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_delete_cascade"),
+    )
+  let create_one =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_delete_cascade\", handle: \"one\", fields: [{ key: \"title\", value: \"One\" }] }) { metaobject { id } userErrors { message code } } }",
+    )
+  let create_two =
+    run_mutation(
+      create_one.store,
+      create_one.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_delete_cascade\", handle: \"two\", fields: [{ key: \"title\", value: \"Two\" }] }) { metaobject { id } userErrors { message code } } }",
+    )
+  let delete_query =
+    "mutation { metaobjectDefinitionDelete(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { deletedId userErrors { field message code } } }"
+  let delete_definition =
+    run_mutation(create_two.store, create_two.identity, delete_query)
+
+  assert json.to_string(delete_definition.data)
+    == "{\"data\":{\"metaobjectDefinitionDelete\":{\"deletedId\":\"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+  assert delete_definition.staged_resource_ids
+    == [
+      "gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic",
+      "gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic",
+      "gid://shopify/Metaobject/3?shopify-draft-proxy=synthetic",
+    ]
+  let assert [delete_draft] = delete_definition.log_drafts
+  assert delete_draft.staged_resource_ids
+    == delete_definition.staged_resource_ids
+
+  let #(logged_store, _) =
+    mutation_helpers.record_log_drafts(
+      delete_definition.store,
+      delete_definition.identity,
+      path,
+      delete_query,
+      dict.new(),
+      delete_definition.log_drafts,
+    )
+  let assert [log_entry] = store.get_log(logged_store)
+  assert log_entry.operation_name == Some("metaobjectDefinitionDelete")
+  assert log_entry.staged_resource_ids == delete_definition.staged_resource_ids
+
+  let read_after =
+    run_query(
+      delete_definition.store,
+      "{ definition: metaobjectDefinition(id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\") { id } byType: metaobjectDefinitionByType(type: \"codex_delete_cascade\") { id } one: metaobject(id: \"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\") { id } two: metaobject(id: \"gid://shopify/Metaobject/3?shopify-draft-proxy=synthetic\") { id } byHandle: metaobjectByHandle(handle: { type: \"codex_delete_cascade\", handle: \"one\" }) { id } catalog: metaobjects(type: \"codex_delete_cascade\", first: 10) { nodes { id } } }",
+    )
+  assert read_after
+    == "{\"data\":{\"definition\":null,\"byType\":null,\"one\":null,\"two\":null,\"byHandle\":null,\"catalog\":{\"nodes\":[]}}}"
+}
+
 pub fn update_upsert_delete_and_bulk_delete_stage_locally_test() {
   let definition_outcome =
     run_mutation(

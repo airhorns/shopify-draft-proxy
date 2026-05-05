@@ -4436,7 +4436,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metaobjectDefinitionDelete", "MetaobjectDefinitionDelete"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages definition deletion for definitions with no modeled associated entries and hides deleted base/staged definitions from downstream reads. Definitions with associated metaobjects return an explicit local unsupported userError until entry cascade behavior is modeled.",
+        "Locally stages definition deletion and cascades tombstones to every effective metaobject of that definition type so downstream definition, id, handle, and type-catalog reads observe null or empty results.",
       ),
     ),
     RegistryEntry(

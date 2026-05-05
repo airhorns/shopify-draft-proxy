@@ -1047,33 +1047,30 @@ fn handle_definition_delete(
           identity,
         )
         Some(definition) -> {
-          let count = option.unwrap(definition.metaobjects_count, 0)
-          case count > 0 {
-            True -> {
-              let user_error =
-                UserError(
-                  field: Some(["id"]),
-                  message: "Local proxy cannot delete a metaobject definition with associated metaobjects until entry cascade behavior is modeled.",
-                  code: "UNSUPPORTED",
-                  element_key: None,
-                  element_index: None,
-                )
-              #(
-                definition_delete_result(key, field, None, [user_error]),
-                store,
-                identity,
-              )
-            }
-            False -> {
-              let next_store =
-                delete_staged_metaobject_definition(store, definition_id)
-              #(
-                definition_delete_result(key, field, Some(definition_id), []),
-                next_store,
-                identity,
-              )
-            }
-          }
+          let cascaded_metaobject_ids =
+            list_effective_metaobjects_by_type(store, definition.type_)
+            |> list.map(fn(metaobject) { metaobject.id })
+          let store_after_entries =
+            list.fold(cascaded_metaobject_ids, store, fn(acc, metaobject_id) {
+              delete_staged_metaobject(acc, metaobject_id)
+            })
+          let next_store =
+            delete_staged_metaobject_definition(
+              store_after_entries,
+              definition_id,
+            )
+          let staged_ids = list.append([definition_id], cascaded_metaobject_ids)
+          #(
+            definition_delete_result_with_staged_ids(
+              key,
+              field,
+              Some(definition_id),
+              [],
+              staged_ids,
+            ),
+            next_store,
+            identity,
+          )
         }
       }
   }
@@ -4804,6 +4801,22 @@ fn definition_delete_result(
   deleted_id: Option(String),
   user_errors: List(UserError),
 ) -> MutationFieldResult {
+  definition_delete_result_with_staged_ids(
+    key,
+    field,
+    deleted_id,
+    user_errors,
+    option_string_to_list(deleted_id),
+  )
+}
+
+fn definition_delete_result_with_staged_ids(
+  key: String,
+  field: Selection,
+  deleted_id: Option(String),
+  user_errors: List(UserError),
+  staged_resource_ids: List(String),
+) -> MutationFieldResult {
   let source =
     src_object([
       #("deletedId", graphql_helpers.option_string_source(deleted_id)),
@@ -4812,10 +4825,12 @@ fn definition_delete_result(
   MutationFieldResult(
     key,
     project_selection(source, field, dict.new()),
-    option_string_to_list(deleted_id),
+    staged_resource_ids,
     [],
     case deleted_id {
-      Some(id) -> [log_draft("metaobjectDefinitionDelete", [id])]
+      Some(_) -> [
+        log_draft("metaobjectDefinitionDelete", staged_resource_ids),
+      ]
       None -> []
     },
   )
