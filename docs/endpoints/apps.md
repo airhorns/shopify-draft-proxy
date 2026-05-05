@@ -63,8 +63,21 @@ Current modeled behavior:
   context is surfaced as `MISSING_SOURCE_APP`, a current installation whose app
   record cannot be resolved as `APPLICATION_CANNOT_BE_FOUND`, and an app record
   without an installed current installation as `APP_NOT_INSTALLED`.
-- `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
-- `delegateAccessTokenCreate` accepts the current singular `delegateAccessScope` input, returns the selected scope through the payload's `accessScopes` list, and stores only a SHA-256 hash plus redacted preview in meta-visible state. The older local fixture shape using `input.accessScopes` remains tolerated for compatibility but is not the documented Admin API input shape; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current `delegateAccessScope` input.
+- `appUninstall` resolves `input.id` to a known app when provided, otherwise
+  falls back to the current app installation. Unknown app IDs return
+  `APP_NOT_FOUND` on `field: ["id"]`; known apps without a visible local
+  installation return `APP_NOT_INSTALLED` on `field: ["id"]`, while omitted
+  input uses `field: ["base"]`. Input IDs for an app other than the current
+  installation require the current installation to hold the `apps` access
+  scope; otherwise the mutation returns `INSUFFICIENT_PERMISSIONS` without
+  staging. Successful uninstall marks the targeted installation uninstalled,
+  clears its active access grant, cancels locally staged
+  `PENDING`/`ACCEPTED`/`ACTIVE` subscriptions attached to the installation, and
+  destroys stored delegated access tokens so later token-destroy calls return
+  `ACCESS_TOKEN_NOT_FOUND`. Downstream `currentAppInstallation` reads return
+  `null` when the current installation is targeted, and app-subscription Node
+  reads show cancelled status.
+- `delegateAccessTokenCreate` accepts the current `delegateAccessScope` list input, returns the validated scope handles through the payload's `accessScopes` list, and stores only a SHA-256 hash plus redacted preview in meta-visible state. Empty scope lists, non-positive `expiresIn`, catalog-unknown scope handles, and active delegate-token parents return Shopify-like user errors without staging a new token. The older local fixture shape using `input.accessScopes` remains tolerated only when `delegateAccessScope` is absent; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current list-shaped `delegateAccessScope` input.
 - `delegateAccessTokenDestroy` matches the raw token against the stored hash, marks it destroyed locally, and returns `ACCESS_TOKEN_NOT_FOUND` when repeated or unknown.
 
 The implementation does not perform real billing, merchant approval, app uninstall, app grant changes, or delegated-token changes during normal runtime.
@@ -73,9 +86,16 @@ The implementation does not perform real billing, merchant approval, app uninsta
 
 Admin GraphQL 2026-04 billing docs and public app examples continue to treat billing create/update flows as confirmation-URL handoffs. The proxy's synthetic confirmation URLs intentionally prove the local lifecycle boundary without pretending that merchant approval, charge activation, subscription proration, usage-charge billing, or app-plan enforcement happened in Shopify.
 
-Delegate access token docs use the singular `delegateAccessScope` create input and return the selected permissions through the token payload's `accessScopes` list. The local runtime accepts that current input shape, stores only token hash/preview metadata, and still cannot emulate real bearer-token authorization effects. The executable runtime test and `delegate-access-token-current-input-local-staging` parity spec cover `delegateAccessScope`; the broad app-billing local-runtime parity replay continues to use the already-recorded `accessScopes` request shape so replay evidence is not silently changed without a fresh capture.
+Delegate access token docs use the `delegateAccessScope` create input as a list and return the selected permissions through the token payload's `accessScopes` list. The local runtime accepts that current input shape, stores only token hash/preview metadata, and treats a non-destroyed delegated token hash matching the active request token as a delegate parent for conservative local validation. The executable runtime test and `delegate-access-token-create-validation` parity spec cover `delegateAccessScope` validation; the broad app-billing local-runtime parity replay continues to use the already-recorded `accessScopes` request shape so replay evidence is not silently changed without a fresh capture.
 
 `appRevokeAccessScopes` and `appUninstall` are locally staged only as downstream app-installation state changes. Real app grant revocation and app uninstall side effects remain external Shopify/app-installation events that can only happen later through explicit commit replay or intentional live conformance work on a disposable shop.
+
+HAR-747 tightened `appUninstall` error and cascade fidelity with
+`config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json`. The
+scenario is executable local-runtime evidence because the current custom app
+credential cannot exercise billing-backed subscription setup live; it earns
+setup state through replayed `appSubscriptionCreate`, `delegateAccessTokenCreate`,
+and `appUninstall` requests rather than pre-seeding parity runner state.
 
 ### Safety notes
 
@@ -87,6 +107,15 @@ Delegate access token docs use the singular `delegateAccessScope` create input a
 The local proxy uses synthetic confirmation URLs containing `signature=shopify-draft-proxy-local-redacted`; these URLs are not real Shopify approval links and should still be treated as sensitive in examples and fixtures. Delegated tokens are returned only in the mutation payload and are intentionally absent from `__meta/state`.
 
 Live success-path captures for billing approval, uninstall, app grant revocation, and delegated-token creation/destruction remain blocked unless a disposable app/store credential is explicitly approved for those external effects. The local runtime fixture records that blocker and the integration test covers strict local behavior instead of mutating a real shop.
+
+HAR-749 captured live 2026-04 `delegateAccessTokenCreate` validation against
+`harry-test-heelo.myshopify.com` on 2026-05-05. The checked-in
+`delegate-access-token-create-validation` parity spec covers empty
+`delegateAccessScope`, non-positive `expiresIn`, unknown scope handles, and a
+successful `read_products` delegated token create with immediate cleanup. The
+generic parity runner cannot yet replay a later request with the newly returned
+delegate token as its active auth header, so parent-is-delegate validation is
+covered by focused Gleam runtime tests until auth swapping lands in the harness.
 
 HAR-631 attempted a live `appSubscriptionCreate`/`appSubscriptionCancel` transition capture against the current conformance store on 2026-05-05. Shopify returned `Custom apps cannot use the Billing API`, so repeat-cancel and forced-status transition coverage remains executable local-runtime evidence rather than live billing mutation evidence for this app credential.
 
@@ -121,6 +150,7 @@ The capture records:
   app-domain generic Node read targets
 - `config/parity-specs/apps/app-purchase-one-time-create-validation.json`
 - `config/parity-specs/apps/app-revoke-access-scopes-error-codes.json`
+- `config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json`
 - `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
 - `config/parity-specs/apps/app-subscription-trial-extend-validation.json`

@@ -32,5 +32,5 @@
       }
     ]
   },
-  "notes": "Executes the current documented delegateAccessTokenCreate input shape, input.delegateAccessScope, against the local app-domain proxy harness. The broader app-billing-access-local-staging scenario continues to preserve the earlier local-runtime accessScopes replay so existing fixture evidence is not rewritten without a fresh capture."
+  "notes": "Executes the current Admin delegateAccessTokenCreate input shape, input.delegateAccessScope as a list, against the local app-domain proxy harness. The broader app-billing-access-local-staging scenario continues to preserve the earlier local-runtime accessScopes replay so existing fixture evidence is not rewritten without a fresh capture."
 }

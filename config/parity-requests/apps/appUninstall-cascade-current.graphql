@@ -1,0 +1,12 @@
+mutation AppUninstallCascadeCurrent {
+  appUninstall {
+    app {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

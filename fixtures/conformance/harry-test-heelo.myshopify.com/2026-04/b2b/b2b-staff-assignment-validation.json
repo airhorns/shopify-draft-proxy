@@ -1,0 +1,279 @@
+{
+  "scenarioId": "b2b-staff-assignment-validation",
+  "capturedAt": "2026-05-05T21:03:00.761Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-761",
+    "plan": "Create a disposable B2B company location, capture unknown staff-member and unknown staff-assignment validation, confirm no staff assignment was staged, and delete the company."
+  },
+  "staffAccessProbe": {
+    "request": {
+      "query": "#graphql\n  query B2BStaffAssignmentValidationStaffProbe {\n    staffMembers(first: 1) { nodes { id name } }\n  }\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "errors": [
+        {
+          "message": "Access denied for staffMembers field.",
+          "locations": [
+            {
+              "line": 3,
+              "column": 5
+            }
+          ],
+          "extensions": {
+            "code": "ACCESS_DENIED",
+            "documentation": "https://shopify.dev/api/usage/access-scopes"
+          },
+          "path": ["staffMembers"]
+        }
+      ],
+      "data": {
+        "staffMembers": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 3,
+          "actualQueryCost": 2,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1998,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "existingAssignmentsProbe": {
+    "request": {
+      "query": "#graphql\n  query B2BStaffAssignmentValidationExistingAssignments {\n    companyLocations(first: 25) {\n      nodes {\n        id\n        name\n        staffMemberAssignments(first: 10) {\n          nodes {\n            id\n            staffMember { id }\n            companyLocation { id }\n          }\n        }\n      }\n    }\n  }\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocations": {
+          "nodes": [
+            {
+              "id": "gid://shopify/CompanyLocation/3926425906",
+              "name": "Powderbound",
+              "staffMemberAssignments": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/CompanyLocation/3926458674",
+              "name": "Snowdevil",
+              "staffMemberAssignments": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/CompanyLocation/8245084466",
+              "name": "HAR-620 order probe 1778001739073 HQ",
+              "staffMemberAssignments": {
+                "nodes": []
+              }
+            },
+            {
+              "id": "gid://shopify/CompanyLocation/8245281074",
+              "name": "HAR-620 orders-company 1778002232820 HQ",
+              "staffMemberAssignments": {
+                "nodes": []
+              }
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 92,
+          "actualQueryCost": 8,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1992,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BStaffAssignmentValidationCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        locations(first: 1) {\n          nodes { id name }\n        }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-761 staff validation 1778014979575",
+            "externalId": "har-761-staff-validation-1778014979575"
+          },
+          "companyLocation": {
+            "name": "HAR-761 staff validation 1778014979575 HQ"
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5437980978",
+            "name": "HAR-761 staff validation 1778014979575",
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8246559026",
+                  "name": "HAR-761 staff validation 1778014979575 HQ"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 13,
+          "actualQueryCost": 13,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1987,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "assignUnknownStaff": {
+    "request": {
+      "query": "#graphql\n  mutation B2BStaffAssignmentValidationAssignUnknown(\n    $companyLocationId: ID!\n    $staffMemberIds: [ID!]!\n  ) {\n    companyLocationAssignStaffMembers(\n      companyLocationId: $companyLocationId\n      staffMemberIds: $staffMemberIds\n    ) {\n      companyLocationStaffMemberAssignments {\n        id\n        staffMember { id }\n        companyLocation { id }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8246559026",
+        "staffMemberIds": ["gid://shopify/StaffMember/999999999"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignStaffMembers": {
+          "companyLocationStaffMemberAssignments": null,
+          "userErrors": [
+            {
+              "field": ["staffMemberIds", "0"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "removeUnknownAssignment": {
+    "request": {
+      "query": "#graphql\n  mutation B2BStaffAssignmentValidationRemoveUnknown(\n    $companyLocationStaffMemberAssignmentIds: [ID!]!\n  ) {\n    companyLocationRemoveStaffMembers(\n      companyLocationStaffMemberAssignmentIds: $companyLocationStaffMemberAssignmentIds\n    ) {\n      deletedCompanyLocationStaffMemberAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationStaffMemberAssignmentIds": ["gid://shopify/CompanyLocationStaffMemberAssignment/999999999"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationRemoveStaffMembers": {
+          "deletedCompanyLocationStaffMemberAssignmentIds": null,
+          "userErrors": [
+            {
+              "field": ["companyLocationStaffMemberAssignmentIds", "0"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterUnknownAssign": {
+    "request": {
+      "query": "#graphql\n  query B2BStaffAssignmentValidationReadAfterUnknown($companyLocationId: ID!) {\n    companyLocation(id: $companyLocationId) {\n      id\n      staffMemberAssignments(first: 5) {\n        nodes {\n          id\n          staffMember { id }\n          companyLocation { id }\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8246559026"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocation": {
+          "id": "gid://shopify/CompanyLocation/8246559026",
+          "staffMemberAssignments": {
+            "nodes": []
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 12,
+          "actualQueryCost": 6,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BStaffAssignmentValidationCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5437980978"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5437980978",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {},
+  "upstreamCalls": []
+}

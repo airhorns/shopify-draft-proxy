@@ -1,0 +1,21 @@
+mutation DiscountSubscriptionFieldsAutomaticBasicUpdate($id: ID!) {
+  automaticBasicUpdate: discountAutomaticBasicUpdate(
+    id: $id
+    automaticBasicDiscount: {
+      title: "Setup automatic basic"
+      startsAt: "2026-04-25T00:00:00Z"
+      recurringCycleLimit: 2
+      customerGets: { value: { percentage: 0.1 }, items: { all: true } }
+    }
+  ) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

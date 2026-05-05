@@ -1,0 +1,6 @@
+query B2BCustomerSinceCompanyRead($companyId: ID!) {
+  company(id: $companyId) {
+    name
+    customerSince
+  }
+}

@@ -1,0 +1,10 @@
+mutation HAR754RemoveStaff($companyLocationStaffMemberAssignmentIds: [ID!]!) {
+  companyLocationRemoveStaffMembers(companyLocationStaffMemberAssignmentIds: $companyLocationStaffMemberAssignmentIds) {
+    deletedCompanyLocationStaffMemberAssignmentIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

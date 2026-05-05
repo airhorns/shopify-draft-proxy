@@ -1,0 +1,84 @@
+{
+  "scenarioId": "bulk-operation-run-query-created-status",
+  "operationNames": ["bulkOperationRunQuery", "bulkOperation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "lifecycle-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-status-catalog-cancel.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-parity.graphql",
+    "variablesCapturePath": "$.lifecycle.queryExportToTerminal.run.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-750 records Shopify's immediate bulkOperationRunQuery mutation response as a CREATED BulkOperation with terminal fields null and zero counters. The proxy still materializes the local result JSONL and terminal record immediately after the mutation response; the read-after target proves the deterministic subsequent-read transition.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "run-query-created-operation",
+        "capturePath": "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "expectedDifferences": [
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy stages a new synthetic BulkOperation instead of reusing Shopify's captured timestamp."
+          },
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
+          }
+        ]
+      },
+      {
+        "name": "run-query-created-user-errors",
+        "capturePath": "$.lifecycle.queryExportToTerminal.run.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors"
+      },
+      {
+        "name": "read-after-run-query-terminal-operation",
+        "capturePath": "$.lifecycle.queryExportToTerminal.terminalOperation",
+        "proxyPath": "$.data.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-by-id-parity.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "run-query-created-operation",
+              "path": "$.data.bulkOperationRunQuery.bulkOperation.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.completedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy completes the synthetic export on the deterministic subsequent-read transition with its own clock."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy stages a new synthetic BulkOperation instead of reusing Shopify's captured timestamp."
+          },
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:BulkOperation",
+            "reason": "BulkOperation IDs are shop-generated in Shopify and synthetic in the local proxy."
+          },
+          {
+            "path": "$.fileSize",
+            "matcher": "non-empty-string",
+            "reason": "Shopify reports the stored artifact size while the proxy reports the byte length of its generated local JSONL."
+          },
+          {
+            "path": "$.url",
+            "matcher": "non-empty-string",
+            "reason": "Shopify returns a signed storage URL while the proxy serves an in-memory local result URL."
+          }
+        ]
+      }
+    ]
+  }
+}

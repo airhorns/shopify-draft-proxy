@@ -1,0 +1,15 @@
+mutation DelegateAccessTokenCreateHappyValidation {
+  delegateAccessTokenCreate(input: { delegateAccessScope: ["read_products"], expiresIn: 300 }) {
+    delegateAccessToken {
+      accessToken
+      accessScopes
+      createdAt
+      expiresIn
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,22 @@
+mutation AppSubscriptionCreateUninstallCascade {
+  appSubscriptionCreate(
+    name: "Cascade plan"
+    returnUrl: "https://app.example.test/return"
+    test: true
+    lineItems: [
+      {
+        plan: { appRecurringPricingDetails: { price: { amount: "10.00", currencyCode: USD }, interval: EVERY_30_DAYS } }
+      }
+    ]
+  ) {
+    appSubscription {
+      id
+      status
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
