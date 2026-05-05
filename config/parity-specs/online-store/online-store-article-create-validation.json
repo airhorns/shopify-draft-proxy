@@ -1,0 +1,134 @@
+{
+  "scenarioId": "online-store/article-create-validation",
+  "operationNames": ["blogCreate", "articleCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-article-create-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-article-create-validation-blog-create.graphql",
+    "variablesCapturePath": "$.interactions[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-557 captures Shopify articleCreate validation behavior for missing blog references, ambiguous blog input, missing author fields, and the success branch with valid blogId plus author.name. The parity runner uses a local blogCreate setup as the primary request, then reuses that synthetic blog ID for validation and success targets. IDs and timestamps are not compared.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate setup provides a usable blog reference",
+        "capturePath": "$.interactions[0].response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate",
+        "selectedPaths": ["$.blog.title", "$.blog.handle", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate without blog reference returns BLOG_REFERENCE_REQUIRED",
+        "capturePath": "$.interactions[1].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-create-validation-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[1].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[1].request.variables.article.body"
+              },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[1].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate with blogId and inline blog returns AMBIGUOUS_BLOG",
+        "capturePath": "$.interactions[2].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-create-validation-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[2].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[2].request.variables.article.body"
+              },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[2].request.variables.article.author.name"
+                }
+              }
+            },
+            "blog": {
+              "title": {
+                "fromCapturePath": "$.interactions[2].request.variables.blog.title"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate with empty author returns AUTHOR_FIELD_REQUIRED",
+        "capturePath": "$.interactions[3].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-create-validation-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[3].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[3].request.variables.article.body"
+              },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "author": {}
+            }
+          }
+        },
+        "selectedPaths": ["$.article", "$.userErrors"]
+      },
+      {
+        "name": "articleCreate with valid blogId and author.name succeeds",
+        "capturePath": "$.interactions[4].response.data.articleCreate",
+        "proxyPath": "$.data.articleCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-article-create-validation-article-create.graphql",
+          "variables": {
+            "article": {
+              "title": {
+                "fromCapturePath": "$.interactions[4].request.variables.article.title"
+              },
+              "body": {
+                "fromCapturePath": "$.interactions[4].request.variables.article.body"
+              },
+              "blogId": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+              "author": {
+                "name": {
+                  "fromCapturePath": "$.interactions[4].request.variables.article.author.name"
+                }
+              }
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.article.title",
+          "$.article.handle",
+          "$.article.author",
+          "$.article.blog.title",
+          "$.article.blog.handle",
+          "$.userErrors"
+        ]
+      }
+    ]
+  }
+}
