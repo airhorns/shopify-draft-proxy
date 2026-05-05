@@ -2266,6 +2266,8 @@ fn validate_discount_input(
         discount_classes_for_input(input, discount_type),
       ),
     )
+  let errors =
+    list.append(errors, validate_minimum_requirement(input_name, input))
   let errors = case discount_type {
     "free_shipping" -> {
       case invalid_free_shipping_combines(input) {
@@ -2631,6 +2633,185 @@ fn validate_discount_code_input(
 
 fn discount_code_blank_error(input_name: String) -> SourceValue {
   user_error([input_name, "code"], "Code can't be blank", "BLANK")
+}
+
+fn validate_minimum_requirement(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case read_value(input, "minimumRequirement") {
+    root_field.ObjectVal(fields) -> {
+      let has_quantity = has_object_field(fields, "quantity")
+      let has_subtotal = has_object_field(fields, "subtotal")
+      let errors = case has_quantity && has_subtotal {
+        True -> [
+          user_error(
+            [
+              input_name,
+              "minimumRequirement",
+              "subtotal",
+              "greaterThanOrEqualToSubtotal",
+            ],
+            "Minimum subtotal cannot be defined when minimum quantity is.",
+            "CONFLICT",
+          ),
+          user_error(
+            [
+              input_name,
+              "minimumRequirement",
+              "quantity",
+              "greaterThanOrEqualToQuantity",
+            ],
+            "Minimum quantity cannot be defined when minimum subtotal is.",
+            "CONFLICT",
+          ),
+        ]
+        False -> []
+      }
+      errors
+      |> list.append(validate_minimum_quantity_limit(input_name, fields))
+      |> list.append(validate_minimum_subtotal_limit(input_name, fields))
+    }
+    _ -> []
+  }
+}
+
+fn has_object_field(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(input, name) {
+    Ok(root_field.ObjectVal(_)) -> True
+    _ -> False
+  }
+}
+
+fn validate_minimum_quantity_limit(
+  input_name: String,
+  fields: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case dict.get(fields, "quantity") {
+    Ok(root_field.ObjectVal(quantity)) ->
+      case read_numeric_string(quantity, "greaterThanOrEqualToQuantity") {
+        Some(value) ->
+          case decimal_at_least(value, "2147483647") {
+            True -> [
+              user_error(
+                [
+                  input_name,
+                  "minimumRequirement",
+                  "quantity",
+                  "greaterThanOrEqualToQuantity",
+                ],
+                "Minimum quantity must be less than 2147483647",
+                "LESS_THAN",
+              ),
+            ]
+            False -> []
+          }
+        None -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_minimum_subtotal_limit(
+  input_name: String,
+  fields: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case dict.get(fields, "subtotal") {
+    Ok(root_field.ObjectVal(subtotal)) ->
+      case read_numeric_string(subtotal, "greaterThanOrEqualToSubtotal") {
+        Some(value) ->
+          case decimal_at_least(value, "1000000000000000000") {
+            True -> [
+              user_error(
+                [
+                  input_name,
+                  "minimumRequirement",
+                  "subtotal",
+                  "greaterThanOrEqualToSubtotal",
+                ],
+                "Minimum subtotal must be less than 1000000000000000000",
+                "LESS_THAN",
+              ),
+            ]
+            False -> []
+          }
+        None -> []
+      }
+    _ -> []
+  }
+}
+
+fn read_numeric_string(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(input, name) {
+    Ok(root_field.StringVal(value)) -> Some(value)
+    Ok(root_field.IntVal(value)) -> Some(int.to_string(value))
+    Ok(root_field.FloatVal(value)) -> Some(float.to_string(value))
+    _ -> None
+  }
+}
+
+fn decimal_at_least(value: String, limit: String) -> Bool {
+  let value = string.trim(value)
+  let value = case string.starts_with(value, "+") {
+    True -> string.drop_start(value, 1)
+    False -> value
+  }
+  case string.starts_with(value, "-") {
+    True -> False
+    False ->
+      case string.split(value, ".") {
+        [whole] -> decimal_parts_at_least(whole, "", limit)
+        [whole, decimals] -> decimal_parts_at_least(whole, decimals, limit)
+        _ -> False
+      }
+  }
+}
+
+fn decimal_parts_at_least(
+  whole: String,
+  decimals: String,
+  limit: String,
+) -> Bool {
+  case digits_only(whole) && digits_only(decimals) {
+    False -> False
+    True -> {
+      let whole = trim_leading_zeroes(whole)
+      case int.compare(string.length(whole), string.length(limit)) {
+        order.Gt -> True
+        order.Lt -> False
+        order.Eq ->
+          case string.compare(whole, limit) {
+            order.Lt -> False
+            order.Eq | order.Gt -> True
+          }
+      }
+    }
+  }
+}
+
+fn digits_only(value: String) -> Bool {
+  value
+  |> string.to_graphemes
+  |> list.all(fn(grapheme) {
+    case grapheme {
+      "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+      _ -> False
+    }
+  })
+}
+
+fn trim_leading_zeroes(value: String) -> String {
+  case value {
+    "0" <> rest -> trim_leading_zeroes(rest)
+    "" -> "0"
+    _ -> value
+  }
 }
 
 /// Pattern 2: ask upstream whether a discount with the proposed code

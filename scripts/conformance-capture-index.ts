@@ -2104,6 +2104,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-minimum-requirement-exclusivity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-minimum-requirement-exclusivity-conformance.ts',
+    purpose:
+      'Discount minimumRequirement mutually exclusive quantity/subtotal branches and quantity/subtotal upper-bound validation guardrails.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-minimum-requirement-exclusivity.json`,
+      'config/parity-specs/discounts/discount-minimum-requirement-exclusivity.json',
+      'config/parity-requests/discounts/discount-minimum-requirement-exclusivity.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-combines-with-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-combines-with-validation-conformance.ts',
