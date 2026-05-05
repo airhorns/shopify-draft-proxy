@@ -178,6 +178,7 @@ const validationVariables = await readVariables(validationVariablesPath);
 
 let createdId: string | null = null;
 let cleanup: CapturedRequest | null = null;
+let updateValidationCreatedId: string | null = null;
 const lifecycle: {
   create: CapturedRequest | null;
   detailAfterCreate: CapturedRequest | null;
@@ -192,6 +193,23 @@ const lifecycle: {
   detailAfterUpdate: null,
   delete: null,
   postDeleteDetail: null,
+};
+const updateValidation: {
+  create: CapturedRequest | null;
+  updateBlankUri: CapturedRequest | null;
+  updateHttpUri: CapturedRequest | null;
+  updateInvalidPubSub: CapturedRequest | null;
+  detailAfterFailedUpdates: CapturedRequest | null;
+  delete: CapturedRequest | null;
+  cleanup: CapturedRequest | null;
+} = {
+  create: null,
+  updateBlankUri: null,
+  updateHttpUri: null,
+  updateInvalidPubSub: null,
+  detailAfterFailedUpdates: null,
+  delete: null,
+  cleanup: null,
 };
 
 try {
@@ -215,6 +233,45 @@ try {
 } finally {
   if (createdId !== null && lifecycle.delete === null) {
     cleanup = await capture(deleteRequestPath, { id: createdId });
+  }
+}
+
+try {
+  updateValidation.create = await capture(
+    createRequestPath,
+    withWebhookUri(createVariables, `${createUri}-validation`),
+  );
+  updateValidationCreatedId = readCreatedWebhookId(updateValidation.create);
+  if (updateValidationCreatedId === null) {
+    throw new Error('update validation setup did not return a webhookSubscription.id.');
+  }
+
+  updateValidation.updateBlankUri = await capture(
+    updateRequestPath,
+    withWebhookUri({ ...updateVariablesTemplate, id: updateValidationCreatedId }, '', {
+      includeFields: ['id'],
+      metafieldNamespaces: [],
+    }),
+  );
+  updateValidation.updateHttpUri = await capture(
+    updateRequestPath,
+    withWebhookUri({ ...updateVariablesTemplate, id: updateValidationCreatedId }, 'http://example.com', {
+      includeFields: ['id'],
+      metafieldNamespaces: [],
+    }),
+  );
+  updateValidation.updateInvalidPubSub = await capture(
+    updateRequestPath,
+    withWebhookUri({ ...updateVariablesTemplate, id: updateValidationCreatedId }, 'pubsub://valid-project:', {
+      includeFields: ['id'],
+      metafieldNamespaces: [],
+    }),
+  );
+  updateValidation.detailAfterFailedUpdates = await capture(detailRequestPath, { id: updateValidationCreatedId });
+  updateValidation.delete = await capture(deleteRequestPath, { id: updateValidationCreatedId });
+} finally {
+  if (updateValidationCreatedId !== null && updateValidation.delete === null) {
+    updateValidation.cleanup = await capture(deleteRequestPath, { id: updateValidationCreatedId });
   }
 }
 
@@ -255,9 +312,11 @@ await writeFile(
       },
       catalog,
       lifecycle,
+      updateValidation,
       validation,
       graphqlValidation,
       cleanup,
+      upstreamCalls: [],
     },
     null,
     2,

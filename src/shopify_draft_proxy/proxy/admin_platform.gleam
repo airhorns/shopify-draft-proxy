@@ -231,6 +231,8 @@ fn has_local_admin_platform_query_state(proxy: DraftProxy) -> Bool {
   || dict.size(store_in.staged_state.collections) > 0
   || dict.size(store_in.staged_state.customers) > 0
   || dict.size(store_in.staged_state.store_property_locations) > 0
+  || option.is_some(store_in.base_state.shop)
+  || option.is_some(store_in.staged_state.shop)
   || dict.size(store_in.staged_state.web_presences) > 0
   || dict.size(store_in.staged_state.selling_plan_groups) > 0
 }

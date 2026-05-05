@@ -10,7 +10,7 @@
 import gleam/dict
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/state/store
@@ -96,6 +96,24 @@ fn subscription(id: String, status: String) -> AppSubscriptionRecord {
     is_test: False,
     trial_days: None,
     current_period_end: None,
+    created_at: "2024-12-01T00:00:00Z",
+    line_item_ids: [],
+  )
+}
+
+fn subscription_with_trial(
+  id: String,
+  status: String,
+  trial_days: Option(Int),
+  current_period_end: Option(String),
+) -> AppSubscriptionRecord {
+  AppSubscriptionRecord(
+    id: id,
+    name: "Pro",
+    status: status,
+    is_test: False,
+    trial_days: trial_days,
+    current_period_end: current_period_end,
     created_at: "2024-12-01T00:00:00Z",
     line_item_ids: [],
   )
@@ -523,7 +541,7 @@ pub fn trial_extend_adds_days_test() {
       status: "ACTIVE",
       is_test: False,
       trial_days: Some(7),
-      current_period_end: None,
+      current_period_end: Some("2099-01-01T00:00:00Z"),
       created_at: "2024-12-01T00:00:00Z",
       line_item_ids: [],
     )
@@ -539,6 +557,94 @@ pub fn trial_extend_adds_days_test() {
       "gid://shopify/AppSubscription/40",
     )
   assert updated.trial_days == Some(21)
+}
+
+pub fn trial_extend_rejects_days_outside_shopify_range_test() {
+  let sub_id = "gid://shopify/AppSubscription/range"
+  let sub =
+    subscription_with_trial(
+      sub_id,
+      "ACTIVE",
+      Some(7),
+      Some("2099-01-01T00:00:00Z"),
+    )
+  let #(_, s) = store.stage_app_subscription(seeded_with_installation(), sub)
+
+  let zero_outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/range\", days: 0) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert json.to_string(zero_outcome.data)
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"days\"],\"message\":\"Days must be greater than 0\",\"code\":null}]}}}"
+  let assert Some(after_zero) =
+    store.get_effective_app_subscription_by_id(zero_outcome.store, sub_id)
+  assert after_zero.trial_days == Some(7)
+
+  let too_large_outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/range\", days: 1001) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert json.to_string(too_large_outcome.data)
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"days\"],\"message\":\"Days must be less than or equal to 1000\",\"code\":null}]}}}"
+  let assert Some(after_too_large) =
+    store.get_effective_app_subscription_by_id(too_large_outcome.store, sub_id)
+  assert after_too_large.trial_days == Some(7)
+}
+
+pub fn trial_extend_unknown_id_sets_subscription_not_found_code_test() {
+  let body =
+    run_mutation(
+      seeded_with_installation(),
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/missing\", days: 5) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The app subscription wasn't found.\",\"code\":\"SUBSCRIPTION_NOT_FOUND\"}]}}}"
+}
+
+pub fn trial_extend_rejects_inactive_subscription_without_mutating_test() {
+  let sub_id = "gid://shopify/AppSubscription/pending"
+  let sub =
+    subscription_with_trial(
+      sub_id,
+      "PENDING",
+      Some(7),
+      Some("2099-01-01T00:00:00Z"),
+    )
+  let #(_, s) = store.stage_app_subscription(seeded_with_installation(), sub)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/pending\", days: 5) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The trial can't be extended on inactive app subscriptions.\",\"code\":\"SUBSCRIPTION_NOT_ACTIVE\"}]}}}"
+  let assert Some(updated) =
+    store.get_effective_app_subscription_by_id(outcome.store, sub_id)
+  assert updated.trial_days == Some(7)
+}
+
+pub fn trial_extend_rejects_expired_active_trial_without_mutating_test() {
+  let sub_id = "gid://shopify/AppSubscription/expired"
+  let sub =
+    subscription_with_trial(
+      sub_id,
+      "ACTIVE",
+      Some(7),
+      Some("2024-01-01T00:00:00Z"),
+    )
+  let #(_, s) = store.stage_app_subscription(seeded_with_installation(), sub)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { appSubscriptionTrialExtend(id: \"gid://shopify/AppSubscription/expired\", days: 5) { appSubscription { id trialDays } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"appSubscriptionTrialExtend\":{\"appSubscription\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The trial can't be extended after expiration.\",\"code\":\"TRIAL_NOT_ACTIVE\"}]}}}"
+  let assert Some(updated) =
+    store.get_effective_app_subscription_by_id(outcome.store, sub_id)
+  assert updated.trial_days == Some(7)
 }
 
 // ----------- appUsageRecordCreate -----------
