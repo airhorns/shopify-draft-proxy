@@ -9,47 +9,74 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 207: HAR-625 B2B string validation guardrails
+## 2026-05-05 - Pass 205: HAR-571 fulfillment service delete transfer contract
 
-Adds source-driven local validation for B2B free-text fields so supported
-company/contact/location mutations fail before staging values Shopify's B2B
-change layer rejects.
+Aligns `fulfillmentServiceDelete` local staging with the destination-location
+contract required for transfer deletes and keeps fulfillment-order downstream
+reads coherent after a service is removed.
 
-| Module / fixture                                      | Change                                                                                                                                                               |
-| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`       | Enforces 255-character `name`/`title` limits, 5000-character notes limits, `CONTAINS_HTML_TAGS` for blocked title/notes fields, and strips name HTML before staging. |
-| `gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam` | Covers company name length/sanitization, company notes HTML+length rejection, contact title/notes rejection, and location name/notes rejection.                      |
-| `docs/endpoints/b2b.md`                               | Documents the B2B string validation boundary and the live-probe mismatch that prevented promoting an HTML-sanitization parity fixture.                               |
-| `vitest.config.ts`                                    | Raises Vitest test/hook timeout to 30s so full-suite Gleam JS integration startup paths do not fail while isolated interop checks stay green.                        |
+| Module / fixture                                                                                                                                                                                                    | Change                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam`                                                                                                                                                   | Parses `inventoryAction`, validates `destinationLocationId` for TRANSFER against active merchant-managed locations, returns the captured invalid-destination userError shape, and stages fulfillment-order effects. |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam`                                                                                                                                             | Adds focused coverage for missing/invalid TRANSFER destinations, TRANSFER reassignment, KEEP closure, and selected `userErrors.code`.                                                                               |
+| `scripts/capture-fulfillment-service-delete-transfer-conformance.ts` / `scripts/conformance-capture-index.ts`                                                                                                       | Adds aggregate-indexed live capture for invalid destination and valid transfer delete evidence on Admin GraphQL 2026-04.                                                                                            |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-delete-transfer.json` / `config/parity-specs/shipping-fulfillments/fulfillment-service-delete-transfer.json` | Records executable parity evidence for the captured invalid-destination userError and valid transfer delete branch.                                                                                                 |
+| `config/operation-registry.json` / `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam`                                                                                                              | Updates the support notes and regenerated Gleam registry mirror for the stronger delete contract.                                                                                                                   |
+| `docs/endpoints/shipping-fulfillments.md`                                                                                                                                                                           | Documents the supported destination validation, local reassignment/closure effects, and remaining inventory-quantity fixture boundary.                                                                              |
 
 Validation:
 
-- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe`
-- 2026-04 live probe against `harry-test-heelo.myshopify.com` confirmed length
-  errors and `notes` field labeling, but still accepted HTML title/name values;
-  HAR-625 therefore remains source-behavior/runtime-test backed for HTML
-  sanitization.
-- `cd gleam && gleam test --target javascript -- b2b_test` (875 passed after
-  syncing through HAR-574)
+- `corepack pnpm conformance:probe`
+- live 2026-04 Admin GraphQL probe for invalid `destinationLocationId`
+  userError shape
+- `corepack pnpm conformance:capture -- --run fulfillment-service-delete-transfer`
+- `corepack pnpm parity:record fulfillment-service-delete-transfer`
+- `cd gleam && gleam test --target javascript -- shipping_fulfillments_test parity_test`
+  (860 passed)
+- `cd gleam && gleam test --target javascript` (860 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 851 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm conformance:check` (1443 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2307 passed)
+- `git diff --check`
 
 ### Findings
 
-- Current Admin GraphQL schema exposes `CompanyInput.note` and
-  `CompanyLocationInput.note`, but Shopify reports those user-error fields as
-  `notes`.
-- The current 2026-04 conformance store accepts `CompanyContactInput.title`
-  with HTML and has no `note`/`notes` field on `CompanyContactInput`, which
-  conflicts with the internal B2B change behavior described in HAR-625.
+- Live Shopify 2026-04 returned `field: null` and
+  `message: "Invalid destination location."` for an invalid transfer
+  destination.
+- The current Shopify `UserError` type rejected selecting `code` for this
+  mutation, so the local projection exposes selected `code` as `null`.
+- Open local fulfillment orders assigned to the deleted service location now
+  reassign to the transfer destination or close for non-transfer deletes, rather
+  than continuing to point at a removed service location.
+- The executable parity fixture covers invalid destination and valid transfer
+  delete evidence. The live valid-transfer cleanup attempt hit Shopify's
+  temporary location deactivation blocker after transfer-side inventory state
+  appeared on the disposable destination location.
 
 ### Risks / open items
 
-- HTML sanitization is covered by runtime tests rather than a checked-in parity
-  fixture until the live conformance target exhibits the ticketed
-  `CONTAINS_HTML_TAGS` behavior.
+- Live TRANSFER probes without `destinationLocationId` succeeded, including an
+  inventory-free fulfillment-order setup, and that setup left the fulfillment
+  order assigned to the source service location. The local implementation follows
+  the ticket acceptance for missing-destination and local fulfillment-order
+  reassignment/closure guardrails; the checked-in parity spec is limited to the
+  captured invalid-destination and valid-delete branches.
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation used the
+  established OTP 28 container fallback.
 
 ---
 
-## 2026-05-04 - Pass 206: HAR-562 order edit user-error payloads
+## 2026-05-04 - Pass 204: HAR-562 order edit user-error payloads
 
 Aligns the Gleam order-edit handlers with Shopify's mutation payload contract
 for local user-error branches without sending supported mutations upstream.
@@ -104,7 +131,7 @@ Validation:
 
 ---
 
-## 2026-05-04 - Pass 205: HAR-557 articleCreate validation fidelity
+## 2026-05-04 - Pass 204: HAR-557 articleCreate validation fidelity
 
 Aligns Online Store `articleCreate` with Shopify validation behavior for blog
 reference and author input errors before local staging. The handler now rejects
@@ -159,7 +186,7 @@ Validation:
 
 ---
 
-## 2026-05-04 - Pass 204: HAR-574 product variant scalar validation
+## 2026-05-04 - Pass 200: HAR-574 product variant scalar validation
 
 Adds shared Shopify-like scalar validation for product variant mutation inputs
 and backs the bulk-create validation branches with a new live capture and

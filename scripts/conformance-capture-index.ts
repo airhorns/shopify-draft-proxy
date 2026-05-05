@@ -690,14 +690,16 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'market-web-presence-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-web-presence-lifecycle-conformance.mts',
-    purpose: 'Web presence create/update/delete lifecycle and downstream top-level webPresences reads.',
+    purpose:
+      'Web presence create/update/delete lifecycle, downstream top-level webPresences reads, and multi-locale rootUrls.',
     requiredAuthScopes: ['read_markets', 'write_markets'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}market-web-presence-lifecycle-parity.json`,
       'config/parity-specs/markets/web-presence-lifecycle-local-staging.json',
+      'config/parity-specs/markets/web-presence-root-urls-multi-locale.json',
     ],
     cleanupBehavior:
-      'Creates one disposable subfolder web presence, updates it, deletes it, and verifies the baseline read after cleanup.',
+      'Creates one disposable subfolder web presence, updates it, deletes it, records one multi-locale disposable web presence with subfolder suffix intl, deletes it, and verifies the baseline read after cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1051,6 +1053,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'discounts',
+    captureId: 'discount-combines-with-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-combines-with-validation-conformance.ts',
+    purpose:
+      'Discount combinesWith cart-line tag validation guardrails and free-shipping self-combine regression coverage.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [`${CAPTURE_ROOT}discount-combines-with-validation.json`],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'apps',
     captureId: 'app-billing',
     scriptPath: 'scripts/capture-app-billing-conformance.ts',
@@ -1158,6 +1172,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [`${CAPTURE_ROOT}fulfillment-order-lifecycle.json`],
     cleanupBehavior: 'Cancels disposable order and records cleanup captures.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'shipping-fulfillments',
+    captureId: 'fulfillment-service-delete-transfer',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-service-delete-transfer-conformance.ts',
+    purpose: 'fulfillmentServiceDelete TRANSFER destination validation and valid-delete behavior.',
+    requiredAuthScopes: ['read_fulfillments', 'write_fulfillments', 'read_locations', 'write_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-service-delete-transfer.json`,
+      'config/parity-specs/shipping-fulfillments/fulfillment-service-delete-transfer.json',
+    ],
+    cleanupBehavior:
+      'Creates a disposable destination location and fulfillment service; attempts to deactivate/delete the destination location after capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
