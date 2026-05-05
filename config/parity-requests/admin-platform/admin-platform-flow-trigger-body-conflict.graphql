@@ -1,0 +1,8 @@
+mutation FlowTriggerReceiveBodyAndHandleConflict {
+  flowTriggerReceive(body: "{\"trigger_id\":\"abc\",\"properties\":{}}", handle: "test") {
+    userErrors {
+      field
+      message
+    }
+  }
+}

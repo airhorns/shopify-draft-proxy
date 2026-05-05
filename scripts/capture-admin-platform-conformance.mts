@@ -607,6 +607,50 @@ const flowTriggerInvalidHandleMutation = `#graphql
   }
 `;
 
+const flowTriggerBodyAndHandleConflictMutation = `#graphql
+  mutation FlowTriggerReceiveBodyAndHandleConflict {
+    flowTriggerReceive(body: "{\\"trigger_id\\":\\"abc\\",\\"properties\\":{}}", handle: "test") {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const flowTriggerEmptyHandleEmptyBodyMutation = `#graphql
+  mutation FlowTriggerReceiveEmptyHandleEmptyBody {
+    flowTriggerReceive {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const flowTriggerPayloadOnlyNoHandleMutation = `#graphql
+  mutation FlowTriggerReceivePayloadOnlyNoHandle {
+    flowTriggerReceive(payload: { test: "value" }) {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const flowTriggerEmptyHandleStringMutation = `#graphql
+  mutation FlowTriggerReceiveEmptyHandleString {
+    flowTriggerReceive(handle: "") {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const flowTriggerOversizeMutation = `#graphql
   mutation FlowTriggerReceiveOversize($payload: JSON) {
     flowTriggerReceive(handle: "har-374-missing", payload: $payload) {
@@ -819,6 +863,22 @@ const captures = {
     query: flowTriggerInvalidHandleMutation,
     result: await runGraphqlCapture(flowTriggerInvalidHandleMutation),
   },
+  flowTriggerReceiveBodyAndHandleConflict: {
+    query: flowTriggerBodyAndHandleConflictMutation,
+    result: await runGraphqlCapture(flowTriggerBodyAndHandleConflictMutation),
+  },
+  flowTriggerReceiveEmptyHandleEmptyBody: {
+    query: flowTriggerEmptyHandleEmptyBodyMutation,
+    result: await runGraphqlCapture(flowTriggerEmptyHandleEmptyBodyMutation),
+  },
+  flowTriggerReceivePayloadOnlyNoHandle: {
+    query: flowTriggerPayloadOnlyNoHandleMutation,
+    result: await runGraphqlCapture(flowTriggerPayloadOnlyNoHandleMutation),
+  },
+  flowTriggerReceiveEmptyHandleString: {
+    query: flowTriggerEmptyHandleStringMutation,
+    result: await runGraphqlCapture(flowTriggerEmptyHandleStringMutation),
+  },
   flowTriggerReceiveOversize: {
     query: flowTriggerOversizeMutation,
     variables: {
@@ -847,6 +907,62 @@ const captures = {
 };
 
 const capturedAt = new Date().toISOString();
+const utilityReadData = {
+  publicApiVersions: captures.publicApiVersions.result.payload.data?.publicApiVersions ?? null,
+  node: captures.nodeNoData.result.payload.data?.node ?? null,
+  nodes: captures.nodeNoData.result.payload.data?.nodes ?? null,
+  domain: captures.jobDomainNoData.result.payload.data?.domain ?? null,
+  job: captures.jobDomainNoData.result.payload.data?.job ?? null,
+  backupRegion: captures.backupRegion.result.payload.data?.backupRegion ?? null,
+  taxonomy: {
+    emptySearch: captures.taxonomyEmptySearch.result.payload.data?.taxonomy?.categories ?? null,
+    catalogFirstPage: captures.taxonomyCatalogFirstPage.result.payload.data?.taxonomy?.categories ?? null,
+    catalogNextPage: captures.taxonomyCatalogNextPage.result.payload.data?.taxonomy?.categories ?? null,
+    apparelSearch: captures.taxonomySearchApparel.result.payload.data?.taxonomy?.categories ?? null,
+  },
+};
+const utilityUpstreamCalls = [
+  {
+    operationName: 'SupportedNodeRead',
+    variables: captures.supportedNodes.variables,
+    query: 'sha:har-525-hand-synthesized-admin-platform',
+    response: {
+      status: 200,
+      body: {
+        data: {
+          nodes: captures.supportedNodes.result.payload.data?.nodes ?? [],
+        },
+      },
+    },
+  },
+  {
+    operationName: 'AdminPlatformUtilityReads',
+    variables: {
+      ids: ['gid://shopify/Product/0', 'gid://shopify/Job/0', 'gid://shopify/Domain/0'],
+      domainId: 'gid://shopify/Domain/0',
+      jobId: 'gid://shopify/Job/0',
+      taxonomyAfter: 'eyJpZCI6ODUyfQ==',
+    },
+    query: 'sha:har-525-hand-synthesized-admin-platform',
+    response: {
+      status: 200,
+      body: {
+        data: utilityReadData,
+      },
+    },
+  },
+];
+const taxonomyHierarchyUpstreamCalls = [
+  {
+    operationName: 'AdminPlatformTaxonomyHierarchyNodeReads',
+    variables: {},
+    query: 'sha:har-525-hand-synthesized-admin-platform',
+    response: {
+      status: 200,
+      body: captures.taxonomyHierarchyAndNodeReads.result.payload,
+    },
+  },
+];
 const captureOutput = {
   capturedAt,
   storeDomain,
@@ -864,6 +980,7 @@ const captureOutput = {
     locations: supportedNodeSeedData.locations?.nodes ?? [],
   },
   captures,
+  upstreamCalls: utilityUpstreamCalls,
 };
 const taxonomyHierarchyOutput = {
   capturedAt,
@@ -873,6 +990,7 @@ const taxonomyHierarchyOutput = {
     taxonomyHierarchyAndNodeReads: captures.taxonomyHierarchyAndNodeReads,
     taxonomyHierarchySiblingOverflowSeed: captures.taxonomyHierarchySiblingOverflowSeed,
   },
+  upstreamCalls: taxonomyHierarchyUpstreamCalls,
 };
 
 await mkdir(outputDir, { recursive: true });
