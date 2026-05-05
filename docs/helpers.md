@@ -9,8 +9,18 @@ Shared helpers for GraphQL Admin proxy serializers.
 - cursor windowing, `nodes` / `edges` serialization, and selected `pageInfo` fields
 - selected-field lookup, alias-aware response keys, and connection envelope helpers
 - synthetic cursor generation for local and snapshot-backed connection responses
+- resolved argument readers for common scalar, object, and string-list input shapes
 
 Use this module for pagination and connection envelopes. Resource-specific sorting, filtering, cursor derivation, and node projection should stay in the owning domain module and pass explicit decisions into these helpers.
+
+## `src/shopify_draft_proxy/proxy/app_identity.gleam`
+
+Shared helper for request-owned app identity.
+
+- reads the `x-shopify-draft-proxy-api-client-id` header case-insensitively
+- trims blank values to `None`
+
+Use this module when local Shopify behavior depends on the requesting app's API client ID, such as `$app:` namespace resolution or app-scoped callback validation. Do not hardcode a conformance app ID in domain code.
 
 ## `src/shopify_draft_proxy/proxy/metafields.gleam`
 

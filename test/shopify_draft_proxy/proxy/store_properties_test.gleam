@@ -517,6 +517,116 @@ pub fn location_reads_and_local_mutations_use_store_state_test() {
   assert string.contains(serialized_state, "\"name\":\"Annex\"")
 }
 
+pub fn location_add_requires_address_top_level_error_test() {
+  let body =
+    "{\"query\":\"mutation LocationAddMissingAddress { locationAdd(input: { name: \\\"Warehouse\\\" }) { location { id name } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Argument 'address' on InputObject 'LocationAddInput' is required. Expected type LocationAddAddressInput!\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"code\":\"missingRequiredInputObjectAttribute\"",
+  )
+  assert !string.contains(serialized, "\"locationAdd\":{\"location\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_stages_address_defaults_and_capabilities_test() {
+  let add_body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Main\\\", address: { address1: \\\"1 Spadina\\\", address2: \\\"Suite 2\\\", city: \\\"Toronto\\\", country: \\\"Canada\\\", countryCode: CA, province: \\\"Ontario\\\", provinceCode: \\\"ON\\\", zip: \\\"M5T 2C2\\\", phone: \\\"+14165550100\\\" }, capabilitiesToAdd: [PICKUP], capabilitiesToRemove: [SHIPPING] }) { location { id name fulfillsOnlineOrders address { address1 address2 city country countryCode province provinceCode zip phone } capabilities } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: add_status, body: add_json, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(add_body))
+  let add_serialized = json.to_string(add_json)
+
+  assert add_status == 200
+  assert string.contains(add_serialized, "\"userErrors\":[]")
+  assert string.contains(add_serialized, "\"name\":\"Main\"")
+  assert string.contains(add_serialized, "\"fulfillsOnlineOrders\":true")
+  assert string.contains(add_serialized, "\"address1\":\"1 Spadina\"")
+  assert string.contains(add_serialized, "\"address2\":\"Suite 2\"")
+  assert string.contains(add_serialized, "\"city\":\"Toronto\"")
+  assert string.contains(add_serialized, "\"country\":\"Canada\"")
+  assert string.contains(add_serialized, "\"countryCode\":\"CA\"")
+  assert string.contains(add_serialized, "\"province\":\"Ontario\"")
+  assert string.contains(add_serialized, "\"provinceCode\":\"ON\"")
+  assert string.contains(add_serialized, "\"zip\":\"M5T 2C2\"")
+  assert string.contains(add_serialized, "\"phone\":\"+14165550100\"")
+  assert string.contains(add_serialized, "\"capabilities\":[\"PICKUP\"]")
+
+  let read_body =
+    "{\"query\":\"query { location { name fulfillsOnlineOrders address { countryCode city } capabilities } locations(first: 5) { nodes { name fulfillsOnlineOrders address { countryCode city } capabilities } } }\"}"
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_body))
+  let read_serialized = json.to_string(read_json)
+
+  assert read_status == 200
+  assert string.contains(read_serialized, "\"fulfillsOnlineOrders\":true")
+  assert string.contains(
+    read_serialized,
+    "\"address\":{\"countryCode\":\"CA\",\"city\":\"Toronto\"}",
+  )
+  assert string.contains(read_serialized, "\"capabilities\":[\"PICKUP\"]")
+}
+
+pub fn location_add_honors_explicit_fulfills_online_orders_false_test() {
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Sub\\\", address: { city: \\\"Toronto\\\", countryCode: CA }, fulfillsOnlineOrders: false }) { location { id fulfillsOnlineOrders address { city countryCode } } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), _) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(serialized, "\"fulfillsOnlineOrders\":false")
+  assert string.contains(
+    serialized,
+    "\"address\":{\"city\":\"Toronto\",\"countryCode\":\"CA\"}",
+  )
+}
+
+pub fn location_add_blank_name_user_error_includes_code_test() {
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"\\\", address: { countryCode: CA } }) { location { id } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"location\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"name\"],\"message\":\"Add a location name\",\"code\":\"BLANK\"",
+  )
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
+pub fn location_add_invalid_country_code_returns_user_error_test() {
+  let body =
+    "{\"query\":\"mutation { locationAdd(input: { name: \\\"Bad\\\", address: { countryCode: ZZ } }) { location { id } userErrors { field message code } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(body))
+  let serialized = json.to_string(response_body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"location\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"address\",\"countryCode\"]",
+  )
+  assert string.contains(serialized, "\"code\":\"INVALID\"")
+  assert json.to_string(draft_proxy.get_log_snapshot(proxy))
+    == "{\"entries\":[]}"
+}
+
 pub fn location_edit_updates_address_fulfillment_and_metafields_test() {
   let target =
     make_raw_record("gid://shopify/Location/1", "Location", [

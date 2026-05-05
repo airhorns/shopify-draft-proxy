@@ -1,0 +1,28 @@
+{
+  "scenarioId": "online-store/theme-files-checksums-and-validation",
+  "operationNames": ["themeCreate", "themeFilesUpsert"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "user-errors-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/theme-files-checksums-and-validation.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/theme-files-checksums-and-validation.graphql",
+    "variablesCapturePath": "$.primary.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "theme-file-checksums-and-invalid-filename",
+        "capturePath": "$.expected.primary",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "HAR-585 exercises supported local theme file staging without runtime Shopify writes. The scenario locks real MD5 and byte-size derivation for two upserts of the same filename and the INVALID userError branch for evil/path.liquid."
+}

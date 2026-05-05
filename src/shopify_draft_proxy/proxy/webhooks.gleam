@@ -24,6 +24,7 @@
 ////   a `{"errors": [...]}` envelope instead of `{"data": {...}}`.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -33,6 +34,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
   SelectedFieldOptions, SerializeConnectionConfig, SrcList, SrcNull, SrcString,
@@ -49,6 +51,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser.{
   type SearchQueryTerm, SearchQueryTermListOptions,
 }
@@ -705,6 +708,43 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> MutationOutcome {
+  process_mutation_with_api_client(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    app_identity.read_requesting_api_client_id(upstream.headers),
+  )
+}
+
+pub fn process_mutation_with_headers(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  request_headers: Dict(String, String),
+) -> MutationOutcome {
+  process_mutation_with_api_client(
+    store,
+    identity,
+    request_path,
+    document,
+    variables,
+    app_identity.read_requesting_api_client_id(request_headers),
+  )
+}
+
+fn process_mutation_with_api_client(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -720,6 +760,7 @@ pub fn process_mutation(
         fields,
         fragments,
         variables,
+        requesting_api_client_id,
       )
     }
   }
@@ -760,6 +801,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   let initial = #([], [], store, identity, [], [])
   let #(
@@ -792,6 +834,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                requesting_api_client_id,
               ))
             "webhookSubscriptionUpdate" ->
               Some(handle_update(
@@ -803,6 +846,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                requesting_api_client_id,
               ))
             "webhookSubscriptionDelete" ->
               Some(handle_delete(
@@ -875,6 +919,7 @@ fn handle_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let validation_errors =
@@ -919,7 +964,12 @@ fn handle_create(
       let input = read_webhook_subscription_input(args)
       let user_errors = case input {
         Some(input_dict) ->
-          validate_webhook_subscription_input(input_dict, require_uri: True)
+          validate_webhook_subscription_create_input(
+            input_dict,
+            topic,
+            store,
+            requesting_api_client_id,
+          )
         None -> []
       }
       let #(record_opt, store_after, identity_after, staged_ids) = case
@@ -973,6 +1023,7 @@ fn handle_update(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let validation_errors =
@@ -1017,8 +1068,12 @@ fn handle_update(
         None -> None
       }
       let user_errors = case existing, input {
-        Some(_), Some(input_dict) ->
-          validate_webhook_subscription_input(input_dict, require_uri: False)
+        Some(existing_record), Some(input_dict) ->
+          validate_webhook_subscription_update_input(
+            input_dict,
+            existing_record,
+            requesting_api_client_id,
+          )
         Some(_), None -> []
         None, _ -> [
           UserError(
@@ -1192,10 +1247,7 @@ fn build_webhook_from_create_input(
         read_optional_string_array(input, "metafieldNamespaces"),
         [],
       ),
-      filter: case read_optional_string(input, "filter") {
-        Some(s) -> Some(s)
-        None -> Some("")
-      },
+      filter: read_optional_string(input, "filter"),
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
       endpoint: Some(endpoint_from_uri(uri)),
@@ -1270,22 +1322,306 @@ fn read_webhook_subscription_input(
 fn validate_webhook_subscription_input(
   input: Dict(String, root_field.ResolvedValue),
   require_uri require_uri: Bool,
+  requesting_api_client_id requesting_api_client_id: Option(String),
 ) -> List(UserError) {
   list.append(
-    validate_webhook_uri_input(input, require_uri),
+    validate_webhook_uri_input(input, require_uri, requesting_api_client_id),
     validate_webhook_filter_input(input),
+  )
+}
+
+const webhook_subscription_name_max_length = 50
+
+fn validate_webhook_subscription_create_input(
+  input: Dict(String, root_field.ResolvedValue),
+  topic: Option(String),
+  store: Store,
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  let errors =
+    validate_webhook_subscription_input(
+      input,
+      require_uri: True,
+      requesting_api_client_id: requesting_api_client_id,
+    )
+    |> list.append(validate_webhook_topic_format_input(topic, input))
+    |> list.append(validate_webhook_name_input(input))
+
+  case errors {
+    [] -> validate_duplicate_webhook_subscription(topic, input, store)
+    _ -> errors
+  }
+}
+
+fn validate_webhook_subscription_update_input(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: WebhookSubscriptionRecord,
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  validate_webhook_subscription_input(
+    input,
+    require_uri: False,
+    requesting_api_client_id: requesting_api_client_id,
+  )
+  |> list.append(validate_webhook_topic_format(
+    existing.topic,
+    resolved_webhook_uri(existing, input),
+    resolved_webhook_format(existing, input),
+  ))
+  |> list.append(validate_webhook_name_input(input))
+}
+
+fn validate_webhook_topic_format_input(
+  topic: Option(String),
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  validate_webhook_topic_format(
+    topic,
+    normalize_uri_from_input(input),
+    normalize_webhook_format(read_optional_string(input, "format")),
+  )
+}
+
+fn validate_webhook_topic_format(
+  topic: Option(String),
+  uri: Option(String),
+  format: String,
+) -> List(UserError) {
+  case is_cloud_webhook_uri(uri) && format != "JSON" {
+    True -> [cloud_format_user_error()]
+    False -> {
+      let allowed = supported_webhook_formats(topic)
+      case list.contains(allowed, format) {
+        True -> []
+        False -> [unsupported_format_user_error(format, allowed)]
+      }
+    }
+  }
+}
+
+fn supported_webhook_formats(topic: Option(String)) -> List(String) {
+  case topic {
+    Some("BULK_OPERATIONS_FINISH")
+    | Some("COMPANIES_CREATE")
+    | Some("DISPUTES_CREATE")
+    | Some("PRODUCT_FEEDS_FULL_SYNC")
+    | Some("RETURNS_APPROVE")
+    | Some("SEGMENTS_CREATE")
+    | Some("SELLING_PLAN_GROUPS_CREATE") -> ["JSON"]
+    _ -> ["JSON", "XML"]
+  }
+}
+
+fn normalize_webhook_format(raw: Option(String)) -> String {
+  raw
+  |> option.unwrap("JSON")
+  |> string.trim
+  |> string.uppercase
+}
+
+fn resolved_webhook_format(
+  existing: WebhookSubscriptionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  case read_optional_string(input, "format") {
+    Some(raw) -> normalize_webhook_format(Some(raw))
+    None -> normalize_webhook_format(existing.format)
+  }
+}
+
+fn resolved_webhook_uri(
+  existing: WebhookSubscriptionRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case normalize_uri_from_input(input) {
+    Some(uri) -> Some(uri)
+    None -> webhook_subscription_uri(existing)
+  }
+}
+
+fn is_cloud_webhook_uri(uri: Option(String)) -> Bool {
+  case uri {
+    Some(value) ->
+      string.starts_with(value, "pubsub://")
+      || string.starts_with(value, "arn:aws:events:")
+    None -> False
+  }
+}
+
+fn cloud_format_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "format"],
+    message: "Format can only be used with format: 'json'",
+  )
+}
+
+fn unsupported_format_user_error(
+  format: String,
+  allowed_formats: List(String),
+) -> UserError {
+  UserError(
+    field: ["webhookSubscription", "format"],
+    message: "Format '"
+      <> string.lowercase(format)
+      <> "' is invalid for this webhook topic. Allowed formats: "
+      <> allowed_formats_label(allowed_formats),
+  )
+}
+
+fn allowed_formats_label(allowed_formats: List(String)) -> String {
+  allowed_formats
+  |> list.map(string.lowercase)
+  |> string.join(", ")
+}
+
+fn validate_webhook_name_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "name") {
+    Some(name) -> validate_webhook_name(name)
+    None -> []
+  }
+}
+
+fn validate_webhook_name(name: String) -> List(UserError) {
+  case string.length(name) {
+    0 -> [
+      UserError(
+        field: ["webhookSubscription", "name"],
+        message: "Name is too short (minimum is 1 character)",
+      ),
+      invalid_webhook_name_user_error(),
+    ]
+    length if length > webhook_subscription_name_max_length -> [
+      UserError(
+        field: ["webhookSubscription", "name"],
+        message: "Name is too long (maximum is "
+          <> int.to_string(webhook_subscription_name_max_length)
+          <> " characters)",
+      ),
+    ]
+    _ ->
+      case is_valid_webhook_name(name) {
+        True -> []
+        False -> [invalid_webhook_name_user_error()]
+      }
+  }
+}
+
+fn invalid_webhook_name_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "name"],
+    message: "Name name field can only contain alphanumeric characters, underscores, and hyphens",
+  )
+}
+
+fn is_valid_webhook_name(name: String) -> Bool {
+  list.all(string.to_graphemes(name), fn(char) {
+    string.contains(
+      "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-",
+      char,
+    )
+  })
+}
+
+fn validate_duplicate_webhook_subscription(
+  topic: Option(String),
+  input: Dict(String, root_field.ResolvedValue),
+  store: Store,
+) -> List(UserError) {
+  let uri = normalize_uri_from_input(input)
+  let format =
+    Some(normalize_webhook_format(read_optional_string(input, "format")))
+  let filter = Some(normalize_webhook_filter(input))
+  let address_errors = case
+    has_duplicate_webhook_subscription(store, topic, uri, format, filter)
+  {
+    True -> [duplicate_webhook_subscription_address_user_error()]
+    False -> []
+  }
+  list.append(
+    address_errors,
+    validate_duplicate_webhook_subscription_name(
+      store,
+      read_optional_string(input, "name"),
+    ),
+  )
+}
+
+fn has_duplicate_webhook_subscription(
+  store: Store,
+  topic: Option(String),
+  uri: Option(String),
+  format: Option(String),
+  filter: Option(String),
+) -> Bool {
+  store.list_effective_webhook_subscriptions(store)
+  |> list.any(fn(record) {
+    record.topic == topic
+    && webhook_subscription_uri(record) == uri
+    && normalized_record_format(record) == format
+    && normalized_record_filter(record) == filter
+  })
+}
+
+fn normalized_record_format(
+  record: WebhookSubscriptionRecord,
+) -> Option(String) {
+  Some(normalize_webhook_format(record.format))
+}
+
+fn normalized_record_filter(
+  record: WebhookSubscriptionRecord,
+) -> Option(String) {
+  Some(option.unwrap(record.filter, ""))
+}
+
+fn normalize_webhook_filter(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  read_optional_string(input, "filter")
+  |> option.unwrap("")
+}
+
+fn validate_duplicate_webhook_subscription_name(
+  store: Store,
+  name: Option(String),
+) -> List(UserError) {
+  case name {
+    Some(name) ->
+      case
+        store.list_effective_webhook_subscriptions(store)
+        |> list.any(fn(record) { record.name == Some(name) })
+      {
+        True -> [
+          UserError(
+            field: ["webhookSubscription", "name"],
+            message: "Name already exists, no duplicate allowed",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn duplicate_webhook_subscription_address_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address for this topic has already been taken",
   )
 }
 
 fn validate_webhook_uri_input(
   input: Dict(String, root_field.ResolvedValue),
   require_uri: Bool,
+  requesting_api_client_id: Option(String),
 ) -> List(UserError) {
   case read_uri_input(input), require_uri {
     UriAbsent, True -> [blank_address_user_error()]
     UriAbsent, False -> []
     UriBlank, _ -> [blank_address_user_error()]
-    UriPresent(uri), _ -> validate_webhook_uri(uri)
+    UriPresent(uri), _ -> validate_webhook_uri(uri, requesting_api_client_id)
   }
 }
 
@@ -1339,13 +1675,6 @@ fn invalid_pubsub_user_error() -> UserError {
   )
 }
 
-fn invalid_arn_user_error() -> UserError {
-  UserError(
-    field: ["webhookSubscription", "callbackUrl"],
-    message: "Address is not a valid ARN",
-  )
-}
-
 fn address_too_long_user_error() -> UserError {
   UserError(
     field: ["webhookSubscription", "callbackUrl"],
@@ -1353,7 +1682,10 @@ fn address_too_long_user_error() -> UserError {
   )
 }
 
-fn validate_webhook_uri(uri: String) -> List(UserError) {
+fn validate_webhook_uri(
+  uri: String,
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
   case string.byte_size(uri) > 4096 {
     True -> [address_too_long_user_error()]
     False ->
@@ -1361,8 +1693,12 @@ fn validate_webhook_uri(uri: String) -> List(UserError) {
         True -> validate_pubsub_uri(uri)
         False ->
           case string.starts_with(uri, "arn:aws:events:") {
-            True -> validate_eventbridge_arn(uri)
-            False -> validate_https_uri(uri)
+            True -> validate_eventbridge_arn(uri, requesting_api_client_id)
+            False ->
+              case string.starts_with(uri, "kafka://") {
+                True -> kafka_user_errors()
+                False -> validate_https_uri(uri)
+              }
           }
       }
   }
@@ -1423,61 +1759,220 @@ fn validate_pubsub_uri(uri: String) -> List(UserError) {
   let tail = string.drop_start(uri, 9)
   case string.split_once(tail, ":") {
     Ok(#(project, topic)) ->
-      case
-        project != ""
-        && topic != ""
-        && valid_pubsub_project(project)
-        && valid_pubsub_topic(topic)
-      {
-        True -> []
-        False -> [
-          unsupported_protocol_user_error("pubsub://"),
-          invalid_pubsub_user_error(),
-        ]
+      case project, topic {
+        "", _ -> pubsub_format_user_errors()
+        _, "" -> pubsub_format_user_errors()
+        _, _ ->
+          case valid_gcp_project_id(project) {
+            False -> [invalid_address_user_error(), gcp_project_id_user_error()]
+            True ->
+              case valid_gcp_topic_id(topic) {
+                True -> []
+                False -> [
+                  invalid_address_user_error(),
+                  gcp_topic_id_user_error(),
+                ]
+              }
+          }
       }
-    Error(_) -> [
-      unsupported_protocol_user_error("pubsub://"),
-      invalid_pubsub_user_error(),
-    ]
+    Error(_) -> pubsub_format_user_errors()
   }
 }
 
-fn valid_pubsub_project(value: String) -> Bool {
-  valid_webhook_destination_token(
-    value,
-    "abcdefghijklmnopqrstuvwxyz0123456789-",
+fn pubsub_format_user_errors() -> List(UserError) {
+  [
+    unsupported_protocol_user_error("pubsub://"),
+    invalid_pubsub_user_error(),
+  ]
+}
+
+fn valid_gcp_project_id(project: String) -> Bool {
+  case all_digits(project) {
+    True -> True
+    False -> {
+      let length = string.length(project)
+      length >= 6
+      && length <= 30
+      && starts_with_lowercase_alpha(project)
+      && !string.ends_with(project, "-")
+      && all_gcp_project_chars(project)
+    }
+  }
+}
+
+fn valid_gcp_topic_id(topic: String) -> Bool {
+  let length = string.length(topic)
+  length >= 3
+  && length <= 255
+  && starts_with_alpha(topic)
+  && !string.starts_with(string.lowercase(topic), "goog")
+  && all_gcp_topic_chars(topic)
+}
+
+fn validate_eventbridge_arn(
+  uri: String,
+  requesting_api_client_id: Option(String),
+) -> List(UserError) {
+  let tail = string.drop_start(uri, 15)
+  case string.split_once(tail, "::event-source/aws.partner/shopify.com") {
+    Ok(#(region, after_domain)) ->
+      case valid_aws_region(region), eventbridge_source_tail(after_domain) {
+        True, Some(#(api_client_id, event_source_name)) ->
+          case all_digits(api_client_id) && event_source_name != "" {
+            True ->
+              case requesting_api_client_id {
+                Some(expected) if api_client_id != expected -> [
+                  invalid_address_user_error(),
+                  eventbridge_wrong_api_client_user_error(
+                    api_client_id,
+                    expected,
+                  ),
+                ]
+                _ -> []
+              }
+            False -> eventbridge_arn_user_errors()
+          }
+        _, _ -> eventbridge_arn_user_errors()
+      }
+    Error(_) -> eventbridge_arn_user_errors()
+  }
+}
+
+fn eventbridge_source_tail(tail: String) -> Option(#(String, String)) {
+  let source = case string.starts_with(tail, ".test/") {
+    True -> Some(string.drop_start(tail, 6))
+    False ->
+      case string.starts_with(tail, "/") {
+        True -> Some(string.drop_start(tail, 1))
+        False -> None
+      }
+  }
+  case source {
+    Some(rest) -> {
+      case string.split_once(rest, "/") {
+        Ok(#(api_client_id, event_source_name)) ->
+          Some(#(api_client_id, event_source_name))
+        Error(_) -> None
+      }
+    }
+    None -> None
+  }
+}
+
+fn valid_aws_region(region: String) -> Bool {
+  case string.split(region, on: "-") {
+    [country, zone, number] ->
+      string.length(country) == 2
+      && all_lowercase_alpha(country)
+      && zone != ""
+      && all_lowercase_alpha(zone)
+      && all_digits(number)
+    _ -> False
+  }
+}
+
+fn starts_with_lowercase_alpha(value: String) -> Bool {
+  case string.pop_grapheme(value) {
+    Ok(#(first, _)) -> is_lowercase_alpha(first)
+    Error(_) -> False
+  }
+}
+
+fn starts_with_alpha(value: String) -> Bool {
+  case string.pop_grapheme(value) {
+    Ok(#(first, _)) -> is_alpha(first)
+    Error(_) -> False
+  }
+}
+
+fn all_gcp_project_chars(value: String) -> Bool {
+  list.all(string.to_graphemes(value), fn(grapheme) {
+    is_lowercase_alpha(grapheme) || is_digit(grapheme) || grapheme == "-"
+  })
+}
+
+fn all_gcp_topic_chars(value: String) -> Bool {
+  list.all(string.to_graphemes(value), fn(grapheme) {
+    is_alpha(grapheme)
+    || is_digit(grapheme)
+    || string.contains("-_.~+%", grapheme)
+  })
+}
+
+fn all_lowercase_alpha(value: String) -> Bool {
+  list.all(string.to_graphemes(value), is_lowercase_alpha)
+}
+
+fn all_digits(value: String) -> Bool {
+  value != "" && list.all(string.to_graphemes(value), is_digit)
+}
+
+fn is_alpha(grapheme: String) -> Bool {
+  is_lowercase_alpha(grapheme)
+  || string.contains("ABCDEFGHIJKLMNOPQRSTUVWXYZ", grapheme)
+}
+
+fn is_lowercase_alpha(grapheme: String) -> Bool {
+  string.contains("abcdefghijklmnopqrstuvwxyz", grapheme)
+}
+
+fn is_digit(grapheme: String) -> Bool {
+  string.contains("0123456789", grapheme)
+}
+
+fn invalid_address_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is invalid",
   )
 }
 
-fn valid_pubsub_topic(value: String) -> Bool {
-  valid_webhook_destination_token(
-    value,
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_.~+%",
+fn gcp_project_id_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is not a valid GCP project id.",
   )
 }
 
-fn valid_webhook_destination_token(value: String, allowed: String) -> Bool {
-  case string.to_graphemes(value) {
-    [] -> False
-    chars -> list.all(chars, fn(char) { string.contains(allowed, char) })
-  }
+fn gcp_topic_id_user_error() -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is not a valid GCP topic id.",
+  )
 }
 
-fn validate_eventbridge_arn(uri: String) -> List(UserError) {
-  let parts = string.split(uri, ":")
-  case parts {
-    ["arn", "aws", "events", region, account, resource] ->
-      case
-        region != ""
-        && account != ""
-        && string.starts_with(resource, "event-bus/")
-        && string.drop_start(resource, 10) != ""
-      {
-        True -> []
-        False -> [invalid_arn_user_error()]
-      }
-    _ -> [invalid_arn_user_error()]
-  }
+fn eventbridge_arn_user_errors() -> List(UserError) {
+  [
+    invalid_address_user_error(),
+    UserError(
+      field: ["webhookSubscription", "callbackUrl"],
+      message: "Address is not a valid AWS ARN",
+    ),
+  ]
+}
+
+fn eventbridge_wrong_api_client_user_error(
+  actual: String,
+  expected: String,
+) -> UserError {
+  UserError(
+    field: ["webhookSubscription", "callbackUrl"],
+    message: "Address is an AWS ARN and includes api_client_id '"
+      <> actual
+      <> "' instead of '"
+      <> expected
+      <> "'",
+  )
+}
+
+fn kafka_user_errors() -> List(UserError) {
+  [
+    unsupported_protocol_user_error("kafka://"),
+    UserError(
+      field: ["webhookSubscription", "callbackUrl"],
+      message: "Address is not a valid kafka topic",
+    ),
+  ]
 }
 
 fn validate_webhook_filter_input(
@@ -1513,24 +2008,9 @@ fn normalize_uri_from_input(
   // are NOT real input fields and were stripped after the introspection
   // check; they were artifacts of the search-query alias list in this
   // module.)
-  read_first_string_field(input, ["uri", "callbackUrl"])
-}
-
-fn read_first_string_field(
-  input: Dict(String, root_field.ResolvedValue),
-  names: List(String),
-) -> Option(String) {
-  case names {
-    [] -> None
-    [name, ..rest] ->
-      case dict.get(input, name) {
-        Ok(root_field.StringVal(raw)) ->
-          case string.trim(raw) {
-            "" -> read_first_string_field(input, rest)
-            trimmed -> Some(trimmed)
-          }
-        _ -> read_first_string_field(input, rest)
-      }
+  case read_uri_input(input) {
+    UriPresent(uri) -> Some(uri)
+    UriAbsent | UriBlank -> None
   }
 }
 

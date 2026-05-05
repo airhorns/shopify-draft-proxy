@@ -71,9 +71,12 @@ Contacts created from `companyCreate(input.companyContact)` or
 reference so downstream B2B `CompanyContact.customer { id }` reads match
 Shopify's company/customer-contact relationship without broadening customer
 catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
-as that contact reference. `companyRevokeMainContact` clears all local
-`isMainContact` flags and downstream `Company.mainContact` reads return `null`,
-matching the captured Shopify 2026-04 behavior.
+as that contact reference only after resolving the customer from the effective
+local customer registry. It rejects unknown customers, customers without an
+email address, duplicate customer/contact assignments on the same company, and
+companies that have reached the 10,000-contact cap. `companyRevokeMainContact`
+clears all local `isMainContact` flags and downstream `Company.mainContact`
+reads return `null`, matching the captured Shopify 2026-04 behavior.
 
 Contact create/update inputs are prepared before staging to mirror Shopify's
 B2B contact input handling. Supported local paths normalize valid phone numbers
@@ -88,8 +91,9 @@ normalized phone values return Shopify's captured `TAKEN` user error code with
 the relevant `input.email` or `input.phone` field path.
 `companyAssignCustomerAsContact` currently has only `companyId` and
 `customerId` arguments in the checked-in Admin schema, so the local handler
-defaults the created contact locale but has no phone/email input to normalize or
-deduplicate on that root.
+defaults the created contact locale and derives the contact customer payload
+from the resolved local `Customer` record instead of synthesizing an arbitrary
+customer shape.
 
 HAR-446 captured a fidelity trap in the company-create path: when
 `companyCreate` creates both a main contact and a default company location,
@@ -126,6 +130,27 @@ the active live target accepts the `billingSameAsShipping: false` / no billing
 create branch, and does not expose these location fields on
 `CompanyLocationUpdateInput`; those ticket-required guardrails are therefore
 runtime-test-backed instead of parity-compared.
+
+HAR-623 tightens B2B location/address lifecycle behavior. `companyLocationCreate`
+now derives an omitted or blank location name from
+`input.shippingAddress.address1` before falling back to the company name.
+`companyLocationAssignAddress` rejects duplicate `addressTypes` entries before
+staging an address, matching the captured `INVALID_INPUT` branch with a null
+error field and `addresses: null`. `companyAddressDelete` detaches a deleted
+address from every billing/shipping side that currently references it and clears
+the local `billingSameAsShipping` flag when the deleted address was the shared
+anchor. `companyLocationDelete` also removes contact role assignments that point
+at the deleted location, so downstream `CompanyContact.roleAssignments` reads no
+longer expose assignments to a missing location.
+
+The HAR-623 2026-04 capture records one public Admin API wrinkle:
+`billingSameAsShipping: true` with a shipping address returns separate public
+`billingAddress` and `shippingAddress` IDs, and `billingSameAsShipping` itself is
+not selectable on `CompanyLocation` in that schema. The local runtime still
+models the shared same-as-shipping anchor as a single address ID so the internal
+flag invariant can be tested directly; the parity spec documents the public
+readback difference for that single captured path while the focused runtime test
+covers the local shared-anchor cascade.
 
 `companyContactSendWelcomeEmail` remains unsupported. It is an outbound side
 effect rather than durable B2B state, so runtime passthrough remains the
@@ -170,6 +195,10 @@ conformance-backed local modeling.
   `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
 - Contact/location assignment and tax settings parity scenario:
   `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json`
+- Location/address management capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
+- Location/address management parity scenario:
+  `config/parity-specs/b2b/b2b-location-address-management.json`
 - Lifecycle runtime coverage:
 - Root inventory:
   `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

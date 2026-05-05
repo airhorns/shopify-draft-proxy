@@ -1,0 +1,13 @@
+query DataSaleOptOutNewCustomerDefaultsRead($id: ID!) {
+  customer(id: $id) {
+    id
+    email
+    tags
+    locale
+    verifiedEmail
+    state
+    defaultEmailAddress {
+      emailAddress
+    }
+  }
+}

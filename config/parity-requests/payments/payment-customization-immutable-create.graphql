@@ -1,0 +1,14 @@
+mutation PaymentCustomizationImmutableCreate($input: PaymentCustomizationInput!) {
+  paymentCustomizationCreate(paymentCustomization: $input) {
+    paymentCustomization {
+      id
+      title
+      functionId
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

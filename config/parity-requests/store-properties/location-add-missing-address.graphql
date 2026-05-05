@@ -1,0 +1,13 @@
+#graphql
+mutation LocationAddMissingAddress {
+  locationAdd(input: { name: "Bad" }) {
+    location {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "customer-create-input-id-rejected",
+  "operationNames": ["customerCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "state-invariance"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-create-input-id-rejected.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customerCreate-input-id-rejected.graphql",
+    "variablesPath": "config/parity-requests/customers/customerCreate-input-id-rejected.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for HAR-641: customerCreate rejects caller-supplied CustomerInput.id because create allocates the id server-side. Public Admin GraphQL returns CustomerCreatePayload.userErrors with field [\"id\"] and message \"Cannot specify ID on creation\"; the payload UserError type does not expose a selectable code field on this API version.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer-create-input-id-user-error",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

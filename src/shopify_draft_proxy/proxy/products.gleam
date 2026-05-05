@@ -114,6 +114,8 @@ const product_set_inventory_quantities_limit = 250
 
 const product_tag_limit = 250
 
+const product_option_name_limit = 255
+
 const product_tag_character_limit = 255
 
 pub fn is_products_query_root(name: String) -> Bool {
@@ -4146,6 +4148,8 @@ fn product_media_source(media: ProductMediaRecord) -> SourceValue {
         media.image_url |> option.or(media.preview_image_url),
       ),
     ),
+    #("mediaErrors", SrcList([])),
+    #("mediaWarnings", SrcList([])),
   ])
 }
 
@@ -5487,6 +5491,18 @@ query ProductsHydrateNodes($ids: [ID!]!) {
         id
         tracked
         requiresShipping
+        inventoryLevels(first: 50) {
+          nodes {
+            id
+            isActive
+            location { id name }
+            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
         variant {
           id
           title
@@ -5996,7 +6012,14 @@ fn upsert_hydrated_inventory_level(
             inventory_levels: [],
           ),
         )
-      let item = InventoryItemRecord(..base_item, inventory_levels: [level])
+      let item =
+        InventoryItemRecord(
+          ..base_item,
+          inventory_levels: merge_hydrated_inventory_levels(
+            level,
+            base_item.inventory_levels,
+          ),
+        )
       let product =
         ProductRecord(
           id: product_id,
@@ -6082,6 +6105,22 @@ fn upsert_hydrated_inventory_level(
       |> store.upsert_base_product_variants([variant])
     }
     _, _, _, _ -> store
+  }
+}
+
+fn merge_hydrated_inventory_levels(
+  target: InventoryLevelRecord,
+  levels: List(InventoryLevelRecord),
+) -> List(InventoryLevelRecord) {
+  case list.any(levels, fn(level) { level.id == target.id }) {
+    True ->
+      list.map(levels, fn(level) {
+        case level.id == target.id {
+          True -> target
+          False -> level
+        }
+      })
+    False -> [target, ..levels]
   }
 }
 
@@ -6999,14 +7038,24 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store.Staged,
+                  "Gleam staged productOptionsCreate locally.",
+                )
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productOptionsCreate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productOptionsCreate locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -7068,14 +7117,24 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store.Staged,
+                  "Gleam staged productOptionUpdate locally.",
+                )
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productOptionUpdate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productOptionUpdate locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -7095,14 +7154,24 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(
+                  store.Staged,
+                  "Gleam staged productOptionsDelete locally.",
+                )
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productOptionsDelete locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productOptionsDelete locally."),
+                  Some(note),
                 )
               #(
                 list.append(entries, [#(result.key, result.payload)]),
@@ -8919,7 +8988,7 @@ fn handle_product_create(
       {
         [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
         [] -> {
-          let user_errors = product_create_validation_errors(input)
+          let user_errors = product_create_validation_errors(store, input)
           case user_errors {
             [_, ..] ->
               mutation_result(
@@ -9500,7 +9569,7 @@ fn handle_product_set(
                 )
               {
                 Ok(existing) ->
-                  case product_set_validation_errors(input, existing) {
+                  case product_set_validation_errors(store, input, existing) {
                     [] ->
                       stage_product_set(
                         store,
@@ -9567,11 +9636,12 @@ fn handle_product_set(
 }
 
 fn product_set_validation_errors(
+  store: Store,
   input: Dict(String, ResolvedValue),
   existing: Option(ProductRecord),
 ) -> List(ProductOperationUserErrorRecord) {
   list.append(
-    product_set_product_field_errors(input, existing),
+    product_set_product_field_errors(store, input, existing),
     list.append(
       product_set_requires_variants_for_options_errors(input),
       list.append(
@@ -9784,6 +9854,7 @@ fn product_set_inventory_quantities_limit_errors(
 }
 
 fn product_set_product_field_errors(
+  store: Store,
   input: Dict(String, ResolvedValue),
   existing: Option(ProductRecord),
 ) -> List(ProductOperationUserErrorRecord) {
@@ -9791,7 +9862,7 @@ fn product_set_product_field_errors(
     Some(_) -> product_update_validation_error(input)
     None -> product_create_validation_error(input)
   }
-  case maybe_error {
+  let field_errors = case maybe_error {
     Some(ProductUserError(field: path, message: message, code: code)) -> [
       ProductOperationUserErrorRecord(
         field: Some(["input", ..path]),
@@ -9801,6 +9872,17 @@ fn product_set_product_field_errors(
     ]
     None -> []
   }
+  let existing_id = option.map(existing, fn(product) { product.id })
+  let handle_errors =
+    explicit_product_handle_collision_errors(store, input, existing_id)
+    |> list.map(fn(error) {
+      ProductOperationUserErrorRecord(
+        field: Some(["input", ..error.field]),
+        message: error.message,
+        code: error.code,
+      )
+    })
+  list.append(field_errors, handle_errors)
 }
 
 fn product_set_requires_variants_for_options_errors(
@@ -16680,18 +16762,12 @@ fn handle_inventory_activate(
   let args = graphql_helpers.field_args(field, variables)
   let inventory_item_id = read_string_field(args, "inventoryItemId")
   let location_id = read_string_field(args, "locationId")
-  let user_errors = case dict.get(args, "available") {
-    Ok(_) -> [
-      ProductUserError(
-        ["available"],
-        "Not allowed to set available quantity when the item is already active at the location.",
-        None,
-      ),
-    ]
-    Error(_) -> []
+  let available_supplied = case dict.get(args, "available") {
+    Ok(_) -> True
+    Error(_) -> False
   }
-  let resolved = case inventory_item_id, location_id, user_errors {
-    Some(inventory_item_id), Some(location_id), [] -> {
+  let resolved = case inventory_item_id, location_id {
+    Some(inventory_item_id), Some(location_id) -> {
       case
         store.find_effective_variant_by_inventory_item_id(
           store,
@@ -16708,7 +16784,22 @@ fn handle_inventory_activate(
         None -> None
       }
     }
-    _, _, _ -> None
+    _, _ -> None
+  }
+  let user_errors = case resolved, available_supplied {
+    Some(#(_, level)), True -> {
+      case inventory_level_is_active(level) {
+        True -> [
+          ProductUserError(
+            ["available"],
+            "Not allowed to set available quantity when the item is already active at the location.",
+            None,
+          ),
+        ]
+        False -> []
+      }
+    }
+    _, _ -> []
   }
   let activation_result = case resolved, user_errors {
     Some(#(variant, level)), [] -> {
@@ -16772,18 +16863,12 @@ fn handle_inventory_deactivate(
         variant_inventory_levels(variant)
         |> active_inventory_levels
       case list.length(active_levels) <= 1 {
-        True -> [
-          NullableFieldUserError(
-            None,
-            "The product couldn't be unstocked from "
-              <> level.location.name
-              <> " because products need to be stocked at a minimum of 1 location.",
-          ),
-        ]
+        True -> [inventory_deactivate_only_state_error(level)]
         False -> []
       }
     }
-    None -> []
+    None ->
+      inventory_deactivate_missing_target_errors(store, inventory_level_id)
   }
   let next_store = case target, user_errors {
     Some(#(variant, level)), [] -> {
@@ -17352,6 +17437,7 @@ fn product_update_validation_error(
 }
 
 fn product_create_validation_errors(
+  store: Store,
   input: Dict(String, ResolvedValue),
 ) -> List(ProductUserError) {
   let product_errors = case product_create_validation_error(input) {
@@ -17359,7 +17445,14 @@ fn product_create_validation_errors(
     None -> []
   }
 
-  list.append(product_errors, product_create_variant_errors(input))
+  let handle_errors =
+    explicit_product_handle_collision_errors(store, input, None)
+    |> list.map(fn(error) {
+      ProductUserError(["input", ..error.field], error.message, error.code)
+    })
+  product_errors
+  |> list.append(product_create_variant_errors(input))
+  |> list.append(handle_errors)
 }
 
 fn product_create_validation_error(
@@ -17422,6 +17515,29 @@ fn product_update_handle_validation_error(
         False -> product_tags_validation_error(input)
       }
     None -> product_tags_validation_error(input)
+  }
+}
+
+fn explicit_product_handle_collision_errors(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  allowed_product_id: Option(String),
+) -> List(ProductUserError) {
+  case read_collision_checked_explicit_product_handle(input) {
+    Some(handle) ->
+      case product_handle_in_use_by_other(store, handle, allowed_product_id) {
+        True -> [
+          ProductUserError(
+            ["handle"],
+            "Handle '"
+              <> handle
+              <> "' already in use. Please provide a new handle.",
+            None,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
   }
 }
 
@@ -18928,7 +19044,7 @@ fn stage_product_options_delete(
   let unknown_errors = unknown_option_errors(option_ids, existing_ids)
   case unknown_errors {
     [_, ..] ->
-      mutation_result(
+      mutation_rejected_result(
         key,
         product_options_delete_payload(
           store,
@@ -18940,7 +19056,6 @@ fn stage_product_options_delete(
         ),
         store,
         identity,
-        [],
       )
     [] -> {
       let deleted_ids =
@@ -19108,55 +19223,91 @@ fn stage_product_option_update(
             [],
           )
         Some(target_option) -> {
-          let #(updated_option, renamed_values, identity_after_values, new_ids) =
-            update_product_option_record(
-              identity,
+          let values_to_add = read_arg_object_list(args, "optionValuesToAdd")
+          let values_to_update =
+            read_arg_object_list(args, "optionValuesToUpdate")
+          let value_ids_to_delete =
+            read_arg_string_list(args, "optionValuesToDelete")
+          let validation_errors =
+            validate_product_option_update_inputs(
+              existing_options,
               target_option,
               option_input,
-              read_arg_object_list(args, "optionValuesToAdd"),
-              read_arg_object_list(args, "optionValuesToUpdate"),
-              read_arg_string_list(args, "optionValuesToDelete"),
+              values_to_add,
+              values_to_update,
+              value_ids_to_delete,
             )
-          let next_options =
-            existing_options
-            |> list.filter(fn(option) { option.id != option_id })
-            |> insert_option_at_position(
-              updated_option,
-              read_int_field(option_input, "position"),
-            )
-          let next_variants =
-            existing_variants
-            |> remap_variant_selections_for_option_update(
-              target_option.name,
-              updated_option.name,
-              renamed_values,
-            )
-            |> reorder_variant_selections_for_options(next_options)
-          let synced_options =
-            sync_product_options_with_variants(next_options, next_variants)
-          let next_store =
-            store
-            |> store.replace_staged_variants_for_product(
-              product_id,
-              next_variants,
-            )
-            |> store.replace_staged_options_for_product(
-              product_id,
-              synced_options,
-            )
-          mutation_result(
-            key,
-            product_option_update_payload(
-              next_store,
-              store.get_effective_product_by_id(next_store, product_id),
-              [],
-              field,
-              fragments,
-            ),
-            next_store,
-            identity_after_values,
-            list.append([option_id], new_ids),
-          )
+          case validation_errors {
+            [_, ..] ->
+              mutation_rejected_result(
+                key,
+                product_option_update_payload(
+                  store,
+                  Some(product),
+                  validation_errors,
+                  field,
+                  fragments,
+                ),
+                store,
+                identity,
+              )
+            [] -> {
+              let #(
+                updated_option,
+                renamed_values,
+                identity_after_values,
+                new_ids,
+              ) =
+                update_product_option_record(
+                  identity,
+                  target_option,
+                  option_input,
+                  values_to_add,
+                  values_to_update,
+                  value_ids_to_delete,
+                )
+              let next_options =
+                existing_options
+                |> list.filter(fn(option) { option.id != option_id })
+                |> insert_option_at_position(
+                  updated_option,
+                  read_int_field(option_input, "position"),
+                )
+              let next_variants =
+                existing_variants
+                |> remap_variant_selections_for_option_update(
+                  target_option.name,
+                  updated_option.name,
+                  renamed_values,
+                )
+                |> reorder_variant_selections_for_options(next_options)
+              let synced_options =
+                sync_product_options_with_variants(next_options, next_variants)
+              let next_store =
+                store
+                |> store.replace_staged_variants_for_product(
+                  product_id,
+                  next_variants,
+                )
+                |> store.replace_staged_options_for_product(
+                  product_id,
+                  synced_options,
+                )
+              mutation_result(
+                key,
+                product_option_update_payload(
+                  next_store,
+                  store.get_effective_product_by_id(next_store, product_id),
+                  [],
+                  field,
+                  fragments,
+                ),
+                next_store,
+                identity_after_values,
+                list.append([option_id], new_ids),
+              )
+            }
+          }
         }
       }
   }
@@ -19182,6 +19333,58 @@ fn stage_product_options_create(
     True -> []
     False -> existing_options
   }
+  let validation_errors =
+    validate_product_options_create_inputs(
+      starting_options,
+      existing_variants,
+      option_inputs,
+      should_create_option_variants,
+      replacing_default,
+    )
+  case validation_errors {
+    [_, ..] ->
+      mutation_rejected_result(
+        key,
+        product_options_create_payload(
+          store,
+          store.get_effective_product_by_id(store, product_id),
+          validation_errors,
+          field,
+          fragments,
+        ),
+        store,
+        identity,
+      )
+    [] ->
+      stage_valid_product_options_create(
+        store,
+        identity,
+        key,
+        product_id,
+        option_inputs,
+        should_create_option_variants,
+        replacing_default,
+        starting_options,
+        existing_variants,
+        field,
+        fragments,
+      )
+  }
+}
+
+fn stage_valid_product_options_create(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  key: String,
+  product_id: String,
+  option_inputs: List(Dict(String, ResolvedValue)),
+  should_create_option_variants: Bool,
+  replacing_default: Bool,
+  starting_options: List(ProductOptionRecord),
+  existing_variants: List(ProductVariantRecord),
+  field: Selection,
+  fragments: FragmentMap,
+) -> MutationFieldResult {
   let #(created_options, identity_after_options) =
     make_created_option_records(identity, product_id, option_inputs)
   let next_options =
@@ -22278,12 +22481,16 @@ fn created_product_record(
     Some(handle) -> handle
     None -> slugify_product_handle(title)
   }
+  let handle = case product_handle_should_dedupe(input) {
+    True -> ensure_unique_product_handle(store, base_handle)
+    False -> base_handle
+  }
   #(
     ProductRecord(
       id: id,
       legacy_resource_id: None,
       title: title,
-      handle: ensure_unique_product_handle(store, base_handle),
+      handle: handle,
       status: read_product_status_field(input) |> option.unwrap("ACTIVE"),
       vendor: read_string_field(input, "vendor"),
       product_type: read_string_field(input, "productType"),
@@ -23188,12 +23395,16 @@ fn created_collection_record(
     Some(handle) -> normalize_product_handle(handle)
     None -> slugify_collection_handle(title)
   }
+  let handle = case collection_handle_should_dedupe(input) {
+    True -> ensure_unique_collection_handle(store, handle)
+    False -> handle
+  }
   #(
     CollectionRecord(
       id: id,
       legacy_resource_id: None,
       title: title,
-      handle: ensure_unique_collection_handle(store, handle),
+      handle: handle,
       publication_ids: [],
       updated_at: Some(updated_at),
       description: read_string_field(input, "description"),
@@ -23231,9 +23442,15 @@ fn slugify_collection_handle(title: String) -> String {
 }
 
 fn ensure_unique_collection_handle(store: Store, handle: String) -> String {
-  case store.get_effective_collection_by_handle(store, handle) {
-    Some(_) -> ensure_unique_collection_handle(store, handle <> "-1")
-    None -> handle
+  let in_use = fn(candidate) {
+    store.get_effective_collection_by_handle(store, candidate) != None
+  }
+  case in_use(handle) {
+    True -> {
+      let #(base_handle, suffix) = dedup_base_and_next_suffix(handle)
+      ensure_unique_handle(base_handle, suffix, in_use)
+    }
+    False -> handle
   }
 }
 
@@ -23249,6 +23466,35 @@ fn read_explicit_product_handle(
       }
     }
     None -> None
+  }
+}
+
+fn read_collision_checked_explicit_product_handle(
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  case read_non_empty_string_field(input, "handle") {
+    Some(handle) -> {
+      let normalized = normalize_product_handle(handle)
+      case normalized {
+        "" -> None
+        _ -> Some(normalized)
+      }
+    }
+    None -> None
+  }
+}
+
+fn product_handle_should_dedupe(input: Dict(String, ResolvedValue)) -> Bool {
+  case read_non_empty_string_field(input, "handle") {
+    Some(handle) -> normalize_product_handle(handle) == ""
+    None -> True
+  }
+}
+
+fn collection_handle_should_dedupe(input: Dict(String, ResolvedValue)) -> Bool {
+  case read_non_empty_string_field(input, "handle") {
+    Some(_) -> False
+    None -> True
   }
 }
 
@@ -23301,15 +23547,94 @@ fn is_handle_grapheme(grapheme: String) -> Bool {
 }
 
 fn ensure_unique_product_handle(store: Store, handle: String) -> String {
-  case product_handle_in_use(store, handle) {
-    True -> ensure_unique_product_handle(store, handle <> "-1")
+  let in_use = fn(candidate) { product_handle_in_use(store, candidate) }
+  case in_use(handle) {
+    True -> {
+      let #(base_handle, suffix) = dedup_base_and_next_suffix(handle)
+      ensure_unique_handle(base_handle, suffix, in_use)
+    }
     False -> handle
+  }
+}
+
+fn ensure_unique_handle(
+  base_handle: String,
+  suffix: Int,
+  in_use: fn(String) -> Bool,
+) -> String {
+  let candidate = case suffix {
+    0 -> base_handle
+    _ -> base_handle <> "-" <> int.to_string(suffix)
+  }
+  case in_use(candidate) {
+    True -> ensure_unique_handle(base_handle, suffix + 1, in_use)
+    False -> candidate
+  }
+}
+
+fn dedup_base_and_next_suffix(handle: String) -> #(String, Int) {
+  let #(digits, rest) =
+    handle
+    |> string.to_graphemes
+    |> list.reverse
+    |> split_reversed_trailing_digits([])
+  case digits {
+    [] -> #(handle, 1)
+    _ ->
+      case rest {
+        ["-", ..base_reversed] ->
+          case base_reversed {
+            [] -> #(handle, 1)
+            _ -> {
+              let base_handle = base_reversed |> list.reverse |> string.join("")
+              let suffix =
+                digits
+                |> string.join("")
+                |> int.parse
+                |> result.unwrap(0)
+              #(base_handle, suffix + 1)
+            }
+          }
+        _ -> #(handle, 1)
+      }
+  }
+}
+
+fn split_reversed_trailing_digits(
+  graphemes: List(String),
+  digits: List(String),
+) -> #(List(String), List(String)) {
+  case graphemes {
+    [] -> #(digits, [])
+    [first, ..rest] ->
+      case is_handle_digit(first) {
+        True -> split_reversed_trailing_digits(rest, [first, ..digits])
+        False -> #(digits, graphemes)
+      }
+  }
+}
+
+fn is_handle_digit(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    _ -> False
   }
 }
 
 fn product_handle_in_use(store: Store, handle: String) -> Bool {
   store.list_effective_products(store)
   |> list.any(fn(product) { product.handle == handle })
+}
+
+fn product_handle_in_use_by_other(
+  store: Store,
+  handle: String,
+  allowed_product_id: Option(String),
+) -> Bool {
+  store.list_effective_products(store)
+  |> list.any(fn(product) {
+    product.handle == handle && Some(product.id) != allowed_product_id
+  })
 }
 
 fn make_product_create_option_graph(
@@ -25762,6 +26087,69 @@ fn inventory_level_is_active(level: InventoryLevelRecord) -> Bool {
   }
 }
 
+fn inventory_deactivate_only_state_error(
+  level: InventoryLevelRecord,
+) -> NullableFieldUserError {
+  NullableFieldUserError(
+    None,
+    "The product couldn't be unstocked from "
+      <> level.location.name
+      <> " because products need to be stocked at a minimum of 1 location.",
+  )
+}
+
+fn inventory_deactivate_item_not_found_error() -> NullableFieldUserError {
+  NullableFieldUserError(
+    None,
+    "The product couldn't be unstocked because the product was deleted.",
+  )
+}
+
+fn inventory_deactivate_location_deleted_error() -> NullableFieldUserError {
+  NullableFieldUserError(
+    None,
+    "The product couldn't be unstocked because the location was deleted.",
+  )
+}
+
+fn inventory_deactivate_missing_target_errors(
+  store: Store,
+  inventory_level_id: Option(String),
+) -> List(NullableFieldUserError) {
+  case inventory_level_id {
+    Some(id) -> {
+      case inventory_level_item_id(id) {
+        Some(item_id) ->
+          case
+            store.find_effective_variant_by_inventory_item_id(
+              store,
+              normalize_inventory_item_id(item_id),
+            )
+          {
+            Some(_) -> [inventory_deactivate_location_deleted_error()]
+            None -> [inventory_deactivate_item_not_found_error()]
+          }
+        None -> [inventory_deactivate_item_not_found_error()]
+      }
+    }
+    None -> [inventory_deactivate_item_not_found_error()]
+  }
+}
+
+fn normalize_inventory_item_id(id: String) -> String {
+  case string.starts_with(id, "gid://shopify/InventoryItem/") {
+    True -> id
+    False -> "gid://shopify/InventoryItem/" <> id
+  }
+}
+
+fn inventory_level_item_id(id: String) -> Option(String) {
+  case string.split(id, "?inventory_item_id=") {
+    [_, item_id] -> Some(item_id)
+    _ -> None
+  }
+}
+
 fn active_inventory_levels(
   levels: List(InventoryLevelRecord),
 ) -> List(InventoryLevelRecord) {
@@ -26266,6 +26654,605 @@ fn find_product_option(
 type RenamedOptionValue =
   #(String, String)
 
+fn validate_product_options_create_inputs(
+  existing_options: List(ProductOptionRecord),
+  existing_variants: List(ProductVariantRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+  should_create_option_variants: Bool,
+  replacing_default: Bool,
+) -> List(ProductUserError) {
+  let total_option_errors = case
+    list.length(existing_options) + list.length(inputs)
+    > product_set_option_limit
+  {
+    True -> [
+      ProductUserError(
+        ["options"],
+        "Can only specify a maximum of 3 options",
+        Some("OPTIONS_OVER_LIMIT"),
+      ),
+    ]
+    False -> []
+  }
+  list.append(
+    total_option_errors,
+    list.append(
+      create_option_input_errors(
+        existing_options,
+        existing_variants,
+        inputs,
+        replacing_default,
+      ),
+      create_variant_strategy_errors(
+        existing_options,
+        existing_variants,
+        inputs,
+        should_create_option_variants,
+      ),
+    ),
+  )
+}
+
+fn create_option_input_errors(
+  existing_options: List(ProductOptionRecord),
+  existing_variants: List(ProductVariantRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+  replacing_default: Bool,
+) -> List(ProductUserError) {
+  let field_errors =
+    inputs
+    |> enumerate_items()
+    |> list.flat_map(fn(pair) {
+      let #(input, index) = pair
+      create_single_option_input_errors(
+        input,
+        index,
+        existing_options,
+        existing_variants,
+        replacing_default,
+      )
+    })
+  list.append(field_errors, duplicate_option_input_name_errors(inputs))
+}
+
+fn create_single_option_input_errors(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+  existing_options: List(ProductOptionRecord),
+  existing_variants: List(ProductVariantRecord),
+  replacing_default: Bool,
+) -> List(ProductUserError) {
+  let name_errors = case read_string_field(input, "name") {
+    None -> [
+      ProductUserError(
+        ["options", int.to_string(index), "name"],
+        "Each option must have a name specified.",
+        Some("OPTION_NAME_MISSING"),
+      ),
+    ]
+    Some(name) -> {
+      let trimmed = string.trim(name)
+      case
+        string.length(trimmed) == 0,
+        string.length(name) > product_option_name_limit,
+        option_name_exists(existing_options, name)
+      {
+        True, _, _ -> [
+          ProductUserError(
+            ["options", int.to_string(index), "name"],
+            "Each option must have a name specified.",
+            Some("OPTION_NAME_MISSING"),
+          ),
+        ]
+        _, True, _ -> [
+          ProductUserError(
+            ["options", int.to_string(index)],
+            "Option name is too long.",
+            Some("OPTION_NAME_TOO_LONG"),
+          ),
+        ]
+        _, _, True -> [
+          ProductUserError(
+            ["options", int.to_string(index)],
+            "Option '" <> name <> "' already exists.",
+            Some("OPTION_ALREADY_EXISTS"),
+          ),
+        ]
+        _, _, False -> []
+      }
+    }
+  }
+  let value_errors =
+    create_option_value_errors(
+      input,
+      index,
+      existing_variants,
+      replacing_default,
+    )
+  list.append(name_errors, value_errors)
+}
+
+fn create_option_value_errors(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+  existing_variants: List(ProductVariantRecord),
+  replacing_default: Bool,
+) -> List(ProductUserError) {
+  let values = read_object_list_field(input, "values")
+  let requires_existing_variant_values =
+    !replacing_default && !list.is_empty(existing_variants)
+  let value_presence_errors = case
+    dict.has_key(input, "values"),
+    values,
+    requires_existing_variant_values
+  {
+    False, _, True -> [
+      ProductUserError(
+        ["options", int.to_string(index), "values"],
+        "New option must have at least one value for existing variants.",
+        Some("NEW_OPTION_WITHOUT_VALUE_FOR_EXISTING_VARIANTS"),
+      ),
+    ]
+    _, [], _ -> [
+      ProductUserError(
+        ["options", int.to_string(index)],
+        "Option '"
+          <> option_input_display_name(input)
+          <> "' must specify at least one option value.",
+        Some("OPTION_VALUES_MISSING"),
+      ),
+    ]
+    _, _, _ -> []
+  }
+  let value_limit_errors = case
+    list.length(values) > product_set_option_value_limit
+  {
+    True -> [
+      ProductUserError(
+        ["options", int.to_string(index), "values"],
+        "Option values count is over the allowed limit.",
+        Some("OPTION_VALUES_OVER_LIMIT"),
+      ),
+    ]
+    False -> []
+  }
+  list.append(
+    value_presence_errors,
+    list.append(
+      value_limit_errors,
+      list.append(
+        option_value_name_length_errors(values, [
+          "options",
+          int.to_string(index),
+          "values",
+        ]),
+        duplicate_option_value_input_errors(values, [
+          "options",
+          int.to_string(index),
+          "values",
+        ]),
+      ),
+    ),
+  )
+}
+
+fn create_variant_strategy_errors(
+  existing_options: List(ProductOptionRecord),
+  existing_variants: List(ProductVariantRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+  should_create_option_variants: Bool,
+) -> List(ProductUserError) {
+  case should_create_option_variants {
+    False -> []
+    True -> {
+      let projected_count =
+        projected_product_options_create_variant_count(
+          existing_options,
+          existing_variants,
+          inputs,
+        )
+      case projected_count > max_product_variants {
+        True -> [
+          ProductUserError(
+            ["options"],
+            "The number of created variants would exceed the "
+              <> int.to_string(max_product_variants)
+              <> " variants per product limit",
+            Some("TOO_MANY_VARIANTS_CREATED"),
+          ),
+        ]
+        False -> []
+      }
+    }
+  }
+}
+
+fn projected_product_options_create_variant_count(
+  existing_options: List(ProductOptionRecord),
+  existing_variants: List(ProductVariantRecord),
+  inputs: List(Dict(String, ResolvedValue)),
+) -> Int {
+  case inputs, existing_variants {
+    [input], [_, ..] ->
+      list.length(existing_variants) * option_input_value_count(input)
+    _, _ -> {
+      let existing_counts =
+        existing_options
+        |> list.map(fn(option) { list.length(option.option_values) })
+      let input_counts = list.map(inputs, option_input_value_count)
+      product_of_counts(list.append(existing_counts, input_counts))
+    }
+  }
+}
+
+fn product_of_counts(counts: List(Int)) -> Int {
+  case counts {
+    [] -> 0
+    _ -> list.fold(counts, 1, fn(total, count) { total * count })
+  }
+}
+
+fn option_input_value_count(input: Dict(String, ResolvedValue)) -> Int {
+  read_object_list_field(input, "values")
+  |> list.length
+}
+
+fn option_input_display_name(input: Dict(String, ResolvedValue)) -> String {
+  read_string_field(input, "name")
+  |> option.unwrap("")
+}
+
+fn duplicate_option_input_name_errors(
+  inputs: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  duplicate_option_input_name_errors_loop(inputs, 0, dict.new(), [])
+}
+
+fn duplicate_option_input_name_errors_loop(
+  inputs: List(Dict(String, ResolvedValue)),
+  index: Int,
+  seen: Dict(String, Bool),
+  reversed_errors: List(ProductUserError),
+) -> List(ProductUserError) {
+  case inputs {
+    [] -> list.reverse(reversed_errors)
+    [input, ..rest] -> {
+      let name_key =
+        read_string_field(input, "name")
+        |> option.unwrap("")
+        |> product_option_duplicate_input_key
+      case name_key == "" {
+        True ->
+          duplicate_option_input_name_errors_loop(
+            rest,
+            index + 1,
+            seen,
+            reversed_errors,
+          )
+        False ->
+          case dict.has_key(seen, name_key) {
+            True ->
+              duplicate_option_input_name_errors_loop(rest, index + 1, seen, [
+                ProductUserError(
+                  ["options", int.to_string(index)],
+                  "Duplicated option name.",
+                  Some("DUPLICATED_OPTION_NAME"),
+                ),
+                ..reversed_errors
+              ])
+            False ->
+              duplicate_option_input_name_errors_loop(
+                rest,
+                index + 1,
+                dict.insert(seen, name_key, True),
+                reversed_errors,
+              )
+          }
+      }
+    }
+  }
+}
+
+fn validate_product_option_update_inputs(
+  existing_options: List(ProductOptionRecord),
+  target_option: ProductOptionRecord,
+  option_input: Dict(String, ResolvedValue),
+  values_to_add: List(Dict(String, ResolvedValue)),
+  values_to_update: List(Dict(String, ResolvedValue)),
+  value_ids_to_delete: List(String),
+) -> List(ProductUserError) {
+  list.append(
+    update_option_name_errors(existing_options, target_option, option_input),
+    list.append(
+      update_option_value_input_errors(values_to_add, "optionValuesToAdd"),
+      list.append(
+        option_value_already_exists_errors(
+          target_option.option_values,
+          values_to_add,
+        ),
+        list.append(
+          update_option_value_input_errors(
+            values_to_update,
+            "optionValuesToUpdate",
+          ),
+          update_option_result_value_errors(
+            target_option,
+            values_to_add,
+            values_to_update,
+            value_ids_to_delete,
+          ),
+        ),
+      ),
+    ),
+  )
+}
+
+fn update_option_name_errors(
+  existing_options: List(ProductOptionRecord),
+  target_option: ProductOptionRecord,
+  option_input: Dict(String, ResolvedValue),
+) -> List(ProductUserError) {
+  case read_string_field(option_input, "name") {
+    None -> []
+    Some(name) -> {
+      let trimmed = string.trim(name)
+      case
+        string.length(trimmed) == 0,
+        string.length(name) > product_option_name_limit,
+        option_name_exists_excluding(existing_options, name, target_option.id)
+      {
+        True, _, _ -> [
+          ProductUserError(
+            ["option", "name"],
+            "The name provided is not valid.",
+            Some("INVALID_NAME"),
+          ),
+        ]
+        _, True, _ -> [
+          ProductUserError(
+            ["option", "name"],
+            "Option name is too long.",
+            Some("OPTION_NAME_TOO_LONG"),
+          ),
+        ]
+        _, _, True -> [
+          ProductUserError(
+            ["option", "name"],
+            "Option already exists.",
+            Some("OPTION_ALREADY_EXISTS"),
+          ),
+        ]
+        _, _, False -> []
+      }
+    }
+  }
+}
+
+fn update_option_value_input_errors(
+  values: List(Dict(String, ResolvedValue)),
+  argument_name: String,
+) -> List(ProductUserError) {
+  list.append(
+    option_value_name_length_errors(values, [argument_name]),
+    duplicate_option_value_input_errors(values, [argument_name]),
+  )
+}
+
+fn option_value_already_exists_errors(
+  existing_values: List(ProductOptionValueRecord),
+  values_to_add: List(Dict(String, ResolvedValue)),
+) -> List(ProductUserError) {
+  let existing_keys =
+    existing_values
+    |> list.map(fn(value) { product_option_identity_key(value.name) })
+  values_to_add
+  |> enumerate_items()
+  |> list.filter_map(fn(pair) {
+    let #(input, index) = pair
+    case read_string_field(input, "name") {
+      Some(name) ->
+        case list.contains(existing_keys, product_option_identity_key(name)) {
+          True ->
+            Ok(ProductUserError(
+              ["optionValuesToAdd", int.to_string(index), "name"],
+              "Option value already exists.",
+              Some("OPTION_VALUE_ALREADY_EXISTS"),
+            ))
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn update_option_result_value_errors(
+  target_option: ProductOptionRecord,
+  values_to_add: List(Dict(String, ResolvedValue)),
+  values_to_update: List(Dict(String, ResolvedValue)),
+  value_ids_to_delete: List(String),
+) -> List(ProductUserError) {
+  let retained_count =
+    target_option.option_values
+    |> list.filter(fn(value) { !list.contains(value_ids_to_delete, value.id) })
+    |> list.length
+  let final_count = retained_count + list.length(values_to_add)
+  let missing_errors = case final_count == 0 {
+    True -> [
+      ProductUserError(
+        ["optionValuesToDelete"],
+        "Each option must have at least one option value specified.",
+        Some("OPTION_VALUES_MISSING"),
+      ),
+    ]
+    False -> []
+  }
+  let limit_errors = case final_count > product_set_option_value_limit {
+    True -> [
+      ProductUserError(
+        ["optionValuesToAdd"],
+        "Option values count is over the allowed limit.",
+        Some("OPTION_VALUES_OVER_LIMIT"),
+      ),
+    ]
+    False -> []
+  }
+  let update_id_errors =
+    values_to_update
+    |> enumerate_items()
+    |> list.filter_map(fn(pair) {
+      let #(input, index) = pair
+      case read_string_field(input, "id") {
+        Some(id) ->
+          case option_value_id_exists(target_option.option_values, id) {
+            True -> Error(Nil)
+            False ->
+              Ok(ProductUserError(
+                ["optionValuesToUpdate", int.to_string(index), "id"],
+                "Option value does not exist.",
+                Some("OPTION_VALUE_DOES_NOT_EXIST"),
+              ))
+          }
+        None ->
+          Ok(ProductUserError(
+            ["optionValuesToUpdate", int.to_string(index), "id"],
+            "Option value does not exist.",
+            Some("OPTION_VALUE_DOES_NOT_EXIST"),
+          ))
+      }
+    })
+  list.append(missing_errors, list.append(limit_errors, update_id_errors))
+}
+
+fn option_value_name_length_errors(
+  values: List(Dict(String, ResolvedValue)),
+  path_prefix: List(String),
+) -> List(ProductUserError) {
+  values
+  |> enumerate_items()
+  |> list.filter_map(fn(pair) {
+    let #(input, index) = pair
+    case read_string_field(input, "name") {
+      Some(name) ->
+        case string.length(name) > product_option_name_limit {
+          True ->
+            Ok(ProductUserError(
+              list.append(path_prefix, [int.to_string(index), "name"]),
+              "Option value name is too long.",
+              Some("OPTION_VALUE_NAME_TOO_LONG"),
+            ))
+          False -> Error(Nil)
+        }
+      _ -> Error(Nil)
+    }
+  })
+}
+
+fn duplicate_option_value_input_errors(
+  values: List(Dict(String, ResolvedValue)),
+  path_prefix: List(String),
+) -> List(ProductUserError) {
+  duplicate_option_value_input_errors_loop(
+    values,
+    path_prefix,
+    0,
+    dict.new(),
+    [],
+  )
+}
+
+fn duplicate_option_value_input_errors_loop(
+  values: List(Dict(String, ResolvedValue)),
+  path_prefix: List(String),
+  index: Int,
+  seen: Dict(String, Bool),
+  reversed_errors: List(ProductUserError),
+) -> List(ProductUserError) {
+  case values {
+    [] -> list.reverse(reversed_errors)
+    [input, ..rest] -> {
+      let name_key =
+        read_string_field(input, "name")
+        |> option.unwrap("")
+        |> product_option_duplicate_input_key
+      case name_key == "" {
+        True ->
+          duplicate_option_value_input_errors_loop(
+            rest,
+            path_prefix,
+            index + 1,
+            seen,
+            reversed_errors,
+          )
+        False ->
+          case dict.has_key(seen, name_key) {
+            True ->
+              duplicate_option_value_input_errors_loop(
+                rest,
+                path_prefix,
+                index + 1,
+                seen,
+                [
+                  ProductUserError(
+                    list.append(path_prefix, [int.to_string(index), "name"]),
+                    "Duplicated option value.",
+                    Some("DUPLICATED_OPTION_VALUE"),
+                  ),
+                  ..reversed_errors
+                ],
+              )
+            False ->
+              duplicate_option_value_input_errors_loop(
+                rest,
+                path_prefix,
+                index + 1,
+                dict.insert(seen, name_key, True),
+                reversed_errors,
+              )
+          }
+      }
+    }
+  }
+}
+
+fn option_name_exists(
+  options: List(ProductOptionRecord),
+  name: String,
+) -> Bool {
+  let name_key = product_option_duplicate_input_key(name)
+  list.any(options, fn(option) {
+    product_option_duplicate_input_key(option.name) == name_key
+  })
+}
+
+fn option_name_exists_excluding(
+  options: List(ProductOptionRecord),
+  name: String,
+  excluded_option_id: String,
+) -> Bool {
+  let name_key = product_option_duplicate_input_key(name)
+  list.any(options, fn(option) {
+    option.id != excluded_option_id
+    && product_option_duplicate_input_key(option.name) == name_key
+  })
+}
+
+fn option_value_id_exists(
+  values: List(ProductOptionValueRecord),
+  value_id: String,
+) -> Bool {
+  list.any(values, fn(value) { value.id == value_id })
+}
+
+fn product_option_identity_key(value: String) -> String {
+  value
+  |> string.trim
+  |> string.lowercase
+}
+
+fn product_option_duplicate_input_key(value: String) -> String {
+  string.trim(value)
+}
+
 fn update_product_option_record(
   identity: SyntheticIdentityRegistry,
   option: ProductOptionRecord,
@@ -26443,7 +27430,7 @@ fn unknown_option_errors(
         Some(ProductUserError(
           ["options", int.to_string(index)],
           "Option does not exist",
-          None,
+          Some("OPTION_DOES_NOT_EXIST"),
         ))
     }
   })

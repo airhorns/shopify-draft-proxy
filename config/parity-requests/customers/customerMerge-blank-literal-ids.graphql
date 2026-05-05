@@ -1,0 +1,10 @@
+mutation CustomerMergeBlankLiteralIds {
+  customerMerge(customerOneId: "", customerTwoId: "") {
+    resultingCustomerId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
