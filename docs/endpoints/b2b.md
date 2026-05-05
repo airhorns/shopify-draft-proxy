@@ -112,6 +112,27 @@ shape. The proxy also preserves the earlier flat fields used by local tests for
 compatibility with the staged record data, but `taxSettings` is the
 live-captured 2026-04 readback shape.
 
+HAR-623 tightens B2B location/address lifecycle behavior. `companyLocationCreate`
+now derives an omitted or blank location name from
+`input.shippingAddress.address1` before falling back to the company name.
+`companyLocationAssignAddress` rejects duplicate `addressTypes` entries before
+staging an address, matching the captured `INVALID_INPUT` branch with a null
+error field and `addresses: null`. `companyAddressDelete` detaches a deleted
+address from every billing/shipping side that currently references it and clears
+the local `billingSameAsShipping` flag when the deleted address was the shared
+anchor. `companyLocationDelete` also removes contact role assignments that point
+at the deleted location, so downstream `CompanyContact.roleAssignments` reads no
+longer expose assignments to a missing location.
+
+The HAR-623 2026-04 capture records one public Admin API wrinkle:
+`billingSameAsShipping: true` with a shipping address returns separate public
+`billingAddress` and `shippingAddress` IDs, and `billingSameAsShipping` itself is
+not selectable on `CompanyLocation` in that schema. The local runtime still
+models the shared same-as-shipping anchor as a single address ID so the internal
+flag invariant can be tested directly; the parity spec documents the public
+readback difference for that single captured path while the focused runtime test
+covers the local shared-anchor cascade.
+
 `companyContactSendWelcomeEmail` remains unsupported. It is an outbound side
 effect rather than durable B2B state, so runtime passthrough remains the
 unknown/unsupported escape hatch until a faithful no-send model exists.
@@ -155,6 +176,10 @@ conformance-backed local modeling.
   `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
 - Contact/location assignment and tax settings parity scenario:
   `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json`
+- Location/address management capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
+- Location/address management parity scenario:
+  `config/parity-specs/b2b/b2b-location-address-management.json`
 - Lifecycle runtime coverage:
 - Root inventory:
   `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

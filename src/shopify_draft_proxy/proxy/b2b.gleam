@@ -1265,6 +1265,21 @@ fn append_unique(items: List(String), value: String) -> List(String) {
   }
 }
 
+fn has_duplicate_strings(items: List(String)) -> Bool {
+  has_duplicate_strings_loop(items, [])
+}
+
+fn has_duplicate_strings_loop(items: List(String), seen: List(String)) -> Bool {
+  case items {
+    [] -> False
+    [first, ..rest] ->
+      case list.contains(seen, first) {
+        True -> True
+        False -> has_duplicate_strings_loop(rest, [first, ..seen])
+      }
+  }
+}
+
 fn remove_string(items: List(String), value: String) -> List(String) {
   list.filter(items, fn(item) { item != value })
 }
@@ -2231,9 +2246,9 @@ fn create_location(
 ) -> #(B2BCompanyLocationRecord, Store, SyntheticIdentityRegistry) {
   let #(id, identity) = make_gid(identity, "CompanyLocation")
   let #(now, identity) = timestamp(identity)
-  let input = case dict.get(input, "name") {
-    Ok(_) -> input
-    Error(_) -> dict.insert(input, "name", root_field.StringVal(fallback_name))
+  let input = case read_string(input, "name") {
+    Some(_) -> input
+    None -> dict.insert(input, "name", root_field.StringVal(fallback_name))
   }
   let base =
     dict.from_list([
@@ -2253,6 +2268,22 @@ fn create_location(
   let #(location, store) =
     store.upsert_staged_b2b_company_location(store, location)
   #(location, store, identity)
+}
+
+fn location_create_fallback_name(
+  company: B2BCompanyRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  case read_string(read_object(input, "shippingAddress"), "address1") {
+    Some(address1) -> address1
+    None -> {
+      let company_name = source_string(data_get(company.data, "name"))
+      case company_name {
+        "" -> "Company location"
+        _ -> company_name
+      }
+    }
+  }
 }
 
 fn handle_company_create(
@@ -3059,24 +3090,16 @@ fn handle_location_create(
     Some(company_id) ->
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
-          let fallback = source_string(data_get(company.data, "name"))
+          let raw_input = read_object(args, "input")
           let #(input, validation_errors) =
-            validate_location_input(read_object(args, "input"), ["input"])
+            validate_location_input(raw_input, ["input"])
+          let fallback = location_create_fallback_name(company, input)
           case validation_errors {
             [_, ..] ->
               RootResult(empty_payload(validation_errors), store, identity, [])
             [] -> {
               let #(location, store, identity) =
-                create_location(
-                  store,
-                  identity,
-                  company_id,
-                  input,
-                  case fallback {
-                    "" -> "Company location"
-                    _ -> fallback
-                  },
-                )
+                create_location(store, identity, company_id, input, fallback)
               let #(company, store) =
                 stage_company(
                   store,
@@ -3177,6 +3200,8 @@ fn delete_location(
   case store.get_effective_b2b_company_location_by_id(store, location_id) {
     None -> #(store, [])
     Some(location) -> {
+      let #(store, cascade_ids) =
+        remove_role_assignments_for_location(store, location_id)
       let store = case
         store.get_effective_b2b_company_by_id(store, location.company_id)
       {
@@ -3194,9 +3219,60 @@ fn delete_location(
         None -> store
       }
       let store = store.delete_staged_b2b_company_location(store, location_id)
-      #(store, [location_id, location.company_id])
+      #(store, [location_id, location.company_id] |> list.append(cascade_ids))
     }
   }
+}
+
+fn remove_role_assignments_for_location(
+  store: Store,
+  location_id: String,
+) -> #(Store, List(String)) {
+  list.fold(
+    store.list_effective_b2b_company_contacts(store),
+    #(store, []),
+    fn(acc, contact) {
+      let #(current_store, staged_ids) = acc
+      let current =
+        read_object_sources(data_get(contact.data, "roleAssignments"))
+      let #(kept, removed_ids) =
+        remove_assignments_matching_location(current, location_id)
+      case list.length(kept) == list.length(current) {
+        True -> acc
+        False -> {
+          let updated =
+            B2BCompanyContactRecord(
+              ..contact,
+              data: put_source(contact.data, "roleAssignments", SrcList(kept)),
+            )
+          let #(_, next_store) =
+            store.upsert_staged_b2b_company_contact(current_store, updated)
+          #(
+            next_store,
+            staged_ids
+              |> list.append([contact.id])
+              |> list.append(removed_ids),
+          )
+        }
+      }
+    },
+  )
+}
+
+fn remove_assignments_matching_location(
+  assignments: List(SourceValue),
+  location_id: String,
+) -> #(List(SourceValue), List(String)) {
+  list.fold(assignments, #([], []), fn(acc, assignment) {
+    let #(kept, removed) = acc
+    case assignment_ref(assignment, "companyLocationId") {
+      Some(id) if id == location_id -> #(
+        kept,
+        list.append(removed, [source_id(assignment)]),
+      )
+      _ -> #(list.append(kept, [assignment]), removed)
+    }
+  })
 }
 
 fn handle_location_delete(
@@ -3773,33 +3849,16 @@ fn handle_assign_address(
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
-          let #(address, identity) =
-            address_from_input(identity, read_object(args, "address"), None)
           let address_types = read_string_list(args, "addressTypes")
-          let #(data, addresses) =
-            list.fold(address_types, #(location.data, []), fn(acc, typ) {
-              let #(data, addresses) = acc
-              case typ {
-                "BILLING" -> #(
-                  put_source(data, "billingAddress", address),
-                  list.append(addresses, [address]),
-                )
-                "SHIPPING" -> #(
-                  put_source(data, "shippingAddress", address),
-                  list.append(addresses, [address]),
-                )
-                _ -> acc
-              }
-            })
-          case addresses {
-            [] ->
+          case has_duplicate_strings(address_types) {
+            True ->
               RootResult(
                 Payload(
                   ..empty_payload([
                     user_error(
-                      Some(["addressTypes"]),
-                      "Address type is invalid",
-                      user_error_code.invalid,
+                      None,
+                      "Invalid input.",
+                      user_error_code.invalid_input,
                     ),
                   ]),
                   addresses: [],
@@ -3808,16 +3867,53 @@ fn handle_assign_address(
                 identity,
                 [],
               )
-            _ -> {
-              let updated = B2BCompanyLocationRecord(..location, data: data)
-              let #(updated, store) =
-                store.upsert_staged_b2b_company_location(store, updated)
-              RootResult(
-                Payload(..empty_payload([]), addresses: addresses),
-                store,
-                identity,
-                list.append([updated.id], list.map(addresses, source_id)),
-              )
+            False -> {
+              let #(address, identity) =
+                address_from_input(identity, read_object(args, "address"), None)
+              let #(data, addresses) =
+                list.fold(address_types, #(location.data, []), fn(acc, typ) {
+                  let #(data, addresses) = acc
+                  case typ {
+                    "BILLING" -> #(
+                      put_source(data, "billingAddress", address),
+                      list.append(addresses, [address]),
+                    )
+                    "SHIPPING" -> #(
+                      put_source(data, "shippingAddress", address),
+                      list.append(addresses, [address]),
+                    )
+                    _ -> acc
+                  }
+                })
+              case addresses {
+                [] ->
+                  RootResult(
+                    Payload(
+                      ..empty_payload([
+                        user_error(
+                          Some(["addressTypes"]),
+                          "Address type is invalid",
+                          user_error_code.invalid,
+                        ),
+                      ]),
+                      addresses: [],
+                    ),
+                    store,
+                    identity,
+                    [],
+                  )
+                _ -> {
+                  let updated = B2BCompanyLocationRecord(..location, data: data)
+                  let #(updated, store) =
+                    store.upsert_staged_b2b_company_location(store, updated)
+                  RootResult(
+                    Payload(..empty_payload([]), addresses: addresses),
+                    store,
+                    identity,
+                    list.append([updated.id], list.map(addresses, source_id)),
+                  )
+                }
+              }
             }
           }
         }
@@ -3852,33 +3948,10 @@ fn handle_address_delete(
 ) -> RootResult {
   case read_string(args, "addressId") {
     Some(target_address_id) -> {
-      let found =
-        list.find(
-          store.list_effective_b2b_company_locations(store),
-          fn(location) {
-            address_id(data_get(location.data, "billingAddress"))
-            == Some(target_address_id)
-            || address_id(data_get(location.data, "shippingAddress"))
-            == Some(target_address_id)
-          },
-        )
-      case found {
-        Ok(location) -> {
-          let data = case
-            address_id(data_get(location.data, "billingAddress"))
-          {
-            Some(id) if id == target_address_id ->
-              put_source(location.data, "billingAddress", SrcNull)
-            _ -> location.data
-          }
-          let data = case address_id(data_get(data, "shippingAddress")) {
-            Some(id) if id == target_address_id ->
-              put_source(data, "shippingAddress", SrcNull)
-            _ -> data
-          }
-          let updated = B2BCompanyLocationRecord(..location, data: data)
-          let #(_, store) =
-            store.upsert_staged_b2b_company_location(store, updated)
+      let #(store, detached_location_ids) =
+        detach_address_from_locations(store, target_address_id)
+      case detached_location_ids {
+        [_, ..] ->
           RootResult(
             Payload(
               ..empty_payload([]),
@@ -3886,10 +3959,9 @@ fn handle_address_delete(
             ),
             store,
             identity,
-            [location.id, target_address_id],
+            list.append(detached_location_ids, [target_address_id]),
           )
-        }
-        Error(_) ->
+        [] ->
           RootResult(
             Payload(
               ..empty_payload([resource_not_found(["addressId"])]),
@@ -3912,6 +3984,54 @@ fn handle_address_delete(
         [],
       )
   }
+}
+
+fn detach_address_from_locations(
+  store: Store,
+  target_address_id: String,
+) -> #(Store, List(String)) {
+  list.fold(
+    store.list_effective_b2b_company_locations(store),
+    #(store, []),
+    fn(acc, location) {
+      let #(current_store, detached_ids) = acc
+      let billing_matches =
+        address_id(data_get(location.data, "billingAddress"))
+        == Some(target_address_id)
+      let shipping_matches =
+        address_id(data_get(location.data, "shippingAddress"))
+        == Some(target_address_id)
+      case billing_matches || shipping_matches {
+        False -> acc
+        True -> {
+          let data = case billing_matches {
+            True -> put_source(location.data, "billingAddress", SrcNull)
+            False -> location.data
+          }
+          let data = case shipping_matches {
+            True -> put_source(data, "shippingAddress", SrcNull)
+            False -> data
+          }
+          let data = case
+            data_get(location.data, "billingSameAsShipping"),
+            billing_matches || shipping_matches
+          {
+            SrcBool(True), True ->
+              dict.insert(
+                data,
+                "billingSameAsShipping",
+                StorePropertyBool(False),
+              )
+            _, _ -> data
+          }
+          let updated = B2BCompanyLocationRecord(..location, data: data)
+          let #(_, next_store) =
+            store.upsert_staged_b2b_company_location(current_store, updated)
+          #(next_store, list.append(detached_ids, [location.id]))
+        }
+      }
+    },
+  )
 }
 
 fn handle_assign_staff(
@@ -4247,12 +4367,17 @@ fn serialize_mutation_payload(
                 serialize_role_assignment(store, item, child, fragments)
               }),
             )
-            "addresses" -> #(
-              key,
-              json.array(payload.addresses, fn(item) {
-                project_graphql_value(item, selected_children(child), fragments)
-              }),
-            )
+            "addresses" -> #(key, case payload.user_errors, payload.addresses {
+              [_, ..], [] -> json.null()
+              _, _ ->
+                json.array(payload.addresses, fn(item) {
+                  project_graphql_value(
+                    item,
+                    selected_children(child),
+                    fragments,
+                  )
+                })
+            })
             "companyLocationStaffMemberAssignments" -> #(
               key,
               json.array(
