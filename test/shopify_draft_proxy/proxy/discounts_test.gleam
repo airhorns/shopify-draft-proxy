@@ -4,6 +4,7 @@ import gleam/dict
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/string
 import shopify_draft_proxy/proxy/discounts
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
@@ -48,6 +49,67 @@ pub fn code_basic_create_is_readable_by_code_test() {
 
   assert json.to_string(data)
     == "{\"codeDiscountNodeByCode\":{\"codeDiscount\":{\"title\":\"Launch\",\"codes\":{\"nodes\":[{\"code\":\"LAUNCH10\"}]}}}}"
+}
+
+pub fn code_discount_creates_reject_missing_and_blank_codes_test() {
+  let missing_basic =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let blank_bxgy =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let whitespace_free_shipping =
+    run_mutation(
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Free ship\", code: \"   \", startsAt: \"2026-04-25T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let missing_app =
+    run_mutation(
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App\", startsAt: \"2026-04-25T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(missing_basic.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"code\"],\"message\":\"Code can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(blank_bxgy.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"code\"],\"message\":\"Code is too short (minimum is 1 character)\",\"code\":\"TOO_SHORT\",\"extraInfo\":null}]}}}"
+  assert json.to_string(whitespace_free_shipping.data)
+    == "{\"data\":{\"discountCodeFreeShippingCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"freeShippingCodeDiscount\",\"code\"],\"message\":\"Code can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(missing_app.data)
+    == "{\"data\":{\"discountCodeAppCreate\":{\"codeAppDiscount\":null,\"userErrors\":[{\"field\":[\"codeAppDiscount\",\"code\"],\"message\":\"Code can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_discount_creates_reject_code_format_constraints_test() {
+  let long_code = string.repeat("x", times: 256)
+  let long_basic =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Long\", code: \""
+      <> long_code
+      <> "\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let newline_basic =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Newline\", code: \"abc\\ndef\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(long_basic.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"code\"],\"message\":\"Code is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"extraInfo\":null}]}}}"
+  assert json.to_string(newline_basic.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"code\"],\"message\":\"Code cannot contain newline characters.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn automatic_discount_creates_do_not_require_codes_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"automaticDiscountNode\":{\"id\":\"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\"}",
+  )
+  assert string.contains(body, "\"userErrors\":[]")
 }
 
 pub fn code_basic_rejects_cart_line_tag_settings_for_order_class_test() {

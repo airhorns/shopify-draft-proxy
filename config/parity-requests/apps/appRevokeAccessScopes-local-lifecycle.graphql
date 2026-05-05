@@ -1,5 +1,5 @@
 mutation AppRevokeAccessScopesLocalLifecycle {
-  appRevokeAccessScopes(scopes: ["write_products", "write_orders"]) {
+  appRevokeAccessScopes(scopes: ["write_products"]) {
     revoked {
       handle
       description

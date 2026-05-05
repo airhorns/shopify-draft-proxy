@@ -104,6 +104,39 @@ fn notification_card(
   )
 }
 
+fn transaction_card(
+  id: String,
+  enabled: Bool,
+  expires_on: Option(String),
+  balance: String,
+  currency: String,
+) -> GiftCardRecord {
+  GiftCardRecord(
+    id: id,
+    legacy_resource_id: "transaction",
+    last_characters: "7777",
+    masked_code: "•••• •••• •••• 7777",
+    enabled: enabled,
+    notify: True,
+    deactivated_at: case enabled {
+      True -> None
+      False -> Some("2024-01-02T00:00:00.000Z")
+    },
+    expires_on: expires_on,
+    note: None,
+    template_suffix: None,
+    created_at: "2024-01-01T00:00:00.000Z",
+    updated_at: "2024-01-01T00:00:00.000Z",
+    initial_value: money(balance, currency),
+    balance: money(balance, currency),
+    customer_id: None,
+    recipient_id: None,
+    source: None,
+    recipient_attributes: None,
+    transactions: [],
+  )
+}
+
 fn seed_customer(store_in: store.Store, record: CustomerRecord) -> store.Store {
   let #(_, s) = store.stage_create_customer(store_in, record)
   s
@@ -426,10 +459,64 @@ pub fn gift_card_credit_increases_balance_test() {
   let body =
     run_mutation(
       s,
-      "mutation { giftCardCredit(id: \"gid://shopify/GiftCard/200?shopify-draft-proxy=synthetic\", creditInput: { creditAmount: { amount: \"25\", currencyCode: \"CAD\" } }) { giftCard { id balance { amount currencyCode } } userErrors { field message } } }",
+      "mutation { giftCardCredit(id: \"gid://shopify/GiftCard/200?shopify-draft-proxy=synthetic\", creditInput: { creditAmount: { amount: \"25\", currencyCode: \"CAD\" } }) { giftCard { id balance { amount currencyCode } } giftCardCreditTransaction { __typename amount { amount currencyCode } } userErrors { field message } } }",
     )
   assert body
-    == "{\"data\":{\"giftCardCredit\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/200?shopify-draft-proxy=synthetic\",\"balance\":{\"amount\":\"75.0\",\"currencyCode\":\"CAD\"}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"giftCardCredit\":{\"giftCard\":{\"id\":\"gid://shopify/GiftCard/200?shopify-draft-proxy=synthetic\",\"balance\":{\"amount\":\"75.0\",\"currencyCode\":\"CAD\"}},\"giftCardCreditTransaction\":{\"__typename\":\"GiftCardCreditTransaction\",\"amount\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_credit_rejects_expired_card_without_mutating_test() {
+  let id = "gid://shopify/GiftCard/credit-expired"
+  let s =
+    store.new()
+    |> seed_card(transaction_card(id, True, Some("2000-01-01"), "10.0", "USD"))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardCredit(id: \"gid://shopify/GiftCard/credit-expired\", creditInput: { creditAmount: { amount: \"5\", currencyCode: \"USD\" } }) { giftCardCreditTransaction { __typename } userErrors { field code message } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardCredit\":{\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"id\"],\"code\":\"INVALID\",\"message\":\"The gift card has expired.\"}]}}}"
+  let assert Some(after) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert after.balance == money("10.0", "USD")
+  assert after.transactions == []
+}
+
+pub fn gift_card_credit_rejects_currency_mismatch_without_mutating_test() {
+  let id = "gid://shopify/GiftCard/credit-currency"
+  let s =
+    store.new()
+    |> seed_card(transaction_card(id, True, Some("2099-01-01"), "10.0", "USD"))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardCredit(id: \"gid://shopify/GiftCard/credit-currency\", creditInput: { creditAmount: { amount: \"5\", currencyCode: \"EUR\" } }) { giftCard { balance { amount currencyCode } } giftCardCreditTransaction { __typename amount { amount currencyCode } } userErrors { field code message } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardCredit\":{\"giftCard\":null,\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"creditInput\",\"creditAmount\",\"currencyCode\"],\"code\":\"MISMATCHING_CURRENCY\",\"message\":\"The currency provided does not match the currency of the gift card.\"}]}}}"
+  let assert Some(after) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert after.balance == money("10.0", "USD")
+  assert after.transactions == []
+}
+
+pub fn gift_card_credit_rejects_processed_at_bounds_test() {
+  let id = "gid://shopify/GiftCard/credit-processed-at"
+  let s =
+    store.new()
+    |> seed_card(transaction_card(id, True, Some("2099-01-01"), "10.0", "USD"))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { future: giftCardCredit(id: \"gid://shopify/GiftCard/credit-processed-at\", creditInput: { processedAt: \"2099-01-01T00:00:00Z\", creditAmount: { amount: \"5\", currencyCode: \"USD\" } }) { giftCardCreditTransaction { __typename } userErrors { field code message } } preEpoch: giftCardCredit(id: \"gid://shopify/GiftCard/credit-processed-at\", creditInput: { processedAt: \"1969-12-31T23:59:59Z\", creditAmount: { amount: \"5\", currencyCode: \"USD\" } }) { giftCardCreditTransaction { __typename } userErrors { field code message } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"future\":{\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"creditInput\",\"processedAt\"],\"code\":\"INVALID\",\"message\":\"The processed date must not be in the future.\"}]},\"preEpoch\":{\"giftCardCreditTransaction\":null,\"userErrors\":[{\"field\":[\"creditInput\",\"processedAt\"],\"code\":\"INVALID\",\"message\":\"A valid processed date must be used.\"}]}}}"
+  let assert Some(after) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert after.balance == money("10.0", "USD")
+  assert after.transactions == []
 }
 
 // ----------- giftCardDebit -----------
@@ -469,10 +556,28 @@ pub fn gift_card_debit_decreases_balance_test() {
   let body =
     run_mutation(
       s,
-      "mutation { giftCardDebit(id: \"gid://shopify/GiftCard/300?shopify-draft-proxy=synthetic\", debitInput: { debitAmount: { amount: \"40\", currencyCode: \"CAD\" } }) { giftCard { balance { amount currencyCode } } userErrors { field message } } }",
+      "mutation { giftCardDebit(id: \"gid://shopify/GiftCard/300?shopify-draft-proxy=synthetic\", debitInput: { debitAmount: { amount: \"40\", currencyCode: \"CAD\" } }) { giftCard { balance { amount currencyCode } } giftCardDebitTransaction { __typename amount { amount currencyCode } } userErrors { field message } } }",
     )
   assert body
-    == "{\"data\":{\"giftCardDebit\":{\"giftCard\":{\"balance\":{\"amount\":\"60.0\",\"currencyCode\":\"CAD\"}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"giftCardDebit\":{\"giftCard\":{\"balance\":{\"amount\":\"60.0\",\"currencyCode\":\"CAD\"}},\"giftCardDebitTransaction\":{\"__typename\":\"GiftCardDebitTransaction\",\"amount\":{\"amount\":\"-40.0\",\"currencyCode\":\"CAD\"}},\"userErrors\":[]}}}"
+}
+
+pub fn gift_card_debit_rejects_deactivated_card_without_mutating_test() {
+  let id = "gid://shopify/GiftCard/debit-deactivated"
+  let s =
+    store.new()
+    |> seed_card(transaction_card(id, False, Some("2099-01-01"), "10.0", "USD"))
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { giftCardDebit(id: \"gid://shopify/GiftCard/debit-deactivated\", debitInput: { debitAmount: { amount: \"5\", currencyCode: \"USD\" } }) { giftCardDebitTransaction { __typename } userErrors { field code message } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"giftCardDebit\":{\"giftCardDebitTransaction\":null,\"userErrors\":[{\"field\":[\"id\"],\"code\":\"INVALID\",\"message\":\"The gift card is deactivated.\"}]}}}"
+  let assert Some(after) =
+    store.get_effective_gift_card_by_id(outcome.store, id)
+  assert after.balance == money("10.0", "USD")
+  assert after.transactions == []
 }
 
 // ----------- giftCardDeactivate -----------

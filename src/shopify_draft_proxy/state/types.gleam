@@ -864,6 +864,7 @@ pub type ShopPolicyRecord {
     url: String,
     created_at: String,
     updated_at: String,
+    migrated_to_html: Bool,
   )
 }
 

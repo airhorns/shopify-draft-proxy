@@ -230,7 +230,7 @@ fn opt_out_new_customer(
       display_name: Some(email),
       email: Some(email),
       legacy_resource_id: gid_tail(id),
-      locale: None,
+      locale: Some("en"),
       note: None,
       can_delete: Some(True),
       verified_email: Some(True),
@@ -238,7 +238,7 @@ fn opt_out_new_customer(
       tax_exempt: Some(False),
       tax_exemptions: [],
       state: Some("DISABLED"),
-      tags: [],
+      tags: ["created-by-dns-form"],
       number_of_orders: Some("0"),
       amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
       default_email_address: Some(CustomerDefaultEmailAddressRecord(
@@ -326,7 +326,11 @@ fn fetch_upstream_customer_by_email(
   customerByIdentifier(identifier: $identifier) {
     id
     email
+    locale
+    verifiedEmail
     dataSaleOptOut
+    state
+    tags
     defaultEmailAddress { emailAddress }
   }
 }
@@ -384,18 +388,18 @@ fn customer_record_from_upstream_node(
         display_name: Some(email),
         email: Some(email),
         legacy_resource_id: gid_tail(id),
-        locale: None,
+        locale: json_get_string(node, "locale"),
         note: None,
         can_delete: Some(True),
-        verified_email: Some(True),
+        verified_email: json_get_bool(node, "verifiedEmail"),
         data_sale_opt_out: option.unwrap(
           json_get_bool(node, "dataSaleOptOut"),
           False,
         ),
         tax_exempt: Some(False),
         tax_exemptions: [],
-        state: Some("DISABLED"),
-        tags: [],
+        state: json_get_string(node, "state") |> option.or(Some("DISABLED")),
+        tags: json_get_string_list(node, "tags"),
         number_of_orders: Some("0"),
         amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
         default_email_address: Some(CustomerDefaultEmailAddressRecord(
@@ -451,6 +455,19 @@ fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
   case json_get(value, key) {
     Some(commit.JsonBool(b)) -> Some(b)
     _ -> None
+  }
+}
+
+fn json_get_string_list(value: commit.JsonValue, key: String) -> List(String) {
+  case json_get(value, key) {
+    Some(commit.JsonArray(items)) ->
+      list.filter_map(items, fn(item) {
+        case item {
+          commit.JsonString(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
   }
 }
 

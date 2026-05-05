@@ -1,5 +1,8 @@
 import gleam/dict
+import gleam/int
 import gleam/json
+import gleam/list
+import gleam/string
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
@@ -53,6 +56,13 @@ fn create_definition_query(type_: String) -> String {
       userErrors { field message code elementKey elementIndex }
     }
   }"
+}
+
+fn int_range(from from: Int, to to: Int) -> List(Int) {
+  case from > to {
+    True -> []
+    False -> [from, ..int_range(from + 1, to)]
+  }
 }
 
 pub fn is_metaobject_root_predicates_test() {
@@ -185,4 +195,102 @@ pub fn update_upsert_delete_and_bulk_delete_stage_locally_test() {
     )
   assert read_back
     == "{\"data\":{\"metaobjects\":{\"nodes\":[]},\"definition\":{\"metaobjectsCount\":0}}}"
+}
+
+pub fn bulk_delete_empty_ids_returns_empty_job_success_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metaobjectBulkDelete(where: { ids: [] }) { job { id done } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectBulkDelete\":{\"job\":{\"id\":\"gid://shopify/Job/1\",\"done\":false},\"userErrors\":[]}}}"
+}
+
+pub fn bulk_delete_unknown_type_returns_type_not_found_user_error_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metaobjectBulkDelete(where: { type: \"does_not_exist\" }) { job { id done } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectBulkDelete\":{\"job\":null,\"userErrors\":[{\"field\":[\"where\",\"type\"],\"message\":\"No metaobject definition exists for type \\\"does_not_exist\\\"\",\"code\":\"RECORD_NOT_FOUND\"}]}}}"
+}
+
+pub fn bulk_delete_known_empty_type_returns_empty_job_success_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_empty_type"),
+    )
+  let outcome =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectBulkDelete(where: { type: \"codex_empty_type\" }) { job { id done } userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"metaobjectBulkDelete\":{\"job\":{\"id\":\"gid://shopify/Job/2\",\"done\":false},\"userErrors\":[]}}}"
+}
+
+pub fn bulk_delete_with_type_and_ids_returns_top_level_error_test() {
+  let outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "mutation { metaobjectBulkDelete(where: { type: \"codex_rows\", ids: [] }) { job { id done } userErrors { field message code } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"errors\":[{\"message\":\"MetaobjectBulkDeleteWhereCondition requires exactly one of type, ids\",\"locations\":[{\"line\":1,\"column\":12},{\"line\":1,\"column\":62}],\"path\":[\"metaobjectBulkDelete\"],\"extensions\":{\"code\":\"INVALID_FIELD_ARGUMENTS\"}}],\"data\":{\"metaobjectBulkDelete\":null}}"
+}
+
+pub fn bulk_delete_ids_caps_to_first_250_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_many_rows"),
+    )
+  let seeded =
+    list.fold(int_range(1, 251), definition_outcome, fn(acc, index) {
+      run_mutation(
+        acc.store,
+        acc.identity,
+        "mutation { metaobjectCreate(metaobject: { type: \"codex_many_rows\", handle: \"row-"
+          <> int.to_string(index)
+          <> "\", fields: [{ key: \"title\", value: \"Row "
+          <> int.to_string(index)
+          <> "\" }] }) { metaobject { id } userErrors { message } } }",
+      )
+    })
+  let id_literals =
+    int_range(2, 252)
+    |> list.map(fn(index) {
+      "\"gid://shopify/Metaobject/"
+      <> int.to_string(index)
+      <> "?shopify-draft-proxy=synthetic\""
+    })
+    |> string.join(", ")
+  let bulk_delete =
+    run_mutation(
+      seeded.store,
+      seeded.identity,
+      "mutation { metaobjectBulkDelete(where: { ids: ["
+        <> id_literals
+        <> "] }) { job { id done } userErrors { field message code elementIndex } } }",
+    )
+  assert json.to_string(bulk_delete.data)
+    == "{\"data\":{\"metaobjectBulkDelete\":{\"job\":{\"id\":\"gid://shopify/Job/253\",\"done\":true},\"userErrors\":[]}}}"
+
+  let read_back =
+    run_query(
+      bulk_delete.store,
+      "{ deleted: metaobject(id: \"gid://shopify/Metaobject/251?shopify-draft-proxy=synthetic\") { id } retained: metaobject(id: \"gid://shopify/Metaobject/252?shopify-draft-proxy=synthetic\") { id handle } definition: metaobjectDefinitionByType(type: \"codex_many_rows\") { metaobjectsCount } }",
+    )
+  assert read_back
+    == "{\"data\":{\"deleted\":null,\"retained\":{\"id\":\"gid://shopify/Metaobject/252?shopify-draft-proxy=synthetic\",\"handle\":\"row-251\"},\"definition\":{\"metaobjectsCount\":1}}}"
 }

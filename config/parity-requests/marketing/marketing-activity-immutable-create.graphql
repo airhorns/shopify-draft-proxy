@@ -1,0 +1,24 @@
+mutation MarketingActivityImmutableCreate($input: MarketingActivityCreateExternalInput!) {
+  marketingActivityCreateExternal(input: $input) {
+    marketingActivity {
+      title
+      urlParameterValue
+      parentRemoteId
+      hierarchyLevel
+      utmParameters {
+        campaign
+        source
+        medium
+      }
+      marketingEvent {
+        remoteId
+        channelHandle
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
