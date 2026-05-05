@@ -702,6 +702,79 @@ pub fn customer_create_rejects_client_supplied_id_test() {
   )
 }
 
+pub fn customer_set_unknown_identifier_id_errors_without_staging_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { id: \"gid://shopify/Customer/999999999\" }, input: { email: \"buyer@example.com\" }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"customer\":null")
+  assert string.contains(
+    set_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Customer does not exist\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customers(first: 5) { nodes { id email } } }")
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"nodes\":[]")
+  assert_log_omits_root(proxy, "customerSet")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_set_mixed_identifier_unknown_id_wins_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { id: \"gid://shopify/Customer/999999999\", email: \"mixed@example.com\" }, input: { email: \"mixed@example.com\", firstName: \"Mixed\" }) { customer { id email firstName } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"customer\":null")
+  assert string.contains(
+    set_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"id\"],\"message\":\"Customer does not exist\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customers(first: 5) { nodes { id email } } }")
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"nodes\":[]")
+}
+
+pub fn customer_set_email_and_phone_identifiers_create_without_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: email_status, body: email_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { email: \"set-email@example.com\" }, input: { email: \"set-email@example.com\", firstName: \"Email\" }) { customer { id email firstName } userErrors { field message code } } }",
+    )
+  assert email_status == 200
+  let email_json = json.to_string(email_body)
+  assert string.contains(
+    email_json,
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"set-email@example.com\",\"firstName\":\"Email\"}",
+  )
+  assert string.contains(email_json, "\"userErrors\":[]")
+
+  let #(Response(status: phone_status, body: phone_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { phone: \"+14155550123\" }, input: { phone: \"+14155550123\", firstName: \"Phone\" }) { customer { id defaultPhoneNumber { phoneNumber } firstName } userErrors { field message code } } }",
+    )
+  assert phone_status == 200
+  let phone_json = json.to_string(phone_body)
+  assert string.contains(
+    phone_json,
+    "\"customer\":{\"id\":\"gid://shopify/Customer/3\",\"defaultPhoneNumber\":{\"phoneNumber\":\"+14155550123\"},\"firstName\":\"Phone\"}",
+  )
+  assert string.contains(phone_json, "\"userErrors\":[]")
+}
+
 pub fn customer_create_rejects_nested_client_supplied_ids_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, body: create_body, ..), proxy) =

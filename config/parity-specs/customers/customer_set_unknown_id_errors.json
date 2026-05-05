@@ -1,0 +1,38 @@
+{
+  "scenarioId": "customer-set-unknown-id-errors",
+  "operationNames": ["customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough", "local-runtime-backed"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/customers/customer-set-unknown-id-errors.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-set-unknown-id-errors.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.unknownId.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-id-user-error",
+        "capturePath": "$.cases.unknownId.response",
+        "proxyPath": "$"
+      },
+      {
+        "name": "unknown-id-does-not-stage-customer",
+        "capturePath": "$.cases.unknownId.state",
+        "proxyStatePath": "$",
+        "selectedPaths": ["$.stagedState.customers"]
+      },
+      {
+        "name": "unknown-id-does-not-log-staged-mutation",
+        "capturePath": "$.cases.unknownId.log",
+        "proxyLogPath": "$",
+        "selectedPaths": ["$.entries"]
+      }
+    ]
+  },
+  "notes": "HAR-770 unknown identifier.id guard. Presence of identifier.id is id-first and update-like; a missing row returns the INVALID Customer-does-not-exist userError and leaves local customer state/log empty."
+}

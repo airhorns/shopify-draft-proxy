@@ -4491,74 +4491,103 @@ fn handle_customer_set(
       )
     }
     [] ->
-      case
-        find_customer_by_identifier(store, identifier),
-        read_obj_string(input, "id")
-      {
-        Some(existing), _ -> {
-          let #(timestamp, after_ts) =
-            synthetic_identity.make_synthetic_timestamp(identity)
-          let updated = update_customer_from_input(existing, input, timestamp)
-          let #(stored, next_store) =
-            store.stage_update_customer(store, updated)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerSetPayload",
-              Some(stored),
-              None,
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [stored.id],
-              "customerSet",
-            ),
-            next_store,
-            after_ts,
-          )
-        }
-        None, Some(customer_id) ->
+      case read_obj_string(identifier, "id") {
+        Some(customer_id) ->
           case store.get_effective_customer_by_id(store, customer_id) {
-            Some(existing) -> {
-              let #(timestamp, after_ts) =
-                synthetic_identity.make_synthetic_timestamp(identity)
-              let updated =
-                update_customer_from_input(existing, input, timestamp)
-              let #(stored, next_store) =
-                store.stage_update_customer(store, updated)
-              let payload =
-                customer_payload_json(
-                  next_store,
-                  "CustomerSetPayload",
-                  Some(stored),
-                  None,
-                  None,
-                  [],
-                  field,
-                  fragments,
-                )
-              #(
-                MutationFieldResult(
-                  get_field_response_key(field),
-                  payload,
-                  [stored.id],
-                  "customerSet",
-                ),
-                next_store,
-                after_ts,
+            Some(existing) ->
+              update_from_set(
+                store,
+                identity,
+                field,
+                fragments,
+                input,
+                existing,
               )
-            }
+            None ->
+              customer_set_unknown_id_result(store, identity, field, fragments)
+          }
+        None ->
+          case find_customer_by_customer_set_identifier(store, identifier) {
+            Some(existing) ->
+              update_from_set(
+                store,
+                identity,
+                field,
+                fragments,
+                input,
+                existing,
+              )
             None -> create_from_set(store, identity, field, fragments, input)
           }
-        None, None -> create_from_set(store, identity, field, fragments, input)
       }
   }
+}
+
+fn find_customer_by_customer_set_identifier(
+  store: Store,
+  identifier: Dict(String, root_field.ResolvedValue),
+) -> Option(CustomerRecord) {
+  let email = read_obj_string(identifier, "email")
+  let phone = read_obj_string(identifier, "phone")
+  find_customer_by_email_or_phone(
+    store.list_effective_customers(store),
+    email,
+    phone,
+  )
+}
+
+fn update_from_set(store, identity, field, fragments, input, existing) {
+  let #(timestamp, after_ts) =
+    synthetic_identity.make_synthetic_timestamp(identity)
+  let updated = update_customer_from_input(existing, input, timestamp)
+  let #(stored, next_store) = store.stage_update_customer(store, updated)
+  let payload =
+    customer_payload_json(
+      next_store,
+      "CustomerSetPayload",
+      Some(stored),
+      None,
+      None,
+      [],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(
+      get_field_response_key(field),
+      payload,
+      [stored.id],
+      "customerSet",
+    ),
+    next_store,
+    after_ts,
+  )
+}
+
+fn customer_set_unknown_id_result(store, identity, field, fragments) {
+  let payload =
+    customer_payload_json(
+      store,
+      "CustomerSetPayload",
+      None,
+      None,
+      None,
+      [
+        UserError(["input", "id"], "Customer does not exist", Some("INVALID")),
+      ],
+      field,
+      fragments,
+    )
+  #(
+    MutationFieldResult(
+      get_field_response_key(field),
+      payload,
+      [],
+      "customerSet",
+    ),
+    store,
+    identity,
+  )
 }
 
 fn create_from_set(store, identity, field, fragments, input) {

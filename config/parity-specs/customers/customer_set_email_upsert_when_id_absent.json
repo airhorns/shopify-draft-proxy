@@ -1,0 +1,28 @@
+{
+  "scenarioId": "customer-set-email-upsert-when-id-absent",
+  "operationNames": ["customerSet"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "runtime-staging", "no-upstream-passthrough", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/customers/customer-set-email-upsert-when-id-absent.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer-set-email-upsert-when-id-absent.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases.emailCreate.request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "email-upsert-without-id-creates",
+        "capturePath": "$.cases.emailCreate.response",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "HAR-770 control scenario: customerSet with identifier.email and no identifier.id remains on the upsert/create path."
+}
