@@ -870,7 +870,9 @@ fn handle_create(
     Error(_) -> dict.new()
   }
   let input = read_input(args)
-  let errors = validate_saved_search_input(input, RequireResourceType(True))
+  let errors =
+    validate_saved_search_input(input, RequireResourceType(True))
+    |> validate_unique_saved_search_name(store, input, None)
   let #(record_opt, store_after, identity_after, staged_ids) = case
     input,
     errors
@@ -932,7 +934,9 @@ fn handle_update(
     None -> None
   }
   let errors = case existing {
-    Some(_) -> validate_saved_search_input(input, RequireResourceType(False))
+    Some(record) ->
+      validate_saved_search_input(input, RequireResourceType(False))
+      |> validate_unique_saved_search_name(store, input, Some(record.id))
     None -> [
       UserError(
         field: Some(["input", "id"]),
@@ -944,17 +948,24 @@ fn handle_update(
     Some(d), Some(_) -> Some(sanitized_update_input(d, errors))
     _, _ -> None
   }
+  let is_duplicate_name_error = has_duplicate_name_error(errors)
   let #(record_opt, store_after, identity_after, staged_ids) = case
     sanitized_input,
-    existing
+    existing,
+    is_duplicate_name_error
   {
-    Some(d), Some(existing_record) -> {
+    Some(d), Some(existing_record), True -> {
+      let #(record, identity_after) =
+        make_saved_search(identity, d, Some(existing_record))
+      #(Some(record), store, identity_after, [])
+    }
+    Some(d), Some(existing_record), False -> {
       let #(record, identity_after) =
         make_saved_search(identity, d, Some(existing_record))
       let #(_, store_after) = store.upsert_staged_saved_search(store, record)
       #(Some(record), store_after, identity_after, [record.id])
     }
-    _, _ -> #(None, store, identity, [])
+    _, _, _ -> #(None, store, identity, [])
   }
   let payload_record = case record_opt {
     Some(_) -> record_opt
@@ -1058,6 +1069,84 @@ fn handle_delete(
       log_drafts: [draft],
     )
   #(key, payload, outcome)
+}
+
+fn validate_unique_saved_search_name(
+  errors: List(UserError),
+  store: Store,
+  input: Option(dict.Dict(String, root_field.ResolvedValue)),
+  excluded_id: Option(String),
+) -> List(UserError) {
+  case errors, input {
+    [], Some(fields) ->
+      case read_optional_string(fields, "name") {
+        Some(name) ->
+          case read_uniqueness_resource_type(store, fields, excluded_id) {
+            Some(resource_type) ->
+              case
+                saved_search_name_taken(store, resource_type, name, excluded_id)
+              {
+                True -> [duplicate_name_error()]
+                False -> []
+              }
+            None -> []
+          }
+        None -> []
+      }
+    _, _ -> errors
+  }
+}
+
+fn read_uniqueness_resource_type(
+  store: Store,
+  fields: dict.Dict(String, root_field.ResolvedValue),
+  excluded_id: Option(String),
+) -> Option(String) {
+  case read_optional_string(fields, "resourceType") {
+    Some(resource_type) -> Some(resource_type)
+    None ->
+      case excluded_id {
+        Some(id) ->
+          case store.get_effective_saved_search_by_id(store, id) {
+            Some(record) -> Some(record.resource_type)
+            None -> None
+          }
+        None -> None
+      }
+  }
+}
+
+fn saved_search_name_taken(
+  store: Store,
+  resource_type: String,
+  name: String,
+  excluded_id: Option(String),
+) -> Bool {
+  let local_records = list_effective_saved_searches(store)
+  let records =
+    list.append(defaults_for_resource_type(resource_type), local_records)
+  list.any(records, fn(record) {
+    record.resource_type == resource_type
+    && record.name == name
+    && case excluded_id {
+      Some(id) -> record.id != id
+      None -> True
+    }
+  })
+}
+
+fn duplicate_name_error() -> UserError {
+  UserError(
+    field: Some(["input", "name"]),
+    message: "Name has already been taken",
+  )
+}
+
+fn has_duplicate_name_error(errors: List(UserError)) -> Bool {
+  list.any(errors, fn(error) {
+    error.field == Some(["input", "name"])
+    && error.message == "Name has already been taken"
+  })
 }
 
 fn sanitized_update_input(
