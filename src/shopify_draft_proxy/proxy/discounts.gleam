@@ -1116,7 +1116,13 @@ fn create_discount_after_top_level_validation(
 ) -> MutationResult {
   // Local input validation first (structural / pure-function checks).
   let user_errors =
-    validate_discount_input(store, input_name, input, discount_type)
+    validate_discount_input(
+      store,
+      input_name,
+      input,
+      discount_type,
+      owner_kind == "code",
+    )
   // Cross-discount uniqueness check: when local validation otherwise
   // passes and the input carries a `code`, ask upstream whether a
   // discount with that code already exists. If so, surface a TAKEN
@@ -1276,7 +1282,7 @@ fn update_discount_after_top_level_validation(
     Some(existing_record) -> {
       let discount_type = existing_record.discount_type
       let user_errors =
-        validate_discount_input(store, input_name, input, discount_type)
+        validate_discount_input(store, input_name, input, discount_type, False)
       case user_errors {
         [_, ..] ->
           MutationResult(
@@ -1928,24 +1934,29 @@ fn validate_discount_input(
   input_name: String,
   input: Dict(String, root_field.ResolvedValue),
   discount_type: String,
+  require_code: Bool,
 ) -> List(SourceValue) {
-  let errors = []
+  let errors = validate_discount_code_input(input_name, input, require_code)
   let errors = case read_string(input, "code") {
     Some(code) ->
-      case find_effective_discount_by_code(store, code) {
-        Some(existing) ->
-          case synthetic_identity.is_proxy_synthetic_gid(existing.id) {
-            True -> errors
-            False ->
-              list.append(errors, [
-                user_error(
-                  [input_name, "code"],
-                  "Code must be unique. Please try a different code.",
-                  "TAKEN",
-                ),
-              ])
+      case errors {
+        [_, ..] -> errors
+        [] ->
+          case find_effective_discount_by_code(store, code) {
+            Some(existing) ->
+              case synthetic_identity.is_proxy_synthetic_gid(existing.id) {
+                True -> errors
+                False ->
+                  list.append(errors, [
+                    user_error(
+                      [input_name, "code"],
+                      "Code must be unique. Please try a different code.",
+                      "TAKEN",
+                    ),
+                  ])
+              }
+            None -> errors
           }
-        None -> errors
       }
     None -> errors
   }
@@ -1999,6 +2010,59 @@ fn validate_discount_input(
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
   }
+}
+
+fn validate_discount_code_input(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+  require_code: Bool,
+) -> List(SourceValue) {
+  case read_string(input, "code") {
+    None ->
+      case require_code {
+        True -> [discount_code_blank_error(input_name)]
+        False -> []
+      }
+    Some(code) ->
+      case string.trim(code) {
+        "" ->
+          case code {
+            "" -> [
+              user_error(
+                [input_name, "code"],
+                "Code is too short (minimum is 1 character)",
+                "TOO_SHORT",
+              ),
+            ]
+            _ -> [discount_code_blank_error(input_name)]
+          }
+        _ ->
+          case string.length(code) > 255 {
+            True -> [
+              user_error(
+                [input_name, "code"],
+                "Code is too long (maximum is 255 characters)",
+                "TOO_LONG",
+              ),
+            ]
+            False ->
+              case string.contains(code, "\n") || string.contains(code, "\r") {
+                True -> [
+                  user_error(
+                    [input_name, "code"],
+                    "Code cannot contain newline characters.",
+                    "INVALID",
+                  ),
+                ]
+                False -> []
+              }
+          }
+      }
+  }
+}
+
+fn discount_code_blank_error(input_name: String) -> SourceValue {
+  user_error([input_name, "code"], "Code can't be blank", "BLANK")
 }
 
 /// Pattern 2: ask upstream whether a discount with the proposed code
