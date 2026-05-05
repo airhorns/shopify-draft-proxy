@@ -1,4 +1,4 @@
-mutation AppRevokeAccessScopesLocalLifecycle {
+mutation AppRevokeAccessScopesErrorCodes {
   appRevokeAccessScopes(scopes: ["write_products"]) {
     revoked {
       handle

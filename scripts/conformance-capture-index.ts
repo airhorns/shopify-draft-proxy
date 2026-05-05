@@ -420,6 +420,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'metafields',
+    captureId: 'metafield-definition-pin-limit-constraint-guard',
+    scriptPath: 'scripts/capture-metafield-definition-pin-limit-constraint-guard.mts',
+    purpose: 'metafieldDefinitionPin product-owner pin limit and constrained-definition validation.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-pin-limit-and-constraint-guard.json`,
+      'config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json',
+    ],
+    cleanupBehavior:
+      'Temporarily unpins existing product definitions, creates disposable product-owned definitions, deletes them, then restores original pins.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-graph-mutations',
     scriptPath: 'scripts/capture-product-graph-mutation-conformance.mts',
@@ -675,6 +689,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates a disposable definition and rows, bulk deletes rows by type, then deletes the definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-bulk-delete-edge-cases',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-bulk-delete-edge-cases-conformance.ts',
+    purpose:
+      'Metaobject bulk delete empty ids, unknown type, known empty type, and exactly-one-of GraphQL validation edge cases.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-bulk-delete-edge-cases.json`,
+      'config/parity-specs/metaobjects/metaobject-bulk-delete-edge-cases.json',
+      'config/parity-requests/metaobjects/metaobject-bulk-delete-edge-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable definition and row, deletes the row before the known-empty-type branch, then deletes the definition in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1304,10 +1335,14 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'discounts',
     captureId: 'discount-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-validation-conformance.ts',
     purpose: 'Discount validation guardrails without broad lifecycle side effects.',
     requiredAuthScopes: ['read_discounts', 'write_discounts'],
-    fixtureOutputs: [`${CAPTURE_ROOT}discount-validation.json`],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-validation-branches.json`,
+      `${CAPTURE_ROOT}discount-code-required-blank-validation.json`,
+    ],
     cleanupBehavior: 'Validation-oriented; deletes any created disposable discount artifacts.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
