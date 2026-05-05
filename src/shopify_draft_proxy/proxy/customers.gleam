@@ -6062,28 +6062,38 @@ fn customer_payload_json(
   fragments: FragmentMap,
 ) -> Json {
   case field {
-    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
-      project_graphql_value(
-        src_object([
-          #("__typename", SrcString(typename)),
-          #("customer", case customer {
-            Some(c) -> customer_to_source(store, c)
-            None -> SrcNull
-          }),
-          #(
-            "deletedCustomerId",
-            graphql_helpers.option_string_source(deleted_customer_id),
-          ),
-          #("address", case customer_address {
-            Some(a) -> address_source(a)
-            None -> SrcNull
-          }),
-          #("shop", src_object([#("id", SrcString("gid://shopify/Shop/1"))])),
-          #("userErrors", SrcList(list.map(user_errors, user_error_source))),
-        ]),
-        selections,
-        fragments,
-      )
+    Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) -> {
+      let user_error_sources = case typename {
+        "CustomerUpdatePayload" ->
+          list.map(user_errors, customer_update_user_error_source)
+        _ -> list.map(user_errors, user_error_source)
+      }
+      let payload_entries = [
+        #("__typename", SrcString(typename)),
+        #("customer", case customer {
+          Some(c) -> customer_to_source(store, c)
+          None -> SrcNull
+        }),
+        #(
+          "deletedCustomerId",
+          graphql_helpers.option_string_source(deleted_customer_id),
+        ),
+        #("address", case customer_address {
+          Some(a) -> address_source(a)
+          None -> SrcNull
+        }),
+        #("shop", src_object([#("id", SrcString("gid://shopify/Shop/1"))])),
+        #("userErrors", SrcList(user_error_sources)),
+      ]
+      let payload_entries = case typename {
+        "CustomerUpdatePayload" ->
+          list.append(payload_entries, [
+            #("customerUpdateUserErrors", SrcList(user_error_sources)),
+          ])
+        _ -> payload_entries
+      }
+      project_graphql_value(src_object(payload_entries), selections, fragments)
+    }
     _ -> json.object([])
   }
 }
@@ -6314,6 +6324,32 @@ fn user_error_source(err: UserError) -> SourceValue {
     #("message", SrcString(err.message)),
     #("code", graphql_helpers.option_string_source(err.code)),
   ])
+}
+
+fn customer_update_user_error_source(err: UserError) -> SourceValue {
+  user_error_source(UserError(
+    field: err.field,
+    message: err.message,
+    code: Some(customer_update_error_code(err)),
+  ))
+}
+
+fn customer_update_error_code(err: UserError) -> String {
+  case err.code {
+    Some(code) -> code
+    None -> infer_customer_update_error_code(err)
+  }
+}
+
+fn infer_customer_update_error_code(err: UserError) -> String {
+  case err.message {
+    "Email has already been taken" | "Phone has already been taken" -> "TAKEN"
+    "First name is too long (maximum is 255 characters)"
+    | "Last name is too long (maximum is 255 characters)"
+    | "Note is too long (maximum is 5000 characters)"
+    | "Tags is too long (maximum is 255 characters)" -> "TOO_LONG"
+    _ -> "INVALID"
+  }
 }
 
 fn read_obj_addresses(

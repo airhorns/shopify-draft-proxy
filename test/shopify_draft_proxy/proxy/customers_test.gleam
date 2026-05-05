@@ -219,6 +219,45 @@ pub fn customer_address_delete_requires_address_owner_test() {
   )
 }
 
+pub fn customer_update_duplicate_email_returns_dual_user_error_fields_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: first_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"taken@example.com\", firstName: \"Taken\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert first_status == 200
+  let #(Response(status: second_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"other@example.com\", firstName: \"Other\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert second_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/3\", email: \"taken@example.com\" }) { customer { id email } customerUpdateUserErrors { code field message } userErrors { code field message } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  let expected_errors =
+    "\"customerUpdateUserErrors\":[{\"code\":\"TAKEN\",\"field\":[\"email\"],\"message\":\"Email has already been taken\"}],\"userErrors\":[{\"code\":\"TAKEN\",\"field\":[\"email\"],\"message\":\"Email has already been taken\"}]"
+  assert string.contains(update_json, "\"customer\":null")
+  assert string.contains(update_json, expected_errors)
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/3\") { id email } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"email\":\"other@example.com\"",
+  )
+}
+
 pub fn customer_update_default_address_requires_address_owner_test() {
   let #(proxy, _owner_id, address_id, other_id) = setup_cross_customer_address()
 
