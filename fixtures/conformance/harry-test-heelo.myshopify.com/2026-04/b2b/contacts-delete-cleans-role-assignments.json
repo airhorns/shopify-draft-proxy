@@ -185,18 +185,14 @@
     "request": {
       "query": "#graphql\n  mutation HAR758ContactsDeleteCleansRoleAssignments($companyContactIds: [ID!]!) {\n    companyContactsDelete(companyContactIds: $companyContactIds) {\n      deletedCompanyContactIds\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyContactIds": [
-          "gid://shopify/CompanyContact/10149953842"
-        ]
+        "companyContactIds": ["gid://shopify/CompanyContact/10149953842"]
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyContactsDelete": {
-          "deletedCompanyContactIds": [
-            "gid://shopify/CompanyContact/10149953842"
-          ],
+          "deletedCompanyContactIds": ["gid://shopify/CompanyContact/10149953842"],
           "userErrors": []
         }
       },
