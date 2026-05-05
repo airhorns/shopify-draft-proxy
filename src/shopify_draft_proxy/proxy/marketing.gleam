@@ -1145,7 +1145,7 @@ fn marketing_engagement_create(
   let input =
     graphql_helpers.read_arg_object(args, "marketingEngagement")
     |> option.unwrap(dict.new())
-  case resolve_marketing_engagement_identifier(store, args) {
+  case validate_engagement_input_currency(input) {
     Error(user_error) ->
       validation_result(
         key,
@@ -1154,24 +1154,55 @@ fn marketing_engagement_create(
         store,
         identity,
       )
-    Ok(identifier) -> {
-      let engagement = build_marketing_engagement_record(identifier, input)
-      let #(staged, next_store) =
-        store.stage_marketing_engagement(store, engagement)
-      #(
-        MutationFieldResult(
-          key,
-          src_object([
-            #("marketingEngagement", marketing_data_to_source(staged.data)),
-            #("userErrors", user_errors_source([])),
-          ]),
-          [staged.id],
-          True,
-        ),
-        next_store,
-        identity,
-      )
-    }
+    Ok(engagement_currency_code) ->
+      case resolve_marketing_engagement_identifier(store, args) {
+        Error(user_error) ->
+          validation_result(
+            key,
+            "marketingEngagementCreate",
+            [user_error],
+            store,
+            identity,
+          )
+        Ok(identifier) ->
+          case
+            validate_engagement_activity_currency(
+              identifier,
+              engagement_currency_code,
+            )
+          {
+            Error(user_error) ->
+              validation_result(
+                key,
+                "marketingEngagementCreate",
+                [user_error],
+                store,
+                identity,
+              )
+            Ok(Nil) -> {
+              let engagement =
+                build_marketing_engagement_record(identifier, input)
+              let #(staged, next_store) =
+                store.stage_marketing_engagement(store, engagement)
+              #(
+                MutationFieldResult(
+                  key,
+                  src_object([
+                    #(
+                      "marketingEngagement",
+                      marketing_data_to_source(staged.data),
+                    ),
+                    #("userErrors", user_errors_source([])),
+                  ]),
+                  [staged.id],
+                  True,
+                ),
+                next_store,
+                identity,
+              )
+            }
+          }
+      }
   }
 }
 
@@ -1491,6 +1522,22 @@ fn invalid_delete_engagements_arguments_error() -> UserError {
   )
 }
 
+fn currency_code_mismatch_input_error() -> UserError {
+  UserError(
+    field: Some(["marketingEngagement"]),
+    message: "Currency codes in the marketing engagement input do not match.",
+    code: Some("CURRENCY_CODE_MISMATCH_INPUT"),
+  )
+}
+
+fn marketing_activity_currency_code_mismatch_error() -> UserError {
+  UserError(
+    field: Some(["marketingEngagement"]),
+    message: "Marketing activity currency code does not match the currency code in the marketing engagement input.",
+    code: Some("MARKETING_ACTIVITY_CURRENCY_CODE_MISMATCH"),
+  )
+}
+
 // ===========================================================================
 // Record builders
 // ===========================================================================
@@ -1597,6 +1644,10 @@ fn build_marketing_records_from_create_input(
         optional_marketing_string(read_value_string(input, "hierarchyLevel")),
       ),
       #("remoteId", optional_marketing_string(remote_id)),
+      #(
+        "currencyCode",
+        optional_marketing_string(activity_input_currency(input)),
+      ),
       #("utmParameters", optional_marketing_object(utm)),
       #("marketingEvent", MarketingObject(event_data)),
     ])
@@ -1670,6 +1721,10 @@ fn build_native_marketing_activity_from_create_input(
       #(
         "formData",
         optional_marketing_string(read_value_string(input, "formData")),
+      ),
+      #(
+        "currencyCode",
+        optional_marketing_string(activity_input_currency(input)),
       ),
       #("utmParameters", optional_marketing_object(read_utm(input))),
       #("marketingEvent", MarketingNull),
@@ -1745,6 +1800,13 @@ fn apply_native_marketing_activity_update(
         optional_marketing_object(
           read_utm(input)
           |> option.or(read_marketing_object(record.data, "utmParameters")),
+        ),
+      ),
+      #(
+        "currencyCode",
+        optional_marketing_string(
+          activity_input_currency(input)
+          |> option.or(read_marketing_string(record.data, "currencyCode")),
         ),
       ),
     ])
@@ -1890,6 +1952,13 @@ fn apply_external_activity_update(
       #("tactic", MarketingString(tactic)),
       #("marketingChannelType", MarketingString(channel_type)),
       #("sourceAndMedium", MarketingString(source_medium)),
+      #(
+        "currencyCode",
+        optional_marketing_string(
+          activity_input_currency(input)
+          |> option.or(read_marketing_string(record.data, "currencyCode")),
+        ),
+      ),
       #("marketingEvent", MarketingObject(event_data)),
     ])
   #(
@@ -1995,6 +2064,37 @@ fn resolve_marketing_engagement_identifier(
   }
 }
 
+fn validate_engagement_input_currency(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Result(Option(String), UserError) {
+  let ad_spend_currency = money_input_currency(input, "adSpend")
+  let sales_currency = money_input_currency(input, "sales")
+  case ad_spend_currency, sales_currency {
+    Some(ad_spend_currency), Some(sales_currency)
+      if ad_spend_currency != sales_currency
+    -> Error(currency_code_mismatch_input_error())
+    Some(currency), _ -> Ok(Some(currency))
+    _, Some(currency) -> Ok(Some(currency))
+    _, _ -> Ok(None)
+  }
+}
+
+fn validate_engagement_activity_currency(
+  identifier: EngagementIdentifier,
+  engagement_currency_code: Option(String),
+) -> Result(Nil, UserError) {
+  case engagement_currency_code, engagement_activity(identifier) {
+    Some(engagement_currency_code), Some(activity) ->
+      case marketing_activity_currency(activity.data) {
+        Some(activity_currency_code)
+          if activity_currency_code != engagement_currency_code
+        -> Error(marketing_activity_currency_code_mismatch_error())
+        _ -> Ok(Nil)
+      }
+    _, _ -> Ok(Nil)
+  }
+}
+
 fn engagement_activity(
   identifier: EngagementIdentifier,
 ) -> Option(MarketingRecord) {
@@ -2054,6 +2154,58 @@ fn money_engagement_entries(
       None -> Error(Nil)
     }
   })
+}
+
+fn activity_input_currency(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  money_input_currency(input, "budget")
+  |> option.or(budget_total_currency(input))
+  |> option.or(money_input_currency(input, "adSpend"))
+}
+
+fn budget_total_currency(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case dict.get(input, "budget") {
+    Ok(root_field.ObjectVal(budget)) -> money_input_currency(budget, "total")
+    _ -> None
+  }
+}
+
+fn money_input_currency(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+) -> Option(String) {
+  case dict.get(input, field) {
+    Ok(root_field.ObjectVal(money)) -> read_value_string(money, "currencyCode")
+    _ -> None
+  }
+}
+
+fn marketing_activity_currency(
+  data: Dict(String, MarketingValue),
+) -> Option(String) {
+  read_marketing_string(data, "currencyCode")
+  |> option.or(
+    read_marketing_object(data, "adSpend")
+    |> read_marketing_object_string("currencyCode"),
+  )
+  |> option.or(marketing_budget_currency(read_marketing_object(data, "budget")))
+}
+
+fn marketing_budget_currency(
+  budget: Option(Dict(String, MarketingValue)),
+) -> Option(String) {
+  case budget {
+    Some(budget) ->
+      read_marketing_object_string(Some(budget), "currencyCode")
+      |> option.or(
+        read_marketing_object(budget, "total")
+        |> read_marketing_object_string("currencyCode"),
+      )
+    None -> None
+  }
 }
 
 fn decimal_engagement_entries(

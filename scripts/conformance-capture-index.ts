@@ -807,6 +807,18 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'Recognized channel-handle success depends on the disposable shop exposing a valid marketing channel handle.',
   },
   {
+    domain: 'marketing',
+    captureId: 'marketing-engagement-currency-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-engagement-currency-validation-conformance.mts',
+    purpose: 'Marketing engagement adSpend/sales currency mismatch and engagement-vs-activity currency validation.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [`${CAPTURE_ROOT}marketing-engagement-currency-validation.json`],
+    cleanupBehavior:
+      'Creates one disposable USD-budget external marketing activity, captures currency validation branches, then deletes the activity.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'segments',
     captureId: 'segments',
     scriptPath: 'scripts/capture-segment-conformance.mts',
