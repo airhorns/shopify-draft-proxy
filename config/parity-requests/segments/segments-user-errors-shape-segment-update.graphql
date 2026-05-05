@@ -1,0 +1,12 @@
+mutation SegmentUpdateUserErrorsShape($id: ID!) {
+  segmentUpdate(id: $id) {
+    segment {
+      id
+    }
+    userErrors {
+      __typename
+      field
+      message
+    }
+  }
+}

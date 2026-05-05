@@ -4451,7 +4451,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages captured-safe standard metaobject definition enablement for the bounded local template catalog and returns TEMPLATE_NOT_FOUND for unknown template types without runtime Shopify writes.",
+        "Locally stages standard metaobject definition enablement from the checked-in 2026-04 template catalog and returns RECORD_NOT_FOUND for unknown template types without runtime Shopify writes.",
       ),
     ),
     RegistryEntry(

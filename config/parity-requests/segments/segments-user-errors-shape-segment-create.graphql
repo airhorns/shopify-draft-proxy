@@ -1,0 +1,12 @@
+mutation SegmentCreateUserErrorsShape($name: String!, $query: String!) {
+  segmentCreate(name: $name, query: $query) {
+    segment {
+      id
+    }
+    userErrors {
+      __typename
+      field
+      message
+    }
+  }
+}

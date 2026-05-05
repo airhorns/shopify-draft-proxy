@@ -36,6 +36,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   project_graphql_value, serialize_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/metafield_values
+import shopify_draft_proxy/proxy/metaobject_standard_templates_data as standard_templates
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type LogDraft, type MutationOutcome, MutationOutcome, read_optional_string,
   single_root_log_draft,
@@ -1088,13 +1089,7 @@ fn handle_standard_definition_enable(
     None -> {
       let payload =
         definition_payload(field, fragments, None, [
-          UserError(
-            Some(["type"]),
-            "A standard metaobject definition wasn't found for the specified type.",
-            "TEMPLATE_NOT_FOUND",
-            None,
-            None,
-          ),
+          standard_template_record_not_found_error(),
         ])
       #(MutationFieldResult(key, payload, [], [], []), store, identity)
     }
@@ -1103,36 +1098,40 @@ fn handle_standard_definition_enable(
         None -> {
           let payload =
             definition_payload(field, fragments, None, [
-              UserError(
-                Some(["type"]),
-                "A standard metaobject definition wasn't found for the specified type.",
-                "TEMPLATE_NOT_FOUND",
-                None,
-                None,
-              ),
+              standard_template_record_not_found_error(),
             ])
           #(MutationFieldResult(key, payload, [], [], []), store, identity)
         }
         Some(template) -> {
-          let #(definition, next_identity) = case
-            find_effective_metaobject_definition_by_type(store, type_)
-          {
-            Some(existing) -> #(existing, identity)
-            None -> build_standard_definition(identity, template)
+          case find_effective_metaobject_definition_by_type(store, type_) {
+            Some(existing) -> {
+              let payload =
+                definition_payload(field, fragments, Some(existing), [])
+              #(MutationFieldResult(key, payload, [], [], []), store, identity)
+            }
+            None -> {
+              let #(definition, next_identity) =
+                build_standard_definition(identity, template)
+              let #(staged, next_store) =
+                upsert_staged_metaobject_definition(store, definition)
+              let payload =
+                definition_payload(field, fragments, Some(staged), [])
+              #(
+                MutationFieldResult(key, payload, [staged.id], [], [
+                  log_draft("standardMetaobjectDefinitionEnable", [staged.id]),
+                ]),
+                next_store,
+                next_identity,
+              )
+            }
           }
-          let #(staged, next_store) =
-            upsert_staged_metaobject_definition(store, definition)
-          let payload = definition_payload(field, fragments, Some(staged), [])
-          #(
-            MutationFieldResult(key, payload, [staged.id], [], [
-              log_draft("standardMetaobjectDefinitionEnable", [staged.id]),
-            ]),
-            next_store,
-            next_identity,
-          )
         }
       }
   }
+}
+
+fn standard_template_record_not_found_error() -> UserError {
+  UserError(Some(["type"]), "Record not found", "RECORD_NOT_FOUND", None, None)
 }
 
 fn handle_metaobject_create(
@@ -1392,9 +1391,34 @@ fn handle_metaobject_upsert(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let #(type_, handle) = read_handle_value(read_object_arg(args, "handle"))
-  let input = read_object_arg(args, "metaobject")
-  case type_, handle {
-    Some(t), Some(h) -> {
+  let input = read_upsert_payload_input(args)
+  let handle_is_blank = case handle {
+    Some(h) -> string.trim(h) == ""
+    None -> False
+  }
+  case type_, handle, handle_is_blank {
+    Some(_), Some(_), True -> {
+      let err =
+        UserError(
+          Some(["handle", "handle"]),
+          "Handle can't be blank",
+          "BLANK",
+          None,
+          None,
+        )
+      #(
+        MutationFieldResult(
+          key,
+          metaobject_payload(store, field, fragments, None, [err]),
+          [],
+          [],
+          [],
+        ),
+        store,
+        identity,
+      )
+    }
+    Some(t), Some(h), False -> {
       // Pattern 2: hydrate the definition for cold LiveHybrid upserts; the
       // upsert write itself remains local and Snapshot mode stays local.
       let store =
@@ -1404,6 +1428,7 @@ fn handle_metaobject_upsert(
           upstream,
           requesting_api_client_id,
         )
+      let store = maybe_hydrate_metaobject_by_handle(store, t, h, upstream)
       case
         find_effective_metaobject_definition_by_input_type(
           store,
@@ -1435,6 +1460,14 @@ fn handle_metaobject_upsert(
         Some(definition) ->
           case find_effective_metaobject_by_handle(store, t, h) {
             Some(existing) -> {
+              let store =
+                maybe_hydrate_metaobject_by_handle(
+                  store,
+                  t,
+                  read_string(input, "handle")
+                    |> option.unwrap(existing.handle),
+                  upstream,
+                )
               let input_with_handle = case dict.get(input, "handle") {
                 Ok(_) -> input
                 Error(_) ->
@@ -1452,6 +1485,7 @@ fn handle_metaobject_upsert(
                   input_with_handle,
                   definition,
                 )
+              let user_errors = partition_upsert_user_errors(user_errors)
               case user_errors, updated {
                 [_, ..], _ -> #(
                   MutationFieldResult(
@@ -1471,25 +1505,46 @@ fn handle_metaobject_upsert(
                   identity,
                 )
                 [], Some(metaobject) -> {
-                  let #(staged, next_store) =
-                    upsert_staged_metaobject(store, metaobject)
-                  #(
-                    MutationFieldResult(
-                      key,
-                      metaobject_payload(
-                        next_store,
-                        field,
-                        fragments,
-                        Some(staged),
+                  case metaobject_upsert_exact_match(existing, metaobject) {
+                    True -> #(
+                      MutationFieldResult(
+                        key,
+                        metaobject_payload(
+                          store,
+                          field,
+                          fragments,
+                          Some(existing),
+                          [],
+                        ),
+                        [],
+                        [],
                         [],
                       ),
-                      [staged.id],
-                      [],
-                      [log_draft("metaobjectUpsert", [staged.id])],
-                    ),
-                    next_store,
-                    next_identity,
-                  )
+                      store,
+                      identity,
+                    )
+                    False -> {
+                      let #(staged, next_store) =
+                        upsert_staged_metaobject(store, metaobject)
+                      #(
+                        MutationFieldResult(
+                          key,
+                          metaobject_payload(
+                            next_store,
+                            field,
+                            fragments,
+                            Some(staged),
+                            [],
+                          ),
+                          [staged.id],
+                          [],
+                          [log_draft("metaobjectUpsert", [staged.id])],
+                        ),
+                        next_store,
+                        next_identity,
+                      )
+                    }
+                  }
                 }
                 [], None -> #(
                   MutationFieldResult(
@@ -1516,6 +1571,7 @@ fn handle_metaobject_upsert(
                   create_input,
                   definition,
                 )
+              let field_errors = partition_upsert_user_errors(field_errors)
               case field_errors, created {
                 [_, ..], _ -> #(
                   MutationFieldResult(
@@ -1578,10 +1634,10 @@ fn handle_metaobject_upsert(
           }
       }
     }
-    _, _ -> {
+    _, _, _ -> {
       let err =
         UserError(
-          Some(["handle"]),
+          Some(["handle", "handle"]),
           "Handle can't be blank",
           "BLANK",
           None,
@@ -1599,6 +1655,55 @@ fn handle_metaobject_upsert(
         identity,
       )
     }
+  }
+}
+
+fn read_upsert_payload_input(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Dict(String, root_field.ResolvedValue) {
+  case read_object(args, "metaobject") {
+    Some(input) -> input
+    None ->
+      case dict.get(args, "values") {
+        Ok(root_field.ListVal(values)) ->
+          dict.insert(dict.new(), "fields", root_field.ListVal(values))
+        _ -> dict.new()
+      }
+  }
+}
+
+fn metaobject_upsert_exact_match(
+  existing: MetaobjectRecord,
+  updated: MetaobjectRecord,
+) -> Bool {
+  existing.handle == updated.handle
+  && existing.fields == updated.fields
+  && existing.capabilities == updated.capabilities
+}
+
+fn partition_upsert_user_errors(errors: List(UserError)) -> List(UserError) {
+  list.map(errors, fn(error) {
+    let UserError(field, message, code, element_key, element_index) = error
+    UserError(
+      partition_upsert_user_error_field(field),
+      message,
+      code,
+      element_key,
+      element_index,
+    )
+  })
+}
+
+fn partition_upsert_user_error_field(
+  field: Option(List(String)),
+) -> Option(List(String)) {
+  case field {
+    Some(["metaobject", "handle", ..rest]) ->
+      Some(list.append(["handle", "handle"], rest))
+    Some(["metaobject", "fields", ..rest]) ->
+      Some(list.append(["fields"], rest))
+    Some(["metaobject"]) -> Some([])
+    _ -> field
   }
 }
 
@@ -1881,6 +1986,28 @@ fn maybe_hydrate_metaobject_by_id(
             json.object([#("id", json.string(metaobject_id))]),
           )
       }
+  }
+}
+
+fn maybe_hydrate_metaobject_by_handle(
+  store: Store,
+  type_: String,
+  handle: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case find_effective_metaobject_by_handle(store, type_, handle) {
+    Some(_) -> store
+    None ->
+      fetch_and_hydrate(
+        store,
+        upstream,
+        "MetaobjectHydrateByHandle",
+        metaobject_hydrate_by_handle_query(),
+        json.object([
+          #("type", json.string(type_)),
+          #("handle", json.string(handle)),
+        ]),
+      )
   }
 }
 
@@ -2312,6 +2439,10 @@ fn metaobject_definition_hydrate_query() -> String {
 
 fn metaobject_hydrate_query() -> String {
   "query MetaobjectHydrateById($id: ID!) { metaobject(id: $id) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }"
+}
+
+fn metaobject_hydrate_by_handle_query() -> String {
+  "query MetaobjectHydrateByHandle($type: String!, $handle: String!) { metaobjectByHandle(handle: { type: $type, handle: $handle }) { id handle type displayName createdAt updatedAt capabilities { publishable { status } onlineStore { templateSuffix } } fields { key type value jsonValue definition { key name required type { name category } } } definition { id type name description displayNameKey access { admin storefront } capabilities { publishable { enabled } translatable { enabled } renderable { enabled } onlineStore { enabled } } fieldDefinitions { key name description required type { name category } validations { name value } } hasThumbnailField metaobjectsCount standardTemplate { type name } createdAt updatedAt } } }"
 }
 
 fn metaobject_bulk_delete_hydrate_query() -> String {
@@ -2816,44 +2947,20 @@ fn is_app_reserved_resolved_definition_type(type_: String) -> Bool {
 
 fn standard_template(
   type_: String,
-) -> Option(#(String, String, String, List(MetaobjectFieldDefinitionRecord))) {
-  case type_ {
-    "shopify--qa-pair" ->
-      Some(
-        #("shopify--qa-pair", "Q&A pair", "question", [
-          MetaobjectFieldDefinitionRecord(
-            "question",
-            Some("Question"),
-            None,
-            Some(True),
-            MetaobjectDefinitionTypeRecord(
-              "single_line_text_field",
-              Some("TEXT"),
-            ),
-            [],
-          ),
-          MetaobjectFieldDefinitionRecord(
-            "answer",
-            Some("Answer"),
-            None,
-            Some(True),
-            MetaobjectDefinitionTypeRecord(
-              "multi_line_text_field",
-              Some("TEXT"),
-            ),
-            [],
-          ),
-        ]),
-      )
-    _ -> None
+) -> Option(standard_templates.StandardMetaobjectTemplate) {
+  case
+    standard_templates.templates()
+    |> list.find(fn(template) { template.type_ == type_ })
+  {
+    Ok(template) -> Some(template)
+    Error(_) -> None
   }
 }
 
 fn build_standard_definition(
   identity: SyntheticIdentityRegistry,
-  template: #(String, String, String, List(MetaobjectFieldDefinitionRecord)),
+  template: standard_templates.StandardMetaobjectTemplate,
 ) -> #(MetaobjectDefinitionRecord, SyntheticIdentityRegistry) {
-  let #(type_, name, display_name_key, fields) = template
   let #(id, after_id) =
     synthetic_identity.make_proxy_synthetic_gid(
       identity,
@@ -2863,18 +2970,18 @@ fn build_standard_definition(
   #(
     MetaobjectDefinitionRecord(
       id: id,
-      type_: type_,
-      name: Some(name),
-      description: None,
-      display_name_key: Some(display_name_key),
-      access: default_definition_access(),
-      capabilities: default_definition_capabilities(),
-      field_definitions: fields,
-      has_thumbnail_field: Some(False),
+      type_: template.type_,
+      name: Some(template.name),
+      description: template.description,
+      display_name_key: Some(template.display_name_key),
+      access: template.access,
+      capabilities: template.capabilities,
+      field_definitions: template.field_definitions,
+      has_thumbnail_field: template.has_thumbnail_field,
       metaobjects_count: Some(0),
       standard_template: Some(MetaobjectStandardTemplateRecord(
-        Some(type_),
-        Some(name),
+        Some(template.type_),
+        Some(template.name),
       )),
       created_at: Some(now),
       updated_at: Some(now),
