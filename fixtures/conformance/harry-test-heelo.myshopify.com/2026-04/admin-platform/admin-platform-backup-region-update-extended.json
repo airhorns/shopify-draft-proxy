@@ -1,0 +1,242 @@
+{
+  "capturedAt": "2026-05-05T02:26:28.958Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "supportedNonCaCountryCode": "AE",
+  "restoredCountryCode": "CA",
+  "notes": "HAR-737 captures backupRegionUpdate current-region baseline, harry-test-heelo non-CA success, read-after-write, unknown-region validation, and cleanup back to CA. Live omitted/null invocations currently return Shopify INTERNAL_SERVER_ERROR on this store/API, so expected omitted/null current-state parity is derived from the captured current backupRegion and empty successful-update userErrors, matching the source resolver contract cited by HAR-737.",
+  "captures": {
+    "setupCurrentBackupRegion": {
+      "query": "#graphql\n  mutation BackupRegionUpdateRestore {\n    backupRegionUpdate(region: { countryCode: CA }) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                "name": "Canada",
+                "code": "CA"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionAfterIdempotentUpdate": {
+      "query": "#graphql\n  query BackupRegionRead {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110417202",
+              "name": "Canada",
+              "code": "CA"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionUpdateOmittedLive": {
+      "query": "#graphql\n  mutation BackupRegionUpdateOmitted {\n    backupRegionUpdate {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: 441a310b-039b-423d-b88d-9f280ae51906-1777947987 (include this in support requests).",
+              "extensions": {
+                "requestId": "441a310b-039b-423d-b88d-9f280ae51906-1777947987",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
+    },
+    "backupRegionUpdateNullLive": {
+      "query": "#graphql\n  mutation BackupRegionUpdateNull {\n    backupRegionUpdate(region: null) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Internal error. Looks like something went wrong on our end.\nRequest ID: c6de7381-3e8a-490c-9bac-872951973402-1777947987 (include this in support requests).",
+              "extensions": {
+                "requestId": "c6de7381-3e8a-490c-9bac-872951973402-1777947987",
+                "code": "INTERNAL_SERVER_ERROR"
+              }
+            }
+          ],
+          "data": null
+        }
+      }
+    },
+    "backupRegionUpdateNonCa": {
+      "query": "#graphql\n  mutation BackupRegionUpdateNonCa {\n    backupRegionUpdate(region: { countryCode: AE }) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/4062110482738",
+                "name": "United Arab Emirates",
+                "code": "AE"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionAfterNonCaUpdate": {
+      "query": "#graphql\n  query BackupRegionRead {\n    backupRegion {\n      __typename\n      id\n      name\n      ... on MarketRegionCountry {\n        code\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegion": {
+              "__typename": "MarketRegionCountry",
+              "id": "gid://shopify/MarketRegionCountry/4062110482738",
+              "name": "United Arab Emirates",
+              "code": "AE"
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "backupRegionUpdateInvalid": {
+      "query": "#graphql\n  mutation BackupRegionUpdateInvalid {\n    backupRegionUpdate(region: { countryCode: ZZ }) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": null,
+              "userErrors": [
+                {
+                  "field": ["region"],
+                  "message": "Region not found.",
+                  "code": "REGION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cleanupBackupRegion": {
+      "query": "#graphql\n  mutation BackupRegionUpdateRestore {\n    backupRegionUpdate(region: { countryCode: CA }) {\n      \n  backupRegion {\n    __typename\n    id\n    name\n    ... on MarketRegionCountry {\n      code\n    }\n  }\n  userErrors {\n    field\n    message\n    code\n  }\n\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": {
+                "__typename": "MarketRegionCountry",
+                "id": "gid://shopify/MarketRegionCountry/4062110417202",
+                "name": "Canada",
+                "code": "CA"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "expected": {
+    "backupRegionUpdateOmitted": {
+      "backupRegion": {
+        "__typename": "MarketRegionCountry",
+        "id": "gid://shopify/MarketRegionCountry/4062110417202",
+        "name": "Canada",
+        "code": "CA"
+      },
+      "userErrors": []
+    },
+    "backupRegionUpdateNull": {
+      "backupRegion": {
+        "__typename": "MarketRegionCountry",
+        "id": "gid://shopify/MarketRegionCountry/4062110417202",
+        "name": "Canada",
+        "code": "CA"
+      },
+      "userErrors": []
+    }
+  },
+  "upstreamCalls": []
+}

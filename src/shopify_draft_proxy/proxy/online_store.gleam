@@ -644,26 +644,43 @@ fn create_content(
       payload_key,
     )
     |> option.unwrap(dict.new())
-  let #(record, identity) =
-    make_content(outcome.identity, kind, input, None, None)
-  let #(_, store) =
-    store.upsert_staged_online_store_content(outcome.store, record)
-  let payload =
-    mutation_payload(
-      field,
-      fragments,
-      payload_key,
-      project_content_payload(
-        store,
-        record,
+  case resolve_content_handle(outcome.store, kind, input, None, None) {
+    Error(error) ->
+      content_validation_error_payload(
+        outcome,
         field,
         fragments,
-        variables,
+        root,
         payload_key,
-      ),
-      [],
-    )
-  #(key, payload, mutation_outcome(outcome, store, identity, root, [record.id]))
+        error,
+      )
+    Ok(handle) -> {
+      let #(record, identity) =
+        make_content(outcome.identity, kind, input, None, None, handle)
+      let #(_, store) =
+        store.upsert_staged_online_store_content(outcome.store, record)
+      let payload =
+        mutation_payload(
+          field,
+          fragments,
+          payload_key,
+          project_content_payload(
+            store,
+            record,
+            field,
+            fragments,
+            variables,
+            payload_key,
+          ),
+          [],
+        )
+      #(
+        key,
+        payload,
+        mutation_outcome(outcome, store, identity, root, [record.id]),
+      )
+    }
+  }
 }
 
 fn create_article(
@@ -699,48 +716,147 @@ fn create_article(
       let blog_from_arg =
         graphql_helpers.read_arg_object(args, "blog")
         |> option.unwrap(dict.new())
-      let #(blog_id, store, identity, staged_blog_ids) = case
-        input_string(article_input, "blogId")
-      {
-        Some(id) -> #(id, outcome.store, outcome.identity, [])
-        None -> {
-          let #(blog, next_identity) =
-            make_content(outcome.identity, "blog", blog_from_arg, None, None)
-          let #(_, next_store) =
-            store.upsert_staged_online_store_content(outcome.store, blog)
-          #(blog.id, next_store, next_identity, [blog.id])
-        }
-      }
-      let #(record, identity) =
-        make_content(identity, "article", article_input, Some(blog_id), None)
-      let #(_, store) = store.upsert_staged_online_store_content(store, record)
-      let payload =
-        mutation_payload(
-          field,
-          fragments,
-          "article",
-          project_content_payload(
-            store,
-            record,
+      case prepare_article_parent_blog(outcome, blog_from_arg, article_input) {
+        Error(error) ->
+          content_validation_error_payload(
+            outcome,
             field,
             fragments,
-            variables,
+            "articleCreate",
             "article",
-          ),
-          [],
-        )
-      #(
-        key,
-        payload,
-        mutation_outcome(
-          outcome,
-          store,
-          identity,
-          "articleCreate",
-          list.append(staged_blog_ids, [record.id]),
+            error,
+          )
+        Ok(prepared) -> {
+          let ArticleParent(
+            blog_id: blog_id,
+            blog_record: blog_record,
+            identity: identity,
+            staged_blog_ids: staged_blog_ids,
+          ) = prepared
+          case
+            resolve_content_handle(
+              outcome.store,
+              "article",
+              article_input,
+              Some(blog_id),
+              None,
+            )
+          {
+            Error(error) ->
+              content_validation_error_payload(
+                outcome,
+                field,
+                fragments,
+                "articleCreate",
+                "article",
+                error,
+              )
+            Ok(handle) -> {
+              let store = case blog_record {
+                Some(blog) -> {
+                  let #(_, next_store) =
+                    store.upsert_staged_online_store_content(
+                      outcome.store,
+                      blog,
+                    )
+                  next_store
+                }
+                None -> outcome.store
+              }
+              let #(record, identity) =
+                make_content(
+                  identity,
+                  "article",
+                  article_input,
+                  Some(blog_id),
+                  None,
+                  handle,
+                )
+              let #(_, store) =
+                store.upsert_staged_online_store_content(store, record)
+              let payload =
+                mutation_payload(
+                  field,
+                  fragments,
+                  "article",
+                  project_content_payload(
+                    store,
+                    record,
+                    field,
+                    fragments,
+                    variables,
+                    "article",
+                  ),
+                  [],
+                )
+              #(
+                key,
+                payload,
+                mutation_outcome(
+                  outcome,
+                  store,
+                  identity,
+                  "articleCreate",
+                  list.append(staged_blog_ids, [record.id]),
+                ),
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+type ArticleParent {
+  ArticleParent(
+    blog_id: String,
+    blog_record: Option(OnlineStoreContentRecord),
+    identity: SyntheticIdentityRegistry,
+    staged_blog_ids: List(String),
+  )
+}
+
+fn prepare_article_parent_blog(
+  outcome: MutationOutcome,
+  blog_input: Dict(String, root_field.ResolvedValue),
+  article_input: Dict(String, root_field.ResolvedValue),
+) -> Result(ArticleParent, graphql_helpers.SourceValue) {
+  case input_string(article_input, "blogId") {
+    Some(id) ->
+      Ok(
+        ArticleParent(
+          blog_id: id,
+          blog_record: None,
+          identity: outcome.identity,
+          staged_blog_ids: [],
         ),
       )
-    }
+    None ->
+      case
+        resolve_content_handle(outcome.store, "blog", blog_input, None, None)
+      {
+        Error(error) -> Error(error)
+        Ok(handle) -> {
+          let #(blog, identity) =
+            make_content(
+              outcome.identity,
+              "blog",
+              blog_input,
+              None,
+              None,
+              handle,
+            )
+          Ok(
+            ArticleParent(
+              blog_id: blog.id,
+              blog_record: Some(blog),
+              identity: identity,
+              staged_blog_ids: [blog.id],
+            ),
+          )
+        }
+      }
   }
 }
 
@@ -816,36 +932,58 @@ fn update_content(
     Some(id) ->
       case store.get_effective_online_store_content_by_id(outcome.store, id) {
         Some(existing) -> {
-          let #(record, identity) =
-            make_content(
-              outcome.identity,
+          case
+            resolve_content_handle(
+              outcome.store,
               kind,
               input,
               existing.parent_id,
               Some(existing),
             )
-          let #(_, store) =
-            store.upsert_staged_online_store_content(outcome.store, record)
-          let payload =
-            mutation_payload(
-              field,
-              fragments,
-              payload_key,
-              project_content_payload(
-                store,
-                record,
+          {
+            Error(error) ->
+              content_validation_error_payload(
+                outcome,
                 field,
                 fragments,
-                variables,
+                root,
                 payload_key,
-              ),
-              [],
-            )
-          #(
-            key,
-            payload,
-            mutation_outcome(outcome, store, identity, root, [id]),
-          )
+                error,
+              )
+            Ok(handle) -> {
+              let #(record, identity) =
+                make_content(
+                  outcome.identity,
+                  kind,
+                  input,
+                  existing.parent_id,
+                  Some(existing),
+                  handle,
+                )
+              let #(_, store) =
+                store.upsert_staged_online_store_content(outcome.store, record)
+              let payload =
+                mutation_payload(
+                  field,
+                  fragments,
+                  payload_key,
+                  project_content_payload(
+                    store,
+                    record,
+                    field,
+                    fragments,
+                    variables,
+                    payload_key,
+                  ),
+                  [],
+                )
+              #(
+                key,
+                payload,
+                mutation_outcome(outcome, store, identity, root, [id]),
+              )
+            }
+          }
         }
         None ->
           not_found_payload(
@@ -1926,12 +2064,39 @@ fn not_found_payload(
   )
 }
 
+fn content_validation_error_payload(
+  outcome: MutationOutcome,
+  field: Selection,
+  fragments: FragmentMap,
+  root: String,
+  payload_key: String,
+  error: graphql_helpers.SourceValue,
+) -> #(String, Json, MutationOutcome) {
+  let key = get_field_response_key(field)
+  let payload =
+    mutation_payload(field, fragments, payload_key, json.null(), [error])
+  #(
+    key,
+    payload,
+    mutation_outcome_with_status(
+      outcome,
+      outcome.store,
+      outcome.identity,
+      root,
+      [],
+      store.Failed,
+      Some("Rejected " <> root <> " validation in shopify-draft-proxy."),
+    ),
+  )
+}
+
 fn make_content(
   identity: SyntheticIdentityRegistry,
   kind: String,
   input: Dict(String, root_field.ResolvedValue),
   parent_id: Option(String),
   existing: Option(OnlineStoreContentRecord),
+  handle: String,
 ) -> #(OnlineStoreContentRecord, SyntheticIdentityRegistry) {
   let gid_type = content_gid_type(kind)
   let #(id, identity) = case existing {
@@ -1977,13 +2142,7 @@ fn make_content(
       #("__typename", SrcString(content_typename(kind))),
       #("id", SrcString(id)),
       #("title", SrcString(title)),
-      #(
-        "handle",
-        SrcString(option_string(
-          source_optional_string_field(prior, "handle"),
-          slugify(title),
-        )),
-      ),
+      #("handle", SrcString(handle)),
       #("body", SrcString(body)),
       #("bodySummary", SrcString(strip_html(body))),
       #(
@@ -2920,6 +3079,18 @@ fn user_error(
   ])
 }
 
+fn user_error_with_code(
+  field: List(String),
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  src_object([
+    #("field", SrcList(list.map(field, SrcString))),
+    #("message", SrcString(message)),
+    #("code", SrcString(code)),
+  ])
+}
+
 fn article_user_error(
   message: String,
   code: String,
@@ -3339,6 +3510,134 @@ fn content_typename(kind: String) -> String {
   content_gid_type(kind)
 }
 
+fn resolve_content_handle(
+  store: Store,
+  kind: String,
+  input: Dict(String, root_field.ResolvedValue),
+  parent_id: Option(String),
+  existing: Option(OnlineStoreContentRecord),
+) -> Result(String, graphql_helpers.SourceValue) {
+  let existing_id = case existing {
+    Some(record) -> Some(record.id)
+    None -> None
+  }
+  let prior = case existing {
+    Some(record) -> captured_to_source(record.data)
+    None -> src_object([])
+  }
+  case input_string(input, "handle") {
+    Some(raw_handle) -> {
+      let handle = slugify(raw_handle)
+      case handle_exists_in_scope(store, kind, parent_id, handle, existing_id) {
+        True -> Error(handle_taken_error(kind))
+        False -> Ok(handle)
+      }
+    }
+    None ->
+      case source_optional_string_field(prior, "handle") {
+        Some(handle) -> Ok(handle)
+        None -> {
+          let title =
+            option_string(
+              input_string(input, "title"),
+              source_string_field(prior, "title", ""),
+            )
+          Ok(unique_content_handle(
+            store,
+            kind,
+            parent_id,
+            slugify(title),
+            existing_id,
+          ))
+        }
+      }
+  }
+}
+
+fn unique_content_handle(
+  store: Store,
+  kind: String,
+  parent_id: Option(String),
+  base: String,
+  existing_id: Option(String),
+) -> String {
+  case handle_exists_in_scope(store, kind, parent_id, base, existing_id) {
+    False -> base
+    True ->
+      unique_content_handle_loop(store, kind, parent_id, base, existing_id, 1)
+  }
+}
+
+fn unique_content_handle_loop(
+  store: Store,
+  kind: String,
+  parent_id: Option(String),
+  base: String,
+  existing_id: Option(String),
+  suffix: Int,
+) -> String {
+  let candidate = base <> "-" <> int.to_string(suffix)
+  case handle_exists_in_scope(store, kind, parent_id, candidate, existing_id) {
+    False -> candidate
+    True ->
+      unique_content_handle_loop(
+        store,
+        kind,
+        parent_id,
+        base,
+        existing_id,
+        suffix + 1,
+      )
+  }
+}
+
+fn handle_exists_in_scope(
+  store: Store,
+  kind: String,
+  parent_id: Option(String),
+  handle: String,
+  existing_id: Option(String),
+) -> Bool {
+  store.list_effective_online_store_content(store, kind)
+  |> list.any(fn(record) {
+    !same_content_id(record.id, existing_id)
+    && content_record_in_handle_scope(record, kind, parent_id)
+    && content_record_handle(record) == handle
+  })
+}
+
+fn same_content_id(id: String, existing_id: Option(String)) -> Bool {
+  case existing_id {
+    Some(existing_id) -> id == existing_id
+    None -> False
+  }
+}
+
+fn content_record_in_handle_scope(
+  record: OnlineStoreContentRecord,
+  kind: String,
+  parent_id: Option(String),
+) -> Bool {
+  case kind {
+    "article" -> record.parent_id == parent_id
+    _ -> True
+  }
+}
+
+fn content_record_handle(record: OnlineStoreContentRecord) -> String {
+  record.data
+  |> captured_to_source
+  |> source_string_field("handle", "")
+}
+
+fn handle_taken_error(kind: String) -> graphql_helpers.SourceValue {
+  user_error_with_code(
+    [kind, "handle"],
+    "Handle has already been taken",
+    "TAKEN",
+  )
+}
+
 fn integration_gid_type(kind: String) -> String {
   case kind {
     "theme" -> "OnlineStoreTheme"
@@ -3351,12 +3650,42 @@ fn integration_gid_type(kind: String) -> String {
 }
 
 fn slugify(title: String) -> String {
-  title
-  |> string.lowercase
-  |> string.replace(" ", "-")
-  |> string.replace("'", "")
-  |> string.replace(":", "")
-  |> string.replace("/", "-")
+  let lowered = string.lowercase(string.trim(title))
+  let #(chars, _) =
+    string.to_graphemes(lowered)
+    |> list.fold(#([], False), fn(acc, char) {
+      let #(out, in_bad_run) = acc
+      case is_slug_char(char) {
+        True -> #(list.append(out, [char]), False)
+        False ->
+          case in_bad_run {
+            True -> #(out, True)
+            False -> #(list.append(out, ["-"]), True)
+          }
+      }
+    })
+  chars
+  |> string.join("")
+  |> trim_dashes
+}
+
+fn is_slug_char(char: String) -> Bool {
+  case char {
+    "a" | "b" | "c" | "d" | "e" | "f" | "g" | "h" | "i" | "j" -> True
+    "k" | "l" | "m" | "n" | "o" | "p" | "q" | "r" | "s" | "t" -> True
+    "u" | "v" | "w" | "x" | "y" | "z" -> True
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    _ -> False
+  }
+}
+
+fn trim_dashes(value: String) -> String {
+  let chars = string.to_graphemes(value)
+  let dropped_left = list.drop_while(chars, fn(char) { char == "-" })
+  list.reverse(dropped_left)
+  |> list.drop_while(fn(char) { char == "-" })
+  |> list.reverse()
+  |> string.join("")
 }
 
 fn strip_html(value: String) -> String {

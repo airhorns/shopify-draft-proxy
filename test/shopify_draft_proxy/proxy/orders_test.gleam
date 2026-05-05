@@ -5636,6 +5636,162 @@ pub fn orders_order_cancel_read_after_write_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"closed\":true,\"closedAt\":\"2024-01-01T00:00:00.000Z\",\"cancelledAt\":\"2024-01-01T00:00:00.000Z\",\"cancelReason\":\"OTHER\"}}}"
 }
 
+pub fn orders_order_cancel_rejects_uncancellable_states_test() {
+  let cancelled_id = "gid://shopify/Order/6830646329578"
+  let refunded_id = "gid://shopify/Order/6830646329579"
+  let open_return_id = "gid://shopify/Order/6830646329580"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_cancel_test_order(
+        cancelled_id,
+        "PAID",
+        Some("2024-02-01T00:00:00.000Z"),
+        [],
+      ),
+      order_cancel_test_order(refunded_id, "REFUNDED", None, []),
+      order_cancel_test_order(open_return_id, "PAID", None, [
+        types.CapturedObject([
+          #("id", types.CapturedString("gid://shopify/Return/1")),
+          #("status", types.CapturedString("OPEN")),
+        ]),
+      ]),
+    ])
+
+  let cancelled_outcome = run_order_cancel(seed: seeded, order_id: cancelled_id)
+  assert json.to_string(cancelled_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order has already been cancelled\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order has already been cancelled\",\"code\":\"INVALID\"}]}}}"
+  assert cancelled_outcome.staged_resource_ids == []
+  assert cancelled_outcome.log_drafts == []
+
+  let refunded_outcome = run_order_cancel(seed: seeded, order_id: refunded_id)
+  assert json.to_string(refunded_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel a refunded order\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel a refunded order\",\"code\":\"INVALID\"}]}}}"
+  assert refunded_outcome.staged_resource_ids == []
+  assert refunded_outcome.log_drafts == []
+
+  let open_return_outcome =
+    run_order_cancel(seed: seeded, order_id: open_return_id)
+  assert json.to_string(open_return_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel an order with open returns\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel an order with open returns\",\"code\":\"INVALID\"}]}}}"
+  assert open_return_outcome.staged_resource_ids == []
+  assert open_return_outcome.log_drafts == []
+}
+
+pub fn orders_order_cancel_rejects_invalid_arguments_test() {
+  let order_id = "gid://shopify/Order/6830646329581"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_cancel_test_order(order_id, "PENDING", None, []),
+    ])
+
+  let refund_method_outcome =
+    run_order_cancel_with_extra_args(
+      seed: seeded,
+      order_id: order_id,
+      extra_args: ", refund: true, refundMethod: { originalPaymentMethodsRefund: true }",
+    )
+  assert json.to_string(refund_method_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"refund\"],\"message\":\"Refund and refundMethod cannot both be present.\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"refund\"],\"message\":\"Refund and refundMethod cannot both be present.\",\"code\":\"INVALID\"}]}}}"
+  assert refund_method_outcome.staged_resource_ids == []
+  assert refund_method_outcome.log_drafts == []
+
+  let staff_note_outcome =
+    run_order_cancel_with_extra_args(
+      seed: seeded,
+      order_id: order_id,
+      extra_args: ", staffNote: \"" <> string.repeat("x", times: 300) <> "\"",
+    )
+  assert json.to_string(staff_note_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"staffNote\"],\"message\":\"Staff note is too long (maximum is 255 characters)\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"staffNote\"],\"message\":\"Staff note is too long (maximum is 255 characters)\",\"code\":\"INVALID\"}]}}}"
+  assert staff_note_outcome.staged_resource_ids == []
+  assert staff_note_outcome.log_drafts == []
+}
+
+pub fn orders_order_cancel_unknown_order_uses_not_found_code_test() {
+  let outcome =
+    run_order_cancel(seed: store.new(), order_id: "gid://shopify/Order/404")
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+fn order_cancel_test_order(
+  id: String,
+  display_financial_status: String,
+  cancelled_at: Option(String),
+  returns: List(types.CapturedJsonValue),
+) -> types.OrderRecord {
+  types.OrderRecord(
+    id: id,
+    cursor: None,
+    data: types.CapturedObject([
+      #("id", types.CapturedString(id)),
+      #("name", types.CapturedString("#1328")),
+      #("closed", types.CapturedBool(False)),
+      #("closedAt", types.CapturedNull),
+      #("cancelledAt", case cancelled_at {
+        Some(timestamp) -> types.CapturedString(timestamp)
+        None -> types.CapturedNull
+      }),
+      #("cancelReason", types.CapturedNull),
+      #(
+        "displayFinancialStatus",
+        types.CapturedString(display_financial_status),
+      ),
+      #("returns", types.CapturedArray(returns)),
+    ]),
+  )
+}
+
+fn run_order_cancel(seed seed: store.Store, order_id order_id: String) {
+  run_order_cancel_with_extra_args(
+    seed: seed,
+    order_id: order_id,
+    extra_args: "",
+  )
+}
+
+fn run_order_cancel_with_extra_args(
+  seed seed: store.Store,
+  order_id order_id: String,
+  extra_args extra_args: String,
+) {
+  let mutation = "
+    mutation {
+      orderCancel(orderId: \"" <> order_id <> "\", restock: true, reason: OTHER" <> extra_args <> ") {
+        order {
+          id
+        }
+        job {
+          id
+          done
+        }
+        orderCancelUserErrors {
+          field
+          message
+          code
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    mutation,
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
 pub fn orders_order_invoice_send_payload_test() {
   let order_id = "gid://shopify/Order/6830646329577"
   let seeded =
