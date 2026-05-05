@@ -498,7 +498,7 @@ pub fn run_mutation_product_create_import_stages_product_and_result_test() {
     store.stage_staged_upload_content(
       store.new(),
       upload_path,
-      "{\"product\":{\"title\":\"Bulk Created Board\",\"status\":\"DRAFT\"}}\n{\"product\":{\"title\":\"\",\"status\":\"DRAFT\"}}\n",
+      "{\"product\":{\"title\":\"Bulk Created Board\",\"vendor\":\"Hermes\",\"status\":\"DRAFT\"}}\n{\"product\":{\"title\":\"\",\"vendor\":\"Hermes\",\"status\":\"DRAFT\"}}\n",
     )
   let document =
     "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"
@@ -613,6 +613,11 @@ fn product_record(id: String, title: String) -> ProductRecord {
     vendor: None,
     product_type: None,
     tags: [],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: None,
+    has_only_default_variant: None,
+    has_out_of_stock_variants: None,
     total_inventory: Some(0),
     tracks_inventory: Some(False),
     created_at: None,

@@ -41,7 +41,7 @@
               "title": "HAR-600 edge basic",
               "startsAt": "2030-01-01T00:00:00.000Z",
               "endsAt": null,
-              "status": "ACTIVE"
+              "status": "SCHEDULED"
             }
           },
           "userErrors": []

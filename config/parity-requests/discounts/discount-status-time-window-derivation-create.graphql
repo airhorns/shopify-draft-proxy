@@ -1,0 +1,66 @@
+mutation DiscountStatusTimeWindowDerivationCreate(
+  $scheduled: DiscountCodeBasicInput!
+  $expired: DiscountCodeBasicInput!
+  $active: DiscountCodeBasicInput!
+) {
+  scheduled: discountCodeBasicCreate(basicCodeDiscount: $scheduled) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  expired: discountCodeBasicCreate(basicCodeDiscount: $expired) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  active: discountCodeBasicCreate(basicCodeDiscount: $active) {
+    codeDiscountNode {
+      id
+      codeDiscount {
+        __typename
+        ... on DiscountCodeBasic {
+          title
+          status
+          startsAt
+          endsAt
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

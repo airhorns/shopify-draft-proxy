@@ -248,3 +248,17 @@ company notes/contact titles, accepted a 300-character contact title, and
 reported only `TOO_LONG` for HTML-plus-too-long notes. Those internal-source
 HTML/title branches remain covered by runtime tests rather than a misleading
 parity spec.
+
+HAR-608 adds local `externalId` guardrails for company and company-location
+create/update mutations. The proxy enforces Shopify's 64-character maximum,
+rejects characters outside the captured `ExternalIdValidator` allow-list with
+`INVALID`, and checks staged per-shop uniqueness before writing local B2B state.
+The public Admin API's `BusinessCustomerUserError` exposes `field`, `message`,
+and `code`; internal validator detail remains covered by runtime tests when
+selected locally. The 2026-04 live capture for
+`b2b-external-id-validation` shows duplicate company and company-location
+external IDs returning Shopify's observable `TAKEN` code, so the proxy emits
+`TAKEN` for normal duplicate externalId validation rather than the lower-level
+DB-conflict enum names. Update mutations use the same checks while allowing the
+current record to retain its own unchanged external ID. Executable parity specs
+cover charset, too-long, duplicate-company, and duplicate-location branches.

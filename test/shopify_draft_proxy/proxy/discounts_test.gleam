@@ -111,6 +111,85 @@ pub fn code_basic_create_is_readable_by_code_test() {
     == "{\"codeDiscountNodeByCode\":{\"codeDiscount\":{\"title\":\"Launch\",\"codes\":{\"nodes\":[{\"code\":\"LAUNCH10\"}]}}}}"
 }
 
+pub fn code_basic_status_uses_starts_and_ends_for_create_read_and_filters_test() {
+  let scheduled =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Future\", code: \"FUTURE2099\", startsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { status } } } userErrors { message } } }",
+    )
+  let expired =
+    run_mutation_from(
+      scheduled.store,
+      scheduled.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Past\", code: \"PAST2020\", startsAt: \"2019-01-01T00:00:00Z\", endsAt: \"2020-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { status } } } userErrors { message } } }",
+    )
+  let active =
+    run_mutation_from(
+      expired.store,
+      expired.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Now\", code: \"NOW2024\", startsAt: \"2020-01-01T00:00:00Z\", endsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { status } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(scheduled.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"SCHEDULED\"}},\"userErrors\":[]}}}"
+  assert json.to_string(expired.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"EXPIRED\"}},\"userErrors\":[]}}}"
+  assert json.to_string(active.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"ACTIVE\"}},\"userErrors\":[]}}}"
+
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      active.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { ... on DiscountCodeBasic { status } } } scheduled: discountNodes(first: 5, query: \"status:scheduled\") { nodes { id } } expiredCount: discountNodesCount(query: \"status:expired\") { count precision } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"SCHEDULED\"}},\"scheduled\":{\"nodes\":[{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"}]},\"expiredCount\":{\"count\":1,\"precision\":\"EXACT\"}}"
+}
+
+pub fn automatic_basic_status_uses_starts_and_ends_for_create_and_read_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Future automatic\", startsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { automaticDiscount { ... on DiscountAutomaticBasic { status } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountAutomaticBasicCreate\":{\"automaticDiscountNode\":{\"automaticDiscount\":{\"status\":\"SCHEDULED\"}},\"userErrors\":[]}}}"
+
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      outcome.store,
+      "query { automaticDiscountNode(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\") { automaticDiscount { ... on DiscountAutomaticBasic { status } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"automaticDiscountNode\":{\"automaticDiscount\":{\"status\":\"SCHEDULED\"}}}"
+}
+
+pub fn code_bulk_deactivate_preserves_status_override_on_reads_test() {
+  let create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Active\", code: \"ACTIVE2024\", startsAt: \"2020-01-01T00:00:00Z\", endsAt: \"2099-01-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { status startsAt endsAt } } } userErrors { message } } }",
+    )
+  let bulk =
+    run_mutation_from(
+      create.store,
+      create.identity,
+      "mutation { discountCodeBulkDeactivate(ids: [\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"]) { job { done } userErrors { message } } }",
+    )
+
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      bulk.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { ... on DiscountCodeBasic { status startsAt endsAt } } } discountNodesCount(query: \"status:expired\") { count precision } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"status\":\"EXPIRED\",\"startsAt\":\"2020-01-01T00:00:00Z\",\"endsAt\":\"2099-01-01T00:00:00Z\"}},\"discountNodesCount\":{\"count\":1,\"precision\":\"EXACT\"}}"
+}
+
 pub fn code_basic_timestamps_use_synthetic_clock_and_sort_by_recency_test() {
   let first =
     run_mutation(
@@ -255,6 +334,177 @@ pub fn automatic_discount_creates_do_not_require_codes_test() {
   assert string.contains(body, "\"userErrors\":[]")
 }
 
+pub fn create_discount_inputs_reject_inverted_date_ranges_test() {
+  let cases = [
+    #(
+      "discountCodeBasicCreate",
+      "codeDiscountNode",
+      "basicCodeDiscount",
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic invalid dates\", code: \"DATE-BASIC\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountCodeBxgyCreate",
+      "codeDiscountNode",
+      "bxgyCodeDiscount",
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY invalid dates\", code: \"DATE-BXGY\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountCodeFreeShippingCreate",
+      "codeDiscountNode",
+      "freeShippingCodeDiscount",
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping invalid dates\", code: \"DATE-SHIP\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountCodeAppCreate",
+      "codeAppDiscount",
+      "codeAppDiscount",
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App invalid dates\", code: \"DATE-APP\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountAutomaticBasicCreate",
+      "automaticDiscountNode",
+      "automaticBasicDiscount",
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic basic invalid dates\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountAutomaticBxgyCreate",
+      "automaticDiscountNode",
+      "automaticBxgyDiscount",
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"Automatic BXGY invalid dates\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountAutomaticFreeShippingCreate",
+      "automaticDiscountNode",
+      "freeShippingAutomaticDiscount",
+      "mutation { discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"Automatic shipping invalid dates\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountAutomaticAppCreate",
+      "automaticAppDiscount",
+      "automaticAppDiscount",
+      "mutation { discountAutomaticAppCreate(automaticAppDiscount: { title: \"Automatic app invalid dates\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", functionHandle: \"discount-local\" }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(root, node_field, input_name, document) = test_case
+    let outcome = run_mutation(document)
+
+    assert json.to_string(outcome.data)
+      == invalid_date_range_payload(root, node_field, input_name)
+  })
+}
+
+pub fn update_discount_inputs_reject_inverted_date_ranges_test() {
+  let cases = [
+    #(
+      "discountCodeBasicUpdate",
+      "codeDiscountNode",
+      "basicCodeDiscount",
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Basic valid\", code: \"DATE-BASIC-UP\", startsAt: \"2026-04-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "mutation { discountCodeBasicUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", basicCodeDiscount: { title: \"Basic invalid update\", code: \"DATE-BASIC-UP\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountCodeBxgyUpdate",
+      "codeDiscountNode",
+      "bxgyCodeDiscount",
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY valid\", code: \"DATE-BXGY-UP\", startsAt: \"2026-04-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "mutation { discountCodeBxgyUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", bxgyCodeDiscount: { title: \"BXGY invalid update\", code: \"DATE-BXGY-UP\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountCodeFreeShippingUpdate",
+      "codeDiscountNode",
+      "freeShippingCodeDiscount",
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Shipping valid\", code: \"DATE-SHIP-UP\", startsAt: \"2026-04-01T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "mutation { discountCodeFreeShippingUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", freeShippingCodeDiscount: { title: \"Shipping invalid update\", code: \"DATE-SHIP-UP\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountCodeAppUpdate",
+      "codeAppDiscount",
+      "codeAppDiscount",
+      "mutation { discountCodeAppCreate(codeAppDiscount: { title: \"App valid\", code: \"DATE-APP-UP\", startsAt: \"2026-04-01T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+      "mutation { discountCodeAppUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codeAppDiscount: { title: \"App invalid update\", code: \"DATE-APP-UP\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", functionHandle: \"discount-local\" }) { codeAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountAutomaticBasicUpdate",
+      "automaticDiscountNode",
+      "automaticBasicDiscount",
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Automatic basic valid\", startsAt: \"2026-04-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "mutation { discountAutomaticBasicUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBasicDiscount: { title: \"Automatic basic invalid update\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountAutomaticBxgyUpdate",
+      "automaticDiscountNode",
+      "automaticBxgyDiscount",
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"Automatic BXGY valid\", startsAt: \"2026-04-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "mutation { discountAutomaticBxgyUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBxgyDiscount: { title: \"Automatic BXGY invalid update\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 1 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountAutomaticFreeShippingUpdate",
+      "automaticDiscountNode",
+      "freeShippingAutomaticDiscount",
+      "mutation { discountAutomaticFreeShippingCreate(freeShippingAutomaticDiscount: { title: \"Automatic shipping valid\", startsAt: \"2026-04-01T00:00:00Z\", destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+      "mutation { discountAutomaticFreeShippingUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", freeShippingAutomaticDiscount: { title: \"Automatic shipping invalid update\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", destination: { all: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    ),
+    #(
+      "discountAutomaticAppUpdate",
+      "automaticAppDiscount",
+      "automaticAppDiscount",
+      "mutation { discountAutomaticAppCreate(automaticAppDiscount: { title: \"Automatic app valid\", startsAt: \"2026-04-01T00:00:00Z\", functionHandle: \"discount-local\" }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+      "mutation { discountAutomaticAppUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticAppDiscount: { title: \"Automatic app invalid update\", startsAt: \"2026-06-01T00:00:00Z\", endsAt: \"2026-05-01T00:00:00Z\", functionHandle: \"discount-local\" }) { automaticAppDiscount { discountId } userErrors { field message code extraInfo } } }",
+    ),
+  ]
+
+  list.each(cases, fn(test_case) {
+    let #(root, node_field, input_name, create_document, update_document) =
+      test_case
+    let create_outcome = run_mutation(create_document)
+    let update_outcome =
+      run_mutation_from(
+        create_outcome.store,
+        create_outcome.identity,
+        update_document,
+      )
+
+    assert json.to_string(update_outcome.data)
+      == invalid_date_range_payload(root, node_field, input_name)
+  })
+}
+
+pub fn discount_date_range_comparison_normalizes_offsets_test() {
+  let invalid_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Offset invalid\", code: \"DATE-OFFSET-BAD\", startsAt: \"2026-06-01T00:00:00-05:00\", endsAt: \"2026-06-01T01:00:00+00:00\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let valid_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Offset valid\", code: \"DATE-OFFSET-OK\", startsAt: \"2026-06-01T00:00:00+00:00\", endsAt: \"2026-05-31T20:00:00-05:00\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(invalid_outcome.data)
+    == invalid_date_range_payload(
+      "discountCodeBasicCreate",
+      "codeDiscountNode",
+      "basicCodeDiscount",
+    )
+  assert json.to_string(valid_outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"id\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[]}}}"
+}
+
+fn invalid_date_range_payload(
+  root: String,
+  node_field: String,
+  input_name: String,
+) -> String {
+  "{\"data\":{\""
+  <> root
+  <> "\":{\""
+  <> node_field
+  <> "\":null,\"userErrors\":[{\"field\":[\""
+  <> input_name
+  <> "\",\"endsAt\"],\"message\":\"Ends at needs to be after starts_at\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
 pub fn code_basic_rejects_cart_line_tag_settings_for_order_class_test() {
   let outcome =
     run_mutation(
@@ -273,6 +523,83 @@ pub fn code_basic_product_class_tag_settings_skip_class_error_test() {
 
   assert json.to_string(outcome.data)
     == "{\"data\":{\"productTagStacking\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"basicCodeDiscount\",\"combinesWith\",\"productDiscountsWithTagsOnSameCartLine\"],\"message\":\"The shop's plan does not allow setting `productDiscountsWithTagsOnSameCartLine`.\",\"code\":\"PRODUCT_DISCOUNTS_WITH_TAGS_ON_SAME_CART_LINE_NOT_ENTITLED\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_basic_discount_class_follows_customer_gets_items_test() {
+  let order_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Order class\", code: \"ORDER-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { discountClasses discountClass } } } userErrors { message } } }",
+    )
+  let product_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Product class\", code: \"PRODUCT-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { discountClasses discountClass } } } userErrors { message } } }",
+    )
+  let collection_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Collection class\", code: \"COLLECTION-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { collections: { add: [\"gid://shopify/Collection/1\"] } } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { discountClasses discountClass } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(order_outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"ORDER\"],\"discountClass\":\"ORDER\"}},\"userErrors\":[]}}}"
+  assert json.to_string(product_outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"PRODUCT\"],\"discountClass\":\"PRODUCT\"}},\"userErrors\":[]}}}"
+  assert json.to_string(collection_outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"PRODUCT\"],\"discountClass\":\"PRODUCT\"}},\"userErrors\":[]}}}"
+}
+
+pub fn explicit_singular_discount_class_overrides_basic_inference_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Explicit class\", code: \"EXPLICIT-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", discountClass: ORDER, customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { discountClasses discountClass } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeBasicCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"ORDER\"],\"discountClass\":\"ORDER\"}},\"userErrors\":[]}}}"
+}
+
+pub fn bxgy_and_free_shipping_default_discount_classes_test() {
+  let bxgy_outcome =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGY-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeBxgy { discountClasses discountClass } } } userErrors { message } } }",
+    )
+  let free_shipping_outcome =
+    run_mutation(
+      "mutation { discountCodeFreeShippingCreate(freeShippingCodeDiscount: { title: \"Free shipping\", code: \"SHIP-CLASS\", startsAt: \"2026-05-05T00:00:00Z\", destination: { all: true } }) { codeDiscountNode { codeDiscount { ... on DiscountCodeFreeShipping { discountClasses discountClass } } } userErrors { message } } }",
+    )
+
+  assert json.to_string(bxgy_outcome.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"PRODUCT\"],\"discountClass\":\"PRODUCT\"}},\"userErrors\":[]}}}"
+  assert json.to_string(free_shipping_outcome.data)
+    == "{\"data\":{\"discountCodeFreeShippingCreate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"discountClasses\":[\"SHIPPING\"],\"discountClass\":\"SHIPPING\"}},\"userErrors\":[]}}}"
+}
+
+pub fn discount_nodes_filter_by_discount_class_test() {
+  let order_outcome =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Order class\", code: \"ORDER-FILTER\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let product_outcome =
+    run_mutation_from(
+      order_outcome.store,
+      order_outcome.identity,
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Product class\", code: \"PRODUCT-FILTER\", startsAt: \"2026-05-05T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let bxgy_outcome =
+    run_mutation_from(
+      product_outcome.store,
+      product_outcome.identity,
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY class\", code: \"BXGY-FILTER\", startsAt: \"2026-05-05T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+
+  let assert Ok(data) =
+    discounts.handle_discount_query(
+      bxgy_outcome.store,
+      "query { discountNodes(first: 10, query: \"discount_class:product\") { nodes { discount { ... on DiscountCodeBasic { title discountClass } ... on DiscountCodeBxgy { title discountClass } } } } discountNodesCount(query: \"discount_class:product\") { count precision } }",
+      dict.new(),
+    )
+
+  assert json.to_string(data)
+    == "{\"discountNodes\":{\"nodes\":[{\"discount\":{\"title\":\"Product class\",\"discountClass\":\"PRODUCT\"}},{\"discount\":{\"title\":\"BXGY class\",\"discountClass\":\"PRODUCT\"}}]},\"discountNodesCount\":{\"count\":2,\"precision\":\"EXACT\"}}"
 }
 
 pub fn code_basic_rejects_cart_line_tag_overlap_as_bad_request_test() {

@@ -560,6 +560,11 @@ pub type ProductRecord {
     vendor: Option(String),
     product_type: Option(String),
     tags: List(String),
+    price_range_min: Option(String),
+    price_range_max: Option(String),
+    total_variants: Option(Int),
+    has_only_default_variant: Option(Bool),
+    has_out_of_stock_variants: Option(Bool),
     total_inventory: Option(Int),
     tracks_inventory: Option(Bool),
     created_at: Option(String),
@@ -636,6 +641,10 @@ pub type MarketLocalizationRecord {
   )
 }
 
+pub type MarketLocalizableContentRecord {
+  MarketLocalizableContentRecord(key: String, value: String, digest: String)
+}
+
 // ---------------------------------------------------------------------------
 // Metafields domain
 // ---------------------------------------------------------------------------
@@ -653,6 +662,7 @@ pub type ProductMetafieldRecord {
     created_at: Option(String),
     updated_at: Option(String),
     owner_type: Option(String),
+    market_localizable_content: List(MarketLocalizableContentRecord),
   )
 }
 

@@ -5,8 +5,10 @@ import gleam/list
 import gleam/option.{Some}
 import gleam/string
 import shopify_draft_proxy/proxy/app_identity
+import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/metaobject_definitions
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
@@ -66,6 +68,15 @@ fn run_mutation_with_api_client_id(
       ]),
     )
   outcome
+}
+
+fn graphql_request(query: String) -> proxy_state.Request {
+  proxy_state.Request(
+    method: "POST",
+    path: path,
+    headers: dict.new(),
+    body: "{\"query\":" <> json.to_string(json.string(query)) <> "}",
+  )
 }
 
 fn create_definition_query(type_: String) -> String {
@@ -398,6 +409,89 @@ pub fn update_upsert_delete_and_bulk_delete_stage_locally_test() {
     )
   assert read_back
     == "{\"data\":{\"metaobjects\":{\"nodes\":[]},\"definition\":{\"metaobjectsCount\":0}}}"
+}
+
+pub fn metaobject_upsert_exact_match_preserves_updated_at_and_skips_log_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_upsert_exact"),
+    )
+  let create =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_upsert_exact\", handle: \"same\" }, metaobject: { fields: [{ key: \"title\", value: \"Same\" }, { key: \"body\", value: \"Body\" }] }) { metaobject { id handle displayName updatedAt fields { key value } } userErrors { field message code } } }",
+    )
+  assert json.to_string(create.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"same\",\"displayName\":\"Same\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\",\"fields\":[{\"key\":\"title\",\"value\":\"Same\"},{\"key\":\"body\",\"value\":\"Body\"}]},\"userErrors\":[]}}}"
+  assert list.length(create.log_drafts) == 1
+
+  let exact =
+    run_mutation(
+      create.store,
+      create.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_upsert_exact\", handle: \"same\" }, metaobject: { handle: \"same\", fields: [{ key: \"title\", value: \"Same\" }, { key: \"body\", value: \"Body\" }] }) { metaobject { id handle displayName updatedAt fields { key value } } userErrors { field message code } } }",
+    )
+  assert json.to_string(exact.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":{\"id\":\"gid://shopify/Metaobject/2?shopify-draft-proxy=synthetic\",\"handle\":\"same\",\"displayName\":\"Same\",\"updatedAt\":\"2024-01-01T00:00:01.000Z\",\"fields\":[{\"key\":\"title\",\"value\":\"Same\"},{\"key\":\"body\",\"value\":\"Body\"}]},\"userErrors\":[]}}}"
+  assert exact.log_drafts == []
+}
+
+pub fn metaobject_upsert_partitions_handle_and_value_error_prefixes_test() {
+  let definition_outcome =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_query("codex_upsert_prefix"),
+    )
+  let one =
+    run_mutation(
+      definition_outcome.store,
+      definition_outcome.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_upsert_prefix\", handle: \"one\", fields: [{ key: \"title\", value: \"One\" }] }) { metaobject { id } userErrors { field message code } } }",
+    )
+  let two =
+    run_mutation(
+      one.store,
+      one.identity,
+      "mutation { metaobjectCreate(metaobject: { type: \"codex_upsert_prefix\", handle: \"two\", fields: [{ key: \"title\", value: \"Two\" }] }) { metaobject { id } userErrors { field message code } } }",
+    )
+
+  let taken =
+    run_mutation(
+      two.store,
+      two.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_upsert_prefix\", handle: \"one\" }, metaobject: { handle: \"two\", fields: [{ key: \"title\", value: \"One\" }] }) { metaobject { id } userErrors { field message code elementKey elementIndex } } }",
+    )
+  assert json.to_string(taken.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[\"handle\",\"handle\"],\"message\":\"Handle has already been taken\",\"code\":\"TAKEN\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let missing_required =
+    run_mutation(
+      two.store,
+      two.identity,
+      "mutation { metaobjectUpsert(handle: { type: \"codex_upsert_prefix\", handle: \"missing-title\" }, metaobject: { fields: [{ key: \"body\", value: \"Only body\" }] }) { metaobject { id } userErrors { field message code elementKey elementIndex } } }",
+    )
+  assert json.to_string(missing_required.data)
+    == "{\"data\":{\"metaobjectUpsert\":{\"metaobject\":null,\"userErrors\":[{\"field\":[],\"message\":\"Title can't be blank\",\"code\":\"OBJECT_FIELD_REQUIRED\",\"elementKey\":\"title\",\"elementIndex\":null}]}}}"
+}
+
+pub fn metaobject_upsert_key_value_shape_requires_metaobject_or_values_test() {
+  let #(proxy_state.Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(
+        "mutation { metaobjectUpsert(handle: { type: \"codex_rows\", handle: \"blank\" }) { metaobject { id } userErrors { field message code } } }",
+      ),
+    )
+  assert status == 200
+  let serialized = json.to_string(body)
+  assert string.contains(serialized, "\"errors\":[")
+  assert string.contains(serialized, "metaobject")
+  assert string.contains(serialized, "values")
+  assert !string.contains(serialized, "\"userErrors\"")
 }
 
 pub fn metaobject_field_values_validate_and_coerce_by_type_test() {

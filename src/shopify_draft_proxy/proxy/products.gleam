@@ -123,6 +123,10 @@ const collection_title_character_limit = 255
 
 const collection_handle_character_limit = 255
 
+const product_string_character_limit = 255
+
+const product_description_html_limit_bytes = 524_287
+
 pub fn is_products_query_root(name: String) -> Bool {
   case name {
     "product"
@@ -3987,6 +3991,7 @@ pub fn product_source(product: ProductRecord) -> SourceValue {
     SrcList([]),
     empty_connection_source(),
     count_source(0),
+    "USD",
     None,
   )
 }
@@ -4024,8 +4029,38 @@ fn product_source_with_store_and_publication(
         product.id,
       )),
     ),
+    product_currency_code(store),
     publication_id,
   )
+}
+
+fn product_currency_code(store: Store) -> String {
+  case store.get_effective_shop(store) {
+    Some(shop) -> shop.currency_code
+    None -> "USD"
+  }
+}
+
+fn product_price_range_source(
+  product: ProductRecord,
+  currency_code: String,
+) -> SourceValue {
+  case product.price_range_min, product.price_range_max {
+    Some(min_amount), Some(max_amount) ->
+      src_object([
+        #("minVariantPrice", money_v2_source(min_amount, currency_code)),
+        #("maxVariantPrice", money_v2_source(max_amount, currency_code)),
+      ])
+    _, _ -> SrcNull
+  }
+}
+
+fn money_v2_source(amount: String, currency_code: String) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("MoneyV2")),
+    #("amount", SrcString(format_price_amount(amount))),
+    #("currencyCode", SrcString(currency_code)),
+  ])
 }
 
 fn product_source_with_relationships(
@@ -4036,6 +4071,7 @@ fn product_source_with_relationships(
   options: SourceValue,
   selling_plan_groups: SourceValue,
   selling_plan_groups_count: SourceValue,
+  currency_code: String,
   publication_id: Option(String),
 ) -> SourceValue {
   let visible_publication_count = case product.status == "ACTIVE" {
@@ -4059,6 +4095,20 @@ fn product_source_with_relationships(
     #("vendor", graphql_helpers.option_string_source(product.vendor)),
     #("productType", graphql_helpers.option_string_source(product.product_type)),
     #("tags", SrcList(list.map(product.tags, SrcString))),
+    #("priceRangeV2", product_price_range_source(product, currency_code)),
+    #("priceRange", product_price_range_source(product, currency_code)),
+    #(
+      "totalVariants",
+      graphql_helpers.option_int_source(product.total_variants),
+    ),
+    #(
+      "hasOnlyDefaultVariant",
+      graphql_helpers.option_bool_source(product.has_only_default_variant),
+    ),
+    #(
+      "hasOutOfStockVariants",
+      graphql_helpers.option_bool_source(product.has_out_of_stock_variants),
+    ),
     #(
       "totalInventory",
       graphql_helpers.option_int_source(product.total_inventory),
@@ -5099,6 +5149,61 @@ type ProductUserError {
   ProductUserError(field: List(String), message: String, code: Option(String))
 }
 
+pub const product_user_error_code_blank = "BLANK"
+
+pub const product_user_error_code_invalid = "INVALID"
+
+pub const product_user_error_code_taken = "TAKEN"
+
+pub const product_user_error_code_greater_than = "GREATER_THAN"
+
+pub const product_user_error_code_less_than = "LESS_THAN"
+
+pub const product_user_error_code_inclusion = "INCLUSION"
+
+pub const product_user_error_code_not_a_number = "NOT_A_NUMBER"
+
+pub const product_user_error_code_product_does_not_exist = "PRODUCT_DOES_NOT_EXIST"
+
+pub const product_user_error_code_product_not_found = "PRODUCT_NOT_FOUND"
+
+pub const product_user_error_code_product_variant_does_not_exist = "PRODUCT_VARIANT_DOES_NOT_EXIST"
+
+pub const product_user_error_code_invalid_inventory_item = "INVALID_INVENTORY_ITEM"
+
+pub const product_user_error_code_invalid_location = "INVALID_LOCATION"
+
+pub const product_user_error_code_invalid_name = "INVALID_NAME"
+
+pub const product_user_error_code_invalid_quantity_negative = "INVALID_QUANTITY_NEGATIVE"
+
+pub const product_user_error_code_invalid_quantity_too_high = "INVALID_QUANTITY_TOO_HIGH"
+
+pub const product_user_error_code_invalid_quantity_too_low = "INVALID_QUANTITY_TOO_LOW"
+
+fn product_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> ProductUserError {
+  ProductUserError(field, message, Some(code))
+}
+
+fn blank_product_user_error(
+  field: List(String),
+  message: String,
+) -> ProductUserError {
+  product_user_error(field, message, product_user_error_code_blank)
+}
+
+fn product_does_not_exist_user_error(field: List(String)) -> ProductUserError {
+  product_user_error(
+    field,
+    "Product does not exist",
+    product_user_error_code_product_does_not_exist,
+  )
+}
+
 type BulkVariantUserError {
   BulkVariantUserError(
     field: Option(List(String)),
@@ -5274,6 +5379,7 @@ pub fn process_mutation(
       handle_mutation_fields(
         hydrated_store,
         identity,
+        upstream.origin,
         document,
         operation_path,
         request_path,
@@ -5948,6 +6054,28 @@ fn upsert_hydrated_variant_without_product(
                   vendor: None,
                   product_type: None,
                   tags: [],
+                  price_range_min: json_money_amount_field_at(node, [
+                    "product",
+                    "priceRangeV2",
+                    "minVariantPrice",
+                  ]),
+                  price_range_max: json_money_amount_field_at(node, [
+                    "product",
+                    "priceRangeV2",
+                    "maxVariantPrice",
+                  ]),
+                  total_variants: json_int_field_at(node, [
+                    "product",
+                    "totalVariants",
+                  ]),
+                  has_only_default_variant: json_bool_field_at(node, [
+                    "product",
+                    "hasOnlyDefaultVariant",
+                  ]),
+                  has_out_of_stock_variants: json_bool_field_at(node, [
+                    "product",
+                    "hasOutOfStockVariants",
+                  ]),
                   total_inventory: json_int_field_at(node, [
                     "product",
                     "totalInventory",
@@ -6099,6 +6227,38 @@ fn upsert_hydrated_inventory_level(
           vendor: None,
           product_type: None,
           tags: [],
+          price_range_min: json_money_amount_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "priceRangeV2",
+            "minVariantPrice",
+          ]),
+          price_range_max: json_money_amount_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "priceRangeV2",
+            "maxVariantPrice",
+          ]),
+          total_variants: json_int_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "totalVariants",
+          ]),
+          has_only_default_variant: json_bool_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "hasOnlyDefaultVariant",
+          ]),
+          has_out_of_stock_variants: json_bool_field_at(node, [
+            "item",
+            "variant",
+            "product",
+            "hasOutOfStockVariants",
+          ]),
           total_inventory: json_int_field_at(node, [
             "item",
             "variant",
@@ -6198,6 +6358,33 @@ fn upsert_hydrated_inventory_item_without_variant(
           vendor: None,
           product_type: None,
           tags: [],
+          price_range_min: json_money_amount_field_at(node, [
+            "variant",
+            "product",
+            "priceRangeV2",
+            "minVariantPrice",
+          ]),
+          price_range_max: json_money_amount_field_at(node, [
+            "variant",
+            "product",
+            "priceRangeV2",
+            "maxVariantPrice",
+          ]),
+          total_variants: json_int_field_at(node, [
+            "variant",
+            "product",
+            "totalVariants",
+          ]),
+          has_only_default_variant: json_bool_field_at(node, [
+            "variant",
+            "product",
+            "hasOnlyDefaultVariant",
+          ]),
+          has_out_of_stock_variants: json_bool_field_at(node, [
+            "variant",
+            "product",
+            "hasOutOfStockVariants",
+          ]),
           total_inventory: json_int_field_at(node, [
             "variant",
             "product",
@@ -6267,6 +6454,20 @@ fn product_record_from_json(node: commit.JsonValue) -> Option(ProductRecord) {
         vendor: json_string_field(node, "vendor"),
         product_type: json_string_field(node, "productType"),
         tags: json_string_array_field(node, ["tags"]),
+        price_range_min: json_money_amount_field_at(node, [
+          "priceRangeV2",
+          "minVariantPrice",
+        ]),
+        price_range_max: json_money_amount_field_at(node, [
+          "priceRangeV2",
+          "maxVariantPrice",
+        ]),
+        total_variants: json_int_field(node, "totalVariants"),
+        has_only_default_variant: json_bool_field(node, "hasOnlyDefaultVariant"),
+        has_out_of_stock_variants: json_bool_field(
+          node,
+          "hasOutOfStockVariants",
+        ),
         total_inventory: json_int_field(node, "totalInventory"),
         tracks_inventory: json_bool_field(node, "tracksInventory"),
         created_at: json_string_field(node, "createdAt"),
@@ -6521,21 +6722,24 @@ fn product_metafield_from_json(
   case json_string_field(node, "id") {
     None -> None
     Some(id) ->
-      Some(ProductMetafieldRecord(
-        id: id,
-        owner_id: owner_id,
-        namespace: json_string_field(node, "namespace") |> option.unwrap(""),
-        key: json_string_field(node, "key") |> option.unwrap(""),
-        type_: json_string_field(node, "type"),
-        value: json_string_field(node, "value"),
-        compare_digest: json_string_field(node, "compareDigest"),
-        json_value: json_field(node, ["jsonValue"])
-          |> option.map(commit.json_value_to_json),
-        created_at: json_string_field(node, "createdAt"),
-        updated_at: json_string_field(node, "updatedAt"),
-        owner_type: json_string_field(node, "ownerType")
-          |> option.or(Some(owner_type)),
-      ))
+      Some(
+        ProductMetafieldRecord(
+          id: id,
+          owner_id: owner_id,
+          namespace: json_string_field(node, "namespace") |> option.unwrap(""),
+          key: json_string_field(node, "key") |> option.unwrap(""),
+          type_: json_string_field(node, "type"),
+          value: json_string_field(node, "value"),
+          compare_digest: json_string_field(node, "compareDigest"),
+          json_value: json_field(node, ["jsonValue"])
+            |> option.map(commit.json_value_to_json),
+          created_at: json_string_field(node, "createdAt"),
+          updated_at: json_string_field(node, "updatedAt"),
+          owner_type: json_string_field(node, "ownerType")
+            |> option.or(Some(owner_type)),
+          market_localizable_content: [],
+        ),
+      )
   }
 }
 
@@ -6755,6 +6959,14 @@ fn json_string_field_at(
     Some(commit.JsonString(value)) -> Some(value)
     _ -> None
   }
+}
+
+fn json_money_amount_field_at(
+  value: commit.JsonValue,
+  path: List(String),
+) -> Option(String) {
+  json_string_field_at(value, list.append(path, ["amount"]))
+  |> option.map(format_price_amount)
 }
 
 fn json_string_or_number_field(
@@ -7080,6 +7292,7 @@ fn non_empty_string(value: String) -> Option(String) {
 fn handle_mutation_fields(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shopify_admin_origin: String,
   document: String,
   operation_path: String,
   request_path: String,
@@ -7152,20 +7365,28 @@ fn handle_mutation_fields(
                 handle_product_create(
                   current_store,
                   current_identity,
+                  shopify_admin_origin,
                   document,
                   operation_path,
                   field,
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(store.Staged, "Gleam staged productCreate locally.")
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productCreate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productCreate locally."),
+                  Some(note),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -7382,14 +7603,21 @@ fn handle_mutation_fields(
                   fragments,
                   variables,
                 )
+              let #(entry_status, note) = case result.staging_failed {
+                False -> #(store.Staged, "Gleam staged productUpdate locally.")
+                True -> #(
+                  store.Failed,
+                  "Gleam rejected productUpdate locally with userErrors before staging.",
+                )
+              }
               let draft =
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  entry_status,
                   "products",
                   "stage-locally",
-                  Some("Gleam staged productUpdate locally."),
+                  Some(note),
                 )
               let next_errors = list.append(errors, result.top_level_errors)
               let next_entries = case result.top_level_errors {
@@ -7445,6 +7673,7 @@ fn handle_mutation_fields(
                 handle_product_set(
                   current_store,
                   current_identity,
+                  shopify_admin_origin,
                   field,
                   fragments,
                   variables,
@@ -9004,7 +9233,7 @@ fn handle_product_options_create(
               store,
               None,
               [
-                ProductUserError(["productId"], "Product does not exist", None),
+                product_does_not_exist_user_error(["productId"]),
               ],
               field,
               fragments,
@@ -9032,6 +9261,7 @@ fn handle_product_options_create(
 fn handle_product_create(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shopify_admin_origin: String,
   document: String,
   operation_path: String,
   field: Selection,
@@ -9046,9 +9276,11 @@ fn handle_product_create(
   // a misleading `["title"], "Title can't be blank"` userError when the
   // legacy shape was used; emit a structurally honest top-level error
   // instead when neither shows up at all.
-  let input = case graphql_helpers.read_arg_object(args, "product") {
-    Some(d) -> Some(d)
-    None -> graphql_helpers.read_arg_object(args, "input")
+  let #(input, input_root) = case
+    graphql_helpers.read_arg_object(args, "product")
+  {
+    Some(d) -> #(Some(d), "product")
+    None -> #(graphql_helpers.read_arg_object(args, "input"), "input")
   }
   case input {
     None -> {
@@ -9065,14 +9297,15 @@ fn handle_product_create(
     }
     Some(input) ->
       case
-        product_tags_max_input_size_errors("productCreate", "product", input)
+        product_tags_max_input_size_errors("productCreate", input_root, input)
       {
         [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
         [] -> {
-          let user_errors = product_create_validation_errors(store, input)
+          let user_errors =
+            product_create_validation_errors(store, input, input_root)
           case user_errors {
             [_, ..] ->
-              mutation_result(
+              mutation_rejected_result(
                 key,
                 product_create_payload(
                   store,
@@ -9083,12 +9316,16 @@ fn handle_product_create(
                 ),
                 store,
                 identity,
-                [],
               )
             [] -> {
               let #(product, identity_after_product) =
-                created_product_record(store, identity, input)
-              let #(options, default_variant, final_identity, graph_ids) =
+                created_product_record(
+                  store,
+                  identity,
+                  shopify_admin_origin,
+                  input,
+                )
+              let #(options, default_variant, identity_after_graph, graph_ids) =
                 make_product_create_option_graph(
                   identity_after_product,
                   product,
@@ -9101,14 +9338,13 @@ fn handle_product_create(
                 |> store.replace_staged_variants_for_product(product.id, [
                   default_variant,
                 ])
-              let synced_product =
-                ProductRecord(
-                  ..product,
-                  total_inventory: Some(0),
-                  tracks_inventory: Some(False),
+              let #(synced_product, next_store, final_identity) =
+                sync_product_inventory_summary(
+                  next_store,
+                  identity_after_graph,
+                  product.id,
                 )
-              let #(_, next_store) =
-                store.upsert_staged_product(next_store, synced_product)
+              let synced_product = synced_product |> option.unwrap(product)
               mutation_result(
                 key,
                 product_create_payload(
@@ -9163,7 +9399,7 @@ fn handle_product_options_delete(
               store,
               [],
               None,
-              [ProductUserError(["productId"], "Product not found", None)],
+              [product_does_not_exist_user_error(["productId"])],
               field,
               fragments,
             ),
@@ -9217,7 +9453,7 @@ fn handle_product_options_reorder(
             product_options_reorder_payload(
               store,
               None,
-              [ProductUserError(["productId"], "Product not found", None)],
+              [product_does_not_exist_user_error(["productId"])],
               field,
               fragments,
             ),
@@ -9302,10 +9538,10 @@ fn handle_product_change_status(
                       store,
                       None,
                       [
-                        ProductUserError(
+                        product_user_error(
                           ["productId"],
                           "Product does not exist",
-                          None,
+                          product_user_error_code_product_not_found,
                         ),
                       ],
                       field,
@@ -9433,7 +9669,9 @@ fn handle_product_update(
                 product_update_payload(
                   store,
                   None,
-                  [ProductUserError(["id"], "Product does not exist", None)],
+                  [
+                    ProductUserError(["id"], "Product does not exist", None),
+                  ],
                   field,
                   fragments,
                 ),
@@ -9449,7 +9687,9 @@ fn handle_product_update(
                     product_update_payload(
                       store,
                       None,
-                      [ProductUserError(["id"], "Product does not exist", None)],
+                      [
+                        ProductUserError(["id"], "Product does not exist", None),
+                      ],
                       field,
                       fragments,
                     ),
@@ -9458,22 +9698,21 @@ fn handle_product_update(
                     [],
                   )
                 Some(product) ->
-                  case product_update_validation_error(input) {
-                    Some(error) ->
-                      mutation_result(
+                  case product_update_validation_errors(input) {
+                    [_, ..] as validation_errors ->
+                      mutation_rejected_result(
                         key,
                         product_update_payload(
                           store,
                           Some(product),
-                          [error],
+                          validation_errors,
                           field,
                           fragments,
                         ),
                         store,
                         identity,
-                        [],
                       )
-                    None -> {
+                    [] -> {
                       let #(next_product, next_identity) =
                         updated_product_record(identity, product, input)
                       let #(_, next_store) =
@@ -9607,6 +9846,7 @@ fn handle_product_duplicate(
 fn handle_product_set(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shopify_admin_origin: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, ResolvedValue),
@@ -9658,6 +9898,7 @@ fn handle_product_set(
                         key,
                         existing,
                         input,
+                        shopify_admin_origin,
                         read_arg_bool_default_true(args, "synchronous"),
                         field,
                         variables,
@@ -9939,31 +10180,34 @@ fn product_set_product_field_errors(
   input: Dict(String, ResolvedValue),
   existing: Option(ProductRecord),
 ) -> List(ProductOperationUserErrorRecord) {
-  let maybe_error = case existing {
-    Some(_) -> product_update_validation_error(input)
-    None -> product_create_validation_error(input)
+  let scalar_errors = case existing {
+    Some(_) ->
+      product_scalar_validation_errors(input, ["input"], require_title: False)
+    None ->
+      product_scalar_validation_errors(input, ["input"], require_title: True)
   }
-  let field_errors = case maybe_error {
-    Some(ProductUserError(field: path, message: message, code: code)) -> [
-      ProductOperationUserErrorRecord(
-        field: Some(["input", ..path]),
-        message: message,
-        code: code,
-      ),
-    ]
-    None -> []
-  }
+  let tag_errors =
+    product_tags_validation_errors(input)
+    |> list.map(fn(error) {
+      let ProductUserError(field: path, message: message, code: code) = error
+      ProductUserError(field: ["input", ..path], message: message, code: code)
+    })
   let existing_id = option.map(existing, fn(product) { product.id })
   let handle_errors =
     explicit_product_handle_collision_errors(store, input, existing_id)
     |> list.map(fn(error) {
-      ProductOperationUserErrorRecord(
-        field: Some(["input", ..error.field]),
-        message: error.message,
-        code: error.code,
-      )
+      let ProductUserError(field: path, message: message, code: code) = error
+      ProductUserError(field: ["input", ..path], message: message, code: code)
     })
-  list.append(field_errors, handle_errors)
+  list.append(scalar_errors, list.append(tag_errors, handle_errors))
+  |> list.map(fn(error) {
+    let ProductUserError(field: path, message: message, code: code) = error
+    ProductOperationUserErrorRecord(
+      field: Some(path),
+      message: message,
+      code: code,
+    )
+  })
 }
 
 fn product_set_requires_variants_for_options_errors(
@@ -10209,6 +10453,7 @@ fn stage_product_set(
   key: String,
   existing: Option(ProductRecord),
   input: Dict(String, ResolvedValue),
+  shopify_admin_origin: String,
   synchronous: Bool,
   field: Selection,
   variables: Dict(String, ResolvedValue),
@@ -10218,7 +10463,7 @@ fn stage_product_set(
     Some(product) -> updated_product_record(identity, product, input)
     None -> {
       let #(created, next_identity) =
-        created_product_record(store, identity, input)
+        created_product_record(store, identity, shopify_admin_origin, input)
       #(
         ProductRecord(
           ..created,
@@ -10315,7 +10560,7 @@ fn sync_product_set_inventory_summary(
   store: Store,
   identity: SyntheticIdentityRegistry,
   product_id: String,
-  previous_product: Option(ProductRecord),
+  _previous_product: Option(ProductRecord),
 ) -> #(Option(ProductRecord), Store, SyntheticIdentityRegistry) {
   case store.get_effective_product_by_id(store, product_id) {
     None -> #(None, store, identity)
@@ -10324,44 +10569,22 @@ fn sync_product_set_inventory_summary(
         synthetic_identity.make_synthetic_timestamp(identity)
       let variants =
         store.get_effective_variants_by_product_id(store, product_id)
-      let total_inventory = case previous_product {
-        Some(previous) -> previous.total_inventory
-        None -> sum_product_set_create_inventory(variants)
-      }
+      let summary = product_derived_summary(variants)
       let next_product =
         ProductRecord(
           ..product,
-          total_inventory: total_inventory,
-          tracks_inventory: derive_tracks_inventory(variants),
+          price_range_min: summary.price_range_min,
+          price_range_max: summary.price_range_max,
+          total_variants: summary.total_variants,
+          has_only_default_variant: summary.has_only_default_variant,
+          has_out_of_stock_variants: summary.has_out_of_stock_variants,
+          total_inventory: summary.total_inventory,
+          tracks_inventory: summary.tracks_inventory,
           updated_at: Some(updated_at),
         )
       let #(_, next_store) = store.upsert_staged_product(store, next_product)
       #(Some(next_product), next_store, next_identity)
     }
-  }
-}
-
-fn sum_product_set_create_inventory(
-  variants: List(ProductVariantRecord),
-) -> Option(Int) {
-  let quantities =
-    variants
-    |> list.filter(fn(variant) {
-      case variant.inventory_item {
-        Some(item) -> item.tracked != Some(False)
-        None -> True
-      }
-    })
-    |> list.filter_map(fn(variant) {
-      case variant.inventory_quantity {
-        Some(quantity) -> Ok(quantity)
-        None -> Error(Nil)
-      }
-    })
-  case quantities {
-    [] -> None
-    _ ->
-      Some(list.fold(quantities, 0, fn(total, quantity) { total + quantity }))
   }
 }
 
@@ -16623,7 +16846,7 @@ fn handle_product_variants_bulk_reorder(
             product_variants_bulk_reorder_payload(
               store,
               None,
-              [ProductUserError(["productId"], "Product not found", None)],
+              [product_does_not_exist_user_error(["productId"])],
               field,
               fragments,
             ),
@@ -16847,40 +17070,61 @@ fn handle_inventory_activate(
     Ok(_) -> True
     Error(_) -> False
   }
-  let resolved = case inventory_item_id, location_id {
-    Some(inventory_item_id), Some(location_id) -> {
+  let variant = case inventory_item_id {
+    Some(inventory_item_id) ->
+      store.find_effective_variant_by_inventory_item_id(
+        store,
+        inventory_item_id,
+      )
+    None -> None
+  }
+  let resolved = case inventory_item_id, location_id, variant {
+    Some(_), Some(location_id), Some(variant) ->
       case
-        store.find_effective_variant_by_inventory_item_id(
-          store,
-          inventory_item_id,
-        )
+        find_inventory_level(variant_inventory_levels(variant), location_id)
       {
-        Some(variant) ->
-          case
-            find_inventory_level(variant_inventory_levels(variant), location_id)
-          {
-            Some(level) -> Some(#(variant, level))
-            None -> None
-          }
+        Some(level) -> Some(#(variant, level))
         None -> None
       }
-    }
-    _, _ -> None
+    _, _, _ -> None
   }
-  let user_errors = case resolved, available_supplied {
-    Some(#(_, level)), True -> {
-      case inventory_level_is_active(level) {
-        True -> [
-          ProductUserError(
-            ["available"],
-            "Not allowed to set available quantity when the item is already active at the location.",
-            None,
-          ),
-        ]
-        False -> []
+  let user_errors = case inventory_item_id, location_id, variant {
+    None, _, _ -> [
+      product_user_error(
+        ["inventoryItemId"],
+        "Inventory item does not exist",
+        product_user_error_code_invalid_inventory_item,
+      ),
+    ]
+    Some(_), _, None -> [
+      product_user_error(
+        ["inventoryItemId"],
+        "Inventory item does not exist",
+        product_user_error_code_invalid_inventory_item,
+      ),
+    ]
+    _, None, _ -> [
+      product_user_error(
+        ["locationId"],
+        "Location does not exist",
+        product_user_error_code_invalid_location,
+      ),
+    ]
+    _, _, _ ->
+      case resolved, available_supplied {
+        Some(#(_, level)), True ->
+          case inventory_level_is_active(level) {
+            True -> [
+              ProductUserError(
+                ["available"],
+                "Not allowed to set available quantity when the item is already active at the location.",
+                None,
+              ),
+            ]
+            False -> []
+          }
+        _, _ -> []
       }
-    }
-    _, _ -> []
   }
   let activation_result = case resolved, user_errors {
     Some(#(variant, level)), [] -> {
@@ -17504,48 +17748,196 @@ fn handle_inventory_move_quantities(
   }
 }
 
-fn product_update_validation_error(
-  input: Dict(String, ResolvedValue),
-) -> Option(ProductUserError) {
-  case read_string_field(input, "title") {
-    Some(title) ->
-      case string.length(string.trim(title)) == 0 {
-        True -> Some(ProductUserError(["title"], "Title can't be blank", None))
-        False -> product_update_handle_validation_error(input)
-      }
-    None -> product_update_handle_validation_error(input)
-  }
-}
-
 fn product_create_validation_errors(
   store: Store,
   input: Dict(String, ResolvedValue),
+  input_root: String,
 ) -> List(ProductUserError) {
-  let product_errors = case product_create_validation_error(input) {
-    Some(error) -> [error]
-    None -> []
+  let field_prefix = case input_root {
+    "input" -> ["input"]
+    _ -> []
   }
-
   let handle_errors =
     explicit_product_handle_collision_errors(store, input, None)
     |> list.map(fn(error) {
-      ProductUserError(["input", ..error.field], error.message, error.code)
+      let ProductUserError(field: path, message: message, code: code) = error
+      ProductUserError(field: ["input", ..path], message: message, code: code)
     })
-  product_errors
-  |> list.append(product_create_variant_errors(input))
-  |> list.append(handle_errors)
+  list.append(
+    product_scalar_validation_errors(input, field_prefix, require_title: True),
+    list.append(
+      product_tags_validation_errors(input),
+      list.append(product_create_variant_errors(input), handle_errors),
+    ),
+  )
 }
 
-fn product_create_validation_error(
+fn product_update_validation_errors(
   input: Dict(String, ResolvedValue),
-) -> Option(ProductUserError) {
+) -> List(ProductUserError) {
+  list.append(
+    product_scalar_validation_errors(input, [], require_title: False),
+    product_tags_validation_errors(input),
+  )
+}
+
+fn product_scalar_validation_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  require_title require_title: Bool,
+) -> List(ProductUserError) {
+  list.append(
+    product_title_validation_errors(
+      input,
+      field_prefix,
+      require_missing: require_title,
+    ),
+    list.append(
+      product_string_length_validation_errors(input, field_prefix),
+      product_description_html_validation_errors(input, field_prefix),
+    ),
+  )
+}
+
+fn product_title_validation_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  require_missing require_missing: Bool,
+) -> List(ProductUserError) {
   case read_string_field(input, "title") {
-    Some(title) ->
-      case string.length(string.trim(title)) == 0 {
-        True -> Some(ProductUserError(["title"], "Title can't be blank", None))
-        False -> product_create_handle_validation_error(input)
+    Some(value) ->
+      case string.length(string.trim(value)) == 0 {
+        True -> [
+          blank_product_user_error(
+            list.append(field_prefix, ["title"]),
+            "Title can't be blank",
+          ),
+        ]
+        False -> []
       }
-    None -> Some(ProductUserError(["title"], "Title can't be blank", None))
+    None ->
+      case require_missing {
+        True -> [
+          blank_product_user_error(
+            list.append(field_prefix, ["title"]),
+            "Title can't be blank",
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn product_string_length_validation_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+) -> List(ProductUserError) {
+  list.append(
+    product_string_length_validation_error(
+      input,
+      field_prefix,
+      "title",
+      "Title",
+    ),
+    list.append(
+      product_string_length_validation_error(
+        input,
+        field_prefix,
+        "handle",
+        "Handle",
+      ),
+      list.append(
+        product_string_length_validation_error(
+          input,
+          field_prefix,
+          "vendor",
+          "Vendor",
+        ),
+        list.append(
+          product_string_length_validation_error(
+            input,
+            field_prefix,
+            "productType",
+            "Product type",
+          ),
+          list.append(
+            product_string_length_validation_error(
+              input,
+              field_prefix,
+              "customProductType",
+              "Custom product type",
+            ),
+            mirrored_custom_product_type_length_errors(input, field_prefix),
+          ),
+        ),
+      ),
+    ),
+  )
+}
+
+fn mirrored_custom_product_type_length_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+) -> List(ProductUserError) {
+  case read_string_field(input, "customProductType") {
+    Some(_) -> []
+    None ->
+      case read_string_field(input, "productType") {
+        Some(value) ->
+          case string.length(value) > product_string_character_limit {
+            True -> [
+              ProductUserError(
+                list.append(field_prefix, ["customProductType"]),
+                "Custom product type is too long (maximum is 255 characters)",
+                None,
+              ),
+            ]
+            False -> []
+          }
+        None -> []
+      }
+  }
+}
+
+fn product_string_length_validation_error(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+  field_name: String,
+  label: String,
+) -> List(ProductUserError) {
+  case read_string_field(input, field_name) {
+    Some(value) ->
+      case string.length(value) > product_string_character_limit {
+        True -> [
+          ProductUserError(
+            list.append(field_prefix, [field_name]),
+            label <> " is too long (maximum is 255 characters)",
+            None,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn product_description_html_validation_errors(
+  input: Dict(String, ResolvedValue),
+  field_prefix: List(String),
+) -> List(ProductUserError) {
+  case read_string_field(input, "descriptionHtml") {
+    Some(value) ->
+      case string.byte_size(value) > product_description_html_limit_bytes {
+        True -> [
+          ProductUserError(
+            list.append(field_prefix, ["bodyHtml"]),
+            "Body (HTML) is too big (maximum is 512 KB)",
+            None,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
   }
 }
 
@@ -17563,39 +17955,32 @@ fn product_create_variant_errors(
   })
 }
 
-fn product_create_handle_validation_error(
+fn product_tags_validation_errors(
   input: Dict(String, ResolvedValue),
-) -> Option(ProductUserError) {
-  case read_explicit_product_handle(input) {
-    Some(handle) ->
-      case string.length(handle) > 255 {
-        True ->
-          Some(ProductUserError(
-            ["handle"],
-            "Handle is too long (maximum is 255 characters)",
-            None,
-          ))
-        False -> product_tags_validation_error(input)
+) -> List(ProductUserError) {
+  case read_string_list_field(input, "tags") {
+    Some(tags) ->
+      case product_tag_values_validation_error(tags) {
+        Some(error) -> [error]
+        None -> []
       }
-    None -> product_tags_validation_error(input)
+    None -> []
   }
 }
 
-fn product_update_handle_validation_error(
-  input: Dict(String, ResolvedValue),
+fn product_tag_values_validation_error(
+  tags: List(String),
 ) -> Option(ProductUserError) {
-  case read_string_field(input, "handle") {
-    Some(handle) ->
-      case string.length(handle) > 255 {
-        True ->
-          Some(ProductUserError(
-            ["handle"],
-            "Handle is too long (maximum is 255 characters)",
-            None,
-          ))
-        False -> product_tags_validation_error(input)
+  case
+    list.any(tags, fn(tag) {
+      case trimmed_non_empty(tag) {
+        Ok(trimmed) -> string.length(trimmed) > product_tag_character_limit
+        Error(_) -> False
       }
-    None -> product_tags_validation_error(input)
+    })
+  {
+    True -> Some(ProductUserError(["tags"], "Product tags is invalid", None))
+    False -> None
   }
 }
 
@@ -17622,38 +18007,11 @@ fn explicit_product_handle_collision_errors(
   }
 }
 
-fn product_tags_validation_error(
-  input: Dict(String, ResolvedValue),
-) -> Option(ProductUserError) {
-  case read_string_list_field(input, "tags") {
-    Some(tags) -> product_tag_values_validation_error(tags)
-    None -> None
-  }
-}
-
-fn product_tag_values_validation_error(
-  tags: List(String),
-) -> Option(ProductUserError) {
-  case
-    list.any(tags, fn(tag) {
-      case trimmed_non_empty(tag) {
-        Ok(trimmed) -> string.length(trimmed) > product_tag_character_limit
-        Error(_) -> False
-      }
-    })
-  {
-    True -> Some(ProductUserError(["tags"], "Product tags is invalid", None))
-    False -> None
-  }
-}
-
 fn collection_create_validation_errors(
   input: Dict(String, ResolvedValue),
 ) -> List(ProductUserError) {
   let title_errors = case read_non_empty_string_field(input, "title") {
-    None -> [
-      ProductUserError(["input", "title"], "Collection title is required", None),
-    ]
+    None -> [blank_product_user_error(["title"], "Title can't be blank")]
     Some(title) -> collection_title_validation_errors(title)
   }
   list.append(title_errors, collection_handle_validation_errors(input))
@@ -22598,6 +22956,72 @@ fn trimmed_non_empty(value: String) -> Result(String, Nil) {
   }
 }
 
+fn product_vendor_for_create(
+  store: Store,
+  shopify_admin_origin: String,
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  read_non_empty_string_field(input, "vendor")
+  |> option.or(default_product_vendor(store, shopify_admin_origin))
+}
+
+fn default_product_vendor(
+  store: Store,
+  shopify_admin_origin: String,
+) -> Option(String) {
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      case trimmed_non_empty(shop.name) {
+        Ok(name) -> Some(name)
+        Error(_) -> vendor_from_shop_domain(shop.myshopify_domain)
+      }
+    None -> vendor_from_shopify_admin_origin(shopify_admin_origin)
+  }
+}
+
+fn vendor_from_shopify_admin_origin(origin: String) -> Option(String) {
+  let host = host_from_origin(origin)
+  case vendor_from_shop_domain(host) {
+    Some(vendor) -> Some(vendor)
+    None -> store_slug_from_admin_origin(origin)
+  }
+}
+
+fn host_from_origin(origin: String) -> String {
+  let without_scheme = case string.split(origin, "://") {
+    [_, rest] -> rest
+    [rest] -> rest
+    _ -> origin
+  }
+  case string.split(without_scheme, "/") {
+    [host, ..] -> host
+    [] -> without_scheme
+  }
+}
+
+fn vendor_from_shop_domain(domain: String) -> Option(String) {
+  case string.split(domain, ".") {
+    [subdomain, "myshopify", "com"] ->
+      trimmed_non_empty(subdomain) |> option.from_result
+    _ -> None
+  }
+}
+
+fn store_slug_from_admin_origin(origin: String) -> Option(String) {
+  origin
+  |> string.split("/")
+  |> segment_after_store
+  |> option.then(fn(slug) { trimmed_non_empty(slug) |> option.from_result })
+}
+
+fn segment_after_store(segments: List(String)) -> Option(String) {
+  case segments {
+    ["store", slug, ..] -> Some(slug)
+    [_, ..rest] -> segment_after_store(rest)
+    [] -> None
+  }
+}
+
 fn normalize_product_tags(tags: List(String)) -> List(String) {
   let #(reversed, _) =
     tags
@@ -22704,11 +23128,10 @@ fn updated_product_record(
 fn created_product_record(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  shopify_admin_origin: String,
   input: Dict(String, ResolvedValue),
 ) -> #(ProductRecord, SyntheticIdentityRegistry) {
-  let title =
-    read_non_empty_string_field(input, "title")
-    |> option.unwrap("Untitled product")
+  let assert Some(title) = read_non_empty_string_field(input, "title")
   let #(created_at, identity_after_timestamp) =
     synthetic_identity.make_synthetic_timestamp(identity)
   let #(id, next_identity) =
@@ -22731,11 +23154,16 @@ fn created_product_record(
       title: title,
       handle: handle,
       status: read_product_status_field(input) |> option.unwrap("ACTIVE"),
-      vendor: read_string_field(input, "vendor"),
+      vendor: product_vendor_for_create(store, shopify_admin_origin, input),
       product_type: read_string_field(input, "productType"),
       tags: read_string_list_field(input, "tags")
         |> option.map(normalize_product_tags)
         |> option.unwrap([]),
+      price_range_min: None,
+      price_range_max: None,
+      total_variants: None,
+      has_only_default_variant: None,
+      has_out_of_stock_variants: None,
       total_inventory: Some(0),
       tracks_inventory: Some(False),
       created_at: Some(created_at),
@@ -23400,6 +23828,10 @@ fn product_set_metafield_records(
             metafield.updated_at
           }),
           owner_type: Some("PRODUCT"),
+          market_localizable_content: option.map(existing, fn(metafield) {
+            metafield.market_localizable_content
+          })
+            |> option.unwrap([]),
         )
       #([metafield, ..records], next_identity, list.append(collected_ids, ids))
     })
@@ -23990,7 +24422,7 @@ fn make_default_variant_for_options(
       title: variant_title(selected_options),
       sku: None,
       barcode: None,
-      price: None,
+      price: Some("0.00"),
       compare_at_price: None,
       taxable: None,
       inventory_policy: None,
@@ -24065,7 +24497,7 @@ fn make_default_variant_record(
       title: "Default Title",
       sku: None,
       barcode: None,
-      price: None,
+      price: Some("0.00"),
       compare_at_price: None,
       taxable: None,
       inventory_policy: None,
@@ -25430,11 +25862,32 @@ fn clone_default_inventory_item(
   item: Option(InventoryItemRecord),
 ) -> #(Option(InventoryItemRecord), SyntheticIdentityRegistry) {
   case item {
-    None -> #(None, identity)
+    None -> {
+      let #(id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "InventoryItem")
+      #(
+        Some(
+          InventoryItemRecord(
+            id: id,
+            tracked: Some(False),
+            requires_shipping: Some(True),
+            measurement: None,
+            country_code_of_origin: None,
+            province_code_of_origin: None,
+            harmonized_system_code: None,
+            inventory_levels: [],
+          ),
+        ),
+        next_identity,
+      )
+    }
     Some(item) -> {
       let #(id, next_identity) =
         synthetic_identity.make_synthetic_gid(identity, "InventoryItem")
-      #(Some(InventoryItemRecord(..item, id: id)), next_identity)
+      #(
+        Some(InventoryItemRecord(..item, id: id, tracked: Some(True))),
+        next_identity,
+      )
     }
   }
 }
@@ -25489,11 +25942,17 @@ fn apply_inventory_adjust_quantities(
           reference_document_uri,
           list.append(adjusted_changes, mirrored_changes),
         )
+      let #(synced_store, synced_identity, product_ids) =
+        sync_product_summaries_for_inventory_group(
+          next_store,
+          next_identity,
+          group,
+        )
       Ok(#(
-        next_store,
-        next_identity,
+        synced_store,
+        synced_identity,
         group,
-        inventory_adjustment_staged_ids(group),
+        list.append(inventory_adjustment_staged_ids(group), product_ids),
       ))
     }
   }
@@ -25578,11 +26037,17 @@ fn apply_inventory_set_quantities(
               reference_document_uri,
               list.append(changes, mirrored_changes),
             )
+          let #(synced_store, synced_identity, product_ids) =
+            sync_product_summaries_for_inventory_group(
+              next_store,
+              next_identity,
+              group,
+            )
           Ok(#(
-            next_store,
-            next_identity,
+            synced_store,
+            synced_identity,
             group,
-            inventory_adjustment_staged_ids(group),
+            list.append(inventory_adjustment_staged_ids(group), product_ids),
           ))
         }
       }
@@ -25849,21 +26314,21 @@ fn inventory_set_quantity_bounds_errors(
       ProductUserError(
         list.append(path, ["quantity"]),
         "The quantity can't be higher than 1,000,000,000.",
-        Some("INVALID_QUANTITY_TOO_HIGH"),
+        Some(product_user_error_code_invalid_quantity_too_high),
       ),
     ]
     quantity if quantity < min_inventory_quantity -> [
       ProductUserError(
         list.append(path, ["quantity"]),
         "The quantity can't be lower than -1,000,000,000.",
-        Some("INVALID_QUANTITY_TOO_LOW"),
+        Some(product_user_error_code_invalid_quantity_too_low),
       ),
     ]
     quantity if quantity < 0 -> [
       ProductUserError(
         list.append(path, ["quantity"]),
         "The quantity can't be negative.",
-        Some("INVALID_QUANTITY_NEGATIVE"),
+        Some(product_user_error_code_invalid_quantity_negative),
       ),
     ]
     _ -> []
@@ -25879,14 +26344,14 @@ fn inventory_quantity_bounds_errors(
       ProductUserError(
         path,
         "The quantity can't be higher than 1,000,000,000.",
-        Some("INVALID_QUANTITY_TOO_HIGH"),
+        Some(product_user_error_code_invalid_quantity_too_high),
       ),
     ]
     quantity if quantity < min_inventory_quantity -> [
       ProductUserError(
         path,
         "The quantity can't be lower than -1,000,000,000.",
-        Some("INVALID_QUANTITY_TOO_LOW"),
+        Some(product_user_error_code_invalid_quantity_too_low),
       ),
     ]
     _ -> []
@@ -26069,11 +26534,17 @@ fn apply_inventory_move_quantities(
           reference_document_uri,
           adjustment_changes,
         )
+      let #(synced_store, synced_identity, product_ids) =
+        sync_product_summaries_for_inventory_group(
+          next_store,
+          next_identity,
+          group,
+        )
       Ok(#(
-        next_store,
-        next_identity,
+        synced_store,
+        synced_identity,
         group,
-        inventory_adjustment_staged_ids(group),
+        list.append(inventory_adjustment_staged_ids(group), product_ids),
       ))
     }
   }
@@ -26331,6 +26802,36 @@ fn inventory_adjustment_staged_ids(
       list.map(group.changes, fn(change) { change.inventory_item_id }),
     )
   ]
+}
+
+fn sync_product_summaries_for_inventory_group(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  group: InventoryAdjustmentGroup,
+) -> #(Store, SyntheticIdentityRegistry, List(String)) {
+  let product_ids =
+    group.changes
+    |> list.filter_map(fn(change) {
+      store.find_effective_variant_by_inventory_item_id(
+        store,
+        change.inventory_item_id,
+      )
+      |> option.to_result(Nil)
+      |> result.map(fn(variant) { variant.product_id })
+    })
+    |> dedupe_preserving_order
+  let #(next_store, next_identity) =
+    list.fold(product_ids, #(store, identity), fn(acc, product_id) {
+      let #(current_store, current_identity) = acc
+      let #(_, synced_store, synced_identity) =
+        sync_product_inventory_summary(
+          current_store,
+          current_identity,
+          product_id,
+        )
+      #(synced_store, synced_identity)
+    })
+  #(next_store, next_identity, product_ids)
 }
 
 fn inventory_activate_staged_ids(
@@ -26664,7 +27165,7 @@ fn invalid_inventory_set_quantity_name_error() -> ProductUserError {
   ProductUserError(
     ["input", "name"],
     "The quantity name must be either 'available' or 'on_hand'.",
-    Some("INVALID_NAME"),
+    Some(product_user_error_code_invalid_name),
   )
 }
 
@@ -26761,11 +27262,17 @@ fn sync_product_inventory_summary(
         synthetic_identity.make_synthetic_timestamp(identity)
       let variants =
         store.get_effective_variants_by_product_id(store, product_id)
+      let summary = product_derived_summary(variants)
       let next_product =
         ProductRecord(
           ..product,
-          total_inventory: sum_variant_inventory(variants),
-          tracks_inventory: derive_tracks_inventory(variants),
+          price_range_min: summary.price_range_min,
+          price_range_max: summary.price_range_max,
+          total_variants: summary.total_variants,
+          has_only_default_variant: summary.has_only_default_variant,
+          has_out_of_stock_variants: summary.has_out_of_stock_variants,
+          total_inventory: summary.total_inventory,
+          tracks_inventory: summary.tracks_inventory,
           updated_at: Some(updated_at),
         )
       let #(_, next_store) = store.upsert_staged_product(store, next_product)
@@ -26774,44 +27281,155 @@ fn sync_product_inventory_summary(
   }
 }
 
-fn sum_variant_inventory(variants: List(ProductVariantRecord)) -> Option(Int) {
-  let quantities =
-    list.filter_map(variants, fn(variant) {
-      case variant.inventory_quantity {
-        Some(quantity) -> Ok(quantity)
-        None -> Error(Nil)
+type ProductDerivedSummary {
+  ProductDerivedSummary(
+    price_range_min: Option(String),
+    price_range_max: Option(String),
+    total_variants: Option(Int),
+    has_only_default_variant: Option(Bool),
+    has_out_of_stock_variants: Option(Bool),
+    total_inventory: Option(Int),
+    tracks_inventory: Option(Bool),
+  )
+}
+
+fn product_derived_summary(
+  variants: List(ProductVariantRecord),
+) -> ProductDerivedSummary {
+  let tracked_variants = list.filter(variants, variant_tracks_inventory)
+  ProductDerivedSummary(
+    price_range_min: min_variant_price_amount(variants),
+    price_range_max: max_variant_price_amount(variants),
+    total_variants: Some(list.length(variants)),
+    has_only_default_variant: Some(has_only_default_variant(variants)),
+    has_out_of_stock_variants: Some(
+      list.any(tracked_variants, fn(variant) {
+        variant_available_quantity(variant) <= 0
+      }),
+    ),
+    total_inventory: Some(
+      list.fold(tracked_variants, 0, fn(total, variant) {
+        total + variant_available_quantity(variant)
+      }),
+    ),
+    tracks_inventory: Some(!list.is_empty(tracked_variants)),
+  )
+}
+
+fn min_variant_price_amount(
+  variants: List(ProductVariantRecord),
+) -> Option(String) {
+  variant_prices(variants)
+  |> list.sort(compare_variant_price)
+  |> list.first
+  |> result.map(fn(price) { price.1 })
+  |> option.from_result
+}
+
+fn max_variant_price_amount(
+  variants: List(ProductVariantRecord),
+) -> Option(String) {
+  variant_prices(variants)
+  |> list.sort(compare_variant_price)
+  |> list.last
+  |> result.map(fn(price) { price.1 })
+  |> option.from_result
+}
+
+fn variant_prices(
+  variants: List(ProductVariantRecord),
+) -> List(#(Float, String)) {
+  variants
+  |> list.filter_map(fn(variant) {
+    case variant.price {
+      Some(price) ->
+        case parse_price_amount(price) {
+          Ok(value) -> Ok(#(value, format_price_amount(price)))
+          Error(_) -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn parse_price_amount(amount: String) -> Result(Float, Nil) {
+  case float.parse(amount) {
+    Ok(value) -> Ok(value)
+    Error(_) ->
+      case int.parse(amount) {
+        Ok(value) -> Ok(int.to_float(value))
+        Error(_) -> Error(Nil)
       }
-    })
-  case quantities {
-    [] -> None
-    _ ->
-      Some(list.fold(quantities, 0, fn(total, quantity) { total + quantity }))
   }
 }
 
-fn derive_tracks_inventory(
-  variants: List(ProductVariantRecord),
-) -> Option(Bool) {
-  let tracked_values =
-    list.filter_map(variants, fn(variant) {
-      case variant.inventory_item {
-        Some(item) ->
-          case item.tracked {
-            Some(tracked) -> Ok(tracked)
-            None -> Error(Nil)
-          }
-        None -> Error(Nil)
+fn compare_variant_price(left: #(Float, String), right: #(Float, String)) {
+  case left.0 <. right.0 {
+    True -> order.Lt
+    False ->
+      case left.0 >. right.0 {
+        True -> order.Gt
+        False -> order.Eq
       }
-    })
-  case tracked_values {
-    [] ->
-      case
-        list.any(variants, fn(variant) { variant.inventory_quantity != None })
-      {
-        True -> Some(True)
-        False -> None
+  }
+}
+
+fn has_only_default_variant(variants: List(ProductVariantRecord)) -> Bool {
+  case variants {
+    [variant] ->
+      variant.selected_options
+      == [
+        ProductVariantSelectedOptionRecord(
+          name: "Title",
+          value: "Default Title",
+        ),
+      ]
+    _ -> False
+  }
+}
+
+fn variant_tracks_inventory(variant: ProductVariantRecord) -> Bool {
+  case variant.inventory_item {
+    Some(item) ->
+      case item.tracked {
+        Some(True) -> True
+        Some(False) -> False
+        None -> variant.inventory_quantity != None
       }
-    _ -> Some(list.any(tracked_values, fn(tracked) { tracked }))
+    None -> False
+  }
+}
+
+fn variant_available_quantity(variant: ProductVariantRecord) -> Int {
+  case variant.inventory_item {
+    Some(item) ->
+      case item.inventory_levels {
+        [] -> option.unwrap(variant.inventory_quantity, 0)
+        levels ->
+          levels
+          |> active_inventory_levels
+          |> list.fold(0, fn(total, level) {
+            total + inventory_quantity_amount(level.quantities, "available")
+          })
+      }
+    None -> option.unwrap(variant.inventory_quantity, 0)
+  }
+}
+
+fn format_price_amount(amount: String) -> String {
+  let trimmed = string.trim(amount)
+  case string.split(trimmed, on: ".") {
+    [whole] -> whole <> ".00"
+    [whole, cents, ..] -> whole <> "." <> two_digit_cents(cents)
+    _ -> trimmed
+  }
+}
+
+fn two_digit_cents(cents: String) -> String {
+  case string.length(cents) {
+    0 -> "00"
+    1 -> cents <> "0"
+    _ -> string.slice(cents, 0, 2)
   }
 }
 

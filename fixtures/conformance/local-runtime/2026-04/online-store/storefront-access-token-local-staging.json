@@ -103,9 +103,31 @@
             "storefrontAccessToken": {
               "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
               "title": "Headless preview",
-              "accessToken": "shpat_redacted",
-              "accessScopes": []
+              "accessToken": "shpat_bcc6fd83f41123b4",
+              "accessScopes": [
+                { "handle": "unauthenticated_read_product_listings" },
+                { "handle": "unauthenticated_read_product_inventory" }
+              ]
             },
+            "userErrors": []
+          }
+        }
+      }
+    },
+    "createShape": {
+      "response": {
+        "data": {
+          "storefrontAccessTokenCreate": {
+            "storefrontAccessToken": {
+              "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
+              "title": "Headless preview",
+              "accessToken": "shpat_redacted",
+              "accessScopes": [
+                { "handle": "unauthenticated_read_product_listings" },
+                { "handle": "unauthenticated_read_product_inventory" }
+              ]
+            },
+            "shop": { "id": "gid://shopify/Shop/92891250994" },
             "userErrors": []
           }
         }
@@ -122,7 +144,10 @@
                   "id": "gid://shopify/StorefrontAccessToken/1?shopify-draft-proxy=synthetic",
                   "title": "Headless preview",
                   "accessToken": "shpat_redacted",
-                  "accessScopes": []
+                  "accessScopes": [
+                    { "handle": "unauthenticated_read_product_listings" },
+                    { "handle": "unauthenticated_read_product_inventory" }
+                  ]
                 }
               ],
               "pageInfo": {
@@ -214,7 +239,7 @@
     "notes": [
       "Live 2026-04 safe-read probe confirmed Shopify returns an empty shop.storefrontAccessTokens connection with empty nodes and null cursors when no storefront tokens are visible to the app.",
       "The current live credential returns ACCESS_DENIED for storefrontAccessTokenCreate, so successful create/delete cannot be captured without an additional write storefront access token scope.",
-      "The executable proxy parity request proves the local staged lifecycle exposed by HAR-452: create returns a redacted token, downstream shop.storefrontAccessTokens exposes the staged token with the same redacted value, delete returns the deleted ID, and the downstream connection returns empty nodes with null cursors."
+      "The executable proxy parity request proves the local staged lifecycle exposed by HAR-452 and HAR-584: create returns a deterministic shpat_ token once, downstream shop.storefrontAccessTokens exposes the staged token with a redacted value and non-empty storefront scopes, delete returns the deleted ID, and the downstream connection returns empty nodes with null cursors."
     ]
   },
   "upstreamCalls": []

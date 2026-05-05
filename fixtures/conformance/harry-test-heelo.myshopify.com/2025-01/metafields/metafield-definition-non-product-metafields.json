@@ -1,0 +1,994 @@
+{
+  "capturedAt": "2026-05-05T12:41:04.406Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "namespaces": {
+    "customer": "har691_value_customer_mosma2dg",
+    "order": "har691_value_order_mosma2dg",
+    "company": "har691_value_company_mosma2dg"
+  },
+  "captures": [
+    {
+      "label": "customerCreate owner setup",
+      "request": {
+        "query": "mutation CustomerCreateParityPlan($input: CustomerInput!) {\n  customerCreate(input: $input) {\n    customer {\n      id\n      firstName\n      lastName\n      displayName\n      email\n      locale\n      note\n      verifiedEmail\n      taxExempt\n      taxExemptions\n      tags\n      state\n      canDelete\n      loyalty: metafield(namespace: \"custom\", key: \"loyalty\") {\n        id\n        namespace\n        key\n        type\n        value\n      }\n      metafields(first: 5) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n        }\n        pageInfo {\n          hasNextPage\n          hasPreviousPage\n          startCursor\n          endCursor\n        }\n      }\n      defaultEmailAddress {\n        emailAddress\n      }\n      defaultPhoneNumber {\n        phoneNumber\n      }\n      defaultAddress {\n        address1\n        city\n        province\n        country\n        zip\n        formattedArea\n      }\n      createdAt\n      updatedAt\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "email": "har691-metafields-mosma2dg@example.com",
+            "firstName": "Hermes",
+            "lastName": "Create",
+            "locale": "en",
+            "note": "customer create parity probe",
+            "tags": ["parity", "create"],
+            "taxExempt": true
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerCreate": {
+            "customer": {
+              "id": "gid://shopify/Customer/10581369717042",
+              "firstName": "Hermes",
+              "lastName": "Create",
+              "displayName": "Hermes Create",
+              "email": "har691-metafields-mosma2dg@example.com",
+              "locale": "en",
+              "note": "customer create parity probe",
+              "verifiedEmail": true,
+              "taxExempt": true,
+              "taxExemptions": [],
+              "tags": ["create", "parity"],
+              "state": "DISABLED",
+              "canDelete": true,
+              "loyalty": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "defaultEmailAddress": {
+                "emailAddress": "har691-metafields-mosma2dg@example.com"
+              },
+              "defaultPhoneNumber": null,
+              "defaultAddress": null,
+              "createdAt": "2026-05-05T12:41:00Z",
+              "updatedAt": "2026-05-05T12:41:00Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 18,
+            "actualQueryCost": 18,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1982,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionCreate CUSTOMER for metafieldsSet",
+      "request": {
+        "query": "mutation MetafieldDefinitionNonProductCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n      validationStatus\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "name": "HAR-691 Customer Value",
+            "namespace": "har691_value_customer_mosma2dg",
+            "key": "value",
+            "ownerType": "CUSTOMER",
+            "type": "single_line_text_field",
+            "description": "Temporary HAR-691 customer value definition"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206605844786",
+              "name": "HAR-691 Customer Value",
+              "namespace": "har691_value_customer_mosma2dg",
+              "key": "value",
+              "ownerType": "CUSTOMER",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Temporary HAR-691 customer value definition",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "CUSTOMER metafieldsSet",
+      "request": {
+        "query": "mutation MetafieldDefinitionNonProductMetafieldsSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      ownerType\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Customer/10581369717042",
+              "namespace": "har691_value_customer_mosma2dg",
+              "key": "value",
+              "type": "single_line_text_field",
+              "value": "CUSTOMER metafieldsSet value"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/43096355078450",
+                "namespace": "har691_value_customer_mosma2dg",
+                "key": "value",
+                "type": "single_line_text_field",
+                "value": "CUSTOMER metafieldsSet value",
+                "ownerType": "CUSTOMER"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "customer metafield read after set",
+      "request": {
+        "query": "query MetafieldDefinitionNonProductCustomerMetafieldsRead($id: ID!, $namespace: String!, $key: String!) {\n  customer(id: $id) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Customer/10581369717042",
+          "namespace": "har691_value_customer_mosma2dg",
+          "key": "value"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customer": {
+            "id": "gid://shopify/Customer/10581369717042",
+            "metafield": {
+              "id": "gid://shopify/Metafield/43096355078450",
+              "namespace": "har691_value_customer_mosma2dg",
+              "key": "value",
+              "type": "single_line_text_field",
+              "value": "CUSTOMER metafieldsSet value"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/43096355078450",
+                  "namespace": "har691_value_customer_mosma2dg",
+                  "key": "value",
+                  "type": "single_line_text_field",
+                  "value": "CUSTOMER metafieldsSet value"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "orderCreate owner setup",
+      "request": {
+        "query": "mutation OrderCreateParityPlan($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n  orderCreate(order: $order, options: $options) {\n    order {\n      id\n      name\n      email\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      customAttributes {\n        key\n        value\n      }\n      billingAddress {\n        firstName\n        lastName\n        address1\n        city\n        provinceCode\n        countryCodeV2\n        zip\n      }\n      shippingAddress {\n        firstName\n        lastName\n        address1\n        city\n        provinceCode\n        countryCodeV2\n        zip\n      }\n      currentTotalPriceSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalTaxSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      totalDiscountsSet {\n        shopMoney {\n          amount\n          currencyCode\n        }\n      }\n      discountCodes\n      shippingLines(first: 5) {\n        nodes {\n          title\n          code\n          source\n          originalPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n          }\n          taxLines {\n            title\n            rate\n            priceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n      lineItems(first: 5) {\n        nodes {\n          id\n          title\n          quantity\n          sku\n          variantTitle\n          variant {\n            id\n          }\n          originalUnitPriceSet {\n            shopMoney {\n              amount\n              currencyCode\n            }\n            presentmentMoney {\n              amount\n              currencyCode\n            }\n          }\n          taxLines {\n            title\n            rate\n            priceSet {\n              shopMoney {\n                amount\n                currencyCode\n              }\n            }\n          }\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}\n",
+        "variables": {
+          "order": {
+            "email": "har691-order-metafields-mosma2dg@example.com",
+            "note": "HAR-691 non-product metafields mosma2dg",
+            "tags": ["parity-plan", "order-create"],
+            "test": true,
+            "currency": "USD",
+            "fulfillmentStatus": "FULFILLED",
+            "discountCode": {
+              "itemFixedDiscountCode": {
+                "code": "SAVE5",
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "5.00",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            },
+            "customAttributes": [
+              {
+                "key": "source",
+                "value": "hermes-parity-plan"
+              },
+              {
+                "key": "channel",
+                "value": "cron-orders-bootstrap"
+              }
+            ],
+            "billingAddress": {
+              "firstName": "Hermes",
+              "lastName": "Operator",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9",
+              "phone": "+14165550101"
+            },
+            "shippingAddress": {
+              "firstName": "Hermes",
+              "lastName": "Operator",
+              "address1": "123 Queen St W",
+              "city": "Toronto",
+              "provinceCode": "ON",
+              "countryCode": "CA",
+              "zip": "M5H 2M9",
+              "phone": "+14165550101"
+            },
+            "shippingLines": [
+              {
+                "title": "Standard",
+                "code": "STANDARD",
+                "source": "hermes-parity-plan",
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "5.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "taxLines": [
+                  {
+                    "title": "Shipping tax",
+                    "rate": 0.1,
+                    "priceSet": {
+                      "shopMoney": {
+                        "amount": "0.50",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                ]
+              }
+            ],
+            "lineItems": [
+              {
+                "variantId": "gid://shopify/ProductVariant/48540157378793",
+                "title": "Hermes inventory-backed line item",
+                "quantity": 2,
+                "priceSet": {
+                  "shopMoney": {
+                    "amount": "20.00",
+                    "currencyCode": "USD"
+                  }
+                },
+                "requiresShipping": true,
+                "taxable": true,
+                "sku": "hermes-order-parity-plan-20260418",
+                "taxLines": [
+                  {
+                    "title": "Line tax",
+                    "rate": 0.05,
+                    "priceSet": {
+                      "shopMoney": {
+                        "amount": "2.00",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                ]
+              }
+            ],
+            "transactions": [
+              {
+                "kind": "SALE",
+                "status": "SUCCESS",
+                "gateway": "manual",
+                "test": true,
+                "amountSet": {
+                  "shopMoney": {
+                    "amount": "42.50",
+                    "currencyCode": "USD"
+                  }
+                }
+              }
+            ]
+          },
+          "options": {
+            "inventoryBehaviour": "BYPASS",
+            "sendReceipt": false,
+            "sendFulfillmentReceipt": false
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8729254166834",
+              "name": "#1136",
+              "email": "har691-order-metafields-mosma2dg@example.com",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "FULFILLED",
+              "note": "HAR-691 non-product metafields mosma2dg",
+              "tags": ["order-create", "parity-plan"],
+              "customAttributes": [
+                {
+                  "key": "source",
+                  "value": "hermes-parity-plan"
+                },
+                {
+                  "key": "channel",
+                  "value": "cron-orders-bootstrap"
+                }
+              ],
+              "billingAddress": {
+                "firstName": "Hermes",
+                "lastName": "Operator",
+                "address1": "123 Queen St W",
+                "city": "Toronto",
+                "provinceCode": "ON",
+                "countryCodeV2": "CA",
+                "zip": "M5H 2M9"
+              },
+              "shippingAddress": {
+                "firstName": "Hermes",
+                "lastName": "Operator",
+                "address1": "123 Queen St W",
+                "city": "Toronto",
+                "provinceCode": "ON",
+                "countryCodeV2": "CA",
+                "zip": "M5H 2M9"
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "42.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalTaxSet": {
+                "shopMoney": {
+                  "amount": "2.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalDiscountsSet": {
+                "shopMoney": {
+                  "amount": "5.0",
+                  "currencyCode": "USD"
+                }
+              },
+              "discountCodes": ["SAVE5"],
+              "shippingLines": {
+                "nodes": [
+                  {
+                    "title": "Standard",
+                    "code": "STANDARD",
+                    "source": "hermes-parity-plan",
+                    "originalPriceSet": {
+                      "shopMoney": {
+                        "amount": "5.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "taxLines": [
+                      {
+                        "title": "Shipping tax",
+                        "rate": 0.1,
+                        "priceSet": {
+                          "shopMoney": {
+                            "amount": "0.5",
+                            "currencyCode": "USD"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/19302980518194",
+                    "title": "Hermes inventory-backed line item",
+                    "quantity": 2,
+                    "sku": "hermes-order-parity-plan-20260418",
+                    "variantTitle": null,
+                    "variant": null,
+                    "originalUnitPriceSet": {
+                      "shopMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "USD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "20.0",
+                        "currencyCode": "USD"
+                      }
+                    },
+                    "taxLines": [
+                      {
+                        "title": "Line tax",
+                        "rate": 0.05,
+                        "priceSet": {
+                          "shopMoney": {
+                            "amount": "2.0",
+                            "currencyCode": "USD"
+                          }
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 32,
+            "actualQueryCost": 21,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1979,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionCreate ORDER for metafieldsSet",
+      "request": {
+        "query": "mutation MetafieldDefinitionNonProductCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n      validationStatus\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "name": "HAR-691 Order Value",
+            "namespace": "har691_value_order_mosma2dg",
+            "key": "value",
+            "ownerType": "ORDER",
+            "type": "single_line_text_field",
+            "description": "Temporary HAR-691 order value definition"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206605877554",
+              "name": "HAR-691 Order Value",
+              "namespace": "har691_value_order_mosma2dg",
+              "key": "value",
+              "ownerType": "ORDER",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Temporary HAR-691 order value definition",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "ORDER metafieldsSet",
+      "request": {
+        "query": "mutation MetafieldDefinitionNonProductMetafieldsSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      ownerType\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Order/8729254166834",
+              "namespace": "har691_value_order_mosma2dg",
+              "key": "value",
+              "type": "single_line_text_field",
+              "value": "ORDER metafieldsSet value"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/43096357404978",
+                "namespace": "har691_value_order_mosma2dg",
+                "key": "value",
+                "type": "single_line_text_field",
+                "value": "ORDER metafieldsSet value",
+                "ownerType": "ORDER"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "order metafield read after set",
+      "request": {
+        "query": "query MetafieldDefinitionNonProductOrderMetafieldsRead($id: ID!, $namespace: String!, $key: String!) {\n  order(id: $id) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Order/8729254166834",
+          "namespace": "har691_value_order_mosma2dg",
+          "key": "value"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/8729254166834",
+            "metafield": {
+              "id": "gid://shopify/Metafield/43096357404978",
+              "namespace": "har691_value_order_mosma2dg",
+              "key": "value",
+              "type": "single_line_text_field",
+              "value": "ORDER metafieldsSet value"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/43096357404978",
+                  "namespace": "har691_value_order_mosma2dg",
+                  "key": "value",
+                  "type": "single_line_text_field",
+                  "value": "ORDER metafieldsSet value"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "companyCreate owner setup",
+      "request": {
+        "query": "mutation B2BCompanyCreateLifecycle($input: CompanyCreateInput!) {\n  companyCreate(input: $input) {\n    company {\n      id\n      name\n      externalId\n      contactsCount {\n        count\n      }\n      locationsCount {\n        count\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n      contactRoles(first: 5) {\n        nodes {\n          id\n          name\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "input": {
+            "company": {
+              "name": "HAR-691 metafields mosma2dg",
+              "externalId": "har-691-metafields-mosma2dg"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "companyCreate": {
+            "company": {
+              "id": "gid://shopify/Company/5435949362",
+              "name": "HAR-691 metafields mosma2dg",
+              "externalId": "har-691-metafields-mosma2dg",
+              "contactsCount": {
+                "count": 0
+              },
+              "locationsCount": {
+                "count": 1
+              },
+              "locations": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyLocation/8243872050",
+                    "name": "HAR-691 metafields mosma2dg"
+                  }
+                ]
+              },
+              "contactRoles": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRole/10663526706",
+                    "name": "Location admin"
+                  },
+                  {
+                    "id": "gid://shopify/CompanyContactRole/10663559474",
+                    "name": "Ordering only"
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 22,
+            "actualQueryCost": 19,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1981,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "metafieldDefinitionCreate COMPANY for metafieldsSet",
+      "request": {
+        "query": "mutation MetafieldDefinitionNonProductCreate($definition: MetafieldDefinitionInput!) {\n  metafieldDefinitionCreate(definition: $definition) {\n    createdDefinition {\n      id\n      name\n      namespace\n      key\n      ownerType\n      type {\n        name\n        category\n      }\n      description\n      validations {\n        name\n        value\n      }\n      pinnedPosition\n      validationStatus\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "definition": {
+            "name": "HAR-691 Company Value",
+            "namespace": "har691_value_company_mosma2dg",
+            "key": "value",
+            "ownerType": "COMPANY",
+            "type": "single_line_text_field",
+            "description": "Temporary HAR-691 company value definition"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionCreate": {
+            "createdDefinition": {
+              "id": "gid://shopify/MetafieldDefinition/206605910322",
+              "name": "HAR-691 Company Value",
+              "namespace": "har691_value_company_mosma2dg",
+              "key": "value",
+              "ownerType": "COMPANY",
+              "type": {
+                "name": "single_line_text_field",
+                "category": "TEXT"
+              },
+              "description": "Temporary HAR-691 company value definition",
+              "validations": [],
+              "pinnedPosition": null,
+              "validationStatus": "ALL_VALID"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "COMPANY metafieldsSet",
+      "request": {
+        "query": "mutation MetafieldDefinitionNonProductMetafieldsSet($metafields: [MetafieldsSetInput!]!) {\n  metafieldsSet(metafields: $metafields) {\n    metafields {\n      id\n      namespace\n      key\n      type\n      value\n      ownerType\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
+        "variables": {
+          "metafields": [
+            {
+              "ownerId": "gid://shopify/Company/5435949362",
+              "namespace": "har691_value_company_mosma2dg",
+              "key": "value",
+              "type": "single_line_text_field",
+              "value": "COMPANY metafieldsSet value"
+            }
+          ]
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldsSet": {
+            "metafields": [
+              {
+                "id": "gid://shopify/Metafield/43096358551858",
+                "namespace": "har691_value_company_mosma2dg",
+                "key": "value",
+                "type": "single_line_text_field",
+                "value": "COMPANY metafieldsSet value",
+                "ownerType": "COMPANY"
+              }
+            ],
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "company metafield read after set",
+      "request": {
+        "query": "query MetafieldDefinitionNonProductCompanyMetafieldsRead($id: ID!, $namespace: String!, $key: String!) {\n  company(id: $id) {\n    id\n    metafield(namespace: $namespace, key: $key) {\n      id\n      namespace\n      key\n      type\n      value\n    }\n    metafields(first: 5, namespace: $namespace) {\n      nodes {\n        id\n        namespace\n        key\n        type\n        value\n      }\n    }\n  }\n}\n",
+        "variables": {
+          "id": "gid://shopify/Company/5435949362",
+          "namespace": "har691_value_company_mosma2dg",
+          "key": "value"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "company": {
+            "id": "gid://shopify/Company/5435949362",
+            "metafield": {
+              "id": "gid://shopify/Metafield/43096358551858",
+              "namespace": "har691_value_company_mosma2dg",
+              "key": "value",
+              "type": "single_line_text_field",
+              "value": "COMPANY metafieldsSet value"
+            },
+            "metafields": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Metafield/43096358551858",
+                  "namespace": "har691_value_company_mosma2dg",
+                  "key": "value",
+                  "type": "single_line_text_field",
+                  "value": "COMPANY metafieldsSet value"
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 7,
+            "actualQueryCost": 5,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1995,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\n  mutation HAR691MetafieldsDefinitionDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206605844786",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206605844786",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\n  mutation HAR691MetafieldsDefinitionDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206605877554",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206605877554",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup metafieldDefinitionDelete",
+      "request": {
+        "query": "#graphql\n  mutation HAR691MetafieldsDefinitionDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/MetafieldDefinition/206605910322",
+          "deleteAllAssociatedMetafields": true
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "metafieldDefinitionDelete": {
+            "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206605910322",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup companyDelete",
+      "request": {
+        "query": "#graphql\n  mutation HAR691MetafieldsCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5435949362"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5435949362",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "label": "cleanup customerDelete",
+      "request": {
+        "query": "#graphql\n  mutation HAR691MetafieldsCustomerDelete($input: CustomerDeleteInput!) {\n    customerDelete(input: $input) {\n      deletedCustomerId\n      userErrors { field message }\n    }\n  }\n",
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Customer/10581369717042"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10581369717042",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

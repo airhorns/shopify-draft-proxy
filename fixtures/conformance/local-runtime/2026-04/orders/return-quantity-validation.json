@@ -1,0 +1,271 @@
+{
+  "capturedAt": "2026-05-05T02:45:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "notes": "Executable HAR-589 fixture for return quantity validation. The upstream order hydrate response includes a fulfilled line quantity of 5 and an existing OPEN return line consuming 3 units.",
+  "returnRequestQuantityCap": {
+    "variables": {
+      "input": {
+        "orderId": "gid://shopify/Order/return-quantity-cap",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-quantity-cap",
+            "quantity": 4,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    }
+  },
+  "returnCreateQuantityCap": {
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/return-quantity-cap",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-quantity-cap",
+            "quantity": 4,
+            "returnReason": "OTHER"
+          }
+        ]
+      }
+    }
+  },
+  "returnCreateForRemoval": {
+    "variables": {
+      "returnInput": {
+        "orderId": "gid://shopify/Order/return-removal-validation",
+        "returnLineItems": [
+          {
+            "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-removal-validation",
+            "quantity": 3,
+            "returnReason": "UNWANTED",
+            "returnReasonNote": "Testing removal validation"
+          }
+        ]
+      }
+    }
+  },
+  "expected": {
+    "returnRequestQuantityCap": {
+      "data": {
+        "returnRequest": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["returnLineItems", "0", "quantity"],
+              "message": "Quantity is not available for return.",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    },
+    "returnCreateQuantityCap": {
+      "data": {
+        "returnCreate": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["returnLineItems", "0", "quantity"],
+              "message": "Quantity is not available for return.",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    },
+    "removeFromReturnOverQuantity": {
+      "data": {
+        "removeFromReturn": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["returnLineItems", "0", "quantity"],
+              "message": "Quantity is not removable from return.",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    },
+    "removeFromReturnZeroQuantity": {
+      "data": {
+        "removeFromReturn": {
+          "return": null,
+          "userErrors": [
+            {
+              "field": ["returnLineItems", "0", "quantity"],
+              "message": "Quantity is not removable from return.",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/return-quantity-cap"
+      },
+      "query": "hand-synthesized from checked-in HAR-589 return quantity validation seed order",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/return-quantity-cap",
+              "name": "#RETURN-QUANTITY-CAP",
+              "createdAt": "2026-05-05T00:00:00.000Z",
+              "updatedAt": "2026-05-05T00:00:00.000Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "50.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "50.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/return-quantity-cap",
+                    "title": "Quantity cap item",
+                    "quantity": 5
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/return-quantity-cap",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-05-05T01:00:00.000Z",
+                  "updatedAt": "2026-05-05T01:00:00.000Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/return-quantity-cap",
+                        "quantity": 5,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/return-quantity-cap",
+                          "title": "Quantity cap item"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "returns": [
+                {
+                  "id": "gid://shopify/Return/existing-open",
+                  "name": "#RETURN-QUANTITY-CAP-R1",
+                  "status": "OPEN",
+                  "totalQuantity": 3,
+                  "returnLineItems": [
+                    {
+                      "id": "gid://shopify/ReturnLineItem/existing-open-1",
+                      "fulfillmentLineItemId": "gid://shopify/FulfillmentLineItem/return-quantity-cap",
+                      "lineItemId": "gid://shopify/LineItem/return-quantity-cap",
+                      "title": "Quantity cap item",
+                      "quantity": 3,
+                      "processedQuantity": 0,
+                      "returnReason": "OTHER",
+                      "returnReasonNote": ""
+                    }
+                  ],
+                  "reverseFulfillmentOrders": []
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/return-removal-validation"
+      },
+      "query": "hand-synthesized from checked-in HAR-589 removeFromReturn validation seed order",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/return-removal-validation",
+              "name": "#RETURN-REMOVAL-VALIDATION",
+              "createdAt": "2026-05-05T00:00:00.000Z",
+              "updatedAt": "2026-05-05T00:00:00.000Z",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "FULFILLED",
+              "totalRefundedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "50.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "50.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/LineItem/return-removal-validation",
+                    "title": "Removal validation item",
+                    "quantity": 5
+                  }
+                ]
+              },
+              "fulfillments": [
+                {
+                  "id": "gid://shopify/Fulfillment/return-removal-validation",
+                  "status": "SUCCESS",
+                  "displayStatus": "FULFILLED",
+                  "createdAt": "2026-05-05T01:00:00.000Z",
+                  "updatedAt": "2026-05-05T01:00:00.000Z",
+                  "fulfillmentLineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentLineItem/return-removal-validation",
+                        "quantity": 5,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/return-removal-validation",
+                          "title": "Removal validation item"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ],
+              "returns": []
+            }
+          }
+        }
+      }
+    }
+  ]
+}

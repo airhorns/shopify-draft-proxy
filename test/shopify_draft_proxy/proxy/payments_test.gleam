@@ -19,7 +19,7 @@ import shopify_draft_proxy/state/types.{
   CustomerPaymentMethodInstrumentRecord, CustomerPaymentMethodRecord,
   CustomerPaymentMethodSubscriptionContractRecord, CustomerRecord,
   DraftOrderRecord, Money, OrderRecord, PaymentScheduleRecord,
-  PaymentTermsRecord,
+  PaymentTermsRecord, ShopifyFunctionRecord,
 }
 
 const customer_id = "gid://shopify/Customer/1"
@@ -136,6 +136,22 @@ fn graphql(proxy: DraftProxy, query: String) {
   draft_proxy.process_request(proxy, request)
 }
 
+fn seed_shopify_function(proxy: DraftProxy, handle: String) -> DraftProxy {
+  let record =
+    ShopifyFunctionRecord(
+      id: "gid://shopify/ShopifyFunction/" <> handle,
+      title: Some("Function " <> handle),
+      handle: Some(handle),
+      api_type: Some("PAYMENT_CUSTOMIZATION"),
+      description: None,
+      app_key: None,
+      app: None,
+    )
+  let #(_, next_store) =
+    store.upsert_staged_shopify_function(proxy.store, record)
+  DraftProxy(..proxy, store: next_store)
+}
+
 fn graphql_with_proxy(proxy: DraftProxy, query: String) {
   let request =
     Request(
@@ -145,6 +161,20 @@ fn graphql_with_proxy(proxy: DraftProxy, query: String) {
       body: "{\"query\":\"" <> escape(query) <> "\"}",
     )
   draft_proxy.process_request(proxy, request)
+}
+
+fn meta_state_json(proxy: DraftProxy) {
+  let #(Response(body: body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      Request(
+        method: "GET",
+        path: "/__meta/state",
+        headers: dict.new(),
+        body: "",
+      ),
+    )
+  json.to_string(body)
 }
 
 fn escape(value: String) -> String {
@@ -570,15 +600,10 @@ pub fn payment_customization_metafields_and_function_handle_readback_test() {
 }
 
 pub fn payment_customization_update_rejects_different_existing_function_test() {
-  let seed_a =
-    "mutation { validationCreate(validation: { title: \"Function A\", functionHandle: \"payment-a\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_a_status, ..), proxy) =
-    graphql(draft_proxy.new(), seed_a)
-  assert seed_a_status == 200
-  let seed_b =
-    "mutation { validationCreate(validation: { title: \"Function B\", functionHandle: \"payment-b\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_b_status, ..), proxy) = graphql(proxy, seed_b)
-  assert seed_b_status == 200
+  let proxy =
+    draft_proxy.new()
+    |> seed_shopify_function("payment-a")
+    |> seed_shopify_function("payment-b")
 
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
@@ -588,7 +613,7 @@ pub fn payment_customization_update_rejects_different_existing_function_test() {
   assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
 
   let update_query =
-    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/5\", paymentCustomization: { functionId: \"gid://shopify/ShopifyFunction/payment-b\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
+    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/1\", paymentCustomization: { functionId: \"gid://shopify/ShopifyFunction/payment-b\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
   let #(Response(status: update_status, body: update_body, ..), proxy) =
     graphql(proxy, update_query)
   assert update_status == 200
@@ -608,7 +633,7 @@ pub fn payment_customization_update_rejects_different_existing_function_test() {
   )
 
   let read_query =
-    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/5\") { id title functionId functionHandle } }"
+    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/1\") { id title functionId functionHandle } }"
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(proxy, read_query)
   assert read_status == 200
@@ -621,11 +646,7 @@ pub fn payment_customization_update_rejects_different_existing_function_test() {
 }
 
 pub fn payment_customization_update_allows_equivalent_function_handle_test() {
-  let seed =
-    "mutation { validationCreate(validation: { title: \"Function A\", functionHandle: \"payment-a\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_status, ..), proxy) =
-    graphql(draft_proxy.new(), seed)
-  assert seed_status == 200
+  let proxy = draft_proxy.new() |> seed_shopify_function("payment-a")
 
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
@@ -634,7 +655,7 @@ pub fn payment_customization_update_allows_equivalent_function_handle_test() {
   assert create_status == 200
 
   let update_query =
-    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/3\", paymentCustomization: { title: \"After\", functionHandle: \"payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
+    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/1\", paymentCustomization: { title: \"After\", functionHandle: \"payment-a\" }) { paymentCustomization { id title functionId functionHandle } userErrors { field code message } } }"
   let #(Response(status: update_status, body: update_body, ..), _) =
     graphql(proxy, update_query)
   assert update_status == 200
@@ -668,11 +689,7 @@ pub fn payment_customization_update_allows_equivalent_function_id_gid_test() {
 }
 
 pub fn payment_customization_update_unknown_function_id_is_immutable_test() {
-  let seed =
-    "mutation { validationCreate(validation: { title: \"Function A\", functionHandle: \"payment-a\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_status, ..), proxy) =
-    graphql(draft_proxy.new(), seed)
-  assert seed_status == 200
+  let proxy = draft_proxy.new() |> seed_shopify_function("payment-a")
 
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
@@ -681,7 +698,7 @@ pub fn payment_customization_update_unknown_function_id_is_immutable_test() {
   assert create_status == 200
 
   let update_query =
-    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/3\", paymentCustomization: { functionId: \"gid://shopify/ShopifyFunction/missing\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
+    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/1\", paymentCustomization: { functionId: \"gid://shopify/ShopifyFunction/missing\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
   let #(Response(status: update_status, body: update_body, ..), proxy) =
     graphql(proxy, update_query)
   assert update_status == 200
@@ -697,7 +714,7 @@ pub fn payment_customization_update_unknown_function_id_is_immutable_test() {
   )
 
   let read_query =
-    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/3\") { id title functionId } }"
+    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/1\") { id title functionId } }"
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(proxy, read_query)
   assert read_status == 200
@@ -708,11 +725,7 @@ pub fn payment_customization_update_unknown_function_id_is_immutable_test() {
 }
 
 pub fn payment_customization_update_unknown_function_handle_returns_not_found_test() {
-  let seed =
-    "mutation { validationCreate(validation: { title: \"Function A\", functionHandle: \"payment-a\" }) { validation { id } userErrors { field code message } } }"
-  let #(Response(status: seed_status, ..), proxy) =
-    graphql(draft_proxy.new(), seed)
-  assert seed_status == 200
+  let proxy = draft_proxy.new() |> seed_shopify_function("payment-a")
 
   let create_query =
     "mutation { paymentCustomizationCreate(paymentCustomization: { title: \"Before\", enabled: true, functionId: \"gid://shopify/ShopifyFunction/payment-a\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
@@ -721,7 +734,7 @@ pub fn payment_customization_update_unknown_function_handle_returns_not_found_te
   assert create_status == 200
 
   let update_query =
-    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/3\", paymentCustomization: { functionHandle: \"missing-payment-function\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
+    "mutation { paymentCustomizationUpdate(id: \"gid://shopify/PaymentCustomization/1\", paymentCustomization: { functionHandle: \"missing-payment-function\" }) { paymentCustomization { id title functionId } userErrors { field code message } } }"
   let #(Response(status: update_status, body: update_body, ..), proxy) =
     graphql(proxy, update_query)
   assert update_status == 200
@@ -738,7 +751,7 @@ pub fn payment_customization_update_unknown_function_handle_returns_not_found_te
   )
 
   let read_query =
-    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/3\") { id title functionId } }"
+    "query { paymentCustomization(id: \"gid://shopify/PaymentCustomization/1\") { id title functionId } }"
   let #(Response(status: read_status, body: read_body, ..), _) =
     graphql(proxy, read_query)
   assert read_status == 200
@@ -888,6 +901,170 @@ pub fn payment_terms_create_rejects_multiple_schedules_with_shopify_code_test() 
   )
 }
 
+pub fn payment_terms_create_rejects_unknown_template_without_staging_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/9999\",
+          paymentSchedules: [{ issuedAt: \"2026-01-01T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id paymentTermsName paymentTermsType }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, mutation)
+  let body = json.to_string(body)
+  let state = meta_state_json(proxy_after)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"Could not find payment terms template.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(state, "PaymentTerms/")
+}
+
+pub fn payment_terms_create_requires_template_id_instead_of_defaulting_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentSchedules: [{ issuedAt: \"2026-01-01T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id paymentTermsName }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, mutation)
+  let body = json.to_string(body)
+  let state = meta_state_json(proxy_after)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(
+    body,
+    "\"field\":[\"paymentTermsAttributes\",\"paymentTermsTemplateId\"]",
+  )
+  assert string.contains(
+    body,
+    "\"message\":\"Payment terms template is required.\"",
+  )
+  assert string.contains(body, "\"code\":\"REQUIRED\"")
+  assert !string.contains(state, "PaymentTerms/")
+}
+
+pub fn payment_terms_create_rejects_fixed_template_without_due_at_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/7\",
+          paymentSchedules: [{}]
+        }
+      ) {
+        paymentTerms { id paymentTermsName paymentTermsType }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, mutation)
+  let body = json.to_string(body)
+  let state = meta_state_json(proxy_after)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"A due date is required with fixed or net payment terms.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(state, "PaymentTerms/")
+}
+
+pub fn payment_terms_create_rejects_receipt_template_with_due_at_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/1\",
+          paymentSchedules: [{ dueAt: \"2026-01-01T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms { id paymentTermsName paymentTermsType }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, mutation)
+  let body = json.to_string(body)
+  let state = meta_state_json(proxy_after)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"A due date cannot be set with event payment terms.\"",
+  )
+  assert string.contains(
+    body,
+    "\"code\":\"PAYMENT_TERMS_CREATION_UNSUCCESSFUL\"",
+  )
+  assert !string.contains(state, "PaymentTerms/")
+}
+
+pub fn payment_terms_create_accepts_receipt_issued_at_without_schedule_test() {
+  let proxy = seeded_order_proxy("57.00", "CAD")
+  let mutation =
+    "mutation {
+      paymentTermsCreate(
+        referenceId: \"gid://shopify/Order/637\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/1\",
+          paymentSchedules: [{ issuedAt: \"2026-01-01T00:00:00Z\" }]
+        }
+      ) {
+        paymentTerms {
+          paymentTermsName
+          paymentTermsType
+          paymentSchedules(first: 1) { nodes { issuedAt dueAt } }
+        }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, mutation)
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"userErrors\":[]")
+  assert string.contains(body, "\"paymentTermsName\":\"Due on receipt\"")
+  assert string.contains(body, "\"paymentTermsType\":\"RECEIPT\"")
+  assert string.contains(body, "\"nodes\":[]")
+}
+
 pub fn payment_terms_update_and_delete_missing_ids_use_shopify_codes_test() {
   let proxy = draft_proxy.new()
   let update =
@@ -931,6 +1108,62 @@ pub fn payment_terms_update_and_delete_missing_ids_use_shopify_codes_test() {
   )
   assert !string.contains(update_body, "PAYMENT_TERMS_NOT_FOUND")
   assert !string.contains(delete_body, "PAYMENT_TERMS_NOT_FOUND")
+}
+
+pub fn payment_terms_update_uses_update_code_for_invalid_attributes_test() {
+  let terms_id = "gid://shopify/PaymentTerms/123"
+  let money = Money(amount: "57.00", currency_code: "CAD")
+  let seeded_store =
+    store.new()
+    |> store.upsert_staged_payment_terms(
+      PaymentTermsRecord(
+        id: terms_id,
+        owner_id: order_id,
+        due: False,
+        overdue: False,
+        due_in_days: Some(30),
+        payment_terms_name: "Net 30",
+        payment_terms_type: "NET",
+        translated_name: "Net 30",
+        payment_schedules: [
+          PaymentScheduleRecord(
+            id: "gid://shopify/PaymentSchedule/456",
+            due_at: Some("2026-06-04T00:00:00Z"),
+            issued_at: Some("2026-05-05T00:00:00Z"),
+            completed_at: None,
+            due: Some(False),
+            amount: Some(money),
+            balance_due: Some(money),
+            total_balance: Some(money),
+          ),
+        ],
+      ),
+    )
+  let proxy = DraftProxy(..draft_proxy.new(), store: seeded_store)
+  let mutation =
+    "mutation {
+      paymentTermsUpdate(input: {
+        paymentTermsId: \"gid://shopify/PaymentTerms/123\",
+        paymentTermsAttributes: {
+          paymentTermsTemplateId: \"gid://shopify/PaymentTermsTemplate/7\",
+          paymentSchedules: [{}]
+        }
+      }) {
+        paymentTerms { id paymentTermsName paymentTermsType }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, mutation)
+  let body = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(body, "\"paymentTerms\":null")
+  assert string.contains(body, "\"field\":null")
+  assert string.contains(
+    body,
+    "\"message\":\"A due date is required with fixed or net payment terms.\"",
+  )
+  assert string.contains(body, "\"code\":\"PAYMENT_TERMS_UPDATE_UNSUCCESSFUL\"")
 }
 
 pub fn payment_terms_delete_normalizes_numeric_input_to_gid_test() {

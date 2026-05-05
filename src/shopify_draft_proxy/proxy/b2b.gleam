@@ -26,6 +26,7 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   paginate_connection_items, project_graphql_value, serialize_connection,
   serialize_empty_connection, source_to_json, src_object,
 }
+import shopify_draft_proxy/proxy/metafields
 import shopify_draft_proxy/proxy/mutation_helpers.{
   type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
@@ -41,10 +42,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type B2BCompanyContactRecord, type B2BCompanyContactRoleRecord,
   type B2BCompanyLocationRecord, type B2BCompanyRecord, type CustomerRecord,
-  type StorePropertyValue, B2BCompanyContactRecord, B2BCompanyContactRoleRecord,
-  B2BCompanyLocationRecord, B2BCompanyRecord, StorePropertyBool,
-  StorePropertyFloat, StorePropertyInt, StorePropertyList, StorePropertyNull,
-  StorePropertyObject, StorePropertyString,
+  type ProductMetafieldRecord, type StorePropertyValue, B2BCompanyContactRecord,
+  B2BCompanyContactRoleRecord, B2BCompanyLocationRecord, B2BCompanyRecord,
+  StorePropertyBool, StorePropertyFloat, StorePropertyInt, StorePropertyList,
+  StorePropertyNull, StorePropertyObject, StorePropertyString,
 }
 
 const domain = "b2b"
@@ -52,6 +53,12 @@ const domain = "b2b"
 const default_string_max_length = 255
 
 const notes_max_length = 5000
+
+const external_id_max_length = 64
+
+const external_id_invalid_chars_detail = "external_id_contains_invalid_chars"
+
+const external_id_invalid_chars_message = "External Id can only contain numbers, letters, and some special characters, including !@#$%^&*(){}[]\\/?<>_-~,.;:'`\""
 
 const company_contact_maximum_cap = 10_000
 
@@ -64,6 +71,7 @@ type UserError {
     field: Option(List(String)),
     message: String,
     code: user_error_code.Code,
+    detail: Option(String),
   )
 }
 
@@ -813,20 +821,101 @@ fn serialize_company(
               [role, ..] -> project_source(role_source(role), child, fragments)
               [] -> json.null()
             })
-            "orders" | "draftOrders" | "events" | "metafields" -> #(
+            "orders" | "draftOrders" | "events" -> #(
               key,
               serialize_empty_connection(
                 child,
                 default_selected_field_options(),
               ),
             )
+            "metafields" -> #(
+              key,
+              serialize_company_metafields_connection(
+                store,
+                company.id,
+                child,
+                variables,
+              ),
+            )
             "ordersCount" -> #(key, serialize_count(child, 0))
-            "metafield" -> #(key, json.null())
+            "metafield" -> #(
+              key,
+              serialize_company_metafield(store, company.id, child, variables),
+            )
             _ -> source_field(source, child, fragments)
           }
         _ -> #(key, json.null())
       }
     }),
+  )
+}
+
+fn serialize_company_metafield(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = graphql_helpers.field_args(field, variables)
+  let namespace = read_string(args, "namespace")
+  let key = read_string(args, "key")
+  let found =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.find(fn(metafield) {
+      metafield.namespace == option.unwrap(namespace, "")
+      && metafield.key == option.unwrap(key, "")
+    })
+    |> option.from_result
+  case found {
+    Some(metafield) ->
+      metafields.serialize_metafield_selection(
+        company_metafield_to_core(metafield),
+        field,
+        default_selected_field_options(),
+      )
+    None -> json.null()
+  }
+}
+
+fn serialize_company_metafields_connection(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Json {
+  let args = graphql_helpers.field_args(field, variables)
+  let namespace = read_string(args, "namespace")
+  let records =
+    store.get_effective_metafields_by_owner_id(store, owner_id)
+    |> list.filter(fn(metafield) {
+      case namespace {
+        Some(ns) -> metafield.namespace == ns
+        None -> True
+      }
+    })
+    |> list.map(company_metafield_to_core)
+  metafields.serialize_metafields_connection(
+    records,
+    field,
+    variables,
+    default_selected_field_options(),
+  )
+}
+
+fn company_metafield_to_core(
+  record: ProductMetafieldRecord,
+) -> metafields.MetafieldRecordCore {
+  metafields.MetafieldRecordCore(
+    id: record.id,
+    namespace: record.namespace,
+    key: record.key,
+    type_: record.type_,
+    value: record.value,
+    compare_digest: record.compare_digest,
+    json_value: record.json_value,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    owner_type: record.owner_type,
   )
 }
 
@@ -1398,7 +1487,16 @@ fn user_error(
   message: String,
   code: user_error_code.Code,
 ) {
-  UserError(field: field, message: message, code: code)
+  UserError(field: field, message: message, code: code, detail: None)
+}
+
+fn detailed_user_error(
+  field: Option(List(String)),
+  message: String,
+  code: user_error_code.Code,
+  detail: String,
+) {
+  UserError(field: field, message: message, code: code, detail: Some(detail))
 }
 
 fn field_path(prefix: List(String), field: String) -> List(String) {
@@ -1465,6 +1563,61 @@ fn validate_text_field(
     }
     None -> []
   }
+}
+
+fn validate_external_id_field(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(UserError) {
+  case read_string(input, "externalId") {
+    Some(value) -> {
+      validate_external_id_length(value, prefix)
+      |> list.append(validate_external_id_charset(value, prefix))
+    }
+    None -> []
+  }
+}
+
+fn validate_external_id_length(
+  value: String,
+  prefix: List(String),
+) -> List(UserError) {
+  case string.length(value) > external_id_max_length {
+    True -> [
+      user_error(
+        Some(field_path(prefix, "externalId")),
+        "External Id must be "
+          <> int.to_string(external_id_max_length)
+          <> " characters or less.",
+        user_error_code.too_long,
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn validate_external_id_charset(
+  value: String,
+  prefix: List(String),
+) -> List(UserError) {
+  case value |> string.to_graphemes |> list.all(external_id_char_allowed) {
+    True -> []
+    False -> [
+      detailed_user_error(
+        Some(field_path(prefix, "externalId")),
+        external_id_invalid_chars_message,
+        user_error_code.invalid,
+        external_id_invalid_chars_detail,
+      ),
+    ]
+  }
+}
+
+fn external_id_char_allowed(char: String) -> Bool {
+  string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*(){}[]\\/?<>_-~.,;:'\"`",
+    char,
+  )
 }
 
 fn value_is_present(value: root_field.ResolvedValue) -> Bool {
@@ -1578,6 +1731,7 @@ fn validate_company_input(
       notes_max_length,
       True,
     ))
+    |> list.append(validate_external_id_field(input, prefix))
   #(input, errors)
 }
 
@@ -1642,6 +1796,7 @@ fn validate_location_input(
     ))
     |> list.append(validate_billing_same_as_shipping(input, prefix))
     |> list.append(validate_tax_exempt_input(input, prefix))
+    |> list.append(validate_external_id_field(input, prefix))
   #(input, errors)
 }
 
@@ -1993,6 +2148,78 @@ fn validate_contact_duplicate_phone(
       }
     None -> []
   }
+}
+
+fn validate_duplicate_company_external_id(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  exclude_company_id: Option(String),
+  prefix: List(String),
+) -> List(UserError) {
+  case read_string(input, "externalId") {
+    Some(external_id) ->
+      case company_external_id_exists(store, external_id, exclude_company_id) {
+        True -> [
+          user_error(
+            Some(field_path(prefix, "externalId")),
+            "External id has already been taken.",
+            user_error_code.taken,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn validate_duplicate_location_external_id(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  exclude_location_id: Option(String),
+  prefix: List(String),
+) -> List(UserError) {
+  case read_string(input, "externalId") {
+    Some(external_id) ->
+      case
+        location_external_id_exists(store, external_id, exclude_location_id)
+      {
+        True -> [
+          user_error(
+            Some(field_path(prefix, "externalId")),
+            "External id has already been taken.",
+            user_error_code.taken,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn company_external_id_exists(
+  store: Store,
+  external_id: String,
+  exclude_company_id: Option(String),
+) -> Bool {
+  let excluded = option.unwrap(exclude_company_id, "")
+  store.list_effective_b2b_companies(store)
+  |> list.any(fn(company) {
+    company.id != excluded
+    && source_string(data_get(company.data, "externalId")) == external_id
+  })
+}
+
+fn location_external_id_exists(
+  store: Store,
+  external_id: String,
+  exclude_location_id: Option(String),
+) -> Bool {
+  let excluded = option.unwrap(exclude_location_id, "")
+  store.list_effective_b2b_company_locations(store)
+  |> list.any(fn(location) {
+    location.id != excluded
+    && source_string(data_get(location.data, "externalId")) == external_id
+  })
 }
 
 fn contact_email_exists(
@@ -2457,6 +2684,22 @@ fn handle_company_create(
       "input",
       "companyLocation",
     ])
+  let company_errors =
+    company_errors
+    |> list.append(
+      validate_duplicate_company_external_id(store, company_input, None, [
+        "input",
+        "company",
+      ]),
+    )
+  let location_errors =
+    location_errors
+    |> list.append(
+      validate_duplicate_location_external_id(store, location_input, None, [
+        "input",
+        "companyLocation",
+      ]),
+    )
   let #(contact_input, contact_errors) = case
     dict.get(input, "companyContact")
   {
@@ -2577,6 +2820,16 @@ fn handle_company_update(
         Some(company) -> {
           let #(input, validation_errors) =
             validate_company_input(read_object(args, "input"), ["input"])
+          let validation_errors =
+            validation_errors
+            |> list.append(
+              validate_duplicate_company_external_id(
+                store,
+                input,
+                Some(company_id),
+                ["input"],
+              ),
+            )
           let name = case dict.get(input, "name") {
             Ok(root_field.StringVal(value)) -> value
             _ -> source_string(data_get(company.data, "name"))
@@ -3331,6 +3584,13 @@ fn handle_location_create(
           let raw_input = read_object(args, "input")
           let #(input, validation_errors) =
             validate_location_input(raw_input, ["input"])
+          let validation_errors =
+            validation_errors
+            |> list.append(
+              validate_duplicate_location_external_id(store, input, None, [
+                "input",
+              ]),
+            )
           let fallback = location_create_fallback_name(company, input)
           case validation_errors {
             [_, ..] ->
@@ -3376,6 +3636,13 @@ fn handle_location_update(
         Some(location) -> {
           let #(input, validation_errors) =
             validate_location_input(read_object(args, "input"), ["input"])
+          let validation_errors =
+            validation_errors
+            |> list.append(
+              validate_duplicate_location_external_id(store, input, Some(id), [
+                "input",
+              ]),
+            )
           case validation_errors {
             [_, ..] ->
               RootResult(empty_payload(validation_errors), store, identity, [])
@@ -4705,6 +4972,10 @@ fn serialize_user_error(
       }),
       #("message", SrcString(error.message)),
       #("code", SrcString(user_error_code.value(error.code))),
+      #("detail", case error.detail {
+        Some(detail) -> SrcString(detail)
+        None -> SrcNull
+      }),
     ])
   project_source(source, field, fragments)
 }

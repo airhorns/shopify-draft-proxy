@@ -1,4 +1,4 @@
-import type { AppConfig, ReadMode } from './types.js';
+import type { AppConfig, ReadMode, UnsupportedMutationMode } from './types.js';
 
 function readPort(raw: string | undefined): number {
   if (!raw) return 3000;
@@ -17,6 +17,14 @@ function readMode(raw: string | undefined): ReadMode {
   throw new Error(`Invalid SHOPIFY_DRAFT_PROXY_READ_MODE: ${raw}`);
 }
 
+function unsupportedMutationMode(raw: string | undefined): UnsupportedMutationMode {
+  if (!raw) return 'passthrough';
+  if (raw === 'passthrough' || raw === 'reject') {
+    return raw;
+  }
+  throw new Error(`Invalid SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE: ${raw}`);
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   const shopifyAdminOrigin = env['SHOPIFY_ADMIN_ORIGIN'];
   if (!shopifyAdminOrigin) {
@@ -29,6 +37,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     port: readPort(env['PORT']),
     shopifyAdminOrigin,
     readMode: readMode(env['SHOPIFY_DRAFT_PROXY_READ_MODE']),
+    unsupportedMutationMode: unsupportedMutationMode(env['SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE']),
     ...(snapshotPath ? { snapshotPath } : {}),
   };
 }

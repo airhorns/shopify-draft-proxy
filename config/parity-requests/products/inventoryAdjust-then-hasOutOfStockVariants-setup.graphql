@@ -1,0 +1,47 @@
+mutation InventoryAdjustDerivedFieldsSetup($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+      totalVariants
+      hasOnlyDefaultVariant
+      hasOutOfStockVariants
+      tracksInventory
+      totalInventory
+      variants(first: 5) {
+        nodes {
+          id
+          inventoryQuantity
+          inventoryItem {
+            id
+            tracked
+            inventoryLevels(first: 5) {
+              nodes {
+                id
+                location {
+                  id
+                  name
+                }
+                quantities(names: ["available", "on_hand"]) {
+                  name
+                  quantity
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    productSetOperation {
+      id
+      status
+      userErrors {
+        field
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
