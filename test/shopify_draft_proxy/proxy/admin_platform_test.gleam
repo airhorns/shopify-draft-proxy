@@ -846,6 +846,119 @@ pub fn flow_trigger_receive_validation_matches_shopify_test() {
   assert conflict.staged_resource_ids == []
 }
 
+pub fn flow_trigger_receive_body_only_validates_json_and_schema_test() {
+  let invalid_json =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"not json\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let invalid_json_body = json.to_string(invalid_json.data)
+  assert string.contains(invalid_json_body, "\"field\":[\"body\"]")
+  assert string.contains(
+    invalid_json_body,
+    "Errors validating schema:\\n  unexpected token 'not' at line 1 column 1\\n",
+  )
+  assert invalid_json.staged_resource_ids == []
+  assert invalid_json.store.staged_state.admin_platform_flow_trigger_order == []
+
+  let properties_not_object =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"properties\\\":\\\"oops\\\"}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let properties_not_object_body = json.to_string(properties_not_object.data)
+  assert string.contains(properties_not_object_body, "\"field\":[\"body\"]")
+  assert string.contains(
+    properties_not_object_body,
+    "Errors validating schema:\\n  Type error for field 'properties': oops is not an Object.\\n",
+  )
+  assert properties_not_object.staged_resource_ids == []
+
+  let missing_resource_url =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"resources\\\":[{\\\"name\\\":\\\"x\\\"}],\\\"properties\\\":{}}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let missing_resource_url_body = json.to_string(missing_resource_url.data)
+  assert string.contains(missing_resource_url_body, "\"field\":[\"body\"]")
+  assert string.contains(
+    missing_resource_url_body,
+    "Errors validating schema:\\n  Required field missing: 'url'.\\n",
+  )
+  assert missing_resource_url.staged_resource_ids == []
+
+  let whitespace_body =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"   \") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let whitespace_body_json = json.to_string(whitespace_body.data)
+  assert string.contains(whitespace_body_json, "\"field\":[\"handle\"]")
+  assert string.contains(
+    whitespace_body_json,
+    "`handle` and `payload` arguments are required",
+  )
+  assert whitespace_body.staged_resource_ids == []
+}
+
+pub fn flow_trigger_receive_body_only_success_uses_canonical_payload_test() {
+  let compact =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{}}\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let compact_body = json.to_string(compact.data)
+  assert string.contains(compact_body, "\"userErrors\":[]")
+  assert list.length(compact.staged_resource_ids) == 1
+
+  let spaced =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { flowTriggerReceive(body: \"{  \\\"trigger_id\\\" : \\\"abc\\\", \\\"properties\\\" : {} }\") { userErrors { field message } } }",
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let spaced_body = json.to_string(spaced.data)
+  assert string.contains(spaced_body, "\"userErrors\":[]")
+  assert list.length(spaced.staged_resource_ids) == 1
+
+  let compact_record = only_flow_trigger_record(compact)
+  let spaced_record = only_flow_trigger_record(spaced)
+  assert compact_record.handle == "legacy-body"
+  assert compact_record.payload_bytes == spaced_record.payload_bytes
+  assert compact_record.payload_sha256 == spaced_record.payload_sha256
+}
+
+fn only_flow_trigger_record(outcome: mutation_helpers.MutationOutcome) {
+  let staged = outcome.store.staged_state
+  let assert [record_id] = staged.admin_platform_flow_trigger_order
+  let assert Ok(record) =
+    dict.get(staged.admin_platform_flow_triggers, record_id)
+  record
+}
+
 pub fn flow_trigger_receive_accepts_non_local_handle_test() {
   let outcome =
     admin_platform.process_mutation(
