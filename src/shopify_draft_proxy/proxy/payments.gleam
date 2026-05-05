@@ -41,15 +41,18 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type CustomerPaymentMethodInstrumentRecord, type CustomerPaymentMethodRecord,
-  type CustomerRecord, type Money, type PaymentCustomizationMetafieldRecord,
+  type CapturedJsonValue, type CustomerPaymentMethodInstrumentRecord,
+  type CustomerPaymentMethodRecord, type CustomerRecord, type DraftOrderRecord,
+  type Money, type OrderRecord, type PaymentCustomizationMetafieldRecord,
   type PaymentCustomizationRecord, type PaymentScheduleRecord,
   type PaymentTermsRecord, type PaymentTermsTemplateRecord,
-  type ShopifyFunctionRecord, CustomerPaymentMethodInstrumentRecord,
+  type ShopifyFunctionRecord, CapturedBool, CapturedNull, CapturedObject,
+  CapturedString, CustomerPaymentMethodInstrumentRecord,
   CustomerPaymentMethodRecord, CustomerPaymentMethodUpdateUrlRecord,
-  CustomerRecord, Money, PaymentCustomizationMetafieldRecord,
-  PaymentCustomizationRecord, PaymentReminderSendRecord, PaymentScheduleRecord,
-  PaymentTermsRecord, PaymentTermsTemplateRecord,
+  CustomerRecord, DraftOrderRecord, Money, OrderRecord,
+  PaymentCustomizationMetafieldRecord, PaymentCustomizationRecord,
+  PaymentReminderSendRecord, PaymentScheduleRecord, PaymentTermsRecord,
+  PaymentTermsTemplateRecord,
 }
 
 const customization_app_id: String = "347082227713"
@@ -61,7 +64,7 @@ pub type PaymentsError {
 }
 
 type UserError {
-  UserError(field: List(String), message: String, code: Option(String))
+  UserError(field: Option(List(String)), message: String, code: Option(String))
 }
 
 type MutationFieldResult {
@@ -898,15 +901,16 @@ fn hydrate_before_payments_mutation(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
 ) -> Store {
-  let #(customer_ids, method_ids, owner_ids) =
-    list.fold(fields, #([], [], []), fn(acc, field) {
-      let #(customer_acc, method_acc, owner_acc) = acc
-      let #(customers, methods, owners) =
+  let #(customer_ids, method_ids, owner_ids, schedule_ids) =
+    list.fold(fields, #([], [], [], []), fn(acc, field) {
+      let #(customer_acc, method_acc, owner_acc, schedule_acc) = acc
+      let #(customers, methods, owners, schedules) =
         payment_mutation_hydrate_inputs(field, variables)
       #(
         list.append(customer_acc, customers),
         list.append(method_acc, methods),
         list.append(owner_acc, owners),
+        list.append(schedule_acc, schedules),
       )
     })
   let with_payment_methods =
@@ -919,12 +923,16 @@ fn hydrate_before_payments_mutation(
   list.fold(unique_strings(owner_ids, []), with_payment_methods, fn(acc, id) {
     maybe_hydrate_payment_terms_owner(acc, id, upstream)
   })
+  |> hydrate_payment_schedule_context(
+    unique_strings(schedule_ids, []),
+    upstream,
+  )
 }
 
 fn payment_mutation_hydrate_inputs(
   field: Selection,
   variables: Dict(String, root_field.ResolvedValue),
-) -> #(List(String), List(String), List(String)) {
+) -> #(List(String), List(String), List(String), List(String)) {
   case field {
     Field(name: name, ..) -> {
       let args = graphql_helpers.field_args(field, variables)
@@ -938,11 +946,13 @@ fn payment_mutation_hydrate_inputs(
           )),
           [],
           [],
+          [],
         )
         "customerPaymentMethodCreditCardUpdate"
         | "customerPaymentMethodPaypalBillingAgreementUpdate" -> #(
           [],
           option_to_list(graphql_helpers.read_arg_string_nonempty(args, "id")),
+          [],
           [],
         )
         "customerPaymentMethodGetDuplicationData" -> #(
@@ -954,6 +964,7 @@ fn payment_mutation_hydrate_inputs(
             args,
             "customerPaymentMethodId",
           )),
+          [],
           [],
         )
         "customerPaymentMethodCreateFromDuplicationData" -> {
@@ -976,6 +987,7 @@ fn payment_mutation_hydrate_inputs(
             )),
             option_to_list(method_id),
             [],
+            [],
           )
         }
         "customerPaymentMethodGetUpdateUrl" | "customerPaymentMethodRevoke" -> #(
@@ -985,6 +997,7 @@ fn payment_mutation_hydrate_inputs(
             "customerPaymentMethodId",
           )),
           [],
+          [],
         )
         "paymentTermsCreate" -> #(
           [],
@@ -993,11 +1006,21 @@ fn payment_mutation_hydrate_inputs(
             args,
             "referenceId",
           )),
+          [],
         )
-        _ -> #([], [], [])
+        "paymentReminderSend" -> #(
+          [],
+          [],
+          [],
+          option_to_list(graphql_helpers.read_arg_string_nonempty(
+            args,
+            "paymentScheduleId",
+          )),
+        )
+        _ -> #([], [], [], [])
       }
     }
-    _ -> #([], [], [])
+    _ -> #([], [], [], [])
   }
 }
 
@@ -1211,7 +1234,7 @@ fn payment_customization_error(
   message: String,
   code: String,
 ) -> UserError {
-  UserError(field: field, message: message, code: Some(code))
+  UserError(field: Some(field), message: message, code: Some(code))
 }
 
 fn required_customization_input_error(field_name: String) -> UserError {
@@ -1950,7 +1973,7 @@ fn payment_method_error(
   message: String,
   code: String,
 ) -> UserError {
-  UserError(field: [field], message: message, code: Some(code))
+  UserError(field: Some([field]), message: message, code: Some(code))
 }
 
 fn payment_method_missing_error(field: String) -> UserError {
@@ -2346,7 +2369,7 @@ fn remote_reference_gateway_errors(
   case count_object_values(remote_reference) == 1 {
     False -> [
       UserError(
-        field: ["remote_reference"],
+        field: Some(["remote_reference"]),
         message: "Remote reference must contain exactly one payment method.",
         code: Some("INVALID"),
       ),
@@ -2440,7 +2463,7 @@ fn validate_remote_reference_gateway(
           True -> Error(Nil)
           False ->
             Ok(UserError(
-              field: ["remote_reference", gateway_field, field_key],
+              field: Some(["remote_reference", gateway_field, field_key]),
               message: remote_reference_blank_message(field_key),
               code: Some(code),
             ))
@@ -2782,7 +2805,7 @@ fn invalid_duplication_result(store, identity, field, fragments) {
     None,
     [
       UserError(
-        field: ["encryptedDuplicationData"],
+        field: Some(["encryptedDuplicationData"]),
         message: "Encrypted duplication data is invalid",
         code: Some("INVALID_ENCRYPTED_DUPLICATION_DATA"),
       ),
@@ -2894,7 +2917,7 @@ fn payment_terms_error(
   message: String,
   code: String,
 ) -> UserError {
-  UserError(field: field, message: message, code: Some(code))
+  UserError(field: Some(field), message: message, code: Some(code))
 }
 
 fn maybe_hydrate_payment_terms_owner(
@@ -2944,6 +2967,214 @@ fn payment_terms_owner_exists_in_response(value: commit.JsonValue) -> Bool {
   |> option.then(fn(data) { json_get(data, "draftOrder") })
   |> non_null_json
   |> option.is_some
+}
+
+fn hydrate_payment_schedule_context(
+  store: Store,
+  schedule_ids: List(String),
+  upstream: UpstreamContext,
+) -> Store {
+  list.fold(schedule_ids, store, fn(current, id) {
+    maybe_hydrate_payment_schedule(current, id, upstream)
+  })
+}
+
+fn maybe_hydrate_payment_schedule(
+  store: Store,
+  schedule_id: String,
+  upstream: UpstreamContext,
+) -> Store {
+  case
+    is_shopify_gid(Some(schedule_id), "PaymentSchedule"),
+    store.get_effective_payment_schedule_by_id(store, schedule_id)
+  {
+    True, None -> {
+      let variables = json.object([#("id", json.string(schedule_id))])
+      case
+        upstream_query.fetch_sync(
+          upstream.origin,
+          upstream.transport,
+          upstream.headers,
+          "PaymentScheduleReminderHydrate",
+          payment_schedule_reminder_hydrate_query(),
+          variables,
+        )
+      {
+        Ok(value) -> hydrate_payment_schedule_from_response(store, value)
+        Error(_) -> store
+      }
+    }
+    _, _ -> store
+  }
+}
+
+fn payment_schedule_reminder_hydrate_query() -> String {
+  "query PaymentScheduleReminderHydrate($id: ID!) {\n"
+  <> "  paymentSchedule: node(id: $id) {\n"
+  <> "    ... on PaymentSchedule {\n"
+  <> "      id dueAt issuedAt completedAt\n"
+  <> "      paymentTerms {\n"
+  <> "        id overdue dueInDays paymentTermsName paymentTermsType translatedName\n"
+  <> "        order { id closed closedAt cancelledAt displayFinancialStatus }\n"
+  <> "        draftOrder { id status completedAt }\n"
+  <> "        paymentSchedules(first: 10) { nodes { id dueAt issuedAt completedAt } }\n"
+  <> "      }\n"
+  <> "    }\n"
+  <> "  }\n"
+  <> "}\n"
+}
+
+fn hydrate_payment_schedule_from_response(
+  store: Store,
+  value: commit.JsonValue,
+) -> Store {
+  let node =
+    json_get(value, "data")
+    |> option.then(fn(data) { json_get(data, "paymentSchedule") })
+    |> non_null_json
+
+  case node |> option.then(payment_schedule_context_from_node) {
+    Some(#(terms, order, draft_order)) -> {
+      let with_order = case order {
+        Some(record) -> store.upsert_base_orders(store, [record])
+        None -> store
+      }
+      let with_draft = case draft_order {
+        Some(record) -> store.upsert_base_draft_orders(with_order, [record])
+        None -> with_order
+      }
+      store.upsert_base_payment_terms(with_draft, terms)
+    }
+    None -> store
+  }
+}
+
+fn payment_schedule_context_from_node(
+  node: commit.JsonValue,
+) -> Option(
+  #(PaymentTermsRecord, Option(OrderRecord), Option(DraftOrderRecord)),
+) {
+  use primary_schedule <- option.then(payment_schedule_from_hydrate_node(node))
+  use terms_node <- option.then(json_get(node, "paymentTerms"))
+  use terms_id <- option.then(json_get_string(terms_node, "id"))
+  let order =
+    json_get(terms_node, "order") |> option.then(order_from_terms_node)
+  let draft_order =
+    json_get(terms_node, "draftOrder")
+    |> option.then(draft_order_from_terms_node)
+  let owner_id = case order, draft_order {
+    Some(record), _ -> Some(record.id)
+    _, Some(record) -> Some(record.id)
+    _, _ -> None
+  }
+  use owner <- option.then(owner_id)
+  let schedules =
+    json_get(terms_node, "paymentSchedules")
+    |> option.then(fn(connection) { json_get(connection, "nodes") })
+    |> json_array_items
+    |> list.filter_map(fn(node) {
+      case payment_schedule_from_hydrate_node(node) {
+        Some(schedule) -> Ok(schedule)
+        None -> Error(Nil)
+      }
+    })
+    |> append_schedule_if_missing(primary_schedule)
+  Some(#(
+    PaymentTermsRecord(
+      id: terms_id,
+      owner_id: owner,
+      due: False,
+      overdue: json_get_bool(terms_node, "overdue") |> option.unwrap(False),
+      due_in_days: json_get_int(terms_node, "dueInDays"),
+      payment_terms_name: json_get_string(terms_node, "paymentTermsName")
+        |> option.unwrap(""),
+      payment_terms_type: json_get_string(terms_node, "paymentTermsType")
+        |> option.unwrap(""),
+      translated_name: json_get_string(terms_node, "translatedName")
+        |> option.unwrap(""),
+      payment_schedules: schedules,
+    ),
+    order,
+    draft_order,
+  ))
+}
+
+fn payment_schedule_from_hydrate_node(
+  node: commit.JsonValue,
+) -> Option(PaymentScheduleRecord) {
+  use id <- option.then(json_get_string(node, "id"))
+  Some(PaymentScheduleRecord(
+    id: id,
+    due_at: json_get_string(node, "dueAt"),
+    issued_at: json_get_string(node, "issuedAt"),
+    completed_at: json_get_string(node, "completedAt"),
+    due: None,
+    amount: None,
+    balance_due: None,
+    total_balance: None,
+  ))
+}
+
+fn append_schedule_if_missing(
+  schedules: List(PaymentScheduleRecord),
+  primary: PaymentScheduleRecord,
+) -> List(PaymentScheduleRecord) {
+  case list.any(schedules, fn(schedule) { schedule.id == primary.id }) {
+    True -> schedules
+    False -> [primary, ..schedules]
+  }
+}
+
+fn order_from_terms_node(node: commit.JsonValue) -> Option(OrderRecord) {
+  use id <- option.then(json_get_string(node, "id"))
+  Some(OrderRecord(
+    id: id,
+    cursor: None,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #(
+        "closed",
+        CapturedBool(json_get_bool(node, "closed") |> option.unwrap(False)),
+      ),
+      #("closedAt", optional_captured_string(json_get_string(node, "closedAt"))),
+      #(
+        "cancelledAt",
+        optional_captured_string(json_get_string(node, "cancelledAt")),
+      ),
+      #(
+        "displayFinancialStatus",
+        optional_captured_string(json_get_string(node, "displayFinancialStatus")),
+      ),
+    ]),
+  ))
+}
+
+fn draft_order_from_terms_node(
+  node: commit.JsonValue,
+) -> Option(DraftOrderRecord) {
+  use id <- option.then(json_get_string(node, "id"))
+  Some(DraftOrderRecord(
+    id: id,
+    cursor: None,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #(
+        "status",
+        CapturedString(json_get_string(node, "status") |> option.unwrap("OPEN")),
+      ),
+      #(
+        "completedAt",
+        optional_captured_string(json_get_string(node, "completedAt")),
+      ),
+    ]),
+  ))
+}
+
+fn optional_captured_string(value: Option(String)) -> CapturedJsonValue {
+  case value {
+    Some(value) -> CapturedString(value)
+    None -> CapturedNull
+  }
 }
 
 fn create_payment_terms(store, identity, field, fragments, variables) {
@@ -3279,46 +3510,221 @@ fn send_payment_reminder(store, identity, field, fragments, variables) {
     is_shopify_gid(payment_schedule_id, "PaymentSchedule"),
     payment_schedule_id
   {
-    True, Some(schedule_id) -> {
-      let #(id, identity_after_id) =
-        synthetic_identity.make_synthetic_gid(identity, "PaymentReminderSend")
-      let #(sent_at, next_identity) =
-        synthetic_identity.make_synthetic_timestamp(identity_after_id)
-      let record =
-        PaymentReminderSendRecord(
-          id: id,
-          payment_schedule_id: schedule_id,
-          sent_at: sent_at,
-        )
-      payment_method_result(
-        store.stage_payment_reminder_send(store, record),
-        next_identity,
-        field,
-        fragments,
-        "paymentReminderSend",
-        None,
-        [],
-        [#("success", SrcBool(True))],
-      )
-    }
+    True, Some(schedule_id) ->
+      case store.get_effective_payment_schedule_by_id(store, schedule_id) {
+        Some(#(terms, schedule)) ->
+          case payment_schedule_reminder_error(store, terms, schedule) {
+            None -> {
+              let #(id, identity_after_id) =
+                synthetic_identity.make_synthetic_gid(
+                  identity,
+                  "PaymentReminderSend",
+                )
+              let #(sent_at, next_identity) =
+                synthetic_identity.make_synthetic_timestamp(identity_after_id)
+              let record =
+                PaymentReminderSendRecord(
+                  id: id,
+                  payment_schedule_id: schedule_id,
+                  sent_at: sent_at,
+                )
+              payment_method_result(
+                store.stage_payment_reminder_send(store, record),
+                next_identity,
+                field,
+                fragments,
+                "paymentReminderSend",
+                None,
+                [],
+                [#("success", SrcBool(True))],
+              )
+            }
+            Some(error) ->
+              payment_reminder_error_result(
+                store,
+                identity,
+                field,
+                fragments,
+                [
+                  error,
+                ],
+                SrcNull,
+              )
+          }
+        _ ->
+          payment_reminder_error_result(
+            store,
+            identity,
+            field,
+            fragments,
+            [
+              payment_reminder_not_found_error(),
+            ],
+            SrcNull,
+          )
+      }
     _, _ ->
-      payment_method_result(
+      payment_reminder_error_result(
         store,
         identity,
         field,
         fragments,
-        "paymentReminderSend",
-        None,
         [
           UserError(
-            field: ["paymentScheduleId"],
-            message: "Payment reminder could not be sent",
-            code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+            field: Some(["paymentScheduleId"]),
+            message: "Payment schedule ID is invalid",
+            code: Some("INVALID_PAYMENT_SCHEDULE_ID"),
           ),
         ],
-        [#("success", SrcBool(False))],
+        SrcBool(False),
       )
   }
+}
+
+fn payment_schedule_reminder_error(
+  store: Store,
+  terms: PaymentTermsRecord,
+  schedule: PaymentScheduleRecord,
+) -> Option(UserError) {
+  case schedule.completed_at {
+    Some(_) -> Some(payment_reminder_already_completed_error())
+    None ->
+      case terms.overdue {
+        False -> Some(payment_reminder_unsuccessful_error())
+        True -> payment_terms_owner_error(store, terms.owner_id)
+      }
+  }
+}
+
+fn payment_terms_owner_error(
+  store: Store,
+  owner_id: String,
+) -> Option(UserError) {
+  case is_shopify_gid(Some(owner_id), "Order") {
+    True ->
+      case store.get_order_by_id(store, owner_id) {
+        Some(order) -> order_terminal_error(order)
+        None -> Some(payment_reminder_unsuccessful_error())
+      }
+    False ->
+      case is_shopify_gid(Some(owner_id), "DraftOrder") {
+        True -> Some(payment_reminder_not_for_order_error())
+        False -> Some(payment_reminder_unsuccessful_error())
+      }
+  }
+}
+
+fn order_terminal_error(order: OrderRecord) -> Option(UserError) {
+  case captured_string_field(order.data, "displayFinancialStatus") {
+    Some("PAID") -> Some(payment_reminder_already_completed_error())
+    _ ->
+      case
+        captured_present(order.data, "cancelledAt")
+        || captured_present(order.data, "closedAt")
+        || case captured_bool_field(order.data, "closed") {
+          Some(True) -> True
+          _ -> False
+        }
+      {
+        True -> Some(payment_reminder_unsuccessful_error())
+        False -> None
+      }
+  }
+}
+
+fn captured_present(value: CapturedJsonValue, name: String) -> Bool {
+  case captured_object_field(value, name) {
+    Some(CapturedNull) | None -> False
+    Some(_) -> True
+  }
+}
+
+fn captured_object_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedObject(fields) ->
+      fields
+      |> list.find_map(fn(pair) {
+        let #(key, item) = pair
+        case key == name {
+          True -> Ok(item)
+          False -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn captured_string_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(String) {
+  case captured_object_field(value, name) {
+    Some(CapturedString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn captured_bool_field(value: CapturedJsonValue, name: String) -> Option(Bool) {
+  case captured_object_field(value, name) {
+    Some(CapturedBool(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn payment_reminder_unsuccessful_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Payment reminder could not be sent",
+    code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+  )
+}
+
+fn payment_reminder_not_found_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Payment schedule does not exist",
+    code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+  )
+}
+
+fn payment_reminder_already_completed_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Payment schedule is already completed",
+    code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+  )
+}
+
+fn payment_reminder_not_for_order_error() -> UserError {
+  UserError(
+    field: None,
+    message: "Payment schedule is not for an Order",
+    code: Some("PAYMENT_REMINDER_SEND_UNSUCCESSFUL"),
+  )
+}
+
+fn payment_reminder_error_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(UserError),
+  success: SourceValue,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  payment_method_result(
+    store,
+    identity,
+    field,
+    fragments,
+    "paymentReminderSend",
+    None,
+    errors,
+    [#("success", success)],
+  )
 }
 
 fn payment_method_result(
@@ -3436,7 +3842,10 @@ fn user_errors_source(errors: List(UserError)) -> SourceValue {
   SrcList(
     list.map(errors, fn(error) {
       src_object([
-        #("field", SrcList(list.map(error.field, SrcString))),
+        #("field", case error.field {
+          Some(field) -> SrcList(list.map(field, SrcString))
+          None -> SrcNull
+        }),
         #("message", SrcString(error.message)),
         #("code", case error.code {
           Some(code) -> SrcString(code)
@@ -3500,6 +3909,20 @@ fn json_array_items(value: Option(commit.JsonValue)) -> List(commit.JsonValue) {
 
 fn json_get_string(value: commit.JsonValue, key: String) -> Option(String) {
   json_get(value, key) |> option.then(json_scalar_string)
+}
+
+fn json_get_bool(value: commit.JsonValue, key: String) -> Option(Bool) {
+  case json_get(value, key) {
+    Some(commit.JsonBool(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn json_get_int(value: commit.JsonValue, key: String) -> Option(Int) {
+  case json_get(value, key) {
+    Some(commit.JsonInt(value)) -> Some(value)
+    _ -> None
+  }
 }
 
 fn json_scalar_string(value: commit.JsonValue) -> Option(String) {

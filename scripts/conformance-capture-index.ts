@@ -141,6 +141,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'The active Shopify Admin 2026-04 schema exposes CompanyContact phone/locale input validation but not note/notes fields, so note-to-notes behavior remains runtime-test-backed.',
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-location-address-management',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-location-address-management-conformance.mts',
+    purpose:
+      'B2B location name fallback, duplicate address-type validation, shared billing/shipping address delete readback, and location-delete role-assignment cascade.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-location-address-management.json`,
+      'config/parity-specs/b2b/b2b-location-address-management.json',
+      'config/parity-requests/b2b/b2b-location-address-management-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable company with contact, locations, and addresses; deletes the company during scenario cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
@@ -192,6 +209,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates disposable products for successful productCreate captures and deletes them in best-effort cleanup; the productSet validation branch must not create a product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
+    captureId: 'product-handle-dedup',
+    scriptPath: 'scripts/capture-product-handle-dedup-conformance.mts',
+    purpose:
+      'Generated productCreate, productDuplicate, and collectionCreate handle de-duplication with incrementing numeric suffixes.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-handle-dedup-parity.json`,
+      'config/parity-specs/products/productCreate-handle-dedup.json',
+      'config/parity-requests/products/productCreate-handle-dedup.graphql',
+      'config/parity-requests/products/productDuplicate-handle-dedup.graphql',
+      'config/parity-requests/products/collectionCreate-handle-dedup.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable products, one synchronous duplicate, and disposable collections, then deletes them in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -1224,6 +1259,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}order-*.json`, 'order blocker notes when credential/store access is insufficient'],
     cleanupBehavior: 'Creates/cancels disposable orders only after credential and store-state probes pass.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'orders',
+    captureId: 'order-lifecycle-noop',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-lifecycle-noop-conformance.mts',
+    purpose:
+      'Redundant orderClose on an already-closed order and orderOpen on a never-closed order preserve closedAt/updatedAt while returning silent-success payloads.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderClose-noop-on-already-closed.json`,
+      `${CAPTURE_ROOT}orderOpen-noop-on-already-open.json`,
+      'config/parity-specs/orders/orderClose-noop-on-already-closed.json',
+      'config/parity-specs/orders/orderOpen-noop-on-already-open.json',
+      'config/parity-requests/orders/orderClose-noop-on-already-closed.graphql',
+      'config/parity-requests/orders/orderOpen-noop-on-already-open.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable test orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'orders',

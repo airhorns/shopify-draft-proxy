@@ -692,6 +692,165 @@ pub fn product_create_stages_product_default_variant_and_inventory_test() {
     == 1
 }
 
+pub fn generated_product_handles_increment_numeric_suffixes_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Red shirt\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: fourth_status, body: fourth_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert third_status == 200
+  assert fourth_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-1\"},\"userErrors\":[]}}}"
+  assert json.to_string(third_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(fourth_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn generated_product_handles_increment_existing_numeric_suffix_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Red shirt 2\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_set_generated_handles_increment_numeric_suffixes_test() {
+  let query =
+    "mutation { productSet(input: { title: \\\"Red shirt\\\" }, synchronous: true) { product { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: fourth_status, body: fourth_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert third_status == 200
+  assert fourth_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt-1\"},\"userErrors\":[]}}}"
+  assert json.to_string(third_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(fourth_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_duplicate_generated_handles_increment_numeric_suffixes_test() {
+  let source_query =
+    "mutation { productCreate(product: { title: \\\"Red shirt\\\" }) { product { id handle } userErrors { field message } } }"
+  let copy_query =
+    "mutation { productCreate(product: { title: \\\"Red shirt Copy\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: source_status, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(source_query),
+    )
+  let #(Response(status: first_copy_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(copy_query))
+  let #(Response(status: second_copy_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(copy_query))
+  let duplicate_query =
+    "mutation { productDuplicate(productId: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\", newTitle: \\\"Red shirt Copy\\\", synchronous: true) { newProduct { title handle } userErrors { field message } } }"
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+
+  assert source_status == 200
+  assert first_copy_status == 200
+  assert second_copy_status == 200
+  assert duplicate_status == 200
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"productDuplicate\":{\"newProduct\":{\"title\":\"Red shirt Copy\",\"handle\":\"red-shirt-copy-2\"},\"userErrors\":[]}}}"
+}
+
+pub fn collection_create_generated_handles_increment_numeric_suffixes_test() {
+  let query =
+    "mutation { collectionCreate(input: { title: \\\"Red shirt\\\" }) { collection { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: fourth_status, body: fourth_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert third_status == 200
+  assert fourth_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-1\"},\"userErrors\":[]}}}"
+  assert json.to_string(third_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(fourth_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn collection_create_generated_handles_increment_existing_numeric_suffix_test() {
+  let query =
+    "mutation { collectionCreate(input: { title: \\\"Red shirt 2\\\" }) { collection { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn explicit_product_handle_collisions_return_user_errors_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let create_query =
+    "mutation { productCreate(product: { title: \\\"Explicit Collision\\\", handle: \\\"optioned-board\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: create_status, body: create_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"handle\"],\"message\":\"Handle 'optioned-board' already in use. Please provide a new handle.\"}]}}}"
+
+  let set_query =
+    "mutation { productSet(input: { title: \\\"Explicit Collision\\\", handle: \\\"optioned-board\\\" }, synchronous: true) { product { handle } userErrors { field message } } }"
+  let #(Response(status: set_status, body: set_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(set_query))
+
+  assert set_status == 200
+  assert json.to_string(set_body)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"handle\"],\"message\":\"Handle 'optioned-board' already in use. Please provide a new handle.\"}]}}}"
+}
+
 pub fn product_create_validation_branches_return_user_errors_test() {
   let blank_query =
     "mutation { productCreate(product: { title: \\\"\\\" }) { product { id title handle } userErrors { field message } } }"

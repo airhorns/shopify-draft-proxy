@@ -64,6 +64,27 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: B2B same-as-shipping exposes separate public address IDs in 2026-04
+
+HAR-623 captured B2B location/address management on Admin GraphQL 2026-04. A
+`companyLocationCreate` request with `billingSameAsShipping: true` and a
+shipping address returned both `billingAddress` and `shippingAddress`, but those
+two public `CompanyAddress` IDs were different. Deleting the captured
+shipping-side ID removed only `shippingAddress` on the downstream public read
+and left the billing-side public address visible. Earlier ticket/source notes
+described the internal same-as-shipping anchor as a shared address; the local
+runtime still keeps one shared local address ID so it can clear
+`billingSameAsShipping` and detach both sides when that shared anchor is deleted.
+
+Two nearby 2026-04 traps from the same capture:
+
+- `CompanyLocation.billingSameAsShipping` is not selectable in that public Admin
+  API schema, so the local flag invariant needs focused runtime coverage rather
+  than strict public read parity.
+- duplicate `companyLocationAssignAddress(addressTypes: [BILLING, BILLING])`
+  returns `addresses: null` and a single `INVALID_INPUT` userError with
+  `field: null` and message `Invalid input.`
+
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
 HAR-458 captured `savedSearchCreate(resourceType: PRODUCT)` with a grouped/boolean product query:
@@ -3061,3 +3082,27 @@ Practical rule:
 
 - model async duplicate as a local `ProductDuplicateOperation` whose mutation response is created/pending-shaped and whose helper read exposes completion; do not route supported async duplicate writes upstream
 - keep `productDuplicateJob(id:)` as the older unknown-job compatibility helper unless new evidence links it to current async duplicate operations
+
+## 76. B2B customer-as-contact validation codes are version/evidence-sensitive
+
+HAR-606 probed `companyAssignCustomerAsContact` on Admin GraphQL 2025-01 and
+2026-04 against `harry-test-heelo.myshopify.com` while fixing local customer
+resolution.
+
+Observed public Admin API behavior:
+
+- unknown customer IDs returned `field: ["customerId"]`, message
+  `Customer does not exist.`, and code `RESOURCE_NOT_FOUND`
+- assigning the same customer twice returned `field: ["companyId"]`, message
+  `Customer is already associated with a company contact.`, and code
+  `INVALID_INPUT`
+- assigning a customer with no email returned `field: ["companyId"]`, message
+  `Customer must have an email address.`, and code `INVALID_INPUT`
+
+Practical rule:
+
+- the local handler follows HAR-606's internal-source acceptance codes
+  (`CUSTOMER_NOT_FOUND`, `CUSTOMER_ALREADY_A_CONTACT`, and
+  `CUSTOMER_EMAIL_MUST_EXIST`) while preserving the observed field/message
+  shapes; re-record parity if Shopify's public Admin API starts returning those
+  more specific enum values
