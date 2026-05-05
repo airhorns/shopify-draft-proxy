@@ -1971,7 +1971,12 @@ fn backup_region_not_found_result(
   MutationFieldResult(
     project_selection(
       backup_region_update_source(None, [
-        user_error(["region"], "Region not found.", Some("REGION_NOT_FOUND")),
+        user_error_with_typename(
+          "MarketUserError",
+          ["region"],
+          "Region not found.",
+          Some("REGION_NOT_FOUND"),
+        ),
       ]),
       field,
       fragments,
@@ -2004,8 +2009,17 @@ fn user_error(
   message: String,
   code: Option(String),
 ) -> SourceValue {
+  user_error_with_typename("UserError", field, message, code)
+}
+
+fn user_error_with_typename(
+  typename: String,
+  field: List(String),
+  message: String,
+  code: Option(String),
+) -> SourceValue {
   src_object([
-    #("__typename", SrcString("UserError")),
+    #("__typename", SrcString(typename)),
     #("field", SrcList(list.map(field, SrcString))),
     #("message", SrcString(message)),
     #("code", option_string(code)),
