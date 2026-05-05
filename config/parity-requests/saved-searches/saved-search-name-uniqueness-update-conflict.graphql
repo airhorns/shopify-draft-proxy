@@ -1,0 +1,19 @@
+mutation SavedSearchNameUniquenessUpdateConflict($input: SavedSearchUpdateInput!) {
+  savedSearchUpdate(input: $input) {
+    savedSearch {
+      id
+      name
+      query
+      resourceType
+      searchTerms
+      filters {
+        key
+        value
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

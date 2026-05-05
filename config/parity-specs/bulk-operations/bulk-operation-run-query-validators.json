@@ -1,0 +1,104 @@
+{
+  "scenarioId": "bulk-operation-run-query-validators",
+  "operationNames": ["bulkOperationRunQuery"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-validators.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+    "variablesCapturePath": "$.validations.nodesInsteadOfEdges.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-728 captures Shopify Admin GraphQL 2026-04 bulkOperationRunQuery AdminQuery validator branches that reject nodes-style connection selection, top-level node, connection nesting depth above two, more than five connections, and nested connections whose parent node omits a non-aliased id. These validation-only branches do not require proxy upstream reads, so the cassette is intentionally empty.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "nodes-instead-of-edges.userErrors",
+        "capturePath": "$.validations.nodesInsteadOfEdges.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors"
+      },
+      {
+        "name": "nodes-instead-of-edges.bulkOperation",
+        "capturePath": "$.validations.nodesInsteadOfEdges.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation"
+      },
+      {
+        "name": "top-level-node.userErrors",
+        "capturePath": "$.validations.topLevelNode.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.topLevelNode.variables"
+        }
+      },
+      {
+        "name": "top-level-node.bulkOperation",
+        "capturePath": "$.validations.topLevelNode.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.topLevelNode.variables"
+        }
+      },
+      {
+        "name": "depth-three-nesting.userErrors",
+        "capturePath": "$.validations.depthThreeNesting.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.depthThreeNesting.variables"
+        }
+      },
+      {
+        "name": "depth-three-nesting.bulkOperation",
+        "capturePath": "$.validations.depthThreeNesting.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.depthThreeNesting.variables"
+        }
+      },
+      {
+        "name": "six-connections.userErrors",
+        "capturePath": "$.validations.sixConnections.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.sixConnections.variables"
+        }
+      },
+      {
+        "name": "six-connections.bulkOperation",
+        "capturePath": "$.validations.sixConnections.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.sixConnections.variables"
+        }
+      },
+      {
+        "name": "nested-without-parent-id.userErrors",
+        "capturePath": "$.validations.nestedWithoutParentId.response.data.bulkOperationRunQuery.userErrors",
+        "proxyPath": "$.data.bulkOperationRunQuery.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.nestedWithoutParentId.variables"
+        }
+      },
+      {
+        "name": "nested-without-parent-id.bulkOperation",
+        "capturePath": "$.validations.nestedWithoutParentId.response.data.bulkOperationRunQuery.bulkOperation",
+        "proxyPath": "$.data.bulkOperationRunQuery.bulkOperation",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-validators.graphql",
+          "variablesCapturePath": "$.validations.nestedWithoutParentId.variables"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "capturedAt": "2026-05-05T16:05:00.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenario": "app-subscription-activation-readback",
+  "notes": [
+    "Runtime fixture for deterministic local app subscription test-charge activation.",
+    "Real Shopify requires merchant confirmation before a billing charge becomes active; the proxy auto-activates test charges locally so create-then-read test flows can assert downstream activeSubscriptions without external browser approval."
+  ],
+  "operationNames": ["appSubscriptionCreate", "currentAppInstallation"],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "subscriptionCreate": {
+          "data": {
+            "appSubscriptionCreate": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "status": "ACTIVE",
+                "test": true,
+                "trialDays": 7,
+                "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "activationRead": {
+          "data": {
+            "currentAppInstallation": {
+              "activeSubscriptions": [
+                {
+                  "id": "gid://shopify/AppSubscription/expected",
+                  "status": "ACTIVE",
+                  "currentPeriodEnd": "2024-02-07T00:00:00.000Z"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

@@ -1,0 +1,61 @@
+{
+  "scenarioId": "b2b-external-id-duplicate-company",
+  "operationNames": ["companyCreate", "companyUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-external-id-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/external-id-validation-company-create.graphql",
+    "variablesCapturePath": "$.setupCompany.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "HAR-608 live parity evidence for duplicate company externalId validation on companyCreate and companyUpdate.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-duplicate-external-id",
+        "capturePath": "$.companyCreateDuplicate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-company-create.graphql",
+          "variablesCapturePath": "$.companyCreateDuplicate.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "second-company-setup",
+        "capturePath": "$.secondCompanySetup.response.data.companyCreate.userErrors",
+        "proxyPath": "$.data.companyCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-company-create.graphql",
+          "variablesCapturePath": "$.secondCompanySetup.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-update-duplicate-external-id",
+        "capturePath": "$.companyUpdateDuplicate.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-company-update.graphql",
+          "variables": {
+            "companyId": {
+              "fromProxyResponse": "second-company-setup",
+              "path": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.companyUpdateDuplicate.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

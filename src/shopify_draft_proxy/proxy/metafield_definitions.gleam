@@ -6,6 +6,7 @@
 //// unsupported until their owning domains have evidence and state.
 
 import gleam/dict.{type Dict}
+import gleam/float
 import gleam/int
 import gleam/json.{type Json}
 import gleam/list
@@ -98,6 +99,8 @@ type StandardMetafieldDefinitionTemplate {
     visible_to_storefront_api: Bool,
   )
 }
+
+const pinned_definition_limit = 20
 
 pub fn is_metafield_definitions_query_root(name: String) -> Bool {
   case name {
@@ -1950,24 +1953,40 @@ fn serialize_definition_pin_root(
       identity,
       [],
     )
-    Some(definition) -> {
-      let pinned = pin_definition(store_in, definition)
-      let next_store =
-        store.upsert_staged_metafield_definitions(store_in, [pinned])
-      #(
-        serialize_pinning_payload(
+    Some(definition) ->
+      case validate_definition_pin(store_in, definition) {
+        [_, ..] as user_errors -> #(
+          serialize_pinning_payload(
+            store_in,
+            "pinnedDefinition",
+            None,
+            user_errors,
+            field,
+            variables,
+          ),
           store_in,
-          "pinnedDefinition",
-          Some(pinned),
+          identity,
           [],
-          field,
-          variables,
-        ),
-        next_store,
-        identity,
-        [pinned.id],
-      )
-    }
+        )
+        [] -> {
+          let pinned = pin_definition(store_in, definition)
+          let next_store =
+            store.upsert_staged_metafield_definitions(store_in, [pinned])
+          #(
+            serialize_pinning_payload(
+              store_in,
+              "pinnedDefinition",
+              Some(pinned),
+              [],
+              field,
+              variables,
+            ),
+            next_store,
+            identity,
+            [pinned.id],
+          )
+        }
+      }
   }
 }
 
@@ -2042,17 +2061,24 @@ fn validate_product_owner_definition_input(
         None -> Ok(blank_definition_error(field_name))
       }
     })
-  let owner_type_error = case read_optional_string(input, "ownerType") {
-    Some("PRODUCT") | None -> []
-    Some(_) -> [
+  let owner_type_error = case create, read_optional_string(input, "ownerType") {
+    True, Some("PRODUCT") | _, None -> []
+    True, Some(_) -> [
       UserError(
         field: Some(["definition", "ownerType"]),
         message: "Only PRODUCT metafield definitions are supported locally.",
         code: "UNSUPPORTED_OWNER_TYPE",
       ),
     ]
+    False, _ -> []
   }
-  list.append(errors, owner_type_error)
+  errors
+  |> list.append(owner_type_error)
+  |> list.append(validate_definition_namespace(input))
+  |> list.append(validate_definition_key(input))
+  |> list.append(validate_definition_name(input))
+  |> list.append(validate_definition_description(input))
+  |> list.append(validate_definition_type(input, create))
 }
 
 fn blank_definition_error(field_name: String) -> UserError {
@@ -2061,6 +2087,246 @@ fn blank_definition_error(field_name: String) -> UserError {
     message: field_name <> " is required.",
     code: "BLANK",
   )
+}
+
+fn validate_definition_namespace(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "namespace") {
+    Some(namespace) ->
+      case string.trim(namespace) {
+        "" -> []
+        _ -> {
+          let length = string.length(namespace)
+          case definition_reserved_namespace(namespace) {
+            True -> [
+              definition_user_error(
+                "namespace",
+                "Namespace " <> namespace <> " is reserved.",
+                "RESERVED",
+              ),
+            ]
+            False ->
+              case length < 3 {
+                True -> [
+                  definition_user_error(
+                    "namespace",
+                    "Namespace is too short (minimum is 3 characters)",
+                    "TOO_SHORT",
+                  ),
+                ]
+                False ->
+                  case length > 255 {
+                    True -> [
+                      definition_user_error(
+                        "namespace",
+                        "Namespace is too long (maximum is 255 characters)",
+                        "TOO_LONG",
+                      ),
+                    ]
+                    False ->
+                      case valid_definition_identifier_characters(namespace) {
+                        True -> []
+                        False -> [
+                          definition_user_error(
+                            "namespace",
+                            "Namespace contains one or more invalid characters.",
+                            "INVALID_CHARACTER",
+                          ),
+                        ]
+                      }
+                  }
+              }
+          }
+        }
+      }
+    None -> []
+  }
+}
+
+fn validate_definition_key(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "key") {
+    Some(key) ->
+      case string.trim(key) {
+        "" -> []
+        _ -> {
+          let length = string.length(key)
+          case length < 2 {
+            True -> [
+              definition_user_error(
+                "key",
+                "Key is too short (minimum is 2 characters)",
+                "TOO_SHORT",
+              ),
+            ]
+            False ->
+              case length > 64 {
+                True -> [
+                  definition_user_error(
+                    "key",
+                    "Key is too long (maximum is 64 characters)",
+                    "TOO_LONG",
+                  ),
+                ]
+                False ->
+                  case valid_definition_identifier_characters(key) {
+                    True -> []
+                    False -> [
+                      definition_user_error(
+                        "key",
+                        "Key contains one or more invalid characters.",
+                        "INVALID_CHARACTER",
+                      ),
+                    ]
+                  }
+              }
+          }
+        }
+      }
+    None -> []
+  }
+}
+
+fn validate_definition_name(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "name") {
+    Some(name) ->
+      case string.length(name) > 255 {
+        True -> [
+          definition_user_error(
+            "name",
+            "Name is too long (maximum is 255 characters)",
+            "TOO_LONG",
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_definition_description(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_optional_string(input, "description") {
+    Some(description) ->
+      case string.length(description) > 255 {
+        True -> [
+          definition_user_error(
+            "description",
+            "Description is too long (maximum is 255 characters)",
+            "TOO_LONG",
+          ),
+        ]
+        False -> []
+      }
+    _ -> []
+  }
+}
+
+fn validate_definition_type(
+  input: Dict(String, root_field.ResolvedValue),
+  create: Bool,
+) -> List(UserError) {
+  case read_optional_string(input, "type") {
+    Some(type_name) ->
+      case string.trim(type_name) {
+        "" -> []
+        _ ->
+          case valid_definition_type_name(type_name) {
+            True -> []
+            False -> [
+              definition_user_error(
+                "type",
+                invalid_definition_type_message(type_name),
+                "INCLUSION",
+              ),
+            ]
+          }
+      }
+    None ->
+      case create {
+        True -> []
+        False -> []
+      }
+  }
+}
+
+fn definition_user_error(
+  field_name: String,
+  message: String,
+  code: String,
+) -> UserError {
+  UserError(
+    field: Some(["definition", field_name]),
+    message: message,
+    code: code,
+  )
+}
+
+fn definition_reserved_namespace(namespace: String) -> Bool {
+  is_protected_write_namespace(namespace)
+  || string.starts_with(namespace, "shopify")
+}
+
+fn valid_definition_identifier_characters(value: String) -> Bool {
+  value
+  |> string.to_utf_codepoints
+  |> list.all(fn(codepoint) {
+    let code = string.utf_codepoint_to_int(codepoint)
+    is_alpha_numeric_code(code) || code == 45 || code == 95
+  })
+}
+
+fn valid_definition_type_name(type_name: String) -> Bool {
+  list.contains(valid_definition_type_names(), type_name)
+}
+
+fn invalid_definition_type_message(type_name: String) -> String {
+  "Type name "
+  <> type_name
+  <> " is not a valid type. Valid types are: "
+  <> string.join(valid_definition_type_names(), ", ")
+  <> "."
+}
+
+fn valid_definition_type_names() -> List(String) {
+  [
+    "antenna_gain", "area", "battery_charge_capacity", "battery_energy_capacity",
+    "boolean", "capacitance", "color", "concentration", "data_storage_capacity",
+    "data_transfer_rate", "date_time", "date", "dimension", "display_density",
+    "distance", "duration", "electric_current", "electrical_resistance",
+    "energy", "frequency", "id", "illuminance", "inductance", "json", "language",
+    "link", "list.antenna_gain", "list.area", "list.battery_charge_capacity",
+    "list.battery_energy_capacity", "list.capacitance", "list.color",
+    "list.concentration", "list.data_storage_capacity",
+    "list.data_transfer_rate", "list.date_time", "list.date", "list.dimension",
+    "list.display_density", "list.distance", "list.duration",
+    "list.electric_current", "list.electrical_resistance", "list.energy",
+    "list.frequency", "list.illuminance", "list.inductance", "list.link",
+    "list.luminous_flux", "list.mass_flow_rate", "list.number_decimal",
+    "list.number_integer", "list.power", "list.pressure", "list.rating",
+    "list.resolution", "list.rotational_speed", "list.single_line_text_field",
+    "list.sound_level", "list.speed", "list.temperature", "list.thermal_power",
+    "list.url", "list.voltage", "list.volume", "list.volumetric_flow_rate",
+    "list.weight", "luminous_flux", "mass_flow_rate", "money",
+    "multi_line_text_field", "number_decimal", "number_integer", "power",
+    "pressure", "rating", "resolution", "rich_text_field", "rotational_speed",
+    "single_line_text_field", "sound_level", "speed", "temperature",
+    "thermal_power", "url", "voltage", "volume", "volumetric_flow_rate",
+    "weight", "company_reference", "list.company_reference",
+    "customer_reference", "list.customer_reference", "product_reference",
+    "list.product_reference", "collection_reference",
+    "list.collection_reference", "variant_reference", "list.variant_reference",
+    "file_reference", "list.file_reference", "product_taxonomy_value_reference",
+    "list.product_taxonomy_value_reference", "metaobject_reference",
+    "list.metaobject_reference", "mixed_reference", "list.mixed_reference",
+    "page_reference", "list.page_reference", "article_reference",
+    "list.article_reference", "order_reference", "list.order_reference",
+  ]
 }
 
 fn build_definition_from_input(
@@ -2093,9 +2359,7 @@ fn build_definition_from_input(
         input,
         "capabilities",
       )),
-      constraints: Some(
-        MetafieldDefinitionConstraintsRecord(key: None, values: []),
-      ),
+      constraints: read_definition_constraints(input),
       pinned_position: case read_optional_bool(input, "pin") {
         Some(True) -> Some(next_pinned_position(store_in, owner_type, None))
         _ -> None
@@ -2104,6 +2368,40 @@ fn build_definition_from_input(
     ),
     next_identity,
   )
+}
+
+fn read_definition_constraints(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(MetafieldDefinitionConstraintsRecord) {
+  case has_field(input, "constraints") {
+    False -> Some(MetafieldDefinitionConstraintsRecord(key: None, values: []))
+    True -> {
+      let constraints = read_object(input, "constraints")
+      Some(MetafieldDefinitionConstraintsRecord(
+        key: read_optional_string(constraints, "key"),
+        values: read_string_list(constraints, "values")
+          |> list.map(fn(value) {
+            MetafieldDefinitionConstraintValueRecord(value: value)
+          }),
+      ))
+    }
+  }
+}
+
+fn read_string_list(
+  input: Dict(String, root_field.ResolvedValue),
+  key: String,
+) -> List(String) {
+  case dict.get(input, key) {
+    Ok(root_field.ListVal(values)) ->
+      list.filter_map(values, fn(value) {
+        case value {
+          root_field.StringVal(s) -> Ok(s)
+          _ -> Error(Nil)
+        }
+      })
+    _ -> []
+  }
 }
 
 fn infer_definition_type_category(type_name: String) -> Option(String) {
@@ -2316,6 +2614,47 @@ fn serialize_definition_user_error(error: UserError, field: Selection) -> Json {
   )
 }
 
+fn validate_definition_pin(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> List(UserError) {
+  case definition_is_constrained(definition) {
+    True -> [
+      UserError(
+        field: None,
+        message: "Constrained metafield definitions do not support pinning.",
+        code: "UNSUPPORTED_PINNING",
+      ),
+    ]
+    False ->
+      case definition.pinned_position {
+        Some(_) -> []
+        None ->
+          case
+            list.length(list_pinned_definitions(store_in, definition.owner_type))
+            >= pinned_definition_limit
+          {
+            True -> [
+              UserError(
+                field: None,
+                message: "Limit of 20 pinned definitions.",
+                code: "PINNED_LIMIT_REACHED",
+              ),
+            ]
+            False -> []
+          }
+      }
+  }
+}
+
+fn definition_is_constrained(definition: MetafieldDefinitionRecord) -> Bool {
+  case definition.constraints {
+    Some(MetafieldDefinitionConstraintsRecord(key: Some(_), ..)) -> True
+    Some(MetafieldDefinitionConstraintsRecord(values: [_, ..], ..)) -> True
+    _ -> False
+  }
+}
+
 fn list_pinned_definitions(
   store_in: Store,
   owner_type: String,
@@ -2458,6 +2797,11 @@ fn minimal_product_shell(product_id: String) -> ProductRecord {
     vendor: None,
     product_type: None,
     tags: [],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: None,
+    has_only_default_variant: None,
+    has_out_of_stock_variants: None,
     total_inventory: None,
     tracks_inventory: None,
     created_at: None,
@@ -3084,72 +3428,34 @@ fn validate_metafields_set_input(
               None -> None
             })
           let errors = []
-          let errors = case key {
-            Some(k) ->
-              case string.trim(k) {
-                "" -> [
-                  make_metafields_set_user_error(
-                    Some(index),
-                    Some("key"),
-                    "Key is required.",
-                    "BLANK",
-                  ),
-                  ..errors
-                ]
-                _ -> errors
-              }
-            None -> [
-              make_metafields_set_user_error(
-                Some(index),
-                Some("key"),
-                "Key is required.",
-                "BLANK",
+          let errors =
+            list.append(
+              errors,
+              validate_metafields_set_namespace(namespace, index),
+            )
+          let errors =
+            list.append(errors, validate_metafields_set_key(key, index))
+          let errors =
+            list.append(errors, validate_metafields_set_type(type_, index))
+          let errors =
+            list.append(
+              errors,
+              validate_metafields_set_value_presence(value, index),
+            )
+          let errors =
+            list.append(
+              errors,
+              validate_metafields_set_definition_type(
+                definition,
+                input_type,
+                index,
               ),
-              ..errors
-            ]
-          }
-          let errors = case type_ {
-            Some(_) -> errors
-            None -> [
-              MetafieldsSetUserError(
-                field: ["metafields", int.to_string(index), "type"],
-                message: "Type can't be blank",
-                code: Some("BLANK"),
-                element_index: None,
-              ),
-              ..errors
-            ]
-          }
-          let errors = case value {
-            Some(_) -> errors
-            None -> [
-              make_metafields_set_user_error(
-                Some(index),
-                Some("value"),
-                "Value is required.",
-                "BLANK",
-              ),
-              ..errors
-            ]
-          }
-          let errors = case definition, input_type {
-            Some(def), Some(input_type_name) ->
-              case input_type_name != def.type_.name {
-                True -> [
-                  make_metafields_set_user_error(
-                    Some(index),
-                    Some("type"),
-                    "Type must be "
-                      <> def.type_.name
-                      <> " for this metafield definition.",
-                    "INVALID_TYPE",
-                  ),
-                  ..errors
-                ]
-                False -> errors
-              }
-            _, _ -> errors
-          }
+            )
+          let errors =
+            list.append(
+              errors,
+              validate_metafields_set_value_type(store_in, type_, value, index),
+            )
           let errors =
             list.append(
               errors,
@@ -3159,6 +3465,589 @@ fn validate_metafields_set_input(
             list.append(errors, validate_compare_digest(input, existing, index))
           errors
         }
+      }
+  }
+}
+
+fn validate_metafields_set_namespace(
+  namespace: String,
+  index: Int,
+) -> List(MetafieldsSetUserError) {
+  let length = string.length(namespace)
+  case is_protected_write_namespace(namespace) {
+    True -> [
+      MetafieldsSetUserError(
+        field: ["metafields", int.to_string(index), "namespace"],
+        message: "Namespace " <> namespace <> " is a reserved namespace",
+        code: None,
+        element_index: None,
+      ),
+    ]
+    False ->
+      case length < 3 {
+        True -> [
+          make_metafields_set_user_error(
+            Some(index),
+            Some("namespace"),
+            "Namespace is too short (minimum is 3 characters)",
+            "TOO_SHORT",
+          ),
+        ]
+        False ->
+          case length > 255 {
+            True -> [
+              make_metafields_set_user_error(
+                Some(index),
+                Some("namespace"),
+                "Namespace is too long (maximum is 255 characters)",
+                "TOO_LONG",
+              ),
+            ]
+            False ->
+              case valid_namespace_characters(namespace) {
+                True -> []
+                False -> [
+                  make_metafields_set_user_error(
+                    Some(index),
+                    Some("namespace"),
+                    "Namespace contains invalid characters.",
+                    "INVALID",
+                  ),
+                ]
+              }
+          }
+      }
+  }
+}
+
+fn validate_metafields_set_key(
+  key: Option(String),
+  index: Int,
+) -> List(MetafieldsSetUserError) {
+  case key {
+    Some(k) ->
+      case string.trim(k) {
+        "" -> [
+          make_metafields_set_user_error(
+            Some(index),
+            Some("key"),
+            "Key is required.",
+            "BLANK",
+          ),
+        ]
+        _ -> {
+          let length = string.length(k)
+          case length < 2 {
+            True -> [
+              make_metafields_set_user_error(
+                Some(index),
+                Some("key"),
+                "Key is too short (minimum is 2 characters)",
+                "TOO_SHORT",
+              ),
+            ]
+            False ->
+              case length > 64 {
+                True -> [
+                  make_metafields_set_user_error(
+                    Some(index),
+                    Some("key"),
+                    "Key is too long (maximum is 64 characters)",
+                    "TOO_LONG",
+                  ),
+                ]
+                False ->
+                  case valid_key_characters(k) {
+                    True -> []
+                    False -> [
+                      make_metafields_set_user_error(
+                        Some(index),
+                        Some("key"),
+                        "Key contains invalid characters.",
+                        "INVALID",
+                      ),
+                    ]
+                  }
+              }
+          }
+        }
+      }
+    None -> [
+      make_metafields_set_user_error(
+        Some(index),
+        Some("key"),
+        "Key is required.",
+        "BLANK",
+      ),
+    ]
+  }
+}
+
+fn validate_metafields_set_type(
+  type_: Option(String),
+  index: Int,
+) -> List(MetafieldsSetUserError) {
+  case type_ {
+    Some(_) -> []
+    None -> [
+      MetafieldsSetUserError(
+        field: ["metafields", int.to_string(index), "type"],
+        message: "Type can't be blank",
+        code: Some("BLANK"),
+        element_index: None,
+      ),
+    ]
+  }
+}
+
+fn validate_metafields_set_value_presence(
+  value: Option(String),
+  index: Int,
+) -> List(MetafieldsSetUserError) {
+  case value {
+    Some(_) -> []
+    None -> [
+      make_metafields_set_user_error(
+        Some(index),
+        Some("value"),
+        "Value is required.",
+        "BLANK",
+      ),
+    ]
+  }
+}
+
+fn validate_metafields_set_definition_type(
+  definition: Option(MetafieldDefinitionRecord),
+  input_type: Option(String),
+  index: Int,
+) -> List(MetafieldsSetUserError) {
+  case definition, input_type {
+    Some(def), Some(input_type_name) ->
+      case input_type_name != def.type_.name {
+        True -> [
+          make_metafields_set_user_error(
+            Some(index),
+            Some("type"),
+            "Type must be "
+              <> def.type_.name
+              <> " for this metafield definition.",
+            "INVALID_TYPE",
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn is_protected_write_namespace(namespace: String) -> Bool {
+  list.contains(
+    ["shopify-l10n-fields", "protected", "shopify_standard"],
+    namespace,
+  )
+}
+
+fn valid_namespace_characters(namespace: String) -> Bool {
+  namespace
+  |> string.to_utf_codepoints
+  |> list.all(fn(codepoint) {
+    let code = string.utf_codepoint_to_int(codepoint)
+    is_alpha_numeric_code(code) || code == 45 || code == 46 || code == 95
+  })
+}
+
+fn valid_key_characters(key: String) -> Bool {
+  key
+  |> string.to_utf_codepoints
+  |> list.all(fn(codepoint) {
+    let code = string.utf_codepoint_to_int(codepoint)
+    is_alpha_numeric_code(code) || code == 45 || code == 95
+  })
+}
+
+fn is_alpha_numeric_code(code: Int) -> Bool {
+  { code >= 48 && code <= 57 }
+  || { code >= 65 && code <= 90 }
+  || { code >= 97 && code <= 122 }
+}
+
+fn validate_metafields_set_value_type(
+  store_in: Store,
+  type_: Option(String),
+  value: Option(String),
+  index: Int,
+) -> List(MetafieldsSetUserError) {
+  case type_, value {
+    Some(type_name), Some(raw_value) ->
+      case valid_metafield_value_for_type(store_in, type_name, raw_value) {
+        True -> []
+        False -> [
+          make_metafields_set_user_error(
+            Some(index),
+            Some("value"),
+            invalid_value_message(type_name),
+            "INVALID_VALUE",
+          ),
+        ]
+      }
+    _, _ -> []
+  }
+}
+
+fn valid_metafield_value_for_type(
+  store_in: Store,
+  type_name: String,
+  raw_value: String,
+) -> Bool {
+  case string.starts_with(type_name, "list.") {
+    True ->
+      valid_list_metafield_value(
+        store_in,
+        string.drop_start(type_name, 5),
+        raw_value,
+      )
+    False -> valid_scalar_metafield_value(store_in, type_name, raw_value)
+  }
+}
+
+fn valid_scalar_metafield_value(
+  store_in: Store,
+  type_name: String,
+  raw_value: String,
+) -> Bool {
+  case type_name {
+    "number_integer" | "integer" -> valid_integer_string(raw_value)
+    "number_decimal" | "float" -> valid_decimal_string(raw_value)
+    "boolean" -> raw_value == "true" || raw_value == "false"
+    "date" -> valid_iso_date(raw_value)
+    "date_time" -> valid_iso_date_time(raw_value)
+    "url" -> valid_url(raw_value)
+    "color" -> valid_color(raw_value)
+    "json" | "json_string" | "rich_text_field" -> valid_json_string(raw_value)
+    "money" -> valid_money_json_object(raw_value)
+    "weight" | "dimension" | "volume" -> valid_value_unit_json_object(raw_value)
+    _ ->
+      case string.ends_with(type_name, "_reference") {
+        True -> valid_reference_value(store_in, type_name, raw_value)
+        False -> True
+      }
+  }
+}
+
+fn valid_list_metafield_value(
+  store_in: Store,
+  type_name: String,
+  raw_value: String,
+) -> Bool {
+  case json.parse(raw_value, commit.json_value_decoder()) {
+    Ok(commit.JsonArray(items)) ->
+      list.all(items, fn(item) {
+        case item_to_metafield_value_string(item) {
+          Some(item_raw) ->
+            valid_scalar_metafield_value(store_in, type_name, item_raw)
+          None -> False
+        }
+      })
+    _ -> False
+  }
+}
+
+fn item_to_metafield_value_string(value: commit.JsonValue) -> Option(String) {
+  case value {
+    commit.JsonString(s) -> Some(s)
+    commit.JsonInt(n) -> Some(int.to_string(n))
+    commit.JsonFloat(f) -> Some(float.to_string(f))
+    commit.JsonBool(b) ->
+      case b {
+        True -> Some("true")
+        False -> Some("false")
+      }
+    commit.JsonObject(_) | commit.JsonArray(_) ->
+      Some(json.to_string(commit.json_value_to_json(value)))
+    commit.JsonNull -> None
+  }
+}
+
+fn valid_integer_string(value: String) -> Bool {
+  case int.parse(value) {
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
+fn valid_decimal_string(value: String) -> Bool {
+  case float.parse(value) {
+    Ok(_) -> True
+    Error(_) ->
+      case int.parse(value) {
+        Ok(_) -> True
+        Error(_) -> False
+      }
+  }
+}
+
+fn valid_json_string(value: String) -> Bool {
+  case json.parse(value, commit.json_value_decoder()) {
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
+fn valid_value_unit_json_object(value: String) -> Bool {
+  case json.parse(value, commit.json_value_decoder()) {
+    Ok(commit.JsonObject(fields)) ->
+      json_number_string_field(fields, "value") != None
+      && json_string_field(fields, "unit") != None
+    _ -> False
+  }
+}
+
+fn valid_money_json_object(value: String) -> Bool {
+  case json.parse(value, commit.json_value_decoder()) {
+    Ok(commit.JsonObject(fields)) ->
+      {
+        json_number_string_field(fields, "value") != None
+        && json_string_field(fields, "unit") != None
+      }
+      || {
+        json_number_string_field(fields, "amount") != None
+        && json_string_field(fields, "currency_code") != None
+      }
+    _ -> False
+  }
+}
+
+fn valid_url(value: String) -> Bool {
+  case
+    string.starts_with(value, "https://"),
+    string.starts_with(value, "http://")
+  {
+    True, _ -> url_has_host(string.drop_start(value, 8))
+    _, True -> url_has_host(string.drop_start(value, 7))
+    _, _ -> False
+  }
+}
+
+fn url_has_host(rest: String) -> Bool {
+  case string.split(rest, on: "/") {
+    [host, ..] -> host != "" && !string.contains(host, " ")
+    _ -> False
+  }
+}
+
+fn valid_color(value: String) -> Bool {
+  case string.length(value) == 7, string.slice(value, 0, 1) {
+    True, "#" ->
+      value
+      |> string.drop_start(1)
+      |> string.to_utf_codepoints
+      |> list.all(fn(codepoint) {
+        let code = string.utf_codepoint_to_int(codepoint)
+        { code >= 48 && code <= 57 }
+        || { code >= 65 && code <= 70 }
+        || { code >= 97 && code <= 102 }
+      })
+    _, _ -> False
+  }
+}
+
+fn valid_iso_date(value: String) -> Bool {
+  case string.split(value, on: "-") {
+    [year, month, day] ->
+      string.length(year) == 4
+      && string.length(month) == 2
+      && string.length(day) == 2
+      && valid_date_parts(year, month, day)
+    _ -> False
+  }
+}
+
+fn valid_date_parts(year: String, month: String, day: String) -> Bool {
+  case int.parse(year), int.parse(month), int.parse(day) {
+    Ok(y), Ok(m), Ok(d) -> {
+      let max_day = days_in_month(y, m)
+      m >= 1 && m <= 12 && d >= 1 && d <= max_day
+    }
+    _, _, _ -> False
+  }
+}
+
+fn days_in_month(year: Int, month: Int) -> Int {
+  case month {
+    1 | 3 | 5 | 7 | 8 | 10 | 12 -> 31
+    4 | 6 | 9 | 11 -> 30
+    2 ->
+      case is_leap_year(year) {
+        True -> 29
+        False -> 28
+      }
+    _ -> 0
+  }
+}
+
+fn is_leap_year(year: Int) -> Bool {
+  year % 400 == 0 || { year % 4 == 0 && year % 100 != 0 }
+}
+
+fn valid_iso_date_time(value: String) -> Bool {
+  case string.split(value, on: "T") {
+    [date, time] -> valid_iso_date(date) && valid_time_with_optional_zone(time)
+    _ -> False
+  }
+}
+
+fn valid_time_with_optional_zone(value: String) -> Bool {
+  let time = strip_timezone(value)
+  let time = case string.split(time, on: ".") {
+    [whole, _fraction] -> whole
+    [whole] -> whole
+    _ -> ""
+  }
+  case string.split(time, on: ":") {
+    [hour, minute, second] ->
+      string.length(hour) == 2
+      && string.length(minute) == 2
+      && string.length(second) == 2
+      && valid_time_parts(hour, minute, second)
+    _ -> False
+  }
+}
+
+fn strip_timezone(value: String) -> String {
+  let lowered = string.lowercase(value)
+  case string.ends_with(lowered, "z") {
+    True -> string.drop_end(value, 1)
+    False -> {
+      let len = string.length(value)
+      case len >= 6 {
+        False -> value
+        True -> {
+          let sign = string.slice(value, len - 6, 1)
+          let colon = string.slice(value, len - 3, 1)
+          case { sign == "+" || sign == "-" } && colon == ":" {
+            True -> string.drop_end(value, 6)
+            False -> value
+          }
+        }
+      }
+    }
+  }
+}
+
+fn valid_time_parts(hour: String, minute: String, second: String) -> Bool {
+  case int.parse(hour), int.parse(minute), int.parse(second) {
+    Ok(h), Ok(m), Ok(s) ->
+      h >= 0 && h <= 23 && m >= 0 && m <= 59 && s >= 0 && s <= 60
+    _, _, _ -> False
+  }
+}
+
+fn valid_reference_value(
+  store_in: Store,
+  type_name: String,
+  value: String,
+) -> Bool {
+  case reference_gid_resource_type(type_name, value) {
+    Some(_) -> reference_exists_or_store_is_cold(store_in, type_name, value)
+    None -> False
+  }
+}
+
+fn reference_gid_resource_type(
+  type_name: String,
+  value: String,
+) -> Option(String) {
+  case string.split(value, "/") {
+    ["gid:", "", "shopify", resource_type, id] ->
+      case reference_type_accepts_resource(type_name, resource_type, id) {
+        True -> Some(resource_type)
+        False -> None
+      }
+    _ -> None
+  }
+}
+
+fn reference_type_accepts_resource(
+  type_name: String,
+  resource_type: String,
+  id: String,
+) -> Bool {
+  case type_name {
+    "product_reference" ->
+      resource_type == "Product" && valid_numeric_gid_id(id)
+    "variant_reference" ->
+      resource_type == "ProductVariant" && valid_numeric_gid_id(id)
+    "collection_reference" ->
+      resource_type == "Collection" && valid_numeric_gid_id(id)
+    "customer_reference" ->
+      resource_type == "Customer" && valid_numeric_gid_id(id)
+    "metaobject_reference" ->
+      resource_type == "Metaobject" && string.length(id) > 0
+    "file_reference" -> string.length(id) > 0
+    "mixed_reference" ->
+      string.length(resource_type) > 0 && string.length(id) > 0
+    _ -> True
+  }
+}
+
+fn valid_numeric_gid_id(id: String) -> Bool {
+  case int.parse(id) {
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
+fn reference_exists_or_store_is_cold(
+  store_in: Store,
+  type_name: String,
+  value: String,
+) -> Bool {
+  case type_name {
+    "product_reference" -> {
+      let known_count = list.length(store.list_effective_products(store_in))
+      known_count == 0
+      || store.get_effective_product_by_id(store_in, value) != None
+    }
+    "variant_reference" -> {
+      let known_count =
+        list.length(store.list_effective_product_variants(store_in))
+      known_count == 0
+      || store.get_effective_variant_by_id(store_in, value) != None
+    }
+    "collection_reference" -> {
+      let known_count = list.length(store.list_effective_collections(store_in))
+      known_count == 0
+      || store.get_effective_collection_by_id(store_in, value) != None
+    }
+    "customer_reference" -> {
+      let known_count = list.length(store.list_effective_customers(store_in))
+      known_count == 0
+      || store.get_effective_customer_by_id(store_in, value) != None
+    }
+    "metaobject_reference" ->
+      store.get_effective_metaobject_by_id(store_in, value) != None
+    "file_reference" -> store.get_effective_file_by_id(store_in, value) != None
+    "mixed_reference" -> True
+    _ -> True
+  }
+}
+
+fn invalid_value_message(type_name: String) -> String {
+  case string.starts_with(type_name, "list.") {
+    True -> "Value is invalid for " <> type_name <> "."
+    False ->
+      case type_name {
+        "number_integer" | "integer" -> "Value must be an integer."
+        "number_decimal" | "float" -> "Value must be a valid decimal."
+        "boolean" -> "Value must be true or false."
+        "date" -> "Value must be a valid date."
+        "date_time" -> "Value must be a valid date time."
+        "url" -> "Value must be a valid URL."
+        "color" -> "Value must be a hex color code."
+        "json" | "json_string" | "rich_text_field" ->
+          "Value must be valid JSON."
+        _ -> "Value is invalid for " <> type_name <> "."
       }
   }
 }
@@ -3173,27 +4062,263 @@ fn validate_definition_value(
       list.filter_map(def.validations, fn(validation) {
         case validation.name, validation.value {
           "max", Some(max_raw) ->
-            case int.parse(max_raw) {
-              Ok(max) ->
-                case string.length(raw_value) > max {
-                  True ->
-                    Ok(make_metafields_set_user_error(
-                      Some(index),
-                      Some("value"),
-                      "Value must be "
-                        <> int.to_string(max)
-                        <> " characters or fewer for this metafield definition.",
-                      "LESS_THAN_OR_EQUAL_TO",
-                    ))
-                  False -> Error(Nil)
-                }
-              Error(_) -> Error(Nil)
+            case
+              definition_max_error(def.type_.name, raw_value, max_raw, index)
+            {
+              Some(error) -> Ok(error)
+              None -> Error(Nil)
+            }
+          "min", Some(min_raw) ->
+            case
+              definition_min_error(def.type_.name, raw_value, min_raw, index)
+            {
+              Some(error) -> Ok(error)
+              None -> Error(Nil)
+            }
+          "regex", Some(pattern) ->
+            case value_matches_supported_regex(raw_value, pattern) {
+              True -> Error(Nil)
+              False ->
+                Ok(make_metafields_set_user_error(
+                  Some(index),
+                  Some("value"),
+                  "Value does not match the metafield definition pattern.",
+                  "INVALID_VALUE",
+                ))
+            }
+          "allowed_list", Some(allowed_raw) ->
+            case value_in_allowed_list(def.type_.name, raw_value, allowed_raw) {
+              True -> Error(Nil)
+              False ->
+                Ok(make_metafields_set_user_error(
+                  Some(index),
+                  Some("value"),
+                  "Value is not included in the metafield definition allowed values.",
+                  "INCLUSION",
+                ))
             }
           _, _ -> Error(Nil)
         }
       })
     _, _ -> []
   }
+}
+
+fn definition_max_error(
+  type_name: String,
+  raw_value: String,
+  max_raw: String,
+  index: Int,
+) -> Option(MetafieldsSetUserError) {
+  case int.parse(max_raw) {
+    Ok(max) ->
+      case numeric_metafield_type(type_name) {
+        True ->
+          case parse_metafield_number(raw_value) {
+            Some(number) ->
+              case number >. int.to_float(max) {
+                True ->
+                  Some(make_metafields_set_user_error(
+                    Some(index),
+                    Some("value"),
+                    "Value must be less than or equal to "
+                      <> int.to_string(max)
+                      <> ".",
+                    "LESS_THAN_OR_EQUAL_TO",
+                  ))
+                False -> None
+              }
+            None -> None
+          }
+        False ->
+          case string.length(raw_value) > max {
+            True ->
+              Some(make_metafields_set_user_error(
+                Some(index),
+                Some("value"),
+                "Value must be "
+                  <> int.to_string(max)
+                  <> " characters or fewer for this metafield definition.",
+                "LESS_THAN_OR_EQUAL_TO",
+              ))
+            False -> None
+          }
+      }
+    Error(_) -> None
+  }
+}
+
+fn definition_min_error(
+  type_name: String,
+  raw_value: String,
+  min_raw: String,
+  index: Int,
+) -> Option(MetafieldsSetUserError) {
+  case int.parse(min_raw) {
+    Ok(min) ->
+      case numeric_metafield_type(type_name) {
+        True ->
+          case parse_metafield_number(raw_value) {
+            Some(number) ->
+              case number <. int.to_float(min) {
+                True ->
+                  Some(make_metafields_set_user_error(
+                    Some(index),
+                    Some("value"),
+                    "Value must be greater than or equal to "
+                      <> int.to_string(min)
+                      <> ".",
+                    "GREATER_THAN_OR_EQUAL_TO",
+                  ))
+                False -> None
+              }
+            None -> None
+          }
+        False ->
+          case string.length(raw_value) < min {
+            True ->
+              Some(make_metafields_set_user_error(
+                Some(index),
+                Some("value"),
+                "Value must be "
+                  <> int.to_string(min)
+                  <> " characters or more for this metafield definition.",
+                "TOO_SHORT",
+              ))
+            False -> None
+          }
+      }
+    Error(_) -> None
+  }
+}
+
+fn numeric_metafield_type(type_name: String) -> Bool {
+  case type_name {
+    "number_integer" | "integer" | "number_decimal" | "float" -> True
+    _ -> False
+  }
+}
+
+fn parse_metafield_number(raw_value: String) -> Option(Float) {
+  case float.parse(raw_value) {
+    Ok(value) -> Some(value)
+    Error(_) ->
+      case int.parse(raw_value) {
+        Ok(value) -> Some(int.to_float(value))
+        Error(_) -> None
+      }
+  }
+}
+
+fn value_matches_supported_regex(value: String, pattern: String) -> Bool {
+  case pattern {
+    "^[A-Z]+$" -> all_codepoints_match(value, is_uppercase_code)
+    "^[a-z]+$" -> all_codepoints_match(value, is_lowercase_code)
+    "^[0-9]+$" -> all_codepoints_match(value, is_digit_code)
+    "^[a-zA-Z0-9_-]+$" ->
+      all_codepoints_match(value, fn(code) {
+        is_alpha_numeric_code(code) || code == 45 || code == 95
+      })
+    "^#[0-9A-Fa-f]{6}$" -> valid_color(value)
+    _ -> True
+  }
+}
+
+fn all_codepoints_match(value: String, predicate: fn(Int) -> Bool) -> Bool {
+  string.length(value) > 0
+  && {
+    value
+    |> string.to_utf_codepoints
+    |> list.all(fn(codepoint) {
+      predicate(string.utf_codepoint_to_int(codepoint))
+    })
+  }
+}
+
+fn is_uppercase_code(code: Int) -> Bool {
+  code >= 65 && code <= 90
+}
+
+fn is_lowercase_code(code: Int) -> Bool {
+  code >= 97 && code <= 122
+}
+
+fn is_digit_code(code: Int) -> Bool {
+  code >= 48 && code <= 57
+}
+
+fn value_in_allowed_list(
+  type_name: String,
+  raw_value: String,
+  allowed_raw: String,
+) -> Bool {
+  case json.parse(allowed_raw, commit.json_value_decoder()) {
+    Ok(commit.JsonArray(items)) -> {
+      let allowed =
+        list.filter_map(items, fn(item) {
+          case item_to_metafield_value_string(item) {
+            Some(item_raw) -> Ok(item_raw)
+            None -> Error(Nil)
+          }
+        })
+      case string.starts_with(type_name, "list.") {
+        True ->
+          case json.parse(raw_value, commit.json_value_decoder()) {
+            Ok(commit.JsonArray(values)) ->
+              list.all(values, fn(item) {
+                case item_to_metafield_value_string(item) {
+                  Some(item_raw) -> list.contains(allowed, item_raw)
+                  None -> False
+                }
+              })
+            _ -> False
+          }
+        False -> list.contains(allowed, raw_value)
+      }
+    }
+    _ -> True
+  }
+}
+
+fn json_number_string_field(
+  fields: List(#(String, commit.JsonValue)),
+  key: String,
+) -> Option(String) {
+  case lookup_json_field(fields, key) {
+    Some(commit.JsonInt(n)) -> Some(int.to_string(n))
+    Some(commit.JsonFloat(f)) -> Some(float.to_string(f))
+    Some(commit.JsonString(s)) ->
+      case valid_decimal_string(s) {
+        True -> Some(s)
+        False -> None
+      }
+    _ -> None
+  }
+}
+
+fn json_string_field(
+  fields: List(#(String, commit.JsonValue)),
+  key: String,
+) -> Option(String) {
+  case lookup_json_field(fields, key) {
+    Some(commit.JsonString(s)) -> Some(s)
+    _ -> None
+  }
+}
+
+fn lookup_json_field(
+  fields: List(#(String, commit.JsonValue)),
+  key: String,
+) -> Option(commit.JsonValue) {
+  list.find(fields, fn(pair) {
+    let #(field_key, _) = pair
+    field_key == key
+  })
+  |> option.from_result
+  |> option.map(fn(pair) {
+    let #(_, value) = pair
+    value
+  })
 }
 
 fn validate_compare_digest(
@@ -3492,7 +4617,7 @@ fn make_metafields_set_user_error(
     field: field,
     message: message,
     code: Some(code),
-    element_index: index,
+    element_index: None,
   )
 }
 

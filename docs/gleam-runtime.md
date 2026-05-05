@@ -24,10 +24,14 @@ Core types:
   string.
 - `Response(status, body, headers)` returns an HTTP-shaped response. `body` is a
   `gleam/json` tree.
-- `Config(read_mode, port, shopify_admin_origin, snapshot_path)` is the
-  sanitized runtime configuration surfaced through `GET /__meta/config`.
+- `Config(read_mode, unsupported_mutation_mode, port, shopify_admin_origin, snapshot_path)`
+  is the sanitized runtime configuration surfaced through `GET /__meta/config`.
 - `ReadMode` is `Snapshot`, `LiveHybrid`, or `Live`; the JavaScript shim maps
   the live-only debugging posture to the public string value `passthrough`.
+- `UnsupportedMutationMode` is `PassthroughUnsupportedMutations` or
+  `RejectUnsupportedMutations`. The default preserves unsupported mutation
+  passthrough; reject mode returns a 400 before upstream for unsupported
+  mutation roots.
 - `DraftProxy` is the instance-owned runtime state value.
 
 Core functions:
@@ -157,12 +161,13 @@ import gleam/dict
 import gleam/io
 import gleam/json
 import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/proxy_state.{Request}
 
 pub fn main() {
   let proxy = draft_proxy.new()
 
   let request =
-    draft_proxy.Request(
+    Request(
       method: "GET",
       path: "/__meta/health",
       headers: dict.new(),
@@ -178,7 +183,7 @@ GraphQL requests use the versioned Shopify Admin path and a JSON body string:
 
 ```gleam
 let request =
-  draft_proxy.Request(
+  Request(
     method: "POST",
     path: "/admin/api/2025-01/graphql.json",
     headers: dict.new(),
@@ -190,10 +195,15 @@ Custom configuration:
 
 ```gleam
 import gleam/option
+import shopify_draft_proxy/proxy/draft_proxy
+import shopify_draft_proxy/proxy/proxy_state.{
+  Config, LiveHybrid, RejectUnsupportedMutations,
+}
 
 let proxy =
-  draft_proxy.with_config(draft_proxy.Config(
-    read_mode: draft_proxy.LiveHybrid,
+  draft_proxy.with_config(Config(
+    read_mode: LiveHybrid,
+    unsupported_mutation_mode: RejectUnsupportedMutations,
     port: 4000,
     shopify_admin_origin: "https://my-shop.myshopify.com",
     snapshot_path: option.None,
@@ -211,6 +221,7 @@ import { createDraftProxy } from 'shopify-draft-proxy';
 
 const proxy = createDraftProxy({
   readMode: 'snapshot',
+  unsupportedMutationMode: 'reject',
   port: 4000,
   shopifyAdminOrigin: 'https://my-shop.myshopify.com',
 });
@@ -239,6 +250,8 @@ Gleam-backed `DraftProxy` instance. The adapter exposes `callback()` and
 - `SHOPIFY_ADMIN_ORIGIN` is required
 - `PORT` defaults to `3000`
 - `SHOPIFY_DRAFT_PROXY_READ_MODE` defaults to `live-hybrid`
+- `SHOPIFY_DRAFT_PROXY_UNSUPPORTED_MUTATION_MODE` defaults to `passthrough`
+  and accepts `passthrough` or `reject`
 - `SHOPIFY_DRAFT_PROXY_SNAPSHOT_PATH` enables snapshot loading
 
 Interop notes:

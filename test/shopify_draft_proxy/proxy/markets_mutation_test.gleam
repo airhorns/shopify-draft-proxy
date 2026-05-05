@@ -124,6 +124,108 @@ pub fn web_presence_create_domain_root_urls_resolve_primary_domain_test() {
   assert string.contains(serialized, "\"subfolderSuffix\":null")
 }
 
+pub fn web_presence_create_accepts_shopify_i18n_locale_codes_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"pt-BR\", \"zh-CN\"], subfolderSuffix: \"fr\" }) { webPresence { subfolderSuffix defaultLocale { locale primary } alternateLocales { locale primary } } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"userErrors\":[]")
+  assert string.contains(
+    serialized,
+    "\"defaultLocale\":{\"locale\":\"fr-CA\",\"primary\":true}",
+  )
+  assert string.contains(
+    serialized,
+    "\"alternateLocales\":[{\"locale\":\"pt-BR\",\"primary\":false},{\"locale\":\"zh-CN\",\"primary\":false}]",
+  )
+}
+
+pub fn web_presence_create_reports_invalid_alternate_locale_indexes_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"fr-CA\", alternateLocales: [\"fr\", \"bogus\", \"pt-BR\", \"nope\"], subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\",\"1\"],\"message\":\"Invalid locale codes: bogus\",\"code\":\"INVALID\"",
+  )
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"alternateLocales\",\"3\"],\"message\":\"Invalid locale codes: nope\",\"code\":\"INVALID\"",
+  )
+  assert !string.contains(serialized, "\"alternateLocales\",\"0\"")
+  assert !string.contains(serialized, "\"alternateLocales\",\"2\"")
+}
+
+pub fn web_presence_create_validates_routing_and_subfolder_suffix_test() {
+  let #(Response(status: mutex_status, body: mutex_body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", domainId: \"gid://shopify/Domain/1000\", subfolderSuffix: \"fr\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: missing_status, body: missing_body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: short_status, body: short_body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"x\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: script_status, body: script_body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", subfolderSuffix: \"Latn\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+
+  assert mutex_status == 200
+  assert missing_status == 200
+  assert short_status == 200
+  assert script_status == 200
+  assert string.contains(
+    json.to_string(mutex_body),
+    "\"code\":\"CANNOT_HAVE_SUBFOLDER_AND_DOMAIN\"",
+  )
+  assert string.contains(
+    json.to_string(missing_body),
+    "\"code\":\"REQUIRES_DOMAIN_OR_SUBFOLDER\"",
+  )
+  assert string.contains(
+    json.to_string(short_body),
+    "\"code\":\"SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS\"",
+  )
+  assert string.contains(
+    json.to_string(script_body),
+    "\"code\":\"SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE\"",
+  )
+}
+
+pub fn web_presence_create_reports_unknown_domain_only_when_not_stored_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      seeded_proxy(),
+      "mutation { webPresenceCreate(input: { defaultLocale: \"en\", domainId: \"gid://shopify/Domain/9999\" }) { webPresence { id } userErrors { field message code } } }",
+    )
+  let serialized = json.to_string(body)
+
+  assert status == 200
+  assert string.contains(serialized, "\"webPresence\":null")
+  assert string.contains(
+    serialized,
+    "\"field\":[\"input\",\"domainId\"],\"message\":\"Domain does not exist\",\"code\":\"DOMAIN_NOT_FOUND\"",
+  )
+}
+
 fn seeded_proxy() -> DraftProxy {
   let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
   let seeded_store = store.upsert_base_shop(proxy.store, acme_shop())
@@ -446,5 +548,147 @@ fn market_localization_metafield() -> ProductMetafieldRecord {
         digest: "digest-title",
       ),
     ],
+  )
+}
+
+pub fn catalog_create_requires_status_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"status\"],\"message\":\"Status is required\",\"code\":\"REQUIRED\"}]}}}"
+}
+
+pub fn catalog_create_rejects_invalid_status_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: DISABLED, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"status\"],\"message\":\"Status is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn catalog_create_requires_context_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\"],\"message\":\"Context is required\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn catalog_create_requires_context_driver_type_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: {} }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"driverType\"],\"message\":\"Driver type is required\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn catalog_create_validates_market_context_ids_test() {
+  let #(Response(status: missing_status, body: missing_body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/404\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: empty_status, body: empty_body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [] } }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert missing_status == 200
+  assert json.to_string(missing_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"marketIds\",\"0\"],\"message\":\"Market does not exist\",\"code\":\"INVALID\"}]}}}"
+  assert empty_status == 200
+  assert json.to_string(empty_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"marketIds\"],\"message\":\"Market ids can't be blank\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn catalog_create_validates_company_location_context_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      "mutation { companyCreate(input: { company: { name: \"B2B Draft\" }, companyLocation: { name: \"B2B HQ\" } }) { company { id locations(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: missing_status, body: missing_body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"B2B Catalog\", status: ACTIVE, context: { driverType: COMPANY_LOCATION, companyLocationIds: [\"gid://shopify/CompanyLocation/404\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: empty_status, body: empty_body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"B2B Catalog\", status: ACTIVE, context: { driverType: COMPANY_LOCATION, companyLocationIds: [] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: unsupported_status, body: unsupported_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"B2B Catalog\", status: ACTIVE, context: { driverType: COMPANY_LOCATION, companyLocationIds: [\"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\"] } }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"companyCreate\":{\"company\":{\"id\":\"gid://shopify/Company/1?shopify-draft-proxy=synthetic\",\"locations\":{\"nodes\":[{\"id\":\"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\"}]}},\"userErrors\":[]}}}"
+  assert missing_status == 200
+  assert json.to_string(missing_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"companyLocationIds\",\"0\"],\"message\":\"Company location does not exist\",\"code\":\"INVALID\"}]}}}"
+  assert empty_status == 200
+  assert json.to_string(empty_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"companyLocationIds\"],\"message\":\"Company location ids can't be blank\",\"code\":\"INVALID\"}]}}}"
+  assert unsupported_status == 200
+  assert json.to_string(unsupported_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"driverType\"],\"message\":\"Catalog context driverType COMPANY_LOCATION is not supported by the local MarketCatalog model\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn catalog_create_validates_country_context_test() {
+  let #(Response(status: empty_status, body: empty_body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"Country Catalog\", status: ACTIVE, context: { driverType: COUNTRY, countryCodes: [] } }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: unsupported_status, body: unsupported_body, ..), _) =
+    graphql(
+      "mutation { catalogCreate(input: { title: \"Country Catalog\", status: ACTIVE, context: { driverType: COUNTRY, countryCodes: [US] } }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert empty_status == 200
+  assert json.to_string(empty_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"countryCodes\"],\"message\":\"Country codes can't be blank\",\"code\":\"INVALID\"}]}}}"
+  assert unsupported_status == 200
+  assert json.to_string(unsupported_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"context\",\"driverType\"],\"message\":\"Catalog context driverType COUNTRY is not supported by the local MarketCatalog model\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn catalog_create_stages_market_context_test() {
+  let #(Response(status: market_status, body: market_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] } }) { catalog { id title status markets(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { catalogs(first: 5, type: MARKET) { nodes { id title status markets(first: 5) { nodes { id } } } } }",
+    )
+
+  assert market_status == 200
+  assert json.to_string(market_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\"},\"userErrors\":[]}}}"
+  assert catalog_status == 200
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/3\",\"title\":\"EU Catalog\",\"status\":\"ACTIVE\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"}]}},\"userErrors\":[]}}}"
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"title\":\"EU Catalog\",\"status\":\"ACTIVE\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"}]}",
   )
 }

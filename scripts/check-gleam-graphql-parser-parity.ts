@@ -15,7 +15,6 @@ const repoRoot = path.resolve(scriptDir, '..');
 const parityRequestRoot = path.join(repoRoot, 'config', 'parity-requests');
 const gleamParserPath = path.join(
   repoRoot,
-  'gleam',
   'build',
   'dev',
   'javascript',

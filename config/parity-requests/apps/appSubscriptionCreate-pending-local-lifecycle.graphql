@@ -1,0 +1,42 @@
+mutation AppSubscriptionCreatePendingLocalLifecycle($lineItems: [AppSubscriptionLineItemInput!]!) {
+  appSubscriptionCreate(
+    name: "Local pending plan"
+    returnUrl: "https://app.example.test/return"
+    trialDays: 7
+    test: false
+    lineItems: $lineItems
+  ) {
+    confirmationUrl
+    appSubscription {
+      id
+      name
+      status
+      test
+      trialDays
+      lineItems {
+        id
+        plan {
+          pricingDetails {
+            __typename
+            ... on AppUsagePricing {
+              cappedAmount {
+                amount
+                currencyCode
+              }
+              balanceUsed {
+                amount
+                currencyCode
+              }
+              interval
+              terms
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

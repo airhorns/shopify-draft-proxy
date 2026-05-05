@@ -15,6 +15,9 @@ const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
 const outputDir = path.join('fixtures', 'conformance', storeDomain, apiVersion, 'products');
 const outputPath = path.join(outputDir, 'inventory-quantity-contracts-2026-04.json');
+const expectedAvailableQuantity = 7;
+const downstreamInventoryPollDelayMs = 2_000;
+const downstreamInventoryPollAttempts = 15;
 
 const { runGraphql, runGraphqlRequest } = createAdminGraphqlClient({
   adminOrigin,
@@ -147,7 +150,7 @@ const inventoryAdjustMissingIdempotencyMutation = `#graphql
 `;
 
 const downstreamReadQuery = `#graphql
-  query InventoryQuantityContractDownstream($productId: ID!, $inventoryItemId: ID!) {
+  query InventoryQuantityContractDownstreamRead($productId: ID!, $inventoryItemId: ID!) {
     product(id: $productId) {
       id
       totalInventory
@@ -162,6 +165,46 @@ const downstreamReadQuery = `#graphql
           id
           location { id name }
           quantities(names: ["available", "on_hand"]) { name quantity updatedAt }
+        }
+      }
+    }
+  }
+`;
+
+const hydrateNodesQuery = `#graphql
+  query ProductsHydrateNodes($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      __typename
+      id
+      ... on InventoryItem {
+        tracked
+        requiresShipping
+        measurement { weight { unit value } }
+        variant {
+          id
+          title
+          inventoryQuantity
+          selectedOptions { name value }
+          product {
+            id
+            title
+            handle
+            status
+            totalInventory
+            tracksInventory
+          }
+        }
+        inventoryLevels(first: 50) {
+          nodes {
+            id
+            isActive
+            location { id name }
+            quantities(names: ["available", "on_hand", "committed", "incoming", "reserved", "damaged", "quality_control", "safety_stock"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
         }
       }
     }
@@ -229,6 +272,48 @@ async function deleteProduct(productId: string | null): Promise<unknown> {
   }
 }
 
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
+function productTotalInventory(payload: unknown): number | null {
+  const product = (payload as { data?: { product?: { totalInventory?: unknown } } }).data?.product;
+  return typeof product?.totalInventory === 'number' ? product.totalInventory : null;
+}
+
+function variantProductTotalInventory(payload: unknown): number | null {
+  const variantProduct = (
+    payload as {
+      data?: { inventoryItem?: { variant?: { product?: { totalInventory?: unknown } } } };
+    }
+  ).data?.inventoryItem?.variant?.product;
+  return typeof variantProduct?.totalInventory === 'number' ? variantProduct.totalInventory : null;
+}
+
+async function waitForDownstreamInventoryRead(productId: string, inventoryItemId: string): Promise<unknown> {
+  let latest: unknown = null;
+
+  for (let attempt = 1; attempt <= downstreamInventoryPollAttempts; attempt += 1) {
+    latest = await runGraphql(downstreamReadQuery, { productId, inventoryItemId });
+    if (
+      productTotalInventory(latest) === expectedAvailableQuantity &&
+      variantProductTotalInventory(latest) === expectedAvailableQuantity
+    ) {
+      return latest;
+    }
+
+    if (attempt < downstreamInventoryPollAttempts) {
+      await delay(downstreamInventoryPollDelayMs);
+    }
+  }
+
+  throw new Error(
+    `Downstream product totalInventory did not reach ${expectedAvailableQuantity}: ${JSON.stringify(latest, null, 2)}`,
+  );
+}
+
 await mkdir(outputDir, { recursive: true });
 
 const runId = `${Date.now()}`;
@@ -280,6 +365,8 @@ try {
   if (!location?.id) {
     throw new Error('Could not resolve an inventory level location id for inventory quantity contract capture.');
   }
+
+  const preMutationHydrateNodes = await runGraphql(hydrateNodesQuery, { ids: [product.inventoryItemId] });
 
   const setVariables = {
     input: {
@@ -381,10 +468,7 @@ try {
     missingAdjustChangeFromQuantityVariables,
   );
 
-  const downstreamRead = await runGraphql(downstreamReadQuery, {
-    productId: product.productId,
-    inventoryItemId: product.inventoryItemId,
-  });
+  const downstreamRead = await waitForDownstreamInventoryRead(product.productId, product.inventoryItemId);
   const cleanup = await deleteProduct(product.productId);
   productId = null;
 
@@ -429,6 +513,31 @@ try {
     },
     downstreamRead,
     cleanup,
+    upstreamCalls: [
+      {
+        operationName: 'ProductsHydrateNodes',
+        variables: {
+          ids: [product.inventoryItemId],
+        },
+        query: hydrateNodesQuery,
+        response: {
+          status: 200,
+          body: preMutationHydrateNodes,
+        },
+      },
+      {
+        operationName: 'InventoryQuantityContractDownstreamRead',
+        variables: {
+          inventoryItemId: product.inventoryItemId,
+          productId: product.productId,
+        },
+        query: downstreamReadQuery,
+        response: {
+          status: 200,
+          body: downstreamRead,
+        },
+      },
+    ],
   };
 
   await writeFile(outputPath, `${JSON.stringify(capturePayload, null, 2)}\n`, 'utf8');

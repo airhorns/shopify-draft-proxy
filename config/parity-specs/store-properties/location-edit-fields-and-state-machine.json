@@ -1,0 +1,172 @@
+{
+  "scenarioId": "location-edit-fields-and-state-machine",
+  "operationNames": ["locationEdit", "location"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/store-properties/location-edit-fields-and-state-machine.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/store_properties_test.gleam"],
+  "proxyRequest": {
+    "apiVersion": "2026-04",
+    "documentPath": "config/parity-requests/store-properties/location-edit-fields-and-state-machine.graphql",
+    "variablesCapturePath": "$.cases.editName.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "edit-name-payload",
+        "capturePath": "$.cases.editName.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "expectedDifferences": [
+          {
+            "path": "$.location.updatedAt",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy uses deterministic synthetic timestamps while Shopify returns the live mutation timestamp."
+          }
+        ]
+      },
+      {
+        "name": "edit-address-payload",
+        "capturePath": "$.cases.editAddress.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-edit-fields-and-state-machine.graphql",
+          "variablesCapturePath": "$.cases.editAddress.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.updatedAt",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy uses deterministic synthetic timestamps while Shopify returns the live mutation timestamp."
+          }
+        ]
+      },
+      {
+        "name": "invalid-country-code-errors",
+        "capturePath": "$.cases.invalidCountry.response.payload",
+        "proxyPath": "$",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-edit-fields-and-state-machine.graphql",
+          "variablesCapturePath": "$.cases.invalidCountry.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.errors[0].locations",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The parity request omits the recorder's duplicate #graphql prefix, so GraphQL variable definition locations differ while the INVALID_VARIABLE payload and problem path are stable."
+          }
+        ]
+      },
+      {
+        "name": "metafield-set-payload",
+        "capturePath": "$.cases.metafieldSet.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-edit-fields-and-state-machine.graphql",
+          "variablesCapturePath": "$.cases.metafieldSet.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.updatedAt",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy uses deterministic synthetic timestamps while Shopify returns the live mutation timestamp."
+          },
+          {
+            "path": "$.location.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy creates a deterministic synthetic Location metafield ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.location.metafields.nodes[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy creates a deterministic synthetic Location metafield ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "read-after-metafield",
+        "capturePath": "$.cases.readAfterMetafield.response.payload.data.location",
+        "proxyPath": "$.data.location",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-edit-fields-and-state-machine-read.graphql",
+          "variablesCapturePath": "$.cases.readAfterMetafield.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.updatedAt",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy uses deterministic synthetic timestamps while Shopify returns the live mutation timestamp."
+          },
+          {
+            "path": "$.metafield.id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy creates a deterministic synthetic Location metafield ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.metafields.nodes[0].id",
+            "matcher": "shopify-gid:Metafield",
+            "reason": "The proxy creates a deterministic synthetic Location metafield ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "invalid-metafield-type-user-errors",
+        "capturePath": "$.cases.invalidMetafieldType.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-edit-fields-and-state-machine.graphql",
+          "variablesCapturePath": "$.cases.invalidMetafieldType.variables"
+        }
+      },
+      {
+        "name": "nonblocking-disable-online-fulfillment",
+        "capturePath": "$.cases.nonblockingDisable.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-edit-fields-and-state-machine.graphql",
+          "variablesCapturePath": "$.cases.nonblockingDisable.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.location.updatedAt",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy uses deterministic synthetic timestamps while Shopify returns the live mutation timestamp."
+          }
+        ]
+      },
+      {
+        "name": "only-online-disable-user-errors",
+        "capturePath": "$.cases.onlyOnlineDisable.response.payload.data.locationEdit",
+        "proxyPath": "$.data.locationEdit",
+        "proxyRequest": {
+          "apiVersion": "2026-04",
+          "documentPath": "config/parity-requests/store-properties/location-edit-fields-and-state-machine.graphql",
+          "variablesCapturePath": "$.cases.onlyOnlineDisable.variables"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-661 captures locationEdit name, address, Location-owned metafield write/read-back, invalid CountryCode enum validation, invalid metafield type, nonblocking fulfillsOnlineOrders:false, and the only-online-fulfilling-location rejection. The recorder temporarily disables pre-existing online-fulfilling locations to make the only-online rejection deterministic, restores them before cleanup, and hydrates the two disposable locations through the cassette before local staging."
+}

@@ -1,0 +1,171 @@
+{
+  "capturedAt": "2026-05-05T04:20:00.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenario": "app-usage-record-create-cap-and-idempotency",
+  "notes": [
+    "Runtime fixture enforced by the Gleam parity runner and apps mutation tests.",
+    "No upstream calls are expected: supported appUsageRecordCreate stages locally and only reads locally staged app billing state."
+  ],
+  "operationNames": ["appSubscriptionCreate", "appUsageRecordCreate"],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "subscriptionCreate": {
+          "data": {
+            "appSubscriptionCreate": {
+              "confirmationUrl": "https://app.example.test/local-confirmation",
+              "appSubscription": {
+                "id": "gid://shopify/AppSubscription/expected",
+                "name": "Local plan",
+                "status": "ACTIVE",
+                "test": true,
+                "trialDays": 7,
+                "lineItems": [
+                  {
+                    "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                    "plan": {
+                      "pricingDetails": {
+                        "__typename": "AppUsagePricing",
+                        "cappedAmount": {
+                          "amount": "5",
+                          "currencyCode": "USD"
+                        },
+                        "balanceUsed": {
+                          "amount": "0.0",
+                          "currencyCode": "USD"
+                        },
+                        "interval": "EVERY_30_DAYS",
+                        "terms": "usage terms"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "usageCreate": {
+          "data": {
+            "appUsageRecordCreate": {
+              "appUsageRecord": {
+                "id": "gid://shopify/AppUsageRecord/expected",
+                "description": "first",
+                "price": {
+                  "amount": "3.00",
+                  "currencyCode": "USD"
+                },
+                "subscriptionLineItem": {
+                  "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                  "plan": {
+                    "pricingDetails": {
+                      "__typename": "AppUsagePricing",
+                      "balanceUsed": {
+                        "amount": "3.00",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "overCap": {
+          "data": {
+            "appUsageRecordCreate": {
+              "appUsageRecord": null,
+              "userErrors": [
+                {
+                  "field": [],
+                  "message": "Total price exceeds balance remaining"
+                }
+              ]
+            }
+          }
+        },
+        "longKey": {
+          "data": {
+            "appUsageRecordCreate": {
+              "appUsageRecord": null,
+              "userErrors": [
+                {
+                  "field": ["idempotencyKey"],
+                  "message": "Idempotency key must be at most 255 characters",
+                  "code": null
+                }
+              ]
+            }
+          }
+        },
+        "duplicate": {
+          "data": {
+            "appUsageRecordCreate": {
+              "appUsageRecord": {
+                "id": "gid://shopify/AppUsageRecord/expected",
+                "description": "first",
+                "price": {
+                  "amount": "3.00",
+                  "currencyCode": "USD"
+                },
+                "subscriptionLineItem": {
+                  "id": "gid://shopify/AppSubscriptionLineItem/expected",
+                  "plan": {
+                    "pricingDetails": {
+                      "__typename": "AppUsagePricing",
+                      "balanceUsed": {
+                        "amount": "3.00",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "billingRead": {
+          "data": {
+            "currentAppInstallation": {
+              "allSubscriptions": {
+                "nodes": [
+                  {
+                    "lineItems": [
+                      {
+                        "plan": {
+                          "pricingDetails": {
+                            "__typename": "AppUsagePricing",
+                            "balanceUsed": {
+                              "amount": "3.00",
+                              "currencyCode": "USD"
+                            }
+                          }
+                        },
+                        "usageRecords": {
+                          "nodes": [
+                            {
+                              "id": "gid://shopify/AppUsageRecord/expected",
+                              "description": "first",
+                              "price": {
+                                "amount": "3.00",
+                                "currencyCode": "USD"
+                              }
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

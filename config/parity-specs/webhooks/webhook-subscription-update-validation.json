@@ -1,0 +1,104 @@
+{
+  "scenarioId": "webhook-subscription-update-validation",
+  "operationNames": ["webhookSubscriptionCreate", "webhookSubscriptionUpdate", "webhookSubscription"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-conformance.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/webhooks_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+    "variablesCapturePath": "$.updateValidation.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for webhookSubscriptionUpdate validation branches captured from Shopify 2026-04. The scenario creates a temporary subscription, replays failed blank URI, HTTP URI, and malformed Pub/Sub URI updates against the proxy-created synthetic ID, then verifies a downstream detail read still matches the pre-failure subscription state.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "update-blank-uri-rejected",
+        "capturePath": "$.updateValidation.updateBlankUri.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.updateValidation.updateBlankUri.variables.webhookSubscription"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-http-uri-rejected",
+        "capturePath": "$.updateValidation.updateHttpUri.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.updateValidation.updateHttpUri.variables.webhookSubscription"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-invalid-pubsub-rejected",
+        "capturePath": "$.updateValidation.updateInvalidPubSub.response.payload.data.webhookSubscriptionUpdate",
+        "proxyPath": "$.data.webhookSubscriptionUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionUpdate-parity.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            },
+            "webhookSubscription": {
+              "fromCapturePath": "$.updateValidation.updateInvalidPubSub.variables.webhookSubscription"
+            }
+          }
+        }
+      },
+      {
+        "name": "update-existing-record-untouched-on-validation-failure",
+        "capturePath": "$.updateValidation.detailAfterFailedUpdates.response.payload.data.webhookSubscription",
+        "proxyPath": "$.data.webhookSubscription",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-detail-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.webhookSubscriptionCreate.webhookSubscription.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The downstream read sees the proxy-created synthetic webhook subscription ID."
+          },
+          {
+            "path": "$.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The downstream read sees the proxy synthetic create timestamp."
+          },
+          {
+            "path": "$.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The failed updates leave the proxy synthetic update timestamp unchanged from setup."
+          }
+        ]
+      }
+    ]
+  }
+}

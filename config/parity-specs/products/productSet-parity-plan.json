@@ -332,7 +332,14 @@
             }
           }
         },
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.productSet.product.totalInventory",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities during productSet updates; this older capture recorded Shopify's immediately stale product aggregate."
+          }
+        ]
       },
       {
         "name": "update-downstream-read-data",
@@ -357,7 +364,34 @@
             }
           }
         },
-        "proxyPath": "$.data"
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.product.totalInventory",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities during productSet updates; this older capture recorded Shopify's immediately stale product aggregate."
+          },
+          {
+            "path": "$.variantOne.product.totalInventory",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities during productSet updates; this older capture recorded Shopify's immediately stale product aggregate."
+          },
+          {
+            "path": "$.stockOne.variant.product.totalInventory",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities during productSet updates; this older capture recorded Shopify's immediately stale product aggregate."
+          },
+          {
+            "path": "$.variantTwo.product.totalInventory",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities during productSet updates; this older capture recorded Shopify's immediately stale product aggregate."
+          },
+          {
+            "path": "$.stockTwo.variant.product.totalInventory",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities during productSet updates; this older capture recorded Shopify's immediately stale product aggregate."
+          }
+        ]
       }
     ]
   }

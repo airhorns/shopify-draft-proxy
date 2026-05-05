@@ -1,0 +1,13 @@
+query CartTransformCreateThenDeleteRead {
+  cartTransforms(first: 5) {
+    nodes {
+      id
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

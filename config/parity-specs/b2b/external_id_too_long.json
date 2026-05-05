@@ -1,0 +1,84 @@
+{
+  "scenarioId": "b2b-external-id-too-long",
+  "operationNames": ["companyCreate", "companyUpdate", "companyLocationCreate", "companyLocationUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-external-id-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/external-id-validation-company-create.graphql",
+    "variablesCapturePath": "$.setupCompany.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "HAR-608 live parity evidence for B2B externalId maximum-length validation on company and company-location create/update mutations.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-external-id-too-long",
+        "capturePath": "$.companyCreateTooLong.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-company-create.graphql",
+          "variablesCapturePath": "$.companyCreateTooLong.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-update-external-id-too-long",
+        "capturePath": "$.companyUpdateTooLong.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-company-update.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.companyUpdateTooLong.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-external-id-too-long",
+        "capturePath": "$.locationCreateTooLong.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationCreateTooLong.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-update-external-id-too-long",
+        "capturePath": "$.locationUpdateTooLong.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/external-id-validation-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationUpdateTooLong.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

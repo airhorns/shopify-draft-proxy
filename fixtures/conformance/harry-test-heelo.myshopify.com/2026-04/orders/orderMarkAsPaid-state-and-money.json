@@ -1,0 +1,722 @@
+{
+  "capturedAt": "2026-05-05T02:49:46.945Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "setup": {
+    "unpaid": {
+      "id": "gid://shopify/Order/8728623939890",
+      "name": "#1121",
+      "variables": {
+        "order": {
+          "email": "hermes-mark-paid-unpaid-success-1777949384366@example.com",
+          "note": "orderMarkAsPaid unpaid-success state-and-money capture",
+          "tags": ["parity-probe", "order-mark-as-paid", "unpaid-success"],
+          "test": true,
+          "currency": "CAD",
+          "presentmentCurrency": "CAD",
+          "lineItems": [
+            {
+              "title": "Hermes mark-as-paid unpaid-success",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "hermes-mark-paid-unpaid-success-1777949384366"
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8728623939890",
+              "name": "#1121",
+              "createdAt": "2026-05-05T02:49:44Z",
+              "updatedAt": "2026-05-05T02:49:44Z",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "presentmentCurrencyCode": "CAD",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "paymentGatewayNames": [],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": []
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "alreadyPaid": {
+      "id": "gid://shopify/Order/8728623972658",
+      "name": "#1122",
+      "variables": {
+        "order": {
+          "email": "hermes-mark-paid-already-paid-1777949384366@example.com",
+          "note": "orderMarkAsPaid already-paid state-and-money capture",
+          "tags": ["parity-probe", "order-mark-as-paid", "already-paid"],
+          "test": true,
+          "currency": "CAD",
+          "presentmentCurrency": "CAD",
+          "lineItems": [
+            {
+              "title": "Hermes mark-as-paid already-paid",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "hermes-mark-paid-already-paid-1777949384366"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8728623972658",
+              "name": "#1122",
+              "createdAt": "2026-05-05T02:49:45Z",
+              "updatedAt": "2026-05-05T02:49:45Z",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "presentmentCurrencyCode": "CAD",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "paymentGatewayNames": ["manual"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10415698575666",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "multiCurrency": {
+      "id": "gid://shopify/Order/8728624005426",
+      "name": "#1123",
+      "variables": {
+        "order": {
+          "email": "hermes-mark-paid-multi-currency-1777949384366@example.com",
+          "note": "orderMarkAsPaid multi-currency state-and-money capture",
+          "tags": ["parity-probe", "order-mark-as-paid", "multi-currency"],
+          "test": true,
+          "currency": "CAD",
+          "presentmentCurrency": "USD",
+          "lineItems": [
+            {
+              "title": "Hermes mark-as-paid multi-currency",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "16.99",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.50",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": false,
+              "taxable": false,
+              "sku": "hermes-mark-paid-multi-currency-1777949384366"
+            }
+          ]
+        },
+        "options": null
+      },
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8728624005426",
+              "name": "#1123",
+              "createdAt": "2026-05-05T02:49:45Z",
+              "updatedAt": "2026-05-05T02:49:45Z",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "presentmentCurrencyCode": "USD",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "paymentGatewayNames": [],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "16.99",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "16.99",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "16.99",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "transactions": []
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": {
+    "unpaidSuccess": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8728623939890"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderMarkAsPaid": {
+              "order": {
+                "id": "gid://shopify/Order/8728623939890",
+                "presentmentCurrencyCode": "CAD",
+                "displayFinancialStatus": "PAID",
+                "paymentGatewayNames": ["manual"],
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10415698608434",
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "12.5",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "12.5",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "alreadyPaid": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8728623972658"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderMarkAsPaid": {
+              "order": {
+                "id": "gid://shopify/Order/8728623972658",
+                "presentmentCurrencyCode": "CAD",
+                "displayFinancialStatus": "PAID",
+                "paymentGatewayNames": ["manual"],
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10415698575666",
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "12.5",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "12.5",
+                        "currencyCode": "CAD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Order cannot be marked as paid."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "multiCurrency": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Order/8728624005426"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderMarkAsPaid": {
+              "order": {
+                "id": "gid://shopify/Order/8728624005426",
+                "presentmentCurrencyCode": "USD",
+                "displayFinancialStatus": "PAID",
+                "paymentGatewayNames": ["manual"],
+                "totalOutstandingSet": {
+                  "shopMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "CAD"
+                  },
+                  "presentmentMoney": {
+                    "amount": "0.0",
+                    "currencyCode": "USD"
+                  }
+                },
+                "transactions": [
+                  {
+                    "id": "gid://shopify/OrderTransaction/10415698641202",
+                    "kind": "SALE",
+                    "status": "SUCCESS",
+                    "gateway": "manual",
+                    "amountSet": {
+                      "shopMoney": {
+                        "amount": "16.99",
+                        "currencyCode": "CAD"
+                      },
+                      "presentmentMoney": {
+                        "amount": "12.5",
+                        "currencyCode": "USD"
+                      }
+                    }
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8728623939890"
+      },
+      "query": "hand-synthesized from checked-in setup orderCreate response for orderMarkAsPaid Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8728623939890",
+              "name": "#1121",
+              "createdAt": "2026-05-05T02:49:44Z",
+              "updatedAt": "2026-05-05T02:49:44Z",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "presentmentCurrencyCode": "CAD",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "paymentGatewayNames": [],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8728623972658"
+      },
+      "query": "hand-synthesized from checked-in setup orderCreate response for orderMarkAsPaid Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8728623972658",
+              "name": "#1122",
+              "createdAt": "2026-05-05T02:49:45Z",
+              "updatedAt": "2026-05-05T02:49:45Z",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "presentmentCurrencyCode": "CAD",
+              "displayFinancialStatus": "PAID",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "paymentGatewayNames": ["manual"],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "CAD"
+                }
+              },
+              "transactions": [
+                {
+                  "id": "gid://shopify/OrderTransaction/10415698575666",
+                  "kind": "SALE",
+                  "status": "SUCCESS",
+                  "gateway": "manual",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "CAD"
+                    },
+                    "presentmentMoney": {
+                      "amount": "12.5",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OrdersOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/Order/8728624005426"
+      },
+      "query": "hand-synthesized from checked-in setup orderCreate response for orderMarkAsPaid Pattern 2 hydration",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "order": {
+              "id": "gid://shopify/Order/8728624005426",
+              "name": "#1123",
+              "createdAt": "2026-05-05T02:49:45Z",
+              "updatedAt": "2026-05-05T02:49:45Z",
+              "closed": false,
+              "closedAt": null,
+              "cancelledAt": null,
+              "cancelReason": null,
+              "presentmentCurrencyCode": "USD",
+              "displayFinancialStatus": null,
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "paymentGatewayNames": [],
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "16.99",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "16.99",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "16.99",
+                  "currencyCode": "CAD"
+                },
+                "presentmentMoney": {
+                  "amount": "12.5",
+                  "currencyCode": "USD"
+                }
+              },
+              "transactions": []
+            }
+          }
+        }
+      }
+    }
+  ]
+}

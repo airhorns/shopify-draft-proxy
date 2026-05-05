@@ -22,8 +22,10 @@ normal test runs mutating a dev store.
 - Stages supported mutations locally and records the original raw GraphQL body
   for later commit replay.
 - Overlays staged local effects onto downstream reads for supported domains.
-- Proxies unsupported mutations to Shopify as an escape hatch and records that
-  fact in logs/observability.
+- Proxies unsupported mutations to Shopify as an escape hatch by default and
+  records that fact in logs/observability. Set
+  `unsupportedMutationMode: 'reject'` when tests must fail closed instead of
+  letting unsupported mutations reach Shopify.
 - Exposes meta APIs for health, configuration, staged-state inspection, reset,
   log inspection, and commit.
 - Uses conformance captures and parity tests to keep behavior grounded in real
@@ -82,6 +84,7 @@ import { createDraftProxy } from 'shopify-draft-proxy';
 
 const proxy = createDraftProxy({
   readMode: 'snapshot',
+  unsupportedMutationMode: 'passthrough',
   port: 4000,
   shopifyAdminOrigin: 'https://your-store.myshopify.com',
 });
@@ -172,6 +175,13 @@ may be needed.
 It is not support for known mutation roots; supported mutations still stage
 locally, and unknown/unsupported passthrough must remain visible in
 observability.
+
+`unsupportedMutationMode` controls unsupported mutation roots in `live-hybrid`.
+It defaults to `passthrough`, preserving the escape hatch that forwards the
+request upstream and records a proxied log entry. Set it to `reject` to return a
+400 GraphQL error envelope before any upstream call when the mutation root is
+not locally supported. Supported local mutations still stage locally in either
+mode.
 
 `POST /__meta/commit` is the explicit exception to local-only supported
 mutation handling: it replays pending staged mutations upstream in original

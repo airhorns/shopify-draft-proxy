@@ -1,0 +1,82 @@
+mutation MarketingEngagementCurrencyValidation(
+  $activityInput: MarketingActivityCreateExternalInput!
+  $remoteId: String!
+  $activityId: ID!
+  $mismatchedInputEngagement: MarketingEngagementInput!
+  $activityCurrencyMismatchEngagement: MarketingEngagementInput!
+  $remoteActivityCurrencyMismatchEngagement: MarketingEngagementInput!
+) {
+  createActivity: marketingActivityCreateExternal(input: $activityInput) {
+    marketingActivity {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  inputMismatchByRemoteId: marketingEngagementCreate(
+    remoteId: $remoteId
+    marketingEngagement: $mismatchedInputEngagement
+  ) {
+    marketingEngagement {
+      occurredOn
+      adSpend {
+        amount
+        currencyCode
+      }
+      sales {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  activityMismatchById: marketingEngagementCreate(
+    marketingActivityId: $activityId
+    marketingEngagement: $activityCurrencyMismatchEngagement
+  ) {
+    marketingEngagement {
+      occurredOn
+      adSpend {
+        amount
+        currencyCode
+      }
+      sales {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  activityMismatchByRemoteId: marketingEngagementCreate(
+    remoteId: $remoteId
+    marketingEngagement: $remoteActivityCurrencyMismatchEngagement
+  ) {
+    marketingEngagement {
+      occurredOn
+      adSpend {
+        amount
+        currencyCode
+      }
+      sales {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

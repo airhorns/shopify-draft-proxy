@@ -1,0 +1,87 @@
+{
+  "scenarioId": "metafield-definition-create-input-validation",
+  "operationNames": ["metafieldDefinitionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2025-01/metafields/metafield-definition-create-input-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
+    "variablesCapturePath": "$.cases.shortNamespace.request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "short-namespace-userErrors",
+        "capturePath": "$.cases.shortNamespace.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors"
+      },
+      {
+        "name": "invalid-character-namespace-userErrors",
+        "capturePath": "$.cases.invalidCharacterNamespace.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidCharacterNamespace.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "invalid-character-key-userErrors",
+        "capturePath": "$.cases.invalidCharacterKey.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases.invalidCharacterKey.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "unknown-type-userErrors",
+        "capturePath": "$.cases.unknownType.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases.unknownType.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "reserved-namespace-shopify_standard-userErrors",
+        "capturePath": "$.cases.reservedNamespaceShopifyStandard.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases.reservedNamespaceShopifyStandard.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "reserved-namespace-protected-userErrors",
+        "capturePath": "$.cases.reservedNamespaceProtected.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases.reservedNamespaceProtected.request.variables",
+          "apiVersion": "2025-01"
+        }
+      },
+      {
+        "name": "name-too-long-userErrors",
+        "capturePath": "$.cases.nameTooLong.response.data.metafieldDefinitionCreate.userErrors",
+        "proxyPath": "$.data.metafieldDefinitionCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-create-input-validation.graphql",
+          "variablesCapturePath": "$.cases.nameTooLong.request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-693 locks product-owner metafieldDefinitionCreate input validation. The local-runtime fixture uses live Shopify payloads for deterministic length, invalid-character, unknown-type, and name-length branches, and encodes the ticket's reserved namespace guardrail where the current conformance app can bypass the merchant reserved-namespace rejection."
+}

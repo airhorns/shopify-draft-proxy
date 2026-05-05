@@ -19,7 +19,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison covers the base staged customerMerge payload, resulting customer downstream visibility, source customer deletion, customerByIdentifier email lookup behavior, merge job status shape, and captured missing/self/unknown validation branches for two customers without non-empty attached resources. Attached-resource merge behavior is covered separately by customer-merge-attached-resources-parity.",
+  "notes": "Strict comparison covers the base staged customerMerge payload, resulting customer downstream visibility, source customer deletion, customerByIdentifier email lookup behavior, merge job status shape, and captured missing/blank-literal/self/unknown validation branches for two customers without non-empty attached resources. Attached-resource merge behavior is covered separately by customer-merge-attached-resources-parity.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -93,6 +93,60 @@
         "proxyRequest": {
           "documentPath": "config/parity-requests/customers/customerMerge-missing-argument.graphql",
           "variablesCapturePath": "$.validation.missingArgument.variables"
+        }
+      },
+      {
+        "name": "blank-literal-customer-one-validation-message",
+        "capturePath": "$.validation.blankLiteralIds.response.errors[0].message",
+        "proxyPath": "$.errors[0].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-blank-literal-ids.graphql",
+          "variablesCapturePath": "$.validation.blankLiteralIds.variables"
+        }
+      },
+      {
+        "name": "blank-literal-customer-one-validation-path",
+        "capturePath": "$.validation.blankLiteralIds.response.errors[0].path",
+        "proxyPath": "$.errors[0].path",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-blank-literal-ids.graphql",
+          "variablesCapturePath": "$.validation.blankLiteralIds.variables"
+        }
+      },
+      {
+        "name": "blank-literal-customer-one-validation-extensions",
+        "capturePath": "$.validation.blankLiteralIds.response.errors[0].extensions",
+        "proxyPath": "$.errors[0].extensions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-blank-literal-ids.graphql",
+          "variablesCapturePath": "$.validation.blankLiteralIds.variables"
+        }
+      },
+      {
+        "name": "blank-literal-customer-two-validation-message",
+        "capturePath": "$.validation.blankLiteralIds.response.errors[1].message",
+        "proxyPath": "$.errors[1].message",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-blank-literal-ids.graphql",
+          "variablesCapturePath": "$.validation.blankLiteralIds.variables"
+        }
+      },
+      {
+        "name": "blank-literal-customer-two-validation-path",
+        "capturePath": "$.validation.blankLiteralIds.response.errors[1].path",
+        "proxyPath": "$.errors[1].path",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-blank-literal-ids.graphql",
+          "variablesCapturePath": "$.validation.blankLiteralIds.variables"
+        }
+      },
+      {
+        "name": "blank-literal-customer-two-validation-extensions",
+        "capturePath": "$.validation.blankLiteralIds.response.errors[1].extensions",
+        "proxyPath": "$.errors[1].extensions",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customerMerge-blank-literal-ids.graphql",
+          "variablesCapturePath": "$.validation.blankLiteralIds.variables"
         }
       }
     ]

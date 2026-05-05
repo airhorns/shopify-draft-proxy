@@ -1,0 +1,13 @@
+mutation AppRevokeAccessScopesRequiredReadProducts {
+  appRevokeAccessScopes(scopes: ["read_products"]) {
+    revoked {
+      handle
+      description
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

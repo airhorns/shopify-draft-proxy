@@ -90,7 +90,13 @@
           "$.firstVariant.inventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt",
           "$.firstInventoryItem.inventoryLevels.nodes[*].quantities[*].updatedAt"
         ],
-        "expectedDifferences": []
+        "expectedDifferences": [
+          {
+            "path": "$.firstProduct.totalInventory",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities; this older capture recorded Shopify's immediately stale product aggregate."
+          }
+        ]
       }
     ]
   }

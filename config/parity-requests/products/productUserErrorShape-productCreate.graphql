@@ -1,0 +1,11 @@
+mutation ProductUserErrorShapeProductCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
