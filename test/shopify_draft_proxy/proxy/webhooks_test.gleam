@@ -4,6 +4,7 @@ import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/proxy/webhooks
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
@@ -670,6 +671,7 @@ fn run_mutation(store_in: store.Store, document: String) -> String {
       "/admin/api/2025-01/graphql.json",
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   json.to_string(outcome.data)
 }
@@ -704,6 +706,7 @@ fn run_mutation_outcome(
       "/admin/api/2025-01/graphql.json",
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   outcome
 }

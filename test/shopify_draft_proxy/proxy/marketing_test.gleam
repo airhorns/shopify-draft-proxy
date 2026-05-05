@@ -8,6 +8,7 @@ import gleam/string
 import shopify_draft_proxy/proxy/graphql_helpers.{SrcList, SrcObject, SrcString}
 import shopify_draft_proxy/proxy/marketing
 import shopify_draft_proxy/proxy/mutation_helpers
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -378,6 +379,7 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
       request_path,
       create_doc,
       empty_vars(),
+      empty_upstream_context(),
     )
   let created = record_drafts(created, request_path, create_doc)
   let response = json.to_string(created.data)
@@ -408,6 +410,7 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityUpdateExternal(remoteId: \"remote-1\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, input: { title: \"Launch updated\", status: INACTIVE }) { marketingActivity { id title status marketingEvent { endedAt } } userErrors { message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let update_response = json.to_string(updated.data)
   assert string.contains(update_response, "\"title\":\"Launch updated\"")
@@ -420,6 +423,7 @@ pub fn external_activity_create_update_delete_stages_locally_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityDeleteExternal(remoteId: \"remote-1\") { deletedMarketingActivityId userErrors { message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   assert json.to_string(deleted.data)
     == "{\"data\":{\"marketingActivityDeleteExternal\":{\"deletedMarketingActivityId\":\"gid://shopify/MarketingActivity/1\",\"userErrors\":[]}}}"
@@ -460,6 +464,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-b\", utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
+    empty_upstream_context(),
     )
   let channel_response = json.to_string(channel_changed.data)
   assert string.contains(channel_response, "\"marketingActivity\":null")
@@ -481,6 +486,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-a\", urlParameterValue: null, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
+    empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(url_cleared.data),
@@ -494,6 +500,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-a\", urlParameterValue: \"promo-1\", parentRemoteId: \"parent-a\", hierarchyLevel: CAMPAIGN, utm: { campaign: \"changed\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
+    empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(utm_changed.data),
@@ -507,6 +514,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"remote-immutable\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, channelHandle: \"channel-a\", urlParameterValue: \"promo-1\", parentRemoteId: \"missing-parent\", hierarchyLevel: CAMPAIGN, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
+    empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(missing_parent.data),
@@ -520,6 +528,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpdateExternal(remoteId: \"remote-immutable\", input: { title: \"Changed\", parentRemoteId: \"parent-b\" }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
+    empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(parent_changed.data),
@@ -533,6 +542,7 @@ pub fn external_activity_immutable_update_and_upsert_fields_reject_test() {
       request_path,
       "mutation { marketingActivityUpdateExternal(remoteId: \"remote-immutable\", input: { title: \"Changed\", hierarchyLevel: AD_GROUP }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
+    empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(hierarchy_changed.data),
@@ -561,6 +571,7 @@ pub fn external_activity_update_and_upsert_reject_non_external_or_orphan_test() 
       request_path,
       "mutation { marketingActivityUpsertExternal(input: { remoteId: \"native-remote\", title: \"Changed\", status: ACTIVE, tactic: NEWSLETTER, marketingChannelType: EMAIL, utm: { campaign: \"campaign\", source: \"email\", medium: \"newsletter\" } }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
+    empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(non_external.data),
@@ -574,6 +585,7 @@ pub fn external_activity_update_and_upsert_reject_non_external_or_orphan_test() 
       request_path,
       "mutation { marketingActivityUpdateExternal(remoteId: \"orphan-remote\", input: { title: \"Changed\" }) { marketingActivity { id title } userErrors { field message code } } }",
       empty_vars(),
+    empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(orphan.data),
@@ -589,6 +601,7 @@ pub fn update_external_requires_a_selector_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityUpdateExternal(input: { title: \"Changed\" }) { marketingActivity { id } userErrors { field message code } } }",
       empty_vars(),
+    empty_upstream_context(),
     )
   assert string.contains(
     json.to_string(result.data),
@@ -607,6 +620,7 @@ pub fn native_activity_validation_update_and_log_test() {
       request_path,
       missing_doc,
       empty_vars(),
+      empty_upstream_context(),
     )
   let missing_extension =
     record_drafts(missing_extension, request_path, missing_doc)
@@ -625,6 +639,7 @@ pub fn native_activity_validation_update_and_log_test() {
       request_path,
       create_doc,
       empty_vars(),
+      empty_upstream_context(),
     )
   let created = record_drafts(created, request_path, create_doc)
   assert created.staged_resource_ids == ["gid://shopify/MarketingActivity/1"]
@@ -637,6 +652,7 @@ pub fn native_activity_validation_update_and_log_test() {
       request_path,
       update_doc,
       empty_vars(),
+      empty_upstream_context(),
     )
   let updated = record_drafts(updated, request_path, update_doc)
   assert string.contains(
@@ -654,6 +670,7 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingActivityCreateExternal(input: { title: \"Launch\", remoteId: \"remote-1\", urlParameterValue: \"utm_campaign=launch\", utm: { campaign: \"launch\", source: \"email\", medium: \"newsletter\" }, channelHandle: \"email\" }) { marketingActivity { id } userErrors { message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let engagement =
     marketing.process_mutation(
@@ -662,6 +679,7 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingEngagementCreate(remoteId: \"remote-1\", marketingEngagement: { occurredOn: \"2026-04-27\", impressionsCount: 10, adSpend: { amount: \"4.50\", currencyCode: USD }, orders: \"2.0\" }) { marketingEngagement { occurredOn impressionsCount adSpend { amount currencyCode } orders marketingActivity { id } } userErrors { message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let engagement_response = json.to_string(engagement.data)
   assert string.contains(engagement_response, "\"impressionsCount\":10")
@@ -678,6 +696,7 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingEngagementCreate(channelHandle: \"email\", marketingEngagement: { occurredOn: \"2026-04-28\", clicksCount: 3 }) { marketingEngagement { occurredOn channelHandle clicksCount } userErrors { message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   assert list.length(store.list_effective_marketing_engagements(
       channel_engagement.store,
@@ -691,6 +710,7 @@ pub fn engagement_create_and_delete_stages_metric_records_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { marketingEngagementsDelete(channelHandle: \"email\") { result userErrors { message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   assert json.to_string(deleted.data)
     == "{\"data\":{\"marketingEngagementsDelete\":{\"result\":\"Engagement data marked for deletion for 1 channel(s)\",\"userErrors\":[]}}}"

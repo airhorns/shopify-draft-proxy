@@ -167,6 +167,7 @@ pub fn handle_query_request(
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  _request_path: String,
   document: String,
   variables: Dict(String, ResolvedValue),
   upstream: UpstreamContext,
