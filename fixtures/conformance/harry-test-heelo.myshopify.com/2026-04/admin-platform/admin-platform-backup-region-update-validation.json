@@ -1,0 +1,117 @@
+{
+  "capturedAt": "2026-05-05T20:24:48.287Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": "HAR-745 validation-only capture for backupRegionUpdate: well-formed unknown CountryCode ZZ returns MarketUserError REGION_NOT_FOUND, while missing, null, and non-enum literal region.countryCode fail GraphQL input-object coercion before resolver execution.",
+  "captures": {
+    "userErrorTypename": {
+      "query": "mutation BackupRegionUpdateValidationTypename {\n  backupRegionUpdate(region: { countryCode: ZZ }) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      __typename\n      field\n      message\n      code\n    }\n  }\n}\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "backupRegionUpdate": {
+              "backupRegion": null,
+              "userErrors": [
+                {
+                  "__typename": "MarketUserError",
+                  "field": ["region"],
+                  "message": "Region not found.",
+                  "code": "REGION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "missingCountryCode": {
+      "query": "mutation BackupRegionUpdateMissingCountryCode {\n  backupRegionUpdate(region: {}) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      field\n      code\n    }\n  }\n}\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' is required. Expected type CountryCode!",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 30
+                }
+              ],
+              "path": ["mutation BackupRegionUpdateMissingCountryCode", "backupRegionUpdate", "region", "countryCode"],
+              "extensions": {
+                "code": "missingRequiredInputObjectAttribute",
+                "argumentName": "countryCode",
+                "argumentType": "CountryCode!",
+                "inputObjectType": "BackupRegionUpdateInput"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "nullCountryCode": {
+      "query": "mutation BackupRegionUpdateNullCountryCode {\n  backupRegionUpdate(region: { countryCode: null }) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      field\n      code\n    }\n  }\n}\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value (null). Expected type 'CountryCode!'.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 30
+                }
+              ],
+              "path": ["mutation BackupRegionUpdateNullCountryCode", "backupRegionUpdate", "region", "countryCode"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": "countryCode"
+              }
+            }
+          ]
+        }
+      }
+    },
+    "numericCountryCode": {
+      "query": "mutation BackupRegionUpdateNumericCountryCode {\n  backupRegionUpdate(region: { countryCode: 42 }) {\n    backupRegion {\n      id\n    }\n    userErrors {\n      field\n      code\n    }\n  }\n}\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Argument 'countryCode' on InputObject 'BackupRegionUpdateInput' has an invalid value (42). Expected type 'CountryCode!'.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 30
+                }
+              ],
+              "path": ["mutation BackupRegionUpdateNumericCountryCode", "backupRegionUpdate", "region", "countryCode"],
+              "extensions": {
+                "code": "argumentLiteralsIncompatible",
+                "typeName": "InputObject",
+                "argumentName": "countryCode"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
