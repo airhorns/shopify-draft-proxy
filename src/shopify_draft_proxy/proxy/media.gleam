@@ -22,7 +22,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, respond_to_query,
+  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
+  MutationOutcome, respond_to_query,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
@@ -62,6 +63,44 @@ const google_signed_upload_parameter_names: List(String) = [
   "key",
   "policy",
   "signature",
+]
+
+const staged_upload_resource_values: List(String) = [
+  "COLLECTION_IMAGE",
+  "FILE",
+  "IMAGE",
+  "MODEL_3D",
+  "PRODUCT_IMAGE",
+  "SHOP_IMAGE",
+  "VIDEO",
+  "BULK_MUTATION_VARIABLES",
+  "RETURN_LABEL",
+  "URL_REDIRECT_IMPORT",
+  "DISPUTE_FILE_UPLOAD",
+]
+
+const staged_upload_image_mime_types: List(String) = [
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/gif",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+]
+
+const staged_upload_video_mime_types: List(String) = [
+  "video/mp4",
+  "video/quicktime",
+  "video/webm",
+  "video/x-m4v",
+]
+
+const staged_upload_model_mime_types: List(String) = [
+  "model/gltf-binary",
+  "model/gltf+json",
+  "model/vnd.usdz+zip",
+  "application/octet-stream",
 ]
 
 const file_like_gid_types: List(String) = [
@@ -167,6 +206,7 @@ pub fn handle_query_request(
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  _request_path: String,
   document: String,
   variables: Dict(String, ResolvedValue),
   upstream: UpstreamContext,
@@ -282,14 +322,6 @@ fn handle_mutation_fields(
     identity: final_identity,
     staged_resource_ids: all_staged,
     log_drafts: all_drafts,
-  )
-}
-
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
   )
 }
 
@@ -540,15 +572,13 @@ fn handle_file_acknowledge_update_failed(
     })
   case errors {
     [] -> {
-      let #(acknowledged, next_identity) =
-        map_with_identity(file_ids, identity, fn(current_identity, file_id) {
+      let acknowledged =
+        list.filter_map(file_ids, fn(file_id) {
           case get_effective_file_like_record(store, file_id) {
-            Some(file) ->
-              acknowledge_file_update_failure(current_identity, file)
-            None -> #(file_not_found_placeholder(file_id), current_identity)
+            Some(file) -> Ok(file)
+            None -> Error(Nil)
           }
         })
-      let next_store = store.upsert_staged_files(store, acknowledged)
       #(
         MutationFieldResult(
           key: key,
@@ -560,8 +590,8 @@ fn handle_file_acknowledge_update_failed(
           ),
           staged_resource_ids: list.map(acknowledged, fn(file) { file.id }),
         ),
-        next_store,
-        next_identity,
+        store,
+        identity,
       )
     }
     _ -> #(
@@ -594,43 +624,33 @@ fn handle_staged_uploads_create(
       let #(input, index) = entry
       validate_staged_upload_input(input, index)
     })
-  case errors {
-    [] -> {
-      let #(targets, next_identity) =
-        map_with_identity(
-          enumerate_objects(inputs),
-          identity,
-          fn(current_identity, entry) {
-            let #(input, index) = entry
-            make_staged_target(current_identity, input, index)
-          },
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: staged_uploads_payload(targets, [], field, fragments),
-          staged_resource_ids: [],
-        ),
-        store,
-        next_identity,
-      )
-    }
-    _ -> #(
-      MutationFieldResult(
-        key: key,
-        payload: staged_uploads_payload([], errors, field, fragments),
-        staged_resource_ids: [],
-      ),
-      store,
+  let #(targets, next_identity) =
+    map_with_identity(
+      enumerate_objects(inputs),
       identity,
+      fn(current_identity, entry) {
+        let #(input, index) = entry
+        case validate_staged_upload_input(input, index) {
+          [] -> make_staged_target(current_identity, input, index)
+          _ -> #(empty_staged_target(), current_identity)
+        }
+      },
     )
-  }
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: staged_uploads_payload(targets, errors, field, fragments),
+      staged_resource_ids: [],
+    ),
+    store,
+    next_identity,
+  )
 }
 
 type StagedTarget {
   StagedTarget(
-    url: String,
-    resource_url: String,
+    url: Option(String),
+    resource_url: Option(String),
     parameters: List(#(String, String)),
   )
 }
@@ -766,6 +786,8 @@ fn file_source(file: FileRecord) -> SourceValue {
     #("filename", graphql_helpers.option_string_source(file.filename)),
     #("image", file_image_source(file)),
     #("preview", file_preview_source(file)),
+    #("mediaErrors", SrcList([])),
+    #("mediaWarnings", SrcList([])),
   ])
 }
 
@@ -787,8 +809,8 @@ fn file_preview_source(file: FileRecord) -> SourceValue {
 
 fn staged_target_source(target: StagedTarget) -> SourceValue {
   src_object([
-    #("url", SrcString(target.url)),
-    #("resourceUrl", SrcString(target.resource_url)),
+    #("url", graphql_helpers.option_string_source(target.url)),
+    #("resourceUrl", graphql_helpers.option_string_source(target.resource_url)),
     #(
       "parameters",
       SrcList(
@@ -819,20 +841,9 @@ fn validate_file_input(
   index: Int,
 ) -> List(FilesUserError) {
   let original_source = read_string_field(input, "originalSource")
-  let alt = read_string_field(input, "alt")
   let source_errors = case original_source {
-    Some(value) if value != "" ->
-      case is_valid_url(value) {
-        True -> []
-        False -> [
-          FilesUserError(
-            ["files", int.to_string(index), "originalSource"],
-            "Image URL is invalid",
-            "INVALID",
-          ),
-        ]
-      }
-    _ -> [
+    Some(value) -> validate_original_source(value, index)
+    None -> [
       FilesUserError(
         ["files", int.to_string(index), "originalSource"],
         "Original source is required",
@@ -840,21 +851,157 @@ fn validate_file_input(
       ),
     ]
   }
-  let alt_errors = case alt {
-    Some(value) ->
-      case string.length(value) > 512 {
+  source_errors
+  |> list.append(validate_references_to_add(input, index))
+  |> list.append(validate_create_filename_extension(input, index))
+  |> list.append(validate_duplicate_resolution_mode(input, index))
+}
+
+fn validate_original_source(value: String, index: Int) -> List(FilesUserError) {
+  case value {
+    "" -> [
+      FilesUserError(
+        ["files", int.to_string(index), "originalSource"],
+        "originalSource is too short (minimum is 1)",
+        "INVALID",
+      ),
+    ]
+    _ ->
+      case string.length(value) > 2048 {
         True -> [
           FilesUserError(
-            ["files", int.to_string(index), "alt"],
-            "The alt value exceeds the maximum limit of 512 characters.",
-            "ALT_VALUE_LIMIT_EXCEEDED",
+            ["files", int.to_string(index), "originalSource"],
+            "originalSource is too long (maximum is 2048)",
+            "INVALID",
+          ),
+        ]
+        False -> validate_original_source_url(value, index)
+      }
+  }
+}
+
+fn validate_original_source_url(
+  value: String,
+  index: Int,
+) -> List(FilesUserError) {
+  case is_valid_url(value) {
+    True -> []
+    False -> [
+      FilesUserError(
+        ["files", int.to_string(index), "originalSource"],
+        "File URL is invalid",
+        case has_non_http_uri_scheme(value) {
+          True -> "INVALID_IMAGE_SOURCE_URL"
+          False -> "INVALID"
+        },
+      ),
+    ]
+  }
+}
+
+fn validate_references_to_add(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(FilesUserError) {
+  case list.length(read_string_list_field(input, "referencesToAdd")) > 1 {
+    True -> [
+      FilesUserError(
+        ["files", int.to_string(index), "referencesToAdd"],
+        "Too many product ids specified.",
+        "TOO_MANY_PRODUCT_IDS_SPECIFIED",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn validate_create_filename_extension(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(FilesUserError) {
+  case
+    read_string_field(input, "originalSource"),
+    read_string_field(input, "filename")
+  {
+    Some(source), Some(filename) if source != "" && filename != "" -> {
+      let source_extension = file_extension(source)
+      let filename_extension = file_extension(filename)
+      case source_extension != filename_extension {
+        True -> [
+          FilesUserError(
+            ["files", int.to_string(index), "filename"],
+            "Provided filename extension must match original source.",
+            "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE",
           ),
         ]
         False -> []
       }
+    }
+    _, _ -> []
+  }
+}
+
+fn validate_duplicate_resolution_mode(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(FilesUserError) {
+  case read_string_field(input, "duplicateResolutionMode") {
+    Some("REPLACE" as mode) ->
+      validate_non_append_duplicate_mode(input, index, mode)
+    Some("RAISE_ERROR" as mode) ->
+      validate_non_append_duplicate_mode(input, index, mode)
     _ -> []
   }
-  list.append(source_errors, alt_errors)
+}
+
+fn validate_non_append_duplicate_mode(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+  mode: String,
+) -> List(FilesUserError) {
+  let content_type = read_string_field(input, "contentType")
+  case duplicate_mode_allowed(mode, content_type) {
+    False -> [
+      FilesUserError(
+        ["files", int.to_string(index), "duplicateResolutionMode"],
+        "Duplicate resolution mode '"
+          <> mode
+          <> "' is not supported for '"
+          <> duplicate_media_type_name(content_type)
+          <> "' media type.",
+        "INVALID_DUPLICATE_MODE_FOR_TYPE",
+      ),
+    ]
+    True ->
+      case mode, read_string_field(input, "filename") {
+        "REPLACE", Some(filename) if filename != "" -> []
+        "REPLACE", _ -> [
+          FilesUserError(
+            ["files", int.to_string(index), "filename"],
+            "Missing filename argument when attempting to use REPLACE duplicate mode.",
+            "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE",
+          ),
+        ]
+        _, _ -> []
+      }
+  }
+}
+
+fn duplicate_mode_allowed(mode: String, content_type: Option(String)) -> Bool {
+  case mode, content_type {
+    "REPLACE", Some("IMAGE") -> True
+    "RAISE_ERROR", Some("IMAGE") -> True
+    "RAISE_ERROR", Some("FILE") -> True
+    _, _ -> False
+  }
+}
+
+fn duplicate_media_type_name(content_type: Option(String)) -> String {
+  case content_type {
+    Some("FILE") -> "GENERIC_FILE"
+    Some(value) -> value
+    None -> "MISSING"
+  }
 }
 
 fn validate_file_update_input(
@@ -1123,19 +1270,112 @@ fn validate_staged_upload_input(
   input: Dict(String, ResolvedValue),
   index: Int,
 ) -> List(FilesUserError) {
-  ["filename", "mimeType", "resource"]
-  |> list.flat_map(fn(field_name) {
-    case read_string_field(input, field_name) {
-      Some(value) if value != "" -> []
-      _ -> [
-        FilesUserError(
-          ["input", int.to_string(index), field_name],
-          field_name <> " is required",
-          "REQUIRED",
-        ),
-      ]
-    }
-  })
+  let required_errors =
+    ["filename", "mimeType", "resource"]
+    |> list.flat_map(fn(field_name) {
+      case read_string_field(input, field_name) {
+        Some(value) if value != "" -> []
+        _ -> [
+          FilesUserError(
+            ["input", int.to_string(index), field_name],
+            field_name <> " is required",
+            "REQUIRED",
+          ),
+        ]
+      }
+    })
+  let resource_errors = validate_staged_upload_resource(input, index)
+  let file_size_errors = validate_staged_upload_file_size(input, index)
+  let mime_errors = validate_staged_upload_mime_type(input, index)
+  required_errors
+  |> list.append(resource_errors)
+  |> list.append(file_size_errors)
+  |> list.append(mime_errors)
+}
+
+fn validate_staged_upload_resource(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(FilesUserError) {
+  case read_string_field(input, "resource") {
+    Some(resource) if resource != "" ->
+      case list.contains(staged_upload_resource_values, resource) {
+        True -> []
+        False -> [
+          FilesUserError(
+            ["input", int.to_string(index), "resource"],
+            "resource is not supported",
+            "INVALID",
+          ),
+        ]
+      }
+    _ -> []
+  }
+}
+
+fn validate_staged_upload_file_size(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(FilesUserError) {
+  case read_string_field(input, "resource") {
+    Some("VIDEO") | Some("MODEL_3D") ->
+      case has_non_null_field(input, "fileSize") {
+        True -> []
+        False -> [
+          FilesUserError(
+            ["input", int.to_string(index), "fileSize"],
+            "file size is required for video resources",
+            "REQUIRED",
+          ),
+        ]
+      }
+    _ -> []
+  }
+}
+
+fn validate_staged_upload_mime_type(
+  input: Dict(String, ResolvedValue),
+  index: Int,
+) -> List(FilesUserError) {
+  case
+    read_string_field(input, "resource"),
+    read_string_field(input, "mimeType")
+  {
+    _, None | _, Some("") -> []
+    Some(resource), Some(mime_type) ->
+      case staged_upload_mime_type_allowed(resource, mime_type) {
+        True -> []
+        False -> [
+          FilesUserError(
+            ["input", int.to_string(index), "mimeType"],
+            staged_upload_unrecognized_format_message(input, mime_type),
+            "INVALID",
+          ),
+        ]
+      }
+    _, _ -> []
+  }
+}
+
+fn staged_upload_mime_type_allowed(
+  resource: String,
+  mime_type: String,
+) -> Bool {
+  case resource {
+    "IMAGE" | "COLLECTION_IMAGE" | "PRODUCT_IMAGE" | "SHOP_IMAGE" ->
+      list.contains(staged_upload_image_mime_types, mime_type)
+    "VIDEO" -> list.contains(staged_upload_video_mime_types, mime_type)
+    "MODEL_3D" -> list.contains(staged_upload_model_mime_types, mime_type)
+    _ -> True
+  }
+}
+
+fn staged_upload_unrecognized_format_message(
+  input: Dict(String, ResolvedValue),
+  mime_type: String,
+) -> String {
+  let filename = read_string_field(input, "filename") |> option.unwrap("file")
+  filename <> ": (" <> mime_type <> ") is not a recognized format"
 }
 
 fn make_file_record(
@@ -1192,22 +1432,6 @@ fn update_file_record(
   )
 }
 
-fn acknowledge_file_update_failure(
-  identity: SyntheticIdentityRegistry,
-  file: FileRecord,
-) -> #(FileRecord, SyntheticIdentityRegistry) {
-  let #(timestamp, next_identity) =
-    synthetic_identity.make_synthetic_timestamp(identity)
-  #(
-    FileRecord(
-      ..file,
-      file_status: "READY",
-      update_failure_acknowledged_at: Some(timestamp),
-    ),
-    next_identity,
-  )
-}
-
 fn make_staged_target(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, ResolvedValue),
@@ -1257,15 +1481,23 @@ fn make_staged_target(
   let encoded_filename = encode_upload_segment(filename)
   #(
     StagedTarget(
-      url: "https://shopify-draft-proxy.local/staged-uploads/" <> encoded_id,
-      resource_url: "https://shopify-draft-proxy.local/staged-uploads/"
+      url: Some(
+        "https://shopify-draft-proxy.local/staged-uploads/" <> encoded_id,
+      ),
+      resource_url: Some(
+        "https://shopify-draft-proxy.local/staged-uploads/"
         <> encoded_id
         <> "/"
         <> encoded_filename,
+      ),
       parameters: parameters,
     ),
     next_identity,
   )
+}
+
+fn empty_staged_target() -> StagedTarget {
+  StagedTarget(url: None, resource_url: None, parameters: [])
 }
 
 fn make_synthetic_file_id(
@@ -1474,22 +1706,6 @@ fn file_record_from_product_media(media: ProductMediaRecord) -> FileRecord {
     image_url: media.image_url |> option.or(media.preview_image_url),
     image_width: media.image_width,
     image_height: media.image_height,
-    update_failure_acknowledged_at: None,
-  )
-}
-
-fn file_not_found_placeholder(file_id: String) -> FileRecord {
-  FileRecord(
-    id: file_id,
-    alt: None,
-    content_type: None,
-    created_at: "2024-01-01T00:00:00.000Z",
-    file_status: "READY",
-    filename: None,
-    original_source: "",
-    image_url: None,
-    image_width: None,
-    image_height: None,
     update_failure_acknowledged_at: None,
   )
 }
@@ -2094,8 +2310,54 @@ fn read_string_list_field(
   }
 }
 
+fn has_non_null_field(
+  input: Dict(String, ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(input, name) {
+    Ok(root_field.NullVal) | Error(_) -> False
+    _ -> True
+  }
+}
+
 fn is_valid_url(value: String) -> Bool {
   string.starts_with(value, "https://") || string.starts_with(value, "http://")
+}
+
+fn has_non_http_uri_scheme(value: String) -> Bool {
+  case string.split_once(value, on: ":") {
+    Ok(#(scheme, _)) if scheme != "" -> scheme != "http" && scheme != "https"
+    _ -> False
+  }
+}
+
+fn file_extension(value: String) -> String {
+  let path =
+    value
+    |> before_delimiter("?")
+    |> before_delimiter("#")
+  let last_segment =
+    path
+    |> string.split("/")
+    |> reverse_strings
+    |> list.find(fn(part) { part != "" })
+    |> option.from_result
+    |> option.unwrap("")
+  case string.split(last_segment, ".") {
+    [_] -> ""
+    parts ->
+      case list.last(parts) {
+        Ok(extension) -> "." <> extension
+        Error(_) -> ""
+      }
+  }
+}
+
+fn before_delimiter(value: String, delimiter: String) -> String {
+  case string.split_once(value, on: delimiter) {
+    Ok(#(before, _)) -> before
+    Error(_) -> value
+  }
 }
 
 fn non_empty_string(value: String) -> Option(String) {

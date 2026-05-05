@@ -1,0 +1,15 @@
+mutation ValidationUpdateRebind($id: ID!, $functionId: ID!) {
+  validationUpdate(id: $id, validation: { functionId: $functionId }) {
+    validation {
+      id
+      enable
+      blockOnFailure
+      functionId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

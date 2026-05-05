@@ -8,8 +8,8 @@ import shopify_draft_proxy/proxy/draft_proxy.{type Request}
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type CollectionRecord, type CollectionRuleSetRecord,
-  type MetafieldDefinitionCapabilitiesRecord,
+  type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
+  type InventoryQuantityRecord, type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductRecord,
   type ProductVariantRecord, CollectionRecord, CollectionRuleRecord,
@@ -43,6 +43,29 @@ fn graphql_request_body(body: String) -> Request {
     headers: empty_headers(),
     body: body,
   )
+}
+
+fn run_product_mutation(initial_store: store.Store, query: String) {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: initial_store)
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  #(status, json.to_string(body), next_proxy)
+}
+
+fn assert_product_option_user_error(
+  initial_store: store.Store,
+  query: String,
+  code: String,
+  field_json: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(initial_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store.Failed
 }
 
 fn graphql_document_request(query: String) -> Request {
@@ -80,6 +103,119 @@ pub fn product_options_create_stages_default_product_options_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn product_options_create_rejects_invalid_option_inputs_test() {
+  let long_name = repeated_text("N", 256)
+  let long_value = repeated_text("V", 256)
+
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }] }, { name: \\\"Color\\\", values: [{ name: \\\"Blue\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "DUPLICATED_OPTION_NAME",
+    "[\"options\",\"1\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }, { name: \\\"Red\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "DUPLICATED_OPTION_VALUE",
+    "[\"options\",\"0\",\"values\",\"1\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUES_MISSING",
+    "[\"options\",\"0\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"\\\", values: [{ name: \\\"Red\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_NAME_MISSING",
+    "[\"options\",\"0\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\""
+      <> long_name
+      <> "\\\", values: [{ name: \\\"Red\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_NAME_TOO_LONG",
+    "[\"options\",\"0\"]",
+  )
+  assert_product_option_user_error(
+    default_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\""
+      <> long_value
+      <> "\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUE_NAME_TOO_LONG",
+    "[\"options\",\"0\",\"values\",\"0\",\"name\"]",
+  )
+}
+
+pub fn product_options_create_rejects_product_level_constraints_test() {
+  assert_product_option_user_error(
+    three_option_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Finish\\\", values: [{ name: \\\"Matte\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTIONS_OVER_LIMIT",
+    "[\"options\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Color\\\", values: [{ name: \\\"Blue\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "OPTION_ALREADY_EXISTS",
+    "[\"options\",\"0\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", options: [{ name: \\\"Material\\\" }]) { product { id } userErrors { field message code } } }",
+    "NEW_OPTION_WITHOUT_VALUE_FOR_EXISTING_VARIANTS",
+    "[\"options\",\"0\",\"values\"]",
+  )
+  assert_product_option_user_error(
+    variant_cap_store(),
+    "mutation { productOptionsCreate(productId: \\\"gid://shopify/Product/optioned\\\", variantStrategy: CREATE, options: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }, { name: \\\"Blue\\\" }] }]) { product { id } userErrors { field message code } } }",
+    "TOO_MANY_VARIANTS_CREATED",
+    "[\"options\"]",
+  )
+}
+
+pub fn product_option_update_rejects_invalid_option_inputs_test() {
+  let long_value = repeated_text("V", 256)
+
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\", name: \\\"Size\\\" }) { product { id } userErrors { field message code } } }",
+    "OPTION_ALREADY_EXISTS",
+    "[\"option\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\" }, optionValuesToAdd: [{ name: \\\"Blue\\\" }, { name: \\\"Blue\\\" }]) { product { id } userErrors { field message code } } }",
+    "DUPLICATED_OPTION_VALUE",
+    "[\"optionValuesToAdd\",\"1\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\" }, optionValuesToAdd: [{ name: \\\"red\\\" }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUE_ALREADY_EXISTS",
+    "[\"optionValuesToAdd\",\"0\",\"name\"]",
+  )
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionUpdate(productId: \\\"gid://shopify/Product/optioned\\\", option: { id: \\\"gid://shopify/ProductOption/color\\\" }, optionValuesToUpdate: [{ id: \\\"gid://shopify/ProductOptionValue/red\\\", name: \\\""
+      <> long_value
+      <> "\\\" }]) { product { id } userErrors { field message code } } }",
+    "OPTION_VALUE_NAME_TOO_LONG",
+    "[\"optionValuesToUpdate\",\"0\",\"name\"]",
+  )
+}
+
+pub fn product_options_delete_reports_option_codes_for_unknown_ids_test() {
+  assert_product_option_user_error(
+    option_update_store(),
+    "mutation { productOptionsDelete(productId: \\\"gid://shopify/Product/optioned\\\", options: [\\\"gid://shopify/ProductOption/missing\\\"]) { deletedOptionsIds product { id } userErrors { field message code } } }",
+    "OPTION_DOES_NOT_EXIST",
+    "[\"options\",\"0\"]",
+  )
 }
 
 pub fn product_option_update_repositions_values_and_variants_test() {
@@ -702,6 +838,165 @@ pub fn product_create_stages_product_default_variant_and_inventory_test() {
   assert store.get_log(next_proxy.store)
     |> list.length
     == 1
+}
+
+pub fn generated_product_handles_increment_numeric_suffixes_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Red shirt\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: fourth_status, body: fourth_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert third_status == 200
+  assert fourth_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-1\"},\"userErrors\":[]}}}"
+  assert json.to_string(third_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(fourth_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn generated_product_handles_increment_existing_numeric_suffix_test() {
+  let query =
+    "mutation { productCreate(product: { title: \\\"Red shirt 2\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_set_generated_handles_increment_numeric_suffixes_test() {
+  let query =
+    "mutation { productSet(input: { title: \\\"Red shirt\\\" }, synchronous: true) { product { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: fourth_status, body: fourth_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert third_status == 200
+  assert fourth_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt-1\"},\"userErrors\":[]}}}"
+  assert json.to_string(third_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(fourth_body)
+    == "{\"data\":{\"productSet\":{\"product\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn product_duplicate_generated_handles_increment_numeric_suffixes_test() {
+  let source_query =
+    "mutation { productCreate(product: { title: \\\"Red shirt\\\" }) { product { id handle } userErrors { field message } } }"
+  let copy_query =
+    "mutation { productCreate(product: { title: \\\"Red shirt Copy\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: source_status, ..), proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      graphql_request(source_query),
+    )
+  let #(Response(status: first_copy_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(copy_query))
+  let #(Response(status: second_copy_status, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(copy_query))
+  let duplicate_query =
+    "mutation { productDuplicate(productId: \\\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\\\", newTitle: \\\"Red shirt Copy\\\", synchronous: true) { newProduct { title handle } userErrors { field message } } }"
+  let #(Response(status: duplicate_status, body: duplicate_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(duplicate_query))
+
+  assert source_status == 200
+  assert first_copy_status == 200
+  assert second_copy_status == 200
+  assert duplicate_status == 200
+  assert json.to_string(duplicate_body)
+    == "{\"data\":{\"productDuplicate\":{\"newProduct\":{\"title\":\"Red shirt Copy\",\"handle\":\"red-shirt-copy-2\"},\"userErrors\":[]}}}"
+}
+
+pub fn collection_create_generated_handles_increment_numeric_suffixes_test() {
+  let query =
+    "mutation { collectionCreate(input: { title: \\\"Red shirt\\\" }) { collection { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: third_status, body: third_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+  let #(Response(status: fourth_status, body: fourth_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert third_status == 200
+  assert fourth_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-1\"},\"userErrors\":[]}}}"
+  assert json.to_string(third_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(fourth_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn collection_create_generated_handles_increment_existing_numeric_suffix_test() {
+  let query =
+    "mutation { collectionCreate(input: { title: \\\"Red shirt 2\\\" }) { collection { handle } userErrors { field message } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    draft_proxy.process_request(draft_proxy.new(), graphql_request(query))
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert first_status == 200
+  assert second_status == 200
+  assert json.to_string(first_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-2\"},\"userErrors\":[]}}}"
+  assert json.to_string(second_body)
+    == "{\"data\":{\"collectionCreate\":{\"collection\":{\"handle\":\"red-shirt-3\"},\"userErrors\":[]}}}"
+}
+
+pub fn explicit_product_handle_collisions_return_user_errors_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let create_query =
+    "mutation { productCreate(product: { title: \\\"Explicit Collision\\\", handle: \\\"optioned-board\\\" }) { product { handle } userErrors { field message } } }"
+  let #(Response(status: create_status, body: create_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productCreate\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"handle\"],\"message\":\"Handle 'optioned-board' already in use. Please provide a new handle.\"}]}}}"
+
+  let set_query =
+    "mutation { productSet(input: { title: \\\"Explicit Collision\\\", handle: \\\"optioned-board\\\" }, synchronous: true) { product { handle } userErrors { field message } } }"
+  let #(Response(status: set_status, body: set_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(set_query))
+
+  assert set_status == 200
+  assert json.to_string(set_body)
+    == "{\"data\":{\"productSet\":{\"product\":null,\"userErrors\":[{\"field\":[\"input\",\"handle\"],\"message\":\"Handle 'optioned-board' already in use. Please provide a new handle.\"}]}}}"
 }
 
 pub fn product_create_validation_branches_return_user_errors_test() {
@@ -1507,6 +1802,161 @@ pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
     == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"on_hand\",\"delta\":2,\"ledgerDocumentUri\":\"ledger://har-568/on-hand\",\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
 }
 
+pub fn inventory_deactivate_unknown_level_returns_item_error_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryDeactivate(inventoryLevelId: \\\"gid://shopify/InventoryLevel/999999999999?inventory_item_id=999999999998\\\") { userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryDeactivate\":{\"userErrors\":[{\"field\":null,\"message\":\"The product couldn't be unstocked because the product was deleted.\"}]}}}"
+}
+
+pub fn inventory_deactivate_known_item_missing_level_returns_location_deleted_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryDeactivate(inventoryLevelId: \\\"gid://shopify/InventoryLevel/deleted-location?inventory_item_id=tracked\\\") { userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryDeactivate\":{\"userErrors\":[{\"field\":null,\"message\":\"The product couldn't be unstocked because the location was deleted.\"}]}}}"
+}
+
+pub fn inventory_deactivate_allows_non_zero_quantities_test() {
+  let target_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked",
+      "gid://shopify/Location/1",
+      "Shop location",
+      True,
+      [
+        inventory_quantity("available", 1),
+        inventory_quantity("on_hand", 10),
+        inventory_quantity("committed", 2),
+        inventory_quantity("incoming", 3),
+        inventory_quantity("reserved", 4),
+      ],
+    )
+  let alternate_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/alternate?inventory_item_id=tracked",
+      "gid://shopify/Location/2",
+      "Second location",
+      True,
+      [
+        inventory_quantity("available", 1),
+        inventory_quantity("on_hand", 1),
+      ],
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: tracked_inventory_store_with_levels([
+        target_level,
+        alternate_level,
+      ]),
+    )
+  let query =
+    "mutation { inventoryDeactivate(inventoryLevelId: \\\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\\\") { userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryDeactivate\":{\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { inventoryLevel(id: \\\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\\\") { id isActive } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\",\"isActive\":false}}}"
+}
+
+pub fn inventory_deactivate_only_location_stays_active_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let query =
+    "mutation { inventoryDeactivate(inventoryLevelId: \\\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\\\") { userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"inventoryDeactivate\":{\"userErrors\":[{\"field\":null,\"message\":\"The product couldn't be unstocked from Shop location because products need to be stocked at a minimum of 1 location.\"}]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { inventoryLevel(id: \\\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\\\") { id isActive } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\",\"isActive\":true}}}"
+}
+
+pub fn inventory_activate_available_conflict_requires_active_level_test() {
+  let active_proxy = draft_proxy.new()
+  let active_proxy =
+    proxy_state.DraftProxy(..active_proxy, store: tracked_inventory_store())
+  let active_query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", available: 7) { inventoryLevel { id isActive } userErrors { field message } } }"
+
+  let #(Response(status: active_status, body: active_body, ..), _) =
+    draft_proxy.process_request(active_proxy, graphql_request(active_query))
+
+  assert active_status == 200
+  assert json.to_string(active_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked\",\"isActive\":true},\"userErrors\":[{\"field\":[\"available\"],\"message\":\"Not allowed to set available quantity when the item is already active at the location.\"}]}}}"
+
+  let inactive_level =
+    inventory_level(
+      "gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked",
+      "gid://shopify/Location/2",
+      "Second location",
+      False,
+      [
+        inventory_quantity("available", 0),
+        inventory_quantity("on_hand", 0),
+      ],
+    )
+  let inactive_proxy = draft_proxy.new()
+  let inactive_proxy =
+    proxy_state.DraftProxy(
+      ..inactive_proxy,
+      store: tracked_inventory_store_with_levels([
+        tracked_inventory_level(),
+        inactive_level,
+      ]),
+    )
+  let inactive_query =
+    "mutation { inventoryActivate(inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/2\\\", available: 7) { inventoryLevel { id isActive } userErrors { field message } } }"
+
+  let #(Response(status: inactive_status, body: inactive_body, ..), _) =
+    draft_proxy.process_request(inactive_proxy, graphql_request(inactive_query))
+
+  assert inactive_status == 200
+  assert json.to_string(inactive_body)
+    == "{\"data\":{\"inventoryActivate\":{\"inventoryLevel\":{\"id\":\"gid://shopify/InventoryLevel/inactive?inventory_item_id=tracked\",\"isActive\":true},\"userErrors\":[]}}}"
+}
+
 pub fn inventory_transfer_edit_and_duplicate_stage_locally_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
@@ -1832,7 +2282,48 @@ fn collection_record(
   )
 }
 
+fn inventory_quantity(name: String, quantity: Int) -> InventoryQuantityRecord {
+  InventoryQuantityRecord(name: name, quantity: quantity, updated_at: None)
+}
+
+fn inventory_level(
+  id: String,
+  location_id: String,
+  location_name: String,
+  is_active: Bool,
+  quantities: List(InventoryQuantityRecord),
+) -> InventoryLevelRecord {
+  InventoryLevelRecord(
+    id: id,
+    cursor: None,
+    is_active: Some(is_active),
+    location: InventoryLocationRecord(id: location_id, name: location_name),
+    quantities: quantities,
+  )
+}
+
+fn tracked_inventory_level() -> InventoryLevelRecord {
+  inventory_level(
+    "gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked",
+    "gid://shopify/Location/1",
+    "Shop location",
+    True,
+    [
+      inventory_quantity("available", 1),
+      inventory_quantity("on_hand", 1),
+      inventory_quantity("incoming", 0),
+      inventory_quantity("reserved", 0),
+    ],
+  )
+}
+
 fn tracked_inventory_store() -> store.Store {
+  tracked_inventory_store_with_levels([tracked_inventory_level()])
+}
+
+fn tracked_inventory_store_with_levels(
+  levels: List(InventoryLevelRecord),
+) -> store.Store {
   store.new()
   |> store.upsert_base_products([
     ProductRecord(
@@ -1844,7 +2335,9 @@ fn tracked_inventory_store() -> store.Store {
       tracks_inventory: Some(True),
     ),
   ])
-  |> store.upsert_base_product_variants([tracked_inventory_variant()])
+  |> store.upsert_base_product_variants([
+    tracked_inventory_variant_with_levels(levels),
+  ])
 }
 
 fn option_update_store() -> store.Store {
@@ -1886,7 +2379,54 @@ fn option_update_store() -> store.Store {
   ])
 }
 
-fn tracked_inventory_variant() -> ProductVariantRecord {
+fn three_option_store() -> store.Store {
+  option_update_store()
+  |> store.replace_base_options_for_product("gid://shopify/Product/optioned", [
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/color",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Color",
+      position: 1,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/red",
+          name: "Red",
+          has_variants: True,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/size",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Size",
+      position: 2,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/small",
+          name: "Small",
+          has_variants: True,
+        ),
+      ],
+    ),
+    ProductOptionRecord(
+      id: "gid://shopify/ProductOption/material",
+      product_id: "gid://shopify/Product/optioned",
+      name: "Material",
+      position: 3,
+      option_values: [
+        ProductOptionValueRecord(
+          id: "gid://shopify/ProductOptionValue/cotton",
+          name: "Cotton",
+          has_variants: True,
+        ),
+      ],
+    ),
+  ])
+}
+
+fn tracked_inventory_variant_with_levels(
+  levels: List(InventoryLevelRecord),
+) -> ProductVariantRecord {
   ProductVariantRecord(
     id: "gid://shopify/ProductVariant/tracked",
     product_id: "gid://shopify/Product/tracked",
@@ -1902,50 +2442,16 @@ fn tracked_inventory_variant() -> ProductVariantRecord {
       ProductVariantSelectedOptionRecord(name: "Title", value: "Default Title"),
     ],
     media_ids: [],
-    inventory_item: Some(
-      InventoryItemRecord(
-        id: "gid://shopify/InventoryItem/tracked",
-        tracked: Some(True),
-        requires_shipping: Some(True),
-        measurement: None,
-        country_code_of_origin: None,
-        province_code_of_origin: None,
-        harmonized_system_code: None,
-        inventory_levels: [
-          InventoryLevelRecord(
-            id: "gid://shopify/InventoryLevel/tracked?inventory_item_id=tracked",
-            cursor: None,
-            is_active: Some(True),
-            location: InventoryLocationRecord(
-              id: "gid://shopify/Location/1",
-              name: "Shop location",
-            ),
-            quantities: [
-              InventoryQuantityRecord(
-                name: "available",
-                quantity: 1,
-                updated_at: None,
-              ),
-              InventoryQuantityRecord(
-                name: "on_hand",
-                quantity: 1,
-                updated_at: None,
-              ),
-              InventoryQuantityRecord(
-                name: "incoming",
-                quantity: 0,
-                updated_at: None,
-              ),
-              InventoryQuantityRecord(
-                name: "reserved",
-                quantity: 0,
-                updated_at: None,
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
+    inventory_item: Some(InventoryItemRecord(
+      id: "gid://shopify/InventoryItem/tracked",
+      tracked: Some(True),
+      requires_shipping: Some(True),
+      measurement: None,
+      country_code_of_origin: None,
+      province_code_of_origin: None,
+      harmonized_system_code: None,
+      inventory_levels: levels,
+    )),
     contextual_pricing: None,
     cursor: None,
   )

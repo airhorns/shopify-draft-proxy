@@ -208,6 +208,19 @@ const missingArgumentMutation = `#graphql
   }
 `;
 
+const blankLiteralIdsMutation = `#graphql
+  mutation CustomerMergeBlankLiteralIds {
+    customerMerge(customerOneId: "", customerTwoId: "") {
+      resultingCustomerId
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
 const jobStatusQuery = `#graphql
   query CustomerMergeJobStatusParity($jobId: ID!) {
     customerMergeJobStatus(jobId: $jobId) {
@@ -520,6 +533,7 @@ async function main() {
   };
 
   const missingArgument = await runGraphql(missingArgumentMutation, { one: customerOneId });
+  const blankLiteralIds = await runGraphql(blankLiteralIdsMutation, {});
   const selfPreview = await runGraphql(previewQuery, { one: customerOneId, two: customerOneId });
   const selfMerge = await runGraphql(mergeMutation, { one: customerOneId, two: customerOneId });
   assertNoTopLevelErrors(selfMerge, 'customerMerge self validation');
@@ -648,6 +662,10 @@ async function main() {
       missingArgument: {
         variables: { one: customerOneId },
         response: missingArgument.payload,
+      },
+      blankLiteralIds: {
+        variables: {},
+        response: blankLiteralIds.payload,
       },
       selfPreview: {
         variables: { one: customerOneId, two: customerOneId },

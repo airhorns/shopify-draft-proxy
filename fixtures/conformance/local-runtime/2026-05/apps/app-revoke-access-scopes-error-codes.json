@@ -1,0 +1,39 @@
+{
+  "capturedAt": "2026-05-05T06:12:10.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenario": "app-revoke-access-scopes-error-codes",
+  "notes": [
+    "Local-runtime fixture for HAR-672 appRevokeAccessScopes error-code parity. Live conformance probe on harry-test-heelo.myshopify.com succeeded for 2025-01, and safe live probes confirmed UNKNOWN_SCOPES and CANNOT_REVOKE_REQUIRED_SCOPES wording; public Admin schema exposes only the scopes argument, so source-app/id/not-installed branches are covered by focused Gleam runtime tests."
+  ],
+  "operationNames": ["appRevokeAccessScopes"],
+  "scopeCatalog": [
+    "read_products",
+    "write_products",
+    "read_orders",
+    "write_orders",
+    "read_all_orders",
+    "write_all_orders"
+  ],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "missingSourceApp": {
+          "data": {
+            "appRevokeAccessScopes": {
+              "revoked": [],
+              "userErrors": [
+                {
+                  "field": ["base"],
+                  "message": "Source app is missing.",
+                  "code": "MISSING_SOURCE_APP"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

@@ -1,0 +1,65 @@
+mutation ThemeFilesChecksumsAndValidation {
+  themeCreate(source: "https://example.com/har-585-theme.zip", name: "HAR 585 theme", role: UNPUBLISHED) {
+    theme {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  first: themeFilesUpsert(
+    themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+    files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello" } }]
+  ) {
+    upsertedThemeFiles {
+      filename
+      checksumMd5
+      size
+      body {
+        ... on OnlineStoreThemeFileBodyText {
+          content
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  second: themeFilesUpsert(
+    themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+    files: [{ filename: "templates/index.json", body: { type: TEXT, value: "hello world" } }]
+  ) {
+    upsertedThemeFiles {
+      filename
+      checksumMd5
+      size
+      body {
+        ... on OnlineStoreThemeFileBodyText {
+          content
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  invalid: themeFilesUpsert(
+    themeId: "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
+    files: [{ filename: "evil/path.liquid", body: { type: TEXT, value: "ignored" } }]
+  ) {
+    upsertedThemeFiles {
+      filename
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

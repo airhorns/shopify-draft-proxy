@@ -12,6 +12,7 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import gleam/order
+import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/shopify/resource_ids
@@ -47,10 +48,11 @@ import shopify_draft_proxy/state/types.{
   type MetaobjectRecord, type OnlineStoreContentRecord,
   type OnlineStoreIntegrationRecord, type OrderMandatePaymentRecord,
   type OrderRecord, type PaymentCustomizationRecord,
-  type PaymentReminderSendRecord, type PaymentTermsRecord, type PriceListRecord,
-  type ProductCollectionRecord, type ProductFeedRecord, type ProductMediaRecord,
-  type ProductMetafieldRecord, type ProductOperationRecord,
-  type ProductOptionRecord, type ProductOptionValueRecord, type ProductRecord,
+  type PaymentReminderSendRecord, type PaymentScheduleRecord,
+  type PaymentTermsRecord, type PriceListRecord, type ProductCollectionRecord,
+  type ProductFeedRecord, type ProductMediaRecord, type ProductMetafieldRecord,
+  type ProductOperationRecord, type ProductOptionRecord,
+  type ProductOptionValueRecord, type ProductRecord,
   type ProductResourceFeedbackRecord, type ProductVariantRecord,
   type PublicationRecord, type ReverseDeliveryRecord,
   type ReverseFulfillmentOrderRecord, type SavedSearchRecord, type SegmentRecord,
@@ -10171,6 +10173,44 @@ pub fn upsert_staged_payment_terms(
   )
 }
 
+pub fn upsert_base_payment_terms(
+  store: Store,
+  record: PaymentTermsRecord,
+) -> Store {
+  Store(
+    ..store,
+    base_state: BaseState(
+      ..store.base_state,
+      payment_terms: dict.insert(
+        store.base_state.payment_terms,
+        record.id,
+        record,
+      ),
+      payment_terms_owner_ids: dict.insert(
+        store.base_state.payment_terms_owner_ids,
+        record.owner_id,
+        True,
+      ),
+      payment_terms_by_owner_id: dict.insert(
+        store.base_state.payment_terms_by_owner_id,
+        record.owner_id,
+        record.id,
+      ),
+      deleted_payment_terms_ids: dict.delete(
+        store.base_state.deleted_payment_terms_ids,
+        record.id,
+      ),
+    ),
+    staged_state: StagedState(
+      ..store.staged_state,
+      deleted_payment_terms_ids: dict.delete(
+        store.staged_state.deleted_payment_terms_ids,
+        record.id,
+      ),
+    ),
+  )
+}
+
 pub fn delete_staged_payment_terms(store: Store, id: String) -> Store {
   let owner_id = case get_effective_payment_terms_by_id(store, id) {
     Some(record) -> Some(record.owner_id)
@@ -10244,6 +10284,36 @@ pub fn get_effective_payment_terms_by_owner_id(
       get_effective_payment_terms_by_id(store, payment_terms_id)
     None -> None
   }
+}
+
+pub fn get_effective_payment_schedule_by_id(
+  store: Store,
+  schedule_id: String,
+) -> Option(#(PaymentTermsRecord, PaymentScheduleRecord)) {
+  let candidates =
+    list.append(
+      dict.values(store.staged_state.payment_terms),
+      dict.values(store.base_state.payment_terms),
+    )
+    |> list.filter_map(fn(record) {
+      case get_effective_payment_terms_by_id(store, record.id) {
+        Some(effective) -> Ok(effective)
+        None -> Error(Nil)
+      }
+    })
+
+  candidates
+  |> list.find_map(fn(terms) {
+    terms.payment_schedules
+    |> list.find_map(fn(schedule) {
+      case schedule.id == schedule_id {
+        True -> Ok(#(terms, schedule))
+        False -> Error(Nil)
+      }
+    })
+    |> result.map_error(fn(_) { Nil })
+  })
+  |> option.from_result
 }
 
 pub fn stage_store_credit_account(

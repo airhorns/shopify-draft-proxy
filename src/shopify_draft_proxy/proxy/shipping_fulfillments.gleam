@@ -75,7 +75,11 @@ type QueryFieldResult {
 }
 
 type CarrierServiceUserError {
-  CarrierServiceUserError(field: Option(List(String)), message: String)
+  CarrierServiceUserError(
+    field: Option(List(String)),
+    message: String,
+    code: String,
+  )
 }
 
 type LocalPickupUserError {
@@ -7550,9 +7554,10 @@ fn carrier_service_user_error_source(
   error: CarrierServiceUserError,
 ) -> SourceValue {
   src_object([
-    #("__typename", SrcString("UserError")),
+    #("__typename", SrcString("CarrierServiceUserError")),
     #("field", optional_string_list_source(error.field)),
     #("message", SrcString(error.message)),
+    #("code", SrcString(error.code)),
   ])
 }
 
@@ -7631,6 +7636,7 @@ fn blank_carrier_service_name_errors() -> List(CarrierServiceUserError) {
     CarrierServiceUserError(
       field: None,
       message: "Shipping rate provider name can't be blank",
+      code: "CARRIER_SERVICE_CREATE_FAILED",
     ),
   ]
 }
@@ -7639,6 +7645,7 @@ fn carrier_service_not_found_for_update() -> CarrierServiceUserError {
   CarrierServiceUserError(
     field: None,
     message: "The carrier or app could not be found.",
+    code: "CARRIER_SERVICE_UPDATE_FAILED",
   )
 }
 
@@ -7646,6 +7653,7 @@ fn carrier_service_not_found_for_delete() -> CarrierServiceUserError {
   CarrierServiceUserError(
     field: Some(["id"]),
     message: "The carrier or app could not be found.",
+    code: "CARRIER_SERVICE_DELETE_FAILED",
   )
 }
 
