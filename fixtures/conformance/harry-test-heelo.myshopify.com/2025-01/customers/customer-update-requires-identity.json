@@ -1,0 +1,447 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "metadata": {
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2025-01",
+    "capturedAt": "2026-05-05T21:55:05.088Z",
+    "stamp": 1778018103301
+  },
+  "scenarios": {
+    "clearLastEmail": {
+      "create": {
+        "variables": {
+          "input": {
+            "email": "hermes-update-identity-email-1778018103301@example.com"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582944121138",
+                "firstName": null,
+                "lastName": null,
+                "displayName": "hermes-update-identity-email-1778018103301@example.com",
+                "email": "hermes-update-identity-email-1778018103301@example.com",
+                "defaultEmailAddress": {
+                  "emailAddress": "hermes-update-identity-email-1778018103301@example.com"
+                },
+                "defaultPhoneNumber": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "update": {
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Customer/10582944121138",
+            "email": null
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerUpdate": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "A name, phone number, or email address must be present"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582944121138"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582944121138",
+              "firstName": null,
+              "lastName": null,
+              "displayName": "hermes-update-identity-email-1778018103301@example.com",
+              "email": "hermes-update-identity-email-1778018103301@example.com",
+              "defaultEmailAddress": {
+                "emailAddress": "hermes-update-identity-email-1778018103301@example.com"
+              },
+              "defaultPhoneNumber": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "clearLastPhone": {
+      "create": {
+        "variables": {
+          "input": {
+            "phone": "+14158103301"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582944186674",
+                "firstName": null,
+                "lastName": null,
+                "displayName": "+1 415-810-3301",
+                "email": null,
+                "defaultEmailAddress": null,
+                "defaultPhoneNumber": {
+                  "phoneNumber": "+14158103301"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "update": {
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Customer/10582944186674",
+            "phone": null
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerUpdate": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "A name, phone number, or email address must be present"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582944186674"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582944186674",
+              "firstName": null,
+              "lastName": null,
+              "displayName": "+1 415-810-3301",
+              "email": null,
+              "defaultEmailAddress": null,
+              "defaultPhoneNumber": {
+                "phoneNumber": "+14158103301"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "clearEmailWhileNameRemains": {
+      "create": {
+        "variables": {
+          "input": {
+            "email": "hermes-update-identity-name-1778018103301@example.com",
+            "firstName": "Hermes",
+            "lastName": "Identity"
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerCreate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582944219442",
+                "firstName": "Hermes",
+                "lastName": "Identity",
+                "displayName": "Hermes Identity",
+                "email": "hermes-update-identity-name-1778018103301@example.com",
+                "defaultEmailAddress": {
+                  "emailAddress": "hermes-update-identity-name-1778018103301@example.com"
+                },
+                "defaultPhoneNumber": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "update": {
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Customer/10582944219442",
+            "email": null
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerUpdate": {
+              "customer": {
+                "id": "gid://shopify/Customer/10582944219442",
+                "firstName": "Hermes",
+                "lastName": "Identity",
+                "displayName": "Hermes Identity",
+                "email": null,
+                "defaultEmailAddress": null,
+                "defaultPhoneNumber": null
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "clearLastNamePair": {
+      "update": {
+        "variables": {
+          "input": {
+            "id": "gid://shopify/Customer/10582944219442",
+            "firstName": null,
+            "lastName": null
+          }
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customerUpdate": {
+              "customer": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "A name, phone number, or email address must be present"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      },
+      "downstreamRead": {
+        "variables": {
+          "id": "gid://shopify/Customer/10582944219442"
+        },
+        "status": 200,
+        "response": {
+          "data": {
+            "customer": {
+              "id": "gid://shopify/Customer/10582944219442",
+              "firstName": "Hermes",
+              "lastName": "Identity",
+              "displayName": "Hermes Identity",
+              "email": null,
+              "defaultEmailAddress": null,
+              "defaultPhoneNumber": null
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 3,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582944219442"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582944219442",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582944186674"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582944186674",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Customer/10582944121138"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "customerDelete": {
+            "deletedCustomerId": "gid://shopify/Customer/10582944121138",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

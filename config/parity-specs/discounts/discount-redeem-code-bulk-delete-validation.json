@@ -1,0 +1,45 @@
+{
+  "scenarioId": "discount-redeem-code-bulk-delete-validation",
+  "operationNames": ["discountCodeRedeemCodeBulkDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "async-job-payload"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk-delete-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-validation.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "redeem-code-bulk-delete-validation-user-errors",
+        "capturePath": "$.validation.payload.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "redeem-code-bulk-delete-happy-baseline",
+        "capturePath": "$.happy.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.happy.job.done", "$.happy.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-happy.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "discountId": {
+              "fromCapturePath": "$.variables.discountId"
+            },
+            "ids": {
+              "fromCapturePath": "$.variables.ids"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-785 live Shopify 2026-04 evidence for discountCodeRedeemCodeBulkDelete selector validation. The disposable code discount was created with one redeem code, validation captured missing selector, too-many selectors, unknown discount, empty ids, blank search, and unknown savedSearchId, then the happy-path id delete was captured and the discount was cleaned up. Shopify serializes base selector errors with field: null, not [\"base\"], and returns the empty-ids generic error with code: null."
+}

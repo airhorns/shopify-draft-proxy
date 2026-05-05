@@ -63,6 +63,36 @@ const external_id_invalid_chars_message = "External Id can only contain numbers,
 
 const company_contact_maximum_cap = 10_000
 
+const bulk_actions_max_size = 50
+
+const bulk_action_limit_reached_message = "Cannot perform more than 50 actions in a single request."
+
+const contains_html_tags_detail = "contains_html_tags"
+
+const invalid_locale_format_detail = "invalid_locale_format"
+
+const duplicate_external_id_detail = "duplicate_external_id"
+
+const duplicate_location_external_id_detail = "duplicate_location_external_id"
+
+const duplicate_email_address_detail = "duplicate_email_address"
+
+const duplicate_phone_number_detail = "duplicate_phone_number"
+
+const customer_not_found_detail = "customer_not_found"
+
+const customer_already_a_contact_detail = "customer_already_a_contact"
+
+const customer_email_must_exist_detail = "customer_email_must_exist"
+
+const company_contact_max_cap_reached_detail = "company_contact_max_cap_reached"
+
+const one_role_already_assigned_detail = "one_role_already_assigned"
+
+const contact_does_not_match_company_detail = "contact_does_not_match_company"
+
+const existing_orders_detail = "existing_orders"
+
 pub type B2BError {
   ParseFailed(root_field.RootFieldError)
 }
@@ -431,10 +461,10 @@ fn empty_payload(errors: List(UserError)) -> Payload {
 }
 
 fn status_for(result: RootResult) -> store.EntryStatus {
-  case result.payload.user_errors, result.staged_ids {
-    [], [_, ..] -> store.Staged
+  case result.staged_ids, result.payload.user_errors {
+    [_, ..], _ -> store.Staged
     [], [] -> store.Staged
-    _, _ -> store.Failed
+    [], _ -> store.Failed
   }
 }
 
@@ -1409,11 +1439,24 @@ fn company_contact_cap_reached(company: B2BCompanyRecord) -> Bool {
 }
 
 fn company_contact_cap_error() -> UserError {
-  user_error(
+  detailed_user_error(
     Some(["companyId"]),
     "Company contact maximum cap reached.",
-    user_error_code.company_contact_max_cap_reached,
+    user_error_code.limit_reached,
+    company_contact_max_cap_reached_detail,
   )
+}
+
+fn bulk_action_limit_reached_error(field: String) -> UserError {
+  user_error(
+    Some([field]),
+    bulk_action_limit_reached_message,
+    user_error_code.limit_reached,
+  )
+}
+
+fn bulk_action_limit_reached(items: List(a)) -> Bool {
+  list.length(items) > bulk_actions_max_size
 }
 
 fn company_contact_mutation_error(
@@ -1422,14 +1465,14 @@ fn company_contact_mutation_error(
   field: List(String),
   message: String,
   code: user_error_code.Code,
+  detail: Option(String),
 ) -> RootResult {
+  let error = case detail {
+    Some(detail) -> detailed_user_error(Some(field), message, code, detail)
+    None -> user_error(Some(field), message, code)
+  }
   RootResult(
-    Payload(
-      ..empty_payload([
-        user_error(Some(field), message, code),
-      ]),
-      company_contact: None,
-    ),
+    Payload(..empty_payload([error]), company_contact: None),
     store,
     identity,
     [],
@@ -1478,6 +1521,13 @@ fn append_unique(items: List(String), value: String) -> List(String) {
     True -> items
     False -> list.append(items, [value])
   }
+}
+
+fn append_unique_list(
+  items: List(String),
+  values: List(String),
+) -> List(String) {
+  list.fold(values, items, fn(acc, value) { append_unique(acc, value) })
 }
 
 fn has_duplicate_strings(items: List(String)) -> Bool {
@@ -1592,10 +1642,11 @@ fn validate_html(
 ) -> List(UserError) {
   case contains_html_tags(value) {
     True -> [
-      user_error(
+      detailed_user_error(
         Some(field_path(prefix, field)),
         label <> " contains HTML tags",
-        user_error_code.contains_html_tags,
+        user_error_code.invalid,
+        contains_html_tags_detail,
       ),
     ]
     False -> []
@@ -2014,10 +2065,11 @@ fn company_role_does_not_exist_at(field: List(String)) {
 }
 
 fn one_role_already_assigned_at(field: Option(List(String))) {
-  user_error(
+  detailed_user_error(
     field,
     "Company contact has already been assigned a role in that company location.",
     user_error_code.limit_reached,
+    one_role_already_assigned_detail,
   )
 }
 
@@ -2026,10 +2078,11 @@ fn existing_orders_error() {
 }
 
 fn existing_orders_error_at(field: List(String)) {
-  user_error(
+  detailed_user_error(
     Some(field),
     "Cannot delete a company contact with existing orders or draft orders.",
     user_error_code.failed_to_delete,
+    existing_orders_detail,
   )
 }
 
@@ -2238,10 +2291,11 @@ fn validate_contact_locale_input(
       case valid_locale_format(value) {
         True -> []
         False -> [
-          user_error(
+          detailed_user_error(
             Some(["input", "locale"]),
             "Invalid locale format.",
             user_error_code.invalid,
+            invalid_locale_format_detail,
           ),
         ]
       }
@@ -2256,10 +2310,11 @@ fn validate_contact_notes_input(
     Ok(root_field.StringVal(value)) ->
       case contains_html_tag(value) {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(["input", "note"]),
             "Notes cannot contain HTML tags",
-            user_error_code.contains_html_tags,
+            user_error_code.invalid,
+            contains_html_tags_detail,
           ),
         ]
         False -> []
@@ -2277,10 +2332,11 @@ fn validate_contact_duplicate_email(
     Some(email) ->
       case contact_email_exists(store, email, exclude_contact_id) {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(["input", "email"]),
             "Email address has already been taken.",
             user_error_code.taken,
+            duplicate_email_address_detail,
           ),
         ]
         False -> []
@@ -2298,10 +2354,11 @@ fn validate_contact_duplicate_phone(
     Some(phone) ->
       case contact_phone_exists(store, phone, exclude_contact_id) {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(["input", "phone"]),
             "Phone number has already been taken.",
             user_error_code.taken,
+            duplicate_phone_number_detail,
           ),
         ]
         False -> []
@@ -2320,10 +2377,11 @@ fn validate_duplicate_company_external_id(
     Some(external_id) ->
       case company_external_id_exists(store, external_id, exclude_company_id) {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(field_path(prefix, "externalId")),
             "External id has already been taken.",
             user_error_code.taken,
+            duplicate_external_id_detail,
           ),
         ]
         False -> []
@@ -2344,10 +2402,11 @@ fn validate_duplicate_location_external_id(
         location_external_id_exists(store, external_id, exclude_location_id)
       {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(field_path(prefix, "externalId")),
             "External id has already been taken.",
             user_error_code.taken,
+            duplicate_location_external_id_detail,
           ),
         ]
         False -> []
@@ -3192,8 +3251,26 @@ fn handle_companies_delete(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let company_ids = read_string_list(args, "companyIds")
+  case bulk_action_limit_reached(company_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("companyIds")]),
+        store,
+        identity,
+        [],
+      )
+    False -> handle_companies_delete_under_limit(store, identity, company_ids)
+  }
+}
+
+fn handle_companies_delete_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  company_ids: List(String),
+) -> RootResult {
   let #(store, deleted, staged, errors) =
-    read_string_list(args, "companyIds")
+    company_ids
     |> list.index_map(fn(id, index) { #(id, index) })
     |> list.fold(#(store, [], [], []), fn(acc, entry) {
       let #(id, index) = entry
@@ -3626,8 +3703,26 @@ fn handle_contacts_delete(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let contact_ids = read_string_list(args, "companyContactIds")
+  case bulk_action_limit_reached(contact_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("companyContactIds")]),
+        store,
+        identity,
+        [],
+      )
+    False -> handle_contacts_delete_under_limit(store, identity, contact_ids)
+  }
+}
+
+fn handle_contacts_delete_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  contact_ids: List(String),
+) -> RootResult {
   let #(store, deleted, staged, errors) =
-    read_string_list(args, "companyContactIds")
+    contact_ids
     |> list.index_map(fn(id, index) { #(id, index) })
     |> list.fold(#(store, [], [], []), fn(acc, entry) {
       let #(id, index) = entry
@@ -3695,7 +3790,8 @@ fn handle_assign_customer_as_contact(
                 identity,
                 ["customerId"],
                 "Customer does not exist.",
-                user_error_code.customer_not_found,
+                user_error_code.resource_not_found,
+                Some(customer_not_found_detail),
               )
             Some(customer) ->
               case find_company_contact_by_customer_id(contacts, customer_id) {
@@ -3705,7 +3801,8 @@ fn handle_assign_customer_as_contact(
                     identity,
                     ["companyId"],
                     "Customer is already associated with a company contact.",
-                    user_error_code.customer_already_a_contact,
+                    user_error_code.invalid_input,
+                    Some(customer_already_a_contact_detail),
                   )
                 None ->
                   case customer_email(customer) {
@@ -3715,7 +3812,8 @@ fn handle_assign_customer_as_contact(
                         identity,
                         ["companyId"],
                         "Customer must have an email address.",
-                        user_error_code.customer_email_must_exist,
+                        user_error_code.resource_not_found,
+                        Some(customer_email_must_exist_detail),
                       )
                     Some(email) ->
                       case company_contact_cap_reached(company) {
@@ -3887,10 +3985,11 @@ fn handle_assign_main_contact(
           RootResult(
             Payload(
               ..empty_payload([
-                user_error(
+                detailed_user_error(
                   Some(["companyContactId"]),
                   "The company contact does not belong to the company.",
                   user_error_code.invalid_input,
+                  contact_does_not_match_company_detail,
                 ),
               ]),
               company: None,
@@ -4279,8 +4378,26 @@ fn handle_locations_delete(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let location_ids = read_string_list(args, "companyLocationIds")
+  case bulk_action_limit_reached(location_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("companyLocationIds")]),
+        store,
+        identity,
+        [],
+      )
+    False -> handle_locations_delete_under_limit(store, identity, location_ids)
+  }
+}
+
+fn handle_locations_delete_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  location_ids: List(String),
+) -> RootResult {
   let #(store, deleted, staged, errors) =
-    read_string_list(args, "companyLocationIds")
+    location_ids
     |> list.index_map(fn(id, index) { #(id, index) })
     |> list.fold(#(store, [], [], []), fn(acc, entry) {
       let #(id, index) = entry
@@ -4465,6 +4582,67 @@ fn assignment_ref(assignment: SourceValue, key: String) -> Option(String) {
         _ -> None
       }
     _ -> None
+  }
+}
+
+fn assignment_matches_filters(
+  assignment: SourceValue,
+  contact_filter: Option(String),
+  location_filter: Option(String),
+) -> Bool {
+  let contact_matches = case contact_filter {
+    Some(id) -> assignment_ref(assignment, "companyContactId") == Some(id)
+    None -> True
+  }
+  let location_matches = case location_filter {
+    Some(id) -> assignment_ref(assignment, "companyLocationId") == Some(id)
+    None -> True
+  }
+  contact_matches && location_matches
+}
+
+fn append_unique_assignment(
+  assignments: List(SourceValue),
+  assignment: SourceValue,
+) -> List(SourceValue) {
+  let id = source_id(assignment)
+  case list.any(assignments, fn(item) { source_id(item) == id }) {
+    True -> assignments
+    False -> list.append(assignments, [assignment])
+  }
+}
+
+fn list_effective_role_assignments(store: Store) -> List(SourceValue) {
+  let from_contacts =
+    store.list_effective_b2b_company_contacts(store)
+    |> list.fold([], fn(assignments, contact) {
+      read_object_sources(data_get(contact.data, "roleAssignments"))
+      |> list.fold(assignments, append_unique_assignment)
+    })
+  store.list_effective_b2b_company_locations(store)
+  |> list.fold(from_contacts, fn(assignments, location) {
+    read_object_sources(data_get(location.data, "roleAssignments"))
+    |> list.fold(assignments, append_unique_assignment)
+  })
+}
+
+fn get_effective_contact(
+  id: Option(String),
+  store: Store,
+) -> Option(B2BCompanyContactRecord) {
+  case id {
+    Some(id) -> store.get_effective_b2b_company_contact_by_id(store, id)
+    None -> None
+  }
+}
+
+fn get_effective_location(
+  id: Option(String),
+  store: Store,
+) -> Option(B2BCompanyLocationRecord) {
+  case id {
+    Some(id) -> store.get_effective_b2b_company_location_by_id(store, id)
+    None -> None
   }
 }
 
@@ -4793,24 +4971,50 @@ fn handle_contact_assign_roles(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let roles_to_assign = read_object_list(args, "rolesToAssign")
+  case bulk_action_limit_reached(roles_to_assign) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("rolesToAssign")]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      handle_contact_assign_roles_under_limit(
+        store,
+        identity,
+        args,
+        roles_to_assign,
+      )
+  }
+}
+
+fn handle_contact_assign_roles_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  roles_to_assign,
+) -> RootResult {
   let #(assignments, errors, identity) =
     resolve_role_assignments(
       store,
       identity,
-      read_object_list(args, "rolesToAssign"),
+      roles_to_assign,
       read_string(args, "companyContactId"),
       None,
       Some("rolesToAssign"),
     )
-  let #(store, staged) = case errors {
-    [] -> stage_role_assignments(store, assignments)
-    _ -> #(store, [])
-  }
+  let #(store, staged) = stage_role_assignments(store, assignments)
+  let company_contact =
+    read_string(args, "companyContactId")
+    |> get_effective_contact(store)
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: case errors {
-      [] -> assignments
-      _ -> []
-    }),
+    Payload(
+      ..empty_payload(errors),
+      company_contact: company_contact,
+      role_assignments: assignments,
+    ),
     store,
     identity,
     staged,
@@ -4822,24 +5026,50 @@ fn handle_location_assign_roles(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let roles_to_assign = read_object_list(args, "rolesToAssign")
+  case bulk_action_limit_reached(roles_to_assign) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("rolesToAssign")]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      handle_location_assign_roles_under_limit(
+        store,
+        identity,
+        args,
+        roles_to_assign,
+      )
+  }
+}
+
+fn handle_location_assign_roles_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  roles_to_assign,
+) -> RootResult {
   let #(assignments, errors, identity) =
     resolve_role_assignments(
       store,
       identity,
-      read_object_list(args, "rolesToAssign"),
+      roles_to_assign,
       None,
       read_string(args, "companyLocationId"),
       Some("rolesToAssign"),
     )
-  let #(store, staged) = case errors {
-    [] -> stage_role_assignments(store, assignments)
-    _ -> #(store, [])
-  }
+  let #(store, staged) = stage_role_assignments(store, assignments)
+  let company_location =
+    read_string(args, "companyLocationId")
+    |> get_effective_location(store)
   RootResult(
-    Payload(..empty_payload(errors), role_assignments: case errors {
-      [] -> assignments
-      _ -> []
-    }),
+    Payload(
+      ..empty_payload(errors),
+      company_location: company_location,
+      role_assignments: assignments,
+    ),
     store,
     identity,
     staged,
@@ -4865,7 +5095,13 @@ fn revoke_role_assignments(
             let current =
               read_object_sources(data_get(contact.data, "roleAssignments"))
             let #(next, removed_here) =
-              filter_removed_assignments(current, assignment_ids, revoke_all)
+              filter_removed_role_assignments(
+                current,
+                assignment_ids,
+                contact_filter,
+                location_filter,
+                revoke_all,
+              )
             case list.length(next) == list.length(current) {
               True -> acc
               False -> {
@@ -4883,51 +5119,72 @@ fn revoke_role_assignments(
                     current_store,
                     updated,
                   )
-                #(next_store, list.append(removed, removed_here))
+                #(next_store, append_unique_list(removed, removed_here))
               }
             }
           }
         }
       },
     )
-  let #(store, removed) =
-    list.fold(
-      store.list_effective_b2b_company_locations(store),
-      #(store, removed),
-      fn(acc, location) {
-        let #(current_store, removed) = acc
-        case location_filter {
-          Some(id) if id != location.id -> acc
-          _ -> {
-            let current =
-              read_object_sources(data_get(location.data, "roleAssignments"))
-            let #(next, removed_here) =
-              filter_removed_assignments(current, assignment_ids, revoke_all)
-            case list.length(next) == list.length(current) {
-              True -> acc
-              False -> {
-                let updated =
-                  B2BCompanyLocationRecord(
-                    ..location,
-                    data: put_source(
-                      location.data,
-                      "roleAssignments",
-                      SrcList(next),
-                    ),
-                  )
-                let #(_, next_store) =
-                  store.upsert_staged_b2b_company_location(
-                    current_store,
-                    updated,
-                  )
-                #(next_store, list.append(removed, removed_here))
-              }
+  list.fold(
+    store.list_effective_b2b_company_locations(store),
+    #(store, removed),
+    fn(acc, location) {
+      let #(current_store, removed) = acc
+      case location_filter {
+        Some(id) if id != location.id -> acc
+        _ -> {
+          let current =
+            read_object_sources(data_get(location.data, "roleAssignments"))
+          let #(next, removed_here) =
+            filter_removed_role_assignments(
+              current,
+              assignment_ids,
+              contact_filter,
+              location_filter,
+              revoke_all,
+            )
+          case list.length(next) == list.length(current) {
+            True -> acc
+            False -> {
+              let updated =
+                B2BCompanyLocationRecord(
+                  ..location,
+                  data: put_source(
+                    location.data,
+                    "roleAssignments",
+                    SrcList(next),
+                  ),
+                )
+              let #(_, next_store) =
+                store.upsert_staged_b2b_company_location(current_store, updated)
+              #(next_store, append_unique_list(removed, removed_here))
             }
           }
         }
-      },
-    )
-  #(store, list.unique(removed))
+      }
+    },
+  )
+}
+
+fn filter_removed_role_assignments(
+  assignments: List(SourceValue),
+  ids: List(String),
+  contact_filter: Option(String),
+  location_filter: Option(String),
+  revoke_all: Bool,
+) -> #(List(SourceValue), List(String)) {
+  list.fold(assignments, #([], []), fn(acc, assignment) {
+    let #(kept, removed) = acc
+    let id = source_id(assignment)
+    let should_remove =
+      { revoke_all || list.contains(ids, id) }
+      && assignment_matches_filters(assignment, contact_filter, location_filter)
+    case should_remove {
+      True -> #(kept, append_unique(removed, id))
+      False -> #(list.append(kept, [assignment]), removed)
+    }
+  })
 }
 
 fn filter_removed_assignments(
@@ -4942,25 +5199,6 @@ fn filter_removed_assignments(
     case should_remove {
       True -> #(kept, list.append(removed, [id]))
       False -> #(list.append(kept, [assignment]), removed)
-    }
-  })
-}
-
-fn missing_indexed_id_errors(
-  requested_ids: List(String),
-  found_ids: List(String),
-  field: String,
-) -> List(UserError) {
-  requested_ids
-  |> list.index_map(fn(id, index) { #(id, index) })
-  |> list.fold([], fn(errors, entry) {
-    let #(id, index) = entry
-    case list.contains(found_ids, id) {
-      True -> errors
-      False ->
-        list.append(errors, [
-          resource_not_found(indexed_field_path(field, index)),
-        ])
     }
   })
 }
@@ -5008,29 +5246,70 @@ fn handle_contact_revoke_roles(
     _ -> False
   }
   let role_assignment_ids = read_string_list(args, "roleAssignmentIds")
-  let #(store, revoked) =
-    revoke_role_assignments(
-      store,
-      role_assignment_ids,
-      read_string(args, "companyContactId"),
-      None,
-      revoke_all,
-    )
-  let errors = case revoke_all {
-    True -> []
+  case bulk_action_limit_reached(role_assignment_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("roleAssignmentIds")]),
+        store,
+        identity,
+        [],
+      )
     False ->
-      missing_indexed_id_errors(
+      handle_contact_revoke_roles_under_limit(
+        store,
+        identity,
+        args,
+        revoke_all,
         role_assignment_ids,
-        revoked,
-        "roleAssignmentIds",
       )
   }
-  RootResult(
-    Payload(..empty_payload(errors), revoked_role_assignment_ids: revoked),
-    store,
-    identity,
-    revoked,
-  )
+}
+
+fn handle_contact_revoke_roles_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  revoke_all: Bool,
+  role_assignment_ids: List(String),
+) -> RootResult {
+  let contact_id = read_string(args, "companyContactId")
+  let company_contact = get_effective_contact(contact_id, store)
+  case contact_id, company_contact {
+    Some(_), Some(_) -> {
+      let #(revoked, errors) =
+        resolve_role_revocations(
+          store,
+          role_assignment_ids,
+          "roleAssignmentIds",
+          contact_id,
+          None,
+          revoke_all,
+        )
+      let #(store, _) =
+        revoke_role_assignments(store, revoked, contact_id, None, revoke_all)
+      let company_contact = get_effective_contact(contact_id, store)
+      RootResult(
+        Payload(
+          ..empty_payload(errors),
+          company_contact: company_contact,
+          revoked_role_assignment_ids: revoked,
+        ),
+        store,
+        identity,
+        revoked,
+      )
+    }
+    _, _ ->
+      RootResult(
+        Payload(
+          ..empty_payload([resource_not_found(["companyContactId"])]),
+          company_contact: None,
+        ),
+        store,
+        identity,
+        [],
+      )
+  }
 }
 
 fn handle_location_revoke_roles(
@@ -5039,22 +5318,127 @@ fn handle_location_revoke_roles(
   args,
 ) -> RootResult {
   let roles_to_revoke = read_string_list(args, "rolesToRevoke")
-  let #(store, revoked) =
-    revoke_role_assignments(
-      store,
-      roles_to_revoke,
-      None,
-      read_string(args, "companyLocationId"),
-      False,
-    )
-  let errors =
-    missing_indexed_id_errors(roles_to_revoke, revoked, "rolesToRevoke")
-  RootResult(
-    Payload(..empty_payload(errors), revoked_role_assignment_ids: revoked),
-    store,
-    identity,
-    revoked,
-  )
+  case bulk_action_limit_reached(roles_to_revoke) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("rolesToRevoke")]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      handle_location_revoke_roles_under_limit(
+        store,
+        identity,
+        args,
+        roles_to_revoke,
+      )
+  }
+}
+
+fn handle_location_revoke_roles_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  roles_to_revoke: List(String),
+) -> RootResult {
+  let location_id = read_string(args, "companyLocationId")
+  let company_location = get_effective_location(location_id, store)
+  case location_id, company_location {
+    Some(_), Some(_) -> {
+      let #(revoked, errors) =
+        resolve_role_revocations(
+          store,
+          roles_to_revoke,
+          "rolesToRevoke",
+          None,
+          location_id,
+          False,
+        )
+      let #(store, _) =
+        revoke_role_assignments(store, revoked, None, location_id, False)
+      let company_location = get_effective_location(location_id, store)
+      RootResult(
+        Payload(
+          ..empty_payload(errors),
+          company_location: company_location,
+          revoked_role_assignment_ids: revoked,
+        ),
+        store,
+        identity,
+        revoked,
+      )
+    }
+    _, _ ->
+      RootResult(
+        Payload(
+          ..empty_payload([resource_not_found(["companyLocationId"])]),
+          company_location: None,
+        ),
+        store,
+        identity,
+        [],
+      )
+  }
+}
+
+fn resolve_role_revocations(
+  store: Store,
+  ids: List(String),
+  arg_name: String,
+  contact_filter: Option(String),
+  location_filter: Option(String),
+  revoke_all: Bool,
+) -> #(List(String), List(UserError)) {
+  case revoke_all {
+    True -> {
+      let revoked =
+        list_effective_role_assignments(store)
+        |> list.filter(fn(assignment) {
+          assignment_matches_filters(
+            assignment,
+            contact_filter,
+            location_filter,
+          )
+        })
+        |> list.map(source_id)
+      #(revoked, [])
+    }
+    False ->
+      list.index_fold(ids, #([], []), fn(acc, id, index) {
+        let #(revoked, errors) = acc
+        case
+          list.contains(revoked, id)
+          || !role_assignment_can_be_revoked(
+            store,
+            id,
+            contact_filter,
+            location_filter,
+          )
+        {
+          True -> #(
+            revoked,
+            list.append(errors, [
+              resource_not_found([arg_name, int.to_string(index)]),
+            ]),
+          )
+          False -> #(list.append(revoked, [id]), errors)
+        }
+      })
+  }
+}
+
+fn role_assignment_can_be_revoked(
+  store: Store,
+  id: String,
+  contact_filter: Option(String),
+  location_filter: Option(String),
+) -> Bool {
+  list_effective_role_assignments(store)
+  |> list.any(fn(assignment) {
+    source_id(assignment) == id
+    && assignment_matches_filters(assignment, contact_filter, location_filter)
+  })
 }
 
 fn handle_assign_address(
@@ -5256,14 +5640,78 @@ fn handle_assign_staff(
   identity: SyntheticIdentityRegistry,
   args,
 ) -> RootResult {
+  let staff_member_ids = read_string_list(args, "staffMemberIds")
+  case bulk_action_limit_reached(staff_member_ids) {
+    True ->
+      RootResult(
+        empty_payload([bulk_action_limit_reached_error("staffMemberIds")]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      handle_assign_staff_under_limit(store, identity, args, staff_member_ids)
+  }
+}
+
+fn handle_assign_staff_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  args,
+  staff_member_ids: List(String),
+) -> RootResult {
   case read_string(args, "companyLocationId") {
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
-          let staff_member_ids = read_string_list(args, "staffMemberIds")
-          let errors = invalid_staff_member_id_errors(staff_member_ids)
-          case errors {
-            [_, ..] ->
+          let #(assignments, errors, identity) =
+            list.index_fold(
+              staff_member_ids,
+              #([], [], identity),
+              fn(acc, staff_id, index) {
+                let #(items, errors, current_identity) = acc
+                case staff_member_exists(store, staff_id) {
+                  True -> {
+                    let #(id, next_identity) =
+                      make_gid(
+                        current_identity,
+                        "CompanyLocationStaffMemberAssignment",
+                      )
+                    let assignment =
+                      src_object([
+                        #(
+                          "__typename",
+                          SrcString("CompanyLocationStaffMemberAssignment"),
+                        ),
+                        #("id", SrcString(id)),
+                        #("staffMemberId", SrcString(staff_id)),
+                        #("companyLocationId", SrcString(location.id)),
+                        #(
+                          "staffMember",
+                          src_object([
+                            #("__typename", SrcString("StaffMember")),
+                            #("id", SrcString(staff_id)),
+                          ]),
+                        ),
+                        #("companyLocation", location_source(location)),
+                      ])
+                    #(list.append(items, [assignment]), errors, next_identity)
+                  }
+                  False -> #(
+                    items,
+                    list.append(errors, [
+                      resource_not_found([
+                        "staffMemberIds",
+                        int.to_string(index),
+                      ]),
+                    ]),
+                    current_identity,
+                  )
+                }
+              },
+            )
+          case assignments {
+            [] ->
               RootResult(
                 Payload(
                   ..empty_payload(errors),
@@ -5273,35 +5721,7 @@ fn handle_assign_staff(
                 identity,
                 [],
               )
-            [] -> {
-              let #(assignments, identity) =
-                list.fold(staff_member_ids, #([], identity), fn(acc, staff_id) {
-                  let #(items, current_identity) = acc
-                  let #(id, next_identity) =
-                    make_gid(
-                      current_identity,
-                      "CompanyLocationStaffMemberAssignment",
-                    )
-                  let assignment =
-                    src_object([
-                      #(
-                        "__typename",
-                        SrcString("CompanyLocationStaffMemberAssignment"),
-                      ),
-                      #("id", SrcString(id)),
-                      #("staffMemberId", SrcString(staff_id)),
-                      #("companyLocationId", SrcString(location.id)),
-                      #(
-                        "staffMember",
-                        src_object([
-                          #("__typename", SrcString("StaffMember")),
-                          #("id", SrcString(staff_id)),
-                        ]),
-                      ),
-                      #("companyLocation", location_source(location)),
-                    ])
-                  #(list.append(items, [assignment]), next_identity)
-                })
+            [_, ..] -> {
               let current =
                 read_object_sources(data_get(
                   location.data,
@@ -5320,7 +5740,7 @@ fn handle_assign_staff(
                 store.upsert_staged_b2b_company_location(store, updated)
               RootResult(
                 Payload(
-                  ..empty_payload([]),
+                  ..empty_payload(errors),
                   company_location_staff_member_assignments: assignments,
                 ),
                 store,
@@ -5354,28 +5774,11 @@ fn handle_assign_staff(
   }
 }
 
-fn invalid_staff_member_id_errors(ids: List(String)) -> List(UserError) {
-  ids
-  |> list.index_map(fn(id, index) { #(id, index) })
-  |> list.fold([], fn(errors, entry) {
-    let #(id, index) = entry
-    case valid_staff_member_id(id) {
-      True -> errors
-      False ->
-        list.append(errors, [
-          resource_not_found(indexed_field_path("staffMemberIds", index)),
-        ])
-    }
-  })
-}
-
-fn valid_staff_member_id(id: String) -> Bool {
-  valid_shopify_gid_type(id, "StaffMember")
-  && !string.ends_with(id, "/999999999999")
-}
-
-fn valid_shopify_gid_type(id: String, resource_type: String) -> Bool {
-  string.starts_with(id, "gid://shopify/" <> resource_type <> "/")
+fn staff_member_exists(store: Store, staff_id: String) -> Bool {
+  case store.get_effective_admin_platform_generic_node_by_id(store, staff_id) {
+    Some(record) -> record.typename == "StaffMember"
+    None -> False
+  }
 }
 
 fn handle_remove_staff(
@@ -5384,6 +5787,42 @@ fn handle_remove_staff(
   args,
 ) -> RootResult {
   let ids = read_string_list(args, "companyLocationStaffMemberAssignmentIds")
+  case bulk_action_limit_reached(ids) {
+    True ->
+      RootResult(
+        empty_payload([
+          bulk_action_limit_reached_error(
+            "companyLocationStaffMemberAssignmentIds",
+          ),
+        ]),
+        store,
+        identity,
+        [],
+      )
+    False -> handle_remove_staff_under_limit(store, identity, ids)
+  }
+}
+
+fn handle_remove_staff_under_limit(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  ids: List(String),
+) -> RootResult {
+  let existing_ids = effective_staff_assignment_ids(store)
+  let valid_ids = list.filter(ids, fn(id) { list.contains(existing_ids, id) })
+  let errors =
+    list.index_fold(ids, [], fn(errors, id, index) {
+      case list.contains(existing_ids, id) {
+        True -> errors
+        False ->
+          list.append(errors, [
+            resource_not_found([
+              "companyLocationStaffMemberAssignmentIds",
+              int.to_string(index),
+            ]),
+          ])
+      }
+    })
   let #(store, removed, staged) =
     list.fold(
       store.list_effective_b2b_company_locations(store),
@@ -5393,7 +5832,7 @@ fn handle_remove_staff(
         let current =
           read_object_sources(data_get(location.data, "staffMemberAssignments"))
         let #(next, removed_here) =
-          filter_removed_assignments(current, ids, False)
+          filter_removed_assignments(current, valid_ids, False)
         case list.length(next) == list.length(current) {
           True -> acc
           False -> {
@@ -5417,12 +5856,6 @@ fn handle_remove_staff(
         }
       },
     )
-  let errors =
-    missing_indexed_id_errors(
-      ids,
-      removed,
-      "companyLocationStaffMemberAssignmentIds",
-    )
   RootResult(
     Payload(
       ..empty_payload(errors),
@@ -5432,6 +5865,14 @@ fn handle_remove_staff(
     identity,
     list.append(staged, removed),
   )
+}
+
+fn effective_staff_assignment_ids(store: Store) -> List(String) {
+  store.list_effective_b2b_company_locations(store)
+  |> list.flat_map(fn(location) {
+    read_object_sources(data_get(location.data, "staffMemberAssignments"))
+    |> list.map(source_id)
+  })
 }
 
 fn handle_tax_settings_update(

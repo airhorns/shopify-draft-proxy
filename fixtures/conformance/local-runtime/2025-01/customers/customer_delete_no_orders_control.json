@@ -1,0 +1,36 @@
+{
+  "setup": {
+    "customerCreate": {
+      "variables": {
+        "input": {
+          "email": "har-773-control@example.test",
+          "firstName": "Control",
+          "lastName": "Delete"
+        }
+      }
+    }
+  },
+  "expected": {
+    "customerCreate": {
+      "data": {
+        "customerCreate": {
+          "userErrors": []
+        }
+      }
+    },
+    "customerDelete": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": "gid://shopify/Customer/1",
+          "userErrors": []
+        }
+      }
+    },
+    "readAfterDelete": {
+      "data": {
+        "customer": null
+      }
+    }
+  },
+  "upstreamCalls": []
+}
