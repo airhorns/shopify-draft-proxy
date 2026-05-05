@@ -1,0 +1,60 @@
+{
+  "scenarioId": "customer-payment-method-remote-create-validation",
+  "operationNames": ["customerCreate", "customerPaymentMethodRemoteCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "no-upstream-passthrough",
+    "sensitive-data-scrubbing"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/payments/customer-payment-method-remote-create-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/customer-payment-method-remote-create-validation-seed.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "seed-customer",
+        "capturePath": "$.operations.seedCustomer.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate"
+      },
+      {
+        "name": "stripe-blank-customer-id",
+        "capturePath": "$.operations.stripeBlankCustomerId.response.data.customerPaymentMethodRemoteCreate",
+        "proxyPath": "$.data.customerPaymentMethodRemoteCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/customer-payment-method-remote-create-validation-stripe.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "paypal-blank-billing-agreement-id",
+        "capturePath": "$.operations.paypalBlankBillingAgreementId.response.data.customerPaymentMethodRemoteCreate",
+        "proxyPath": "$.data.customerPaymentMethodRemoteCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/customer-payment-method-remote-create-validation-paypal.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "two-gateway-objects",
+        "capturePath": "$.operations.twoGatewayObjects.response.data.customerPaymentMethodRemoteCreate",
+        "proxyPath": "$.data.customerPaymentMethodRemoteCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/customer-payment-method-remote-create-validation-two-gateways.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-647 executable validation parity for customerPaymentMethodRemoteCreate. The scenario covers Stripe blank customerId, PayPal blank billingAgreementId, and remoteReference cardinality with real-code userErrors while keeping payment gateway material scrubbed and local-only."
+}

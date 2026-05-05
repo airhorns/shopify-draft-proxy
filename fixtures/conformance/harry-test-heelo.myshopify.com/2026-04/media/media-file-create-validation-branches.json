@@ -1,0 +1,299 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T07:00:13.801Z",
+  "operations": ["fileCreate"],
+  "notes": [
+    "Captured fileCreate validation branches that the public Admin schema accepts for execution.",
+    "Current public Admin API schemas through unstable do not expose referencesToAdd on FileCreateInput; the referencesToAdd probe is recorded as a schema-level INVALID_VARIABLE response and local runtime tests cover the ticket-required private-core guardrail.",
+    "Current public Admin GraphQL 2026-04 still emits ALT_VALUE_LIMIT_EXCEEDED for 513-character alt input; the long-alt probe records that public response while local runtime tests cover the ticket-requested private-core removal."
+  ],
+  "scenarios": [
+    {
+      "name": "data-url-source",
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "data:image/png;base64,iVBORw0KGgo="
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [],
+              "userErrors": [
+                {
+                  "field": ["files", "0", "originalSource"],
+                  "message": "File URL is invalid",
+                  "code": "INVALID_IMAGE_SOURCE_URL"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1980,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "filename-extension-mismatch",
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "https://placehold.co/600x400/har700-mismatch.png",
+            "filename": "har700.jpg"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [],
+              "userErrors": [
+                {
+                  "field": ["files", "0", "filename"],
+                  "message": "Provided filename extension must match original source.",
+                  "code": "MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1970,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "replace-mode-missing-content-type",
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "https://placehold.co/600x400/har700-replace-missing-1777964412070.png",
+            "duplicateResolutionMode": "REPLACE"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [],
+              "userErrors": [
+                {
+                  "field": ["files", "0", "duplicateResolutionMode"],
+                  "message": "Duplicate resolution mode 'REPLACE' is not supported for 'MISSING' media type.",
+                  "code": "INVALID_DUPLICATE_MODE_FOR_TYPE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1961,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "replace-mode-missing-filename",
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "https://placehold.co/600x400/har700-replace-filename-1777964412070.png",
+            "contentType": "IMAGE",
+            "duplicateResolutionMode": "REPLACE"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [],
+              "userErrors": [
+                {
+                  "field": ["files", "0", "filename"],
+                  "message": "Missing filename argument when attempting to use REPLACE duplicate mode.",
+                  "code": "MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1953,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "successful-create",
+      "operationName": "fileCreate",
+      "variables": {
+        "files": [
+          {
+            "originalSource": "https://placehold.co/600x400/har700-success-1777964412070.png",
+            "filename": "har700-success-1777964412070.png",
+            "contentType": "IMAGE",
+            "duplicateResolutionMode": "RAISE_ERROR",
+            "alt": "HAR-700 fileCreate validation success 1777964412070"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fileCreate": {
+              "files": [
+                {
+                  "id": "gid://shopify/MediaImage/43666765381938",
+                  "alt": "HAR-700 fileCreate validation success 1777964412070",
+                  "createdAt": "2026-05-05T07:00:12Z",
+                  "fileStatus": "UPLOADED"
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 20,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1946,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "referencesToAddSchemaProbe": {
+    "status": 200,
+    "payload": {
+      "errors": [
+        {
+          "message": "Variable $files of type [FileCreateInput!]! was provided invalid value for 0.referencesToAdd (Field is not defined on FileCreateInput)",
+          "locations": [
+            {
+              "line": 2,
+              "column": 46
+            }
+          ],
+          "extensions": {
+            "code": "INVALID_VARIABLE",
+            "value": [
+              {
+                "originalSource": "https://placehold.co/600x400/har700-reference-probe.png",
+                "referencesToAdd": ["gid://shopify/Product/1", "gid://shopify/Product/2"]
+              }
+            ],
+            "problems": [
+              {
+                "path": [0, "referencesToAdd"],
+                "explanation": "Field is not defined on FileCreateInput"
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "longAltPublicProbe": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "fileCreate": {
+          "files": [],
+          "userErrors": [
+            {
+              "field": ["files", "0", "alt"],
+              "message": "The alt value exceeds the maximum limit of 512 characters.",
+              "code": "ALT_VALUE_LIMIT_EXCEEDED"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 20,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1953,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "fileIds": ["gid://shopify/MediaImage/43666765381938"],
+    "response": {
+      "data": {
+        "fileDelete": {
+          "deletedFileIds": ["gid://shopify/MediaImage/43666765381938"],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1955,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

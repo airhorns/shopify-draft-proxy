@@ -1,0 +1,18 @@
+mutation ShopPolicyUpdate($shopPolicy: ShopPolicyInput!) {
+  shopPolicyUpdate(shopPolicy: $shopPolicy) {
+    shopPolicy {
+      id
+      title
+      body
+      type
+      url
+      createdAt
+      updatedAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

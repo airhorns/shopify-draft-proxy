@@ -1,0 +1,21 @@
+#graphql
+query PaymentCustomizationMetafieldsRead($id: ID!) {
+  paymentCustomization(id: $id) {
+    id
+    title
+    functionId
+    metafields(first: 5) {
+      edges {
+        node {
+          id
+          namespace
+          key
+          type
+          value
+          createdAt
+          updatedAt
+        }
+      }
+    }
+  }
+}

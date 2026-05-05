@@ -4148,6 +4148,8 @@ fn product_media_source(media: ProductMediaRecord) -> SourceValue {
         media.image_url |> option.or(media.preview_image_url),
       ),
     ),
+    #("mediaErrors", SrcList([])),
+    #("mediaWarnings", SrcList([])),
   ])
 }
 
@@ -5489,6 +5491,18 @@ query ProductsHydrateNodes($ids: [ID!]!) {
         id
         tracked
         requiresShipping
+        inventoryLevels(first: 50) {
+          nodes {
+            id
+            isActive
+            location { id name }
+            quantities(names: [\"available\", \"on_hand\", \"committed\", \"incoming\", \"reserved\", \"damaged\", \"quality_control\", \"safety_stock\"]) {
+              name
+              quantity
+              updatedAt
+            }
+          }
+        }
         variant {
           id
           title
@@ -5998,7 +6012,14 @@ fn upsert_hydrated_inventory_level(
             inventory_levels: [],
           ),
         )
-      let item = InventoryItemRecord(..base_item, inventory_levels: [level])
+      let item =
+        InventoryItemRecord(
+          ..base_item,
+          inventory_levels: merge_hydrated_inventory_levels(
+            level,
+            base_item.inventory_levels,
+          ),
+        )
       let product =
         ProductRecord(
           id: product_id,
@@ -6084,6 +6105,22 @@ fn upsert_hydrated_inventory_level(
       |> store.upsert_base_product_variants([variant])
     }
     _, _, _, _ -> store
+  }
+}
+
+fn merge_hydrated_inventory_levels(
+  target: InventoryLevelRecord,
+  levels: List(InventoryLevelRecord),
+) -> List(InventoryLevelRecord) {
+  case list.any(levels, fn(level) { level.id == target.id }) {
+    True ->
+      list.map(levels, fn(level) {
+        case level.id == target.id {
+          True -> target
+          False -> level
+        }
+      })
+    False -> [target, ..levels]
   }
 }
 
@@ -8951,7 +8988,7 @@ fn handle_product_create(
       {
         [_, ..] as errors -> mutation_error_result(key, store, identity, errors)
         [] -> {
-          let user_errors = product_create_validation_errors(input)
+          let user_errors = product_create_validation_errors(store, input)
           case user_errors {
             [_, ..] ->
               mutation_result(
@@ -9532,7 +9569,7 @@ fn handle_product_set(
                 )
               {
                 Ok(existing) ->
-                  case product_set_validation_errors(input, existing) {
+                  case product_set_validation_errors(store, input, existing) {
                     [] ->
                       stage_product_set(
                         store,
@@ -9599,11 +9636,12 @@ fn handle_product_set(
 }
 
 fn product_set_validation_errors(
+  store: Store,
   input: Dict(String, ResolvedValue),
   existing: Option(ProductRecord),
 ) -> List(ProductOperationUserErrorRecord) {
   list.append(
-    product_set_product_field_errors(input, existing),
+    product_set_product_field_errors(store, input, existing),
     list.append(
       product_set_requires_variants_for_options_errors(input),
       list.append(
@@ -9816,6 +9854,7 @@ fn product_set_inventory_quantities_limit_errors(
 }
 
 fn product_set_product_field_errors(
+  store: Store,
   input: Dict(String, ResolvedValue),
   existing: Option(ProductRecord),
 ) -> List(ProductOperationUserErrorRecord) {
@@ -9823,7 +9862,7 @@ fn product_set_product_field_errors(
     Some(_) -> product_update_validation_error(input)
     None -> product_create_validation_error(input)
   }
-  case maybe_error {
+  let field_errors = case maybe_error {
     Some(ProductUserError(field: path, message: message, code: code)) -> [
       ProductOperationUserErrorRecord(
         field: Some(["input", ..path]),
@@ -9833,6 +9872,17 @@ fn product_set_product_field_errors(
     ]
     None -> []
   }
+  let existing_id = option.map(existing, fn(product) { product.id })
+  let handle_errors =
+    explicit_product_handle_collision_errors(store, input, existing_id)
+    |> list.map(fn(error) {
+      ProductOperationUserErrorRecord(
+        field: Some(["input", ..error.field]),
+        message: error.message,
+        code: error.code,
+      )
+    })
+  list.append(field_errors, handle_errors)
 }
 
 fn product_set_requires_variants_for_options_errors(
@@ -16712,18 +16762,12 @@ fn handle_inventory_activate(
   let args = graphql_helpers.field_args(field, variables)
   let inventory_item_id = read_string_field(args, "inventoryItemId")
   let location_id = read_string_field(args, "locationId")
-  let user_errors = case dict.get(args, "available") {
-    Ok(_) -> [
-      ProductUserError(
-        ["available"],
-        "Not allowed to set available quantity when the item is already active at the location.",
-        None,
-      ),
-    ]
-    Error(_) -> []
+  let available_supplied = case dict.get(args, "available") {
+    Ok(_) -> True
+    Error(_) -> False
   }
-  let resolved = case inventory_item_id, location_id, user_errors {
-    Some(inventory_item_id), Some(location_id), [] -> {
+  let resolved = case inventory_item_id, location_id {
+    Some(inventory_item_id), Some(location_id) -> {
       case
         store.find_effective_variant_by_inventory_item_id(
           store,
@@ -16740,7 +16784,22 @@ fn handle_inventory_activate(
         None -> None
       }
     }
-    _, _, _ -> None
+    _, _ -> None
+  }
+  let user_errors = case resolved, available_supplied {
+    Some(#(_, level)), True -> {
+      case inventory_level_is_active(level) {
+        True -> [
+          ProductUserError(
+            ["available"],
+            "Not allowed to set available quantity when the item is already active at the location.",
+            None,
+          ),
+        ]
+        False -> []
+      }
+    }
+    _, _ -> []
   }
   let activation_result = case resolved, user_errors {
     Some(#(variant, level)), [] -> {
@@ -16804,18 +16863,12 @@ fn handle_inventory_deactivate(
         variant_inventory_levels(variant)
         |> active_inventory_levels
       case list.length(active_levels) <= 1 {
-        True -> [
-          NullableFieldUserError(
-            None,
-            "The product couldn't be unstocked from "
-              <> level.location.name
-              <> " because products need to be stocked at a minimum of 1 location.",
-          ),
-        ]
+        True -> [inventory_deactivate_only_state_error(level)]
         False -> []
       }
     }
-    None -> []
+    None ->
+      inventory_deactivate_missing_target_errors(store, inventory_level_id)
   }
   let next_store = case target, user_errors {
     Some(#(variant, level)), [] -> {
@@ -17384,6 +17437,7 @@ fn product_update_validation_error(
 }
 
 fn product_create_validation_errors(
+  store: Store,
   input: Dict(String, ResolvedValue),
 ) -> List(ProductUserError) {
   let product_errors = case product_create_validation_error(input) {
@@ -17391,7 +17445,14 @@ fn product_create_validation_errors(
     None -> []
   }
 
-  list.append(product_errors, product_create_variant_errors(input))
+  let handle_errors =
+    explicit_product_handle_collision_errors(store, input, None)
+    |> list.map(fn(error) {
+      ProductUserError(["input", ..error.field], error.message, error.code)
+    })
+  product_errors
+  |> list.append(product_create_variant_errors(input))
+  |> list.append(handle_errors)
 }
 
 fn product_create_validation_error(
@@ -17454,6 +17515,29 @@ fn product_update_handle_validation_error(
         False -> product_tags_validation_error(input)
       }
     None -> product_tags_validation_error(input)
+  }
+}
+
+fn explicit_product_handle_collision_errors(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  allowed_product_id: Option(String),
+) -> List(ProductUserError) {
+  case read_collision_checked_explicit_product_handle(input) {
+    Some(handle) ->
+      case product_handle_in_use_by_other(store, handle, allowed_product_id) {
+        True -> [
+          ProductUserError(
+            ["handle"],
+            "Handle '"
+              <> handle
+              <> "' already in use. Please provide a new handle.",
+            None,
+          ),
+        ]
+        False -> []
+      }
+    None -> []
   }
 }
 
@@ -22397,12 +22481,16 @@ fn created_product_record(
     Some(handle) -> handle
     None -> slugify_product_handle(title)
   }
+  let handle = case product_handle_should_dedupe(input) {
+    True -> ensure_unique_product_handle(store, base_handle)
+    False -> base_handle
+  }
   #(
     ProductRecord(
       id: id,
       legacy_resource_id: None,
       title: title,
-      handle: ensure_unique_product_handle(store, base_handle),
+      handle: handle,
       status: read_product_status_field(input) |> option.unwrap("ACTIVE"),
       vendor: read_string_field(input, "vendor"),
       product_type: read_string_field(input, "productType"),
@@ -23307,12 +23395,16 @@ fn created_collection_record(
     Some(handle) -> normalize_product_handle(handle)
     None -> slugify_collection_handle(title)
   }
+  let handle = case collection_handle_should_dedupe(input) {
+    True -> ensure_unique_collection_handle(store, handle)
+    False -> handle
+  }
   #(
     CollectionRecord(
       id: id,
       legacy_resource_id: None,
       title: title,
-      handle: ensure_unique_collection_handle(store, handle),
+      handle: handle,
       publication_ids: [],
       updated_at: Some(updated_at),
       description: read_string_field(input, "description"),
@@ -23350,9 +23442,15 @@ fn slugify_collection_handle(title: String) -> String {
 }
 
 fn ensure_unique_collection_handle(store: Store, handle: String) -> String {
-  case store.get_effective_collection_by_handle(store, handle) {
-    Some(_) -> ensure_unique_collection_handle(store, handle <> "-1")
-    None -> handle
+  let in_use = fn(candidate) {
+    store.get_effective_collection_by_handle(store, candidate) != None
+  }
+  case in_use(handle) {
+    True -> {
+      let #(base_handle, suffix) = dedup_base_and_next_suffix(handle)
+      ensure_unique_handle(base_handle, suffix, in_use)
+    }
+    False -> handle
   }
 }
 
@@ -23368,6 +23466,35 @@ fn read_explicit_product_handle(
       }
     }
     None -> None
+  }
+}
+
+fn read_collision_checked_explicit_product_handle(
+  input: Dict(String, ResolvedValue),
+) -> Option(String) {
+  case read_non_empty_string_field(input, "handle") {
+    Some(handle) -> {
+      let normalized = normalize_product_handle(handle)
+      case normalized {
+        "" -> None
+        _ -> Some(normalized)
+      }
+    }
+    None -> None
+  }
+}
+
+fn product_handle_should_dedupe(input: Dict(String, ResolvedValue)) -> Bool {
+  case read_non_empty_string_field(input, "handle") {
+    Some(handle) -> normalize_product_handle(handle) == ""
+    None -> True
+  }
+}
+
+fn collection_handle_should_dedupe(input: Dict(String, ResolvedValue)) -> Bool {
+  case read_non_empty_string_field(input, "handle") {
+    Some(_) -> False
+    None -> True
   }
 }
 
@@ -23420,15 +23547,94 @@ fn is_handle_grapheme(grapheme: String) -> Bool {
 }
 
 fn ensure_unique_product_handle(store: Store, handle: String) -> String {
-  case product_handle_in_use(store, handle) {
-    True -> ensure_unique_product_handle(store, handle <> "-1")
+  let in_use = fn(candidate) { product_handle_in_use(store, candidate) }
+  case in_use(handle) {
+    True -> {
+      let #(base_handle, suffix) = dedup_base_and_next_suffix(handle)
+      ensure_unique_handle(base_handle, suffix, in_use)
+    }
     False -> handle
+  }
+}
+
+fn ensure_unique_handle(
+  base_handle: String,
+  suffix: Int,
+  in_use: fn(String) -> Bool,
+) -> String {
+  let candidate = case suffix {
+    0 -> base_handle
+    _ -> base_handle <> "-" <> int.to_string(suffix)
+  }
+  case in_use(candidate) {
+    True -> ensure_unique_handle(base_handle, suffix + 1, in_use)
+    False -> candidate
+  }
+}
+
+fn dedup_base_and_next_suffix(handle: String) -> #(String, Int) {
+  let #(digits, rest) =
+    handle
+    |> string.to_graphemes
+    |> list.reverse
+    |> split_reversed_trailing_digits([])
+  case digits {
+    [] -> #(handle, 1)
+    _ ->
+      case rest {
+        ["-", ..base_reversed] ->
+          case base_reversed {
+            [] -> #(handle, 1)
+            _ -> {
+              let base_handle = base_reversed |> list.reverse |> string.join("")
+              let suffix =
+                digits
+                |> string.join("")
+                |> int.parse
+                |> result.unwrap(0)
+              #(base_handle, suffix + 1)
+            }
+          }
+        _ -> #(handle, 1)
+      }
+  }
+}
+
+fn split_reversed_trailing_digits(
+  graphemes: List(String),
+  digits: List(String),
+) -> #(List(String), List(String)) {
+  case graphemes {
+    [] -> #(digits, [])
+    [first, ..rest] ->
+      case is_handle_digit(first) {
+        True -> split_reversed_trailing_digits(rest, [first, ..digits])
+        False -> #(digits, graphemes)
+      }
+  }
+}
+
+fn is_handle_digit(grapheme: String) -> Bool {
+  case grapheme {
+    "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" -> True
+    _ -> False
   }
 }
 
 fn product_handle_in_use(store: Store, handle: String) -> Bool {
   store.list_effective_products(store)
   |> list.any(fn(product) { product.handle == handle })
+}
+
+fn product_handle_in_use_by_other(
+  store: Store,
+  handle: String,
+  allowed_product_id: Option(String),
+) -> Bool {
+  store.list_effective_products(store)
+  |> list.any(fn(product) {
+    product.handle == handle && Some(product.id) != allowed_product_id
+  })
 }
 
 fn make_product_create_option_graph(
@@ -25878,6 +26084,69 @@ fn inventory_level_is_active(level: InventoryLevelRecord) -> Bool {
   case level.is_active {
     Some(False) -> False
     _ -> True
+  }
+}
+
+fn inventory_deactivate_only_state_error(
+  level: InventoryLevelRecord,
+) -> NullableFieldUserError {
+  NullableFieldUserError(
+    None,
+    "The product couldn't be unstocked from "
+      <> level.location.name
+      <> " because products need to be stocked at a minimum of 1 location.",
+  )
+}
+
+fn inventory_deactivate_item_not_found_error() -> NullableFieldUserError {
+  NullableFieldUserError(
+    None,
+    "The product couldn't be unstocked because the product was deleted.",
+  )
+}
+
+fn inventory_deactivate_location_deleted_error() -> NullableFieldUserError {
+  NullableFieldUserError(
+    None,
+    "The product couldn't be unstocked because the location was deleted.",
+  )
+}
+
+fn inventory_deactivate_missing_target_errors(
+  store: Store,
+  inventory_level_id: Option(String),
+) -> List(NullableFieldUserError) {
+  case inventory_level_id {
+    Some(id) -> {
+      case inventory_level_item_id(id) {
+        Some(item_id) ->
+          case
+            store.find_effective_variant_by_inventory_item_id(
+              store,
+              normalize_inventory_item_id(item_id),
+            )
+          {
+            Some(_) -> [inventory_deactivate_location_deleted_error()]
+            None -> [inventory_deactivate_item_not_found_error()]
+          }
+        None -> [inventory_deactivate_item_not_found_error()]
+      }
+    }
+    None -> [inventory_deactivate_item_not_found_error()]
+  }
+}
+
+fn normalize_inventory_item_id(id: String) -> String {
+  case string.starts_with(id, "gid://shopify/InventoryItem/") {
+    True -> id
+    False -> "gid://shopify/InventoryItem/" <> id
+  }
+}
+
+fn inventory_level_item_id(id: String) -> Option(String) {
+  case string.split(id, "?inventory_item_id=") {
+    [_, item_id] -> Some(item_id)
+    _ -> None
   }
 }
 

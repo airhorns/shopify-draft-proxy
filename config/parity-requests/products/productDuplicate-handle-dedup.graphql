@@ -1,0 +1,13 @@
+mutation ProductDuplicateHandleDedup($productId: ID!, $newTitle: String!) {
+  productDuplicate(productId: $productId, newTitle: $newTitle) {
+    newProduct {
+      id
+      title
+      handle
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

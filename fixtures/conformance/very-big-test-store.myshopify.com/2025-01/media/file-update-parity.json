@@ -119,5 +119,33 @@
       }
     }
   },
-  "upstreamCalls": []
+  "upstreamCalls": [
+    {
+      "operationName": "MediaFileUpdateHydrate",
+      "variables": {
+        "fileIds": ["gid://shopify/MediaImage/39516006121705"]
+      },
+      "query": "sha:media-file-update-hydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "id": "gid://shopify/MediaImage/39516006121705",
+                "alt": "Hermes Files API conformance 1777081543067",
+                "createdAt": "2026-04-25T01:45:43Z",
+                "fileStatus": "READY",
+                "image": null,
+                "__typename": "MediaImage",
+                "preview": {
+                  "image": null
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
 }

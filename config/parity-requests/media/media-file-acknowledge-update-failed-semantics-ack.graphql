@@ -1,0 +1,22 @@
+mutation MediaFileAcknowledgeUpdateFailedSemanticsAck($fileIds: [ID!]!) {
+  fileAcknowledgeUpdateFailed(fileIds: $fileIds) {
+    files {
+      id
+      fileStatus
+      __typename
+      mediaErrors {
+        code
+        message
+      }
+      mediaWarnings {
+        code
+        message
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

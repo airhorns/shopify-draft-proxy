@@ -4006,9 +4006,8 @@ fn handle_order_lifecycle_mutation(
               #(key, payload, hydrated_store, identity, [], [], [])
             }
             Some(order) -> {
-              let #(updated_order, next_identity) =
+              let #(updated_order, next_identity, changed) =
                 apply_order_lifecycle_update(order, identity, root_name)
-              let next_store = store.stage_order(hydrated_store, updated_order)
               let payload =
                 serialize_order_mutation_payload(
                   field,
@@ -4016,18 +4015,35 @@ fn handle_order_lifecycle_mutation(
                   [],
                   fragments,
                 )
-              let draft =
-                single_root_log_draft(
-                  root_name,
-                  [id],
-                  store.Staged,
-                  "orders",
-                  "stage-locally",
-                  Some(
-                    "Locally staged " <> root_name <> " in shopify-draft-proxy.",
-                  ),
+              case changed {
+                False -> #(
+                  key,
+                  payload,
+                  hydrated_store,
+                  next_identity,
+                  [],
+                  [],
+                  [],
                 )
-              #(key, payload, next_store, next_identity, [id], [], [draft])
+                True -> {
+                  let next_store =
+                    store.stage_order(hydrated_store, updated_order)
+                  let draft =
+                    single_root_log_draft(
+                      root_name,
+                      [id],
+                      store.Staged,
+                      "orders",
+                      "stage-locally",
+                      Some(
+                        "Locally staged "
+                        <> root_name
+                        <> " in shopify-draft-proxy.",
+                      ),
+                    )
+                  #(key, payload, next_store, next_identity, [id], [], [draft])
+                }
+              }
             }
           }
         }
@@ -4040,29 +4056,74 @@ fn apply_order_lifecycle_update(
   order: OrderRecord,
   identity: SyntheticIdentityRegistry,
   root_name: String,
-) -> #(OrderRecord, SyntheticIdentityRegistry) {
-  let #(timestamp, next_identity) =
-    synthetic_identity.make_synthetic_timestamp(identity)
-  let replacements = case root_name {
-    "orderClose" -> [
-      #("closed", CapturedBool(True)),
-      #("closedAt", CapturedString(timestamp)),
-      #("updatedAt", CapturedString(timestamp)),
-    ]
-    "orderOpen" -> [
-      #("closed", CapturedBool(False)),
-      #("closedAt", CapturedNull),
-      #("updatedAt", CapturedString(timestamp)),
-    ]
-    _ -> []
+) -> #(OrderRecord, SyntheticIdentityRegistry, Bool) {
+  case root_name {
+    "orderClose" ->
+      case order_lifecycle_transition_is_noop(order, root_name) {
+        True -> #(order, identity, False)
+        False -> {
+          let #(timestamp, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let replacements = [
+            #("closed", CapturedBool(True)),
+            #("closedAt", CapturedString(timestamp)),
+            #("updatedAt", CapturedString(timestamp)),
+          ]
+          #(
+            OrderRecord(
+              ..order,
+              data: replace_captured_object_fields(order.data, replacements),
+            ),
+            next_identity,
+            True,
+          )
+        }
+      }
+    "orderOpen" ->
+      case order_lifecycle_transition_is_noop(order, root_name) {
+        True -> #(order, identity, False)
+        False -> {
+          let #(timestamp, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let replacements = [
+            #("closed", CapturedBool(False)),
+            #("closedAt", CapturedNull),
+            #("updatedAt", CapturedString(timestamp)),
+          ]
+          #(
+            OrderRecord(
+              ..order,
+              data: replace_captured_object_fields(order.data, replacements),
+            ),
+            next_identity,
+            True,
+          )
+        }
+      }
+    _ -> #(order, identity, False)
   }
-  #(
-    OrderRecord(
-      ..order,
-      data: replace_captured_object_fields(order.data, replacements),
-    ),
-    next_identity,
-  )
+}
+
+fn order_lifecycle_transition_is_noop(
+  order: OrderRecord,
+  root_name: String,
+) -> Bool {
+  case root_name {
+    "orderClose" -> order_currently_closed(order)
+    "orderOpen" -> !order_currently_closed(order)
+    _ -> False
+  }
+}
+
+fn order_currently_closed(order: OrderRecord) -> Bool {
+  case captured_bool_field(order.data, "closed") {
+    Some(value) -> value
+    None ->
+      case captured_object_field(order.data, "closedAt") {
+        Some(CapturedString(_)) -> True
+        _ -> False
+      }
+  }
 }
 
 fn serialize_order_mutation_payload(
@@ -11345,7 +11406,7 @@ fn fulfillment_order_hold_validation_errors(
       let handle = fulfillment_order_hold_handle(input)
       case string.length(handle) > fulfillment_hold_handle_max_length {
         True -> [
-          #(
+          nullable_user_error(
             Some(["fulfillmentHold", "handle"]),
             "Handle is too long (maximum is 64 characters)",
             Some("TOO_LONG"),
@@ -11359,7 +11420,7 @@ fn fulfillment_order_hold_validation_errors(
             == Some("ON_HOLD")
           {
             True -> [
-              #(
+              nullable_user_error(
                 Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
                 "The fulfillment order is not in a splittable state.",
                 Some("FULFILLMENT_ORDER_NOT_SPLITTABLE"),
@@ -11373,7 +11434,7 @@ fn fulfillment_order_hold_validation_errors(
                 )
               {
                 True -> [
-                  #(
+                  nullable_user_error(
                     Some(["fulfillmentHold", "handle"]),
                     "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
                     Some("DUPLICATE_FULFILLMENT_HOLD_HANDLE"),
@@ -11387,7 +11448,7 @@ fn fulfillment_order_hold_validation_errors(
                     >= max_fulfillment_holds_per_api_client
                   {
                     True -> [
-                      #(
+                      nullable_user_error(
                         Some(["id"]),
                         "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
                         Some("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"),
@@ -11408,16 +11469,19 @@ fn fulfillment_order_hold_line_item_quantity_errors(
 ) -> List(#(Option(List(String)), String, Option(String))) {
   inputs
   |> list.index_fold([], fn(errors, input, index) {
-    let invalid_message = case dict.get(input, "quantity") {
+    let invalid = case dict.get(input, "quantity") {
       Ok(root_field.IntVal(quantity)) if quantity <= 0 ->
-        Some("You must select at least one item to place on partial hold.")
+        Some(#(
+          "You must select at least one item to place on partial hold.",
+          "GREATER_THAN_ZERO",
+        ))
       Ok(root_field.IntVal(_)) -> None
-      _ -> Some("The line item quantity is invalid.")
+      _ -> Some(#("The line item quantity is invalid.", "INVALID"))
     }
-    case invalid_message {
-      Some(message) ->
+    case invalid {
+      Some(#(message, code)) ->
         list.append(errors, [
-          #(
+          nullable_user_error(
             Some([
               "fulfillmentHold",
               "fulfillmentOrderLineItems",
@@ -11425,11 +11489,7 @@ fn fulfillment_order_hold_line_item_quantity_errors(
               "quantity",
             ]),
             message,
-            Some(case message {
-              "You must select at least one item to place on partial hold." ->
-                "GREATER_THAN_ZERO"
-              _ -> "INVALID_LINE_ITEM_QUANTITY"
-            }),
+            Some(code),
           ),
         ])
       None -> errors
@@ -11450,7 +11510,7 @@ fn fulfillment_order_hold_duplicate_line_item_errors(
     })
   case contains_duplicate_string(ids) {
     True -> [
-      #(
+      nullable_user_error(
         Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
         "must contain unique line item ids",
         Some("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"),

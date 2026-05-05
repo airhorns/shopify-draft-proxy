@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.mutation.variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Strict comparison covers local staging for shopPolicyUpdate, downstream shop.shopPolicies read-after-write, and the captured oversized-body ShopPolicyUserError branch. The local updatedAt is synthetic because supported mutations are not proxied upstream at runtime.",
+  "notes": "Strict comparison covers local staging for shopPolicyUpdate, downstream shop.shopPolicies read-after-write, and the captured oversized-body ShopPolicyUserError branch. The local updatedAt is synthetic because supported mutations are not proxied upstream at runtime. HAR-636 adds expected differences for the legacy capture title/checkout-host values because the source-backed proxy now stages deprecated title casing and primary-domain URL fallback.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [
@@ -24,6 +24,26 @@
         "path": "$.shop.shopPolicies[*].updatedAt",
         "matcher": "iso-timestamp",
         "reason": "Downstream reads expose the local staged policy timestamp after shopPolicyUpdate instead of Shopify's live mutation timestamp."
+      },
+      {
+        "path": "$.shopPolicyUpdate.shopPolicy.title",
+        "matcher": "exact-string:Contact Information",
+        "reason": "HAR-636 updates staged shopPolicyUpdate titles to Shopify source-backed deprecated title casing even when the legacy capture has the older Contact title."
+      },
+      {
+        "path": "$.shopPolicyUpdate.shopPolicy.url",
+        "matcher": "shop-policy-url-base:https://very-big-test-store.myshopify.com",
+        "reason": "HAR-636 uses the hydrated shop primary-domain fallback because Admin shop hydration does not expose shop.checkout_url; numeric policy path segments keep Shopify shape."
+      },
+      {
+        "path": "$.shop.shopPolicies[*].title",
+        "matcher": "exact-string:Contact Information",
+        "reason": "Downstream reads expose the locally staged HAR-636 title casing for the updated contact-information policy."
+      },
+      {
+        "path": "$.shop.shopPolicies[*].url",
+        "matcher": "shop-policy-url-base:https://very-big-test-store.myshopify.com",
+        "reason": "Downstream reads expose the locally staged HAR-636 primary-domain URL fallback for the updated contact-information policy."
       }
     ],
     "targets": [

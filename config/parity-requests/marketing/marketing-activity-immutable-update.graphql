@@ -1,0 +1,16 @@
+mutation MarketingActivityImmutableUpdate(
+  $remoteId: String!
+  $utm: UTMInput
+  $input: MarketingActivityUpdateExternalInput!
+) {
+  marketingActivityUpdateExternal(remoteId: $remoteId, utm: $utm, input: $input) {
+    marketingActivity {
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

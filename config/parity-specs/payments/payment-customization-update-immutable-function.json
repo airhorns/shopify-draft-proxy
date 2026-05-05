@@ -1,0 +1,75 @@
+{
+  "scenarioId": "payment-customization-update-immutable-function",
+  "operationNames": ["paymentCustomizationCreate", "paymentCustomizationUpdate", "paymentCustomization"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "runtime-staging",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-customization-update-immutable-function.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-customization-immutable-create.graphql",
+    "variablesCapturePath": "$.operations.paymentCustomizationCreate.variables"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.paymentCustomization.id",
+        "matcher": "shopify-gid:PaymentCustomization",
+        "reason": "Shopify and the local proxy generate independent payment customization IDs."
+      }
+    ],
+    "targets": [
+      {
+        "name": "create-payload",
+        "capturePath": "$.operations.paymentCustomizationCreate.response.data.paymentCustomizationCreate",
+        "proxyPath": "$.data.paymentCustomizationCreate"
+      },
+      {
+        "name": "immutable-update-payload",
+        "capturePath": "$.operations.paymentCustomizationUpdateImmutable.response.data.paymentCustomizationUpdate",
+        "proxyPath": "$.data.paymentCustomizationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-immutable-update.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"
+            },
+            "input": {
+              "fromCapturePath": "$.operations.paymentCustomizationUpdateImmutable.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-immutable-update",
+        "capturePath": "$.reads.afterImmutableUpdate.response.data.paymentCustomization",
+        "proxyPath": "$.data.paymentCustomization",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-customization-immutable-read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.paymentCustomizationCreate.paymentCustomization.id"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:PaymentCustomization",
+            "reason": "Shopify and the local proxy read independently generated payment customization IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Executable parity for paymentCustomizationUpdate immutable Function behavior. Shopify returns FUNCTION_ID_CANNOT_BE_CHANGED for a replacement functionId and readback keeps the original functionId."
+}

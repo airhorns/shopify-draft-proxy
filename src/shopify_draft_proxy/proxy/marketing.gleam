@@ -31,6 +31,7 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
@@ -684,6 +685,7 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  _upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
@@ -945,60 +947,80 @@ fn marketing_activity_update_external(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
+  let has_remote_id = dict.has_key(args, "remoteId")
+  let has_marketing_activity_id = dict.has_key(args, "marketingActivityId")
+  let has_utm_selector = dict.has_key(args, "utm")
   let selector_utm =
     read_utm(
       graphql_helpers.read_arg_object(args, "utm") |> option.unwrap(dict.new()),
     )
-  let activity = case
-    graphql_helpers.read_arg_string_nonempty(args, "remoteId")
-  {
-    Some(remote_id) ->
-      store.get_effective_marketing_activity_by_remote_id(store, remote_id)
-    None ->
-      case
-        graphql_helpers.read_arg_string_nonempty(args, "marketingActivityId")
-      {
-        Some(id) ->
-          store.get_effective_marketing_activity_record_by_id(store, id)
-        None -> find_marketing_activity_by_utm(store, selector_utm)
-      }
-  }
-  case activity {
-    None ->
+  case has_remote_id || has_marketing_activity_id || has_utm_selector {
+    False ->
       validation_result(
         key,
         "marketingActivityUpdateExternal",
-        [marketing_activity_missing_error()],
+        [invalid_marketing_activity_external_arguments_error()],
         store,
         identity,
       )
-    Some(activity) -> {
-      let requested_utm =
-        graphql_helpers.read_arg_object(args, "utm")
-        |> option.unwrap(dict.new())
-      case
-        dict.is_empty(requested_utm)
-        || same_utm(
-          read_marketing_object(activity.data, "utmParameters"),
-          read_utm(requested_utm),
-        )
+    True -> {
+      let activity = case
+        graphql_helpers.read_arg_string_nonempty(args, "remoteId")
       {
-        False ->
+        Some(remote_id) ->
+          store.get_effective_marketing_activity_by_remote_id(store, remote_id)
+        None ->
+          case
+            graphql_helpers.read_arg_string_nonempty(
+              args,
+              "marketingActivityId",
+            )
+          {
+            Some(id) ->
+              store.get_effective_marketing_activity_record_by_id(store, id)
+            None -> find_marketing_activity_by_utm(store, selector_utm)
+          }
+      }
+      case activity {
+        None ->
           validation_result(
             key,
             "marketingActivityUpdateExternal",
-            [immutable_utm_error()],
+            [marketing_activity_missing_error()],
             store,
             identity,
           )
-        True ->
-          update_external_activity_success(
-            store,
-            identity,
-            key,
-            activity,
-            input,
-          )
+        Some(activity) -> {
+          let requested_utm =
+            graphql_helpers.read_arg_object(args, "utm")
+            |> option.unwrap(dict.new())
+          case
+            validate_external_activity_update(
+              store,
+              activity,
+              input,
+              read_utm(requested_utm),
+              !dict.is_empty(requested_utm),
+            )
+          {
+            Some(error) ->
+              validation_result(
+                key,
+                "marketingActivityUpdateExternal",
+                [error],
+                store,
+                identity,
+              )
+            None ->
+              update_external_activity_success(
+                store,
+                identity,
+                key,
+                activity,
+                input,
+              )
+          }
+        }
       }
     }
   }
@@ -1032,20 +1054,23 @@ fn marketing_activity_upsert_external(
       }
     Some(activity) ->
       case
-        same_utm(
-          read_marketing_object(activity.data, "utmParameters"),
+        validate_external_activity_update(
+          store,
+          activity,
+          input,
           read_utm(input),
+          True,
         )
       {
-        False ->
+        Some(error) ->
           validation_result(
             key,
             "marketingActivityUpsertExternal",
-            [immutable_utm_error()],
+            [error],
             store,
             identity,
           )
-        True ->
+        None ->
           update_external_activity_success(
             store,
             identity,
@@ -1055,6 +1080,129 @@ fn marketing_activity_upsert_external(
           )
       }
   }
+}
+
+fn validate_external_activity_update(
+  store: Store,
+  activity: MarketingRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  requested_utm: Option(Dict(String, MarketingValue)),
+  validate_utm: Bool,
+) -> Option(UserError) {
+  case read_marketing_bool(activity.data, "isExternal") {
+    False -> Some(activity_not_external_error())
+    True ->
+      case read_marketing_object(activity.data, "marketingEvent") {
+        None -> Some(marketing_event_does_not_exist_error())
+        Some(event) ->
+          validate_external_activity_event_update(
+            store,
+            activity,
+            event,
+            input,
+            requested_utm,
+            validate_utm,
+          )
+      }
+  }
+}
+
+fn validate_external_activity_event_update(
+  store: Store,
+  activity: MarketingRecord,
+  event: Dict(String, MarketingValue),
+  input: Dict(String, root_field.ResolvedValue),
+  requested_utm: Option(Dict(String, MarketingValue)),
+  validate_utm: Bool,
+) -> Option(UserError) {
+  case
+    supplied_string_differs(
+      input,
+      "channelHandle",
+      read_marketing_object_string(Some(event), "channelHandle"),
+    )
+  {
+    True -> Some(immutable_channel_handle_error())
+    False ->
+      case
+        supplied_string_differs(
+          input,
+          "urlParameterValue",
+          read_marketing_string(activity.data, "urlParameterValue"),
+        )
+      {
+        True -> Some(immutable_url_parameter_error())
+        False ->
+          case
+            validate_utm
+            && !same_utm(
+              read_marketing_object(activity.data, "utmParameters"),
+              requested_utm,
+            )
+          {
+            True -> Some(immutable_utm_error())
+            False ->
+              validate_external_activity_parent_and_hierarchy(
+                store,
+                activity,
+                input,
+              )
+          }
+      }
+  }
+}
+
+fn validate_external_activity_parent_and_hierarchy(
+  store: Store,
+  activity: MarketingRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(UserError) {
+  let existing_parent_remote_id =
+    read_marketing_string(activity.data, "parentRemoteId")
+  case dict.has_key(input, "parentRemoteId") {
+    True ->
+      case read_value_string(input, "parentRemoteId") {
+        Some(parent_remote_id) ->
+          case find_marketing_event_by_remote_id(store, parent_remote_id) {
+            None -> Some(invalid_remote_id_error())
+            Some(_) ->
+              case existing_parent_remote_id == Some(parent_remote_id) {
+                True -> validate_external_activity_hierarchy(activity, input)
+                False -> Some(immutable_parent_id_error())
+              }
+          }
+        None ->
+          case existing_parent_remote_id {
+            None -> validate_external_activity_hierarchy(activity, input)
+            Some(_) -> Some(immutable_parent_id_error())
+          }
+      }
+    False -> validate_external_activity_hierarchy(activity, input)
+  }
+}
+
+fn validate_external_activity_hierarchy(
+  activity: MarketingRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(UserError) {
+  case
+    supplied_string_differs(
+      input,
+      "hierarchyLevel",
+      read_marketing_string(activity.data, "hierarchyLevel"),
+    )
+  {
+    True -> Some(immutable_hierarchy_level_error())
+    False -> None
+  }
+}
+
+fn supplied_string_differs(
+  input: Dict(String, root_field.ResolvedValue),
+  field: String,
+  existing: Option(String),
+) -> Bool {
+  dict.has_key(input, field) && read_value_string(input, field) != existing
 }
 
 fn marketing_activity_delete_external(
@@ -1435,11 +1583,75 @@ fn marketing_activity_missing_error() -> UserError {
   )
 }
 
+fn invalid_marketing_activity_external_arguments_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Either marketing activity ID, remote ID, or UTM parameters must be provided.",
+    code: Some("INVALID_MARKETING_ACTIVITY_EXTERNAL_ARGUMENTS"),
+  )
+}
+
+fn activity_not_external_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Marketing activity is not external.",
+    code: Some("ACTIVITY_NOT_EXTERNAL"),
+  )
+}
+
+fn marketing_event_does_not_exist_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Marketing event does not exist.",
+    code: Some("MARKETING_EVENT_DOES_NOT_EXIST"),
+  )
+}
+
+fn immutable_channel_handle_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Channel handle cannot be modified.",
+    code: Some("IMMUTABLE_CHANNEL_HANDLE"),
+  )
+}
+
+fn immutable_url_parameter_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "URL parameter value cannot be modified.",
+    code: Some("IMMUTABLE_URL_PARAMETER"),
+  )
+}
+
 fn immutable_utm_error() -> UserError {
   UserError(
     field: Some(["input"]),
     message: "UTM parameters cannot be modified.",
     code: Some("IMMUTABLE_UTM_PARAMETERS"),
+  )
+}
+
+fn invalid_remote_id_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Remote ID does not correspond to an activity.",
+    code: Some("INVALID_REMOTE_ID"),
+  )
+}
+
+fn immutable_parent_id_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Parent marketing activity cannot be modified.",
+    code: Some("IMMUTABLE_PARENT_ID"),
+  )
+}
+
+fn immutable_hierarchy_level_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Hierarchy level cannot be modified.",
+    code: Some("IMMUTABLE_HIERARCHY_LEVEL"),
   )
 }
 
@@ -2241,6 +2453,16 @@ fn read_marketing_string(
   }
 }
 
+fn read_marketing_bool(
+  source: Dict(String, MarketingValue),
+  field: String,
+) -> Bool {
+  case dict.get(source, field) {
+    Ok(MarketingBool(value)) -> value
+    _ -> False
+  }
+}
+
 fn read_marketing_object(
   source: Dict(String, MarketingValue),
   field: String,
@@ -2259,6 +2481,17 @@ fn read_marketing_object_string(
     Some(source) -> read_marketing_string(source, field)
     None -> None
   }
+}
+
+fn find_marketing_event_by_remote_id(
+  store: Store,
+  remote_id: String,
+) -> Option(MarketingRecord) {
+  store.list_effective_marketing_events(store)
+  |> list.find(fn(event) {
+    read_marketing_string(event.data, "remoteId") == Some(remote_id)
+  })
+  |> option.from_result
 }
 
 fn marketing_remote_id(data: Dict(String, MarketingValue)) -> Option(String) {
