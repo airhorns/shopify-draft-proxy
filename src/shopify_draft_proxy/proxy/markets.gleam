@@ -1302,7 +1302,7 @@ fn handle_market_update(
             "market",
             ["id"],
             "Market does not exist",
-            "MARKET_NOT_FOUND",
+            "DEFINITION_NOT_FOUND",
             store,
             identity,
           )
@@ -1316,7 +1316,7 @@ fn handle_market_update(
         "market",
         ["id"],
         "Market does not exist",
-        "MARKET_NOT_FOUND",
+        "DEFINITION_NOT_FOUND",
         store,
         identity,
       )
@@ -1353,7 +1353,7 @@ fn handle_market_delete(
             "marketDelete",
             ["id"],
             "Market does not exist",
-            "MARKET_NOT_FOUND",
+            "DEFINITION_NOT_FOUND",
             store,
             identity,
           )
@@ -1366,7 +1366,7 @@ fn handle_market_delete(
         "marketDelete",
         ["id"],
         "Market does not exist",
-        "MARKET_NOT_FOUND",
+        "DEFINITION_NOT_FOUND",
         store,
         identity,
       )

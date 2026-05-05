@@ -38,7 +38,7 @@
       "name": "marketUpdateUnknownId",
       "query": "#graphql\nmutation MarketUpdateUnknownId($id: ID!, $input: MarketUpdateInput!) {\n  marketUpdate(id: $id, input: $input) {\n    market { id name handle status enabled }\n    userErrors { field message code }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/Market/999999999999",
+        "id": "gid://shopify/Market/9999999",
         "input": {
           "name": "Nope"
         }
@@ -53,7 +53,7 @@
                 {
                   "field": ["id"],
                   "message": "Market does not exist",
-                  "code": "MARKET_NOT_FOUND"
+                  "code": "DEFINITION_NOT_FOUND"
                 }
               ]
             }
@@ -65,7 +65,7 @@
       "name": "marketDeleteUnknownId",
       "query": "#graphql\nmutation MarketDeleteUnknownId($id: ID!) {\n  marketDelete(id: $id) {\n    deletedId\n    userErrors { field message code }\n  }\n}",
       "variables": {
-        "id": "gid://shopify/Market/999999999999"
+        "id": "gid://shopify/Market/9999999"
       },
       "response": {
         "status": 200,
@@ -77,7 +77,7 @@
                 {
                   "field": ["id"],
                   "message": "Market does not exist",
-                  "code": "MARKET_NOT_FOUND"
+                  "code": "DEFINITION_NOT_FOUND"
                 }
               ]
             }

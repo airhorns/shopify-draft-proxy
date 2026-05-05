@@ -1,5 +1,5 @@
 {
-  "scenarioId": "market-update-unknown-id-validation",
+  "scenarioId": "market-update-not-found",
   "operationNames": ["marketUpdate"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "user-errors-parity"],
@@ -11,7 +11,7 @@
     "variablesCapturePath": "$.cases[1].variables"
   },
   "comparisonMode": "captured-vs-proxy-request",
-  "notes": "Safe live Shopify Markets validation capture for Admin GraphQL 2026-04. Unknown marketUpdate ID returns MarketUserError without mutating market state.",
+  "notes": "Safe Shopify Markets validation branch for Admin GraphQL 2026-04. Unknown marketUpdate ID returns MarketUserError code DEFINITION_NOT_FOUND without mutating market state.",
   "comparison": {
     "mode": "strict-json",
     "expectedDifferences": [],
