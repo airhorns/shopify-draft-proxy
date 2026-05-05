@@ -1,0 +1,124 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T02:34:55.122Z",
+  "captureType": "shipping-user-error-code-parity",
+  "scopedRoots": ["carrierServiceCreate", "carrierServiceUpdate", "carrierServiceDelete"],
+  "notes": [
+    "HAR-578 captures typed carrier-service userError.code parity for blank-create and unknown-id update/delete validation branches.",
+    "Other shipping-fulfillment payloads that expose generic UserError in Admin 2026-04 cannot be code-selected in live conformance and are intentionally excluded from this code-specific capture."
+  ],
+  "captures": {
+    "blankCarrierCreate": {
+      "query": "mutation ShippingUserErrorCodesCarrierCreate($input: DeliveryCarrierServiceCreateInput!) {\n    carrierServiceCreate(input: $input) {\n      carrierService {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "",
+          "callbackUrl": "https://mock.shop/carrier-service-rates",
+          "supportsServiceDiscovery": false,
+          "active": true
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "carrierServiceCreate": {
+              "carrierService": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Shipping rate provider name can't be blank",
+                  "code": "CARRIER_SERVICE_CREATE_FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownCarrierUpdate": {
+      "query": "mutation ShippingUserErrorCodesCarrierUpdate($input: DeliveryCarrierServiceUpdateInput!) {\n    carrierServiceUpdate(input: $input) {\n      carrierService {\n        id\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/DeliveryCarrierService/999999999999",
+          "name": "HAR-578 unknown carrier"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "carrierServiceUpdate": {
+              "carrierService": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "The carrier or app could not be found.",
+                  "code": "CARRIER_SERVICE_UPDATE_FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownCarrierDelete": {
+      "query": "mutation ShippingUserErrorCodesCarrierDelete($id: ID!) {\n    carrierServiceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/DeliveryCarrierService/999999999999"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "carrierServiceDelete": {
+              "deletedId": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The carrier or app could not be found.",
+                  "code": "CARRIER_SERVICE_DELETE_FAILED"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

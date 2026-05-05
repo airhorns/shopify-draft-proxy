@@ -266,6 +266,28 @@ pub fn read_arg_bool(
   }
 }
 
+/// Read a string-list argument from a resolved-arg dict. Returns
+/// `None` when the argument is absent, null, or not a list. Non-string
+/// entries are filtered out, matching the local helper semantics used
+/// by domain mutation handlers.
+pub fn read_arg_string_list(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(List(String)) {
+  case dict.get(args, name) {
+    Ok(root_field.ListVal(values)) ->
+      Some(
+        list.filter_map(values, fn(value) {
+          case value {
+            root_field.StringVal(item) -> Ok(item)
+            _ -> Error(Nil)
+          }
+        }),
+      )
+    _ -> None
+  }
+}
+
 /// Read an object argument from a resolved-arg dict. Returns `None`
 /// when the argument is absent, null, or not an object. Callers that
 /// want an empty-default `Dict` should pipe through

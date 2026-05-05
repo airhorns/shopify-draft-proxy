@@ -855,6 +855,7 @@ fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
@@ -1390,20 +1391,7 @@ fn handle_catalog_create(
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let title = read_arg_string_allow_empty(input, "title") |> option.unwrap("")
-  let errors = case string.trim(title) {
-    "" -> [user_error(["input", "title"], "Title can't be blank", "BLANK")]
-    trimmed ->
-      case string.length(trimmed) < 2 {
-        True -> [
-          user_error(
-            ["input", "title"],
-            "Title is too short (minimum is 2 characters)",
-            "TOO_SHORT",
-          ),
-        ]
-        False -> []
-      }
-  }
+  let errors = catalog_create_input_errors(store, input, title)
   case errors {
     [] -> {
       let #(id, next_identity) =
@@ -3242,6 +3230,211 @@ fn currency_name(currency: String) -> String {
     "USD" -> "United States Dollar"
     _ -> currency
   }
+}
+
+fn catalog_create_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  title: String,
+) -> List(CapturedJsonValue) {
+  let title_errors = catalog_title_errors(title)
+  case title_errors {
+    [] -> {
+      let status_errors = catalog_status_errors(input)
+      case status_errors {
+        [] -> catalog_context_errors(store, input)
+        _ -> status_errors
+      }
+    }
+    _ -> title_errors
+  }
+}
+
+fn catalog_title_errors(title: String) -> List(CapturedJsonValue) {
+  case string.trim(title) {
+    "" -> [user_error(["input", "title"], "Title can't be blank", "BLANK")]
+    trimmed ->
+      case string.length(trimmed) < 2 {
+        True -> [
+          user_error(
+            ["input", "title"],
+            "Title is too short (minimum is 2 characters)",
+            "TOO_SHORT",
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn catalog_status_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case read_arg_string_allow_empty(input, "status") {
+    None -> [
+      user_error(["input", "status"], "Status is required", "REQUIRED"),
+    ]
+    Some(status) ->
+      case list.contains(["ACTIVE", "ARCHIVED", "DRAFT"], status) {
+        True -> []
+        False -> [
+          user_error(["input", "status"], "Status is invalid", "INVALID"),
+        ]
+      }
+  }
+}
+
+fn catalog_context_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_object(input, "context") {
+    None -> [
+      user_error(["input", "context"], "Context is required", "INVALID"),
+    ]
+    Some(context) -> catalog_context_object_errors(store, context)
+  }
+}
+
+fn catalog_context_object_errors(
+  store: Store,
+  context: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(context, "driverType") {
+    None -> [
+      user_error(
+        ["input", "context", "driverType"],
+        "Driver type is required",
+        "INVALID",
+      ),
+    ]
+    Some(driver_type) ->
+      case driver_type {
+        "MARKET" -> {
+          case
+            require_catalog_context_ids(
+              context,
+              "marketIds",
+              "Market ids can't be blank",
+            )
+          {
+            Ok(ids) -> missing_market_context_errors(store, ids)
+            Error(errors) -> errors
+          }
+        }
+        "COMPANY_LOCATION" -> {
+          case
+            require_catalog_context_ids(
+              context,
+              "companyLocationIds",
+              "Company location ids can't be blank",
+            )
+          {
+            Ok(ids) -> {
+              case missing_company_location_context_errors(store, ids) {
+                [] -> unsupported_catalog_context_errors("COMPANY_LOCATION")
+                errors -> errors
+              }
+            }
+            Error(errors) -> errors
+          }
+        }
+        "COUNTRY" -> {
+          case
+            require_catalog_context_ids(
+              context,
+              "countryCodes",
+              "Country codes can't be blank",
+            )
+          {
+            Ok(_) -> unsupported_catalog_context_errors("COUNTRY")
+            Error(errors) -> errors
+          }
+        }
+        _ -> [
+          user_error(
+            ["input", "context", "driverType"],
+            "Driver type is invalid",
+            "INVALID",
+          ),
+        ]
+      }
+  }
+}
+
+fn unsupported_catalog_context_errors(
+  driver_type: String,
+) -> List(CapturedJsonValue) {
+  [
+    user_error(
+      ["input", "context", "driverType"],
+      "Catalog context driverType "
+        <> driver_type
+        <> " is not supported by the local MarketCatalog model",
+      "INVALID",
+    ),
+  ]
+}
+
+fn require_catalog_context_ids(
+  context: Dict(String, root_field.ResolvedValue),
+  field_name: String,
+  message: String,
+) -> Result(List(String), List(CapturedJsonValue)) {
+  case read_arg_string_array(context, field_name) {
+    Some(ids) ->
+      case ids {
+        [] ->
+          Error([
+            user_error(["input", "context", field_name], message, "INVALID"),
+          ])
+        [_, ..] -> Ok(ids)
+      }
+    None ->
+      Error([
+        user_error(["input", "context", field_name], message, "INVALID"),
+      ])
+  }
+}
+
+fn missing_market_context_errors(
+  store: Store,
+  market_ids: List(String),
+) -> List(CapturedJsonValue) {
+  market_ids
+  |> list.index_map(fn(id, index) { #(id, index) })
+  |> list.filter_map(fn(entry) {
+    let #(id, index) = entry
+    case store.get_effective_market_by_id(store, id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          ["input", "context", "marketIds", int.to_string(index)],
+          "Market does not exist",
+          "INVALID",
+        ))
+    }
+  })
+}
+
+fn missing_company_location_context_errors(
+  store: Store,
+  location_ids: List(String),
+) -> List(CapturedJsonValue) {
+  location_ids
+  |> list.index_map(fn(id, index) { #(id, index) })
+  |> list.filter_map(fn(entry) {
+    let #(id, index) = entry
+    case store.get_effective_b2b_company_location_by_id(store, id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          ["input", "context", "companyLocationIds", int.to_string(index)],
+          "Company location does not exist",
+          "INVALID",
+        ))
+    }
+  })
 }
 
 fn catalog_data(

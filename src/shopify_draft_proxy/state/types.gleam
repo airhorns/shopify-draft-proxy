@@ -869,6 +869,7 @@ pub type ShopPolicyRecord {
     url: String,
     created_at: String,
     updated_at: String,
+    migrated_to_html: Bool,
   )
 }
 
@@ -1385,6 +1386,21 @@ pub type MarketingEngagementRecord {
 /// Mirrors `ValidationRecord`. `enable`/`blockOnFailure` are nullable
 /// in TS so the same handler can model partial upstream payloads;
 /// here they're `Option(Bool)`.
+pub type ValidationMetafieldRecord {
+  ValidationMetafieldRecord(
+    id: String,
+    validation_id: String,
+    namespace: String,
+    key: String,
+    type_: Option(String),
+    value: Option(String),
+    compare_digest: Option(String),
+    created_at: Option(String),
+    updated_at: Option(String),
+    owner_type: Option(String),
+  )
+}
+
 pub type ValidationRecord {
   ValidationRecord(
     id: String,
@@ -1394,6 +1410,7 @@ pub type ValidationRecord {
     function_id: Option(String),
     function_handle: Option(String),
     shopify_function_id: Option(String),
+    metafields: List(ValidationMetafieldRecord),
     created_at: Option(String),
     updated_at: Option(String),
   )
@@ -1465,6 +1482,7 @@ pub type GiftCardRecord {
     legacy_resource_id: String,
     last_characters: String,
     masked_code: String,
+    code: Option(String),
     enabled: Bool,
     notify: Bool,
     deactivated_at: Option(String),

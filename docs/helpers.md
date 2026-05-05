@@ -9,8 +9,18 @@ Shared helpers for GraphQL Admin proxy serializers.
 - cursor windowing, `nodes` / `edges` serialization, and selected `pageInfo` fields
 - selected-field lookup, alias-aware response keys, and connection envelope helpers
 - synthetic cursor generation for local and snapshot-backed connection responses
+- resolved argument readers for common scalar, object, and string-list input shapes
 
 Use this module for pagination and connection envelopes. Resource-specific sorting, filtering, cursor derivation, and node projection should stay in the owning domain module and pass explicit decisions into these helpers.
+
+## `src/shopify_draft_proxy/proxy/app_identity.gleam`
+
+Shared helper for request-owned app identity.
+
+- reads the `x-shopify-draft-proxy-api-client-id` header case-insensitively
+- trims blank values to `None`
+
+Use this module when local Shopify behavior depends on the requesting app's API client ID, such as `$app:` namespace resolution or app-scoped callback validation. Do not hardcode a conformance app ID in domain code.
 
 ## `src/shopify_draft_proxy/proxy/metafields.gleam`
 
@@ -19,6 +29,7 @@ Shared helpers for owner-scoped metafield serializers and staging input handling
 - owner-scoped metafield normalization
 - metafield input parsing and `(namespace, key)` replacement semantics
 - singular `metafield(...)` and connection-style `metafields(...)` serialization
+- captured Admin metafield type-name list/message used by mutation validators that need Shopify-like `INVALID_TYPE` payloads
 
 Use this module before adding product-, customer-, order-, or metaobject-local metafield helpers. Owner-specific validation, store placement, and captured Shopify quirks belong in the resource module that owns them.
 
@@ -37,6 +48,16 @@ Use this module before adding resource-local custom-data parsers or serializers.
 Shared helpers for Shopify Admin `query:` parsing, query execution, AST traversal, term-list guards, and primitive term matching.
 
 Endpoint modules should provide only the domain-specific positive term matcher and documented Shopify quirks. Do not add new resource-local query parsers or duplicated query-tree traversal helpers.
+
+## `src/shopify_draft_proxy/shopify/resource_ids.gleam`
+
+Shared helpers for Shopify resource ID handling.
+
+- canonical Shopify GID construction from full GIDs, numeric tails, and opaque tails
+- GID tail extraction with query suffixes ignored
+- stable Shopify resource ID sorting that compares numeric tails when available
+
+Use this module before adding resource-local GID tail parsers, canonical ID builders, or Shopify resource ID comparators.
 
 ## `src/shopify_draft_proxy/proxy/upstream_query.gleam`
 

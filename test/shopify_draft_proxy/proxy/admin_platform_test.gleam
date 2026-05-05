@@ -9,6 +9,7 @@ import shopify_draft_proxy/proxy/admin_platform
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -555,6 +556,7 @@ pub fn backup_region_update_stages_and_reads_back_test() {
       request_path,
       document,
       empty_vars(),
+      empty_upstream_context(),
     )
   let outcome = record_drafts(outcome, request_path, document)
 
@@ -584,6 +586,7 @@ pub fn backup_region_update_omitted_region_returns_current_without_log_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { backupRegionUpdate { backupRegion { id name code } userErrors { field message code } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
 
   let body = json.to_string(outcome.data)
@@ -607,6 +610,7 @@ pub fn backup_region_update_null_region_returns_staged_current_test() {
       request_path,
       "mutation { backupRegionUpdate(region: { countryCode: US }) { backupRegion { id name code } userErrors { field message code } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let outcome =
     admin_platform.process_mutation(
@@ -615,6 +619,7 @@ pub fn backup_region_update_null_region_returns_staged_current_test() {
       request_path,
       "mutation { backupRegionUpdate(region: null) { backupRegion { id name code } userErrors { field message code } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
 
   let body = json.to_string(outcome.data)
@@ -637,6 +642,7 @@ pub fn backup_region_update_uses_captured_shop_country_evidence_test() {
       request_path,
       backup_region_update_document("US"),
       empty_vars(),
+      empty_upstream_context(),
     )
 
   let body = json.to_string(outcome.data)
@@ -666,6 +672,7 @@ pub fn backup_region_update_uses_captured_shop_country_evidence_test() {
         request_path,
         backup_region_update_document(code),
         empty_vars(),
+        empty_upstream_context(),
       )
     let body = json.to_string(outcome.data)
     assert string.contains(
@@ -690,6 +697,7 @@ pub fn backup_region_update_validation_does_not_log_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { backupRegionUpdate(region: { countryCode: ZZ }) { backupRegion { id } userErrors { field message code } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
 
   let body = json.to_string(outcome.data)
@@ -710,6 +718,7 @@ pub fn flow_utility_mutations_stage_without_sensitive_state_test() {
       request_path,
       document,
       empty_vars(),
+      empty_upstream_context(),
     )
   let outcome = record_drafts(outcome, request_path, document)
 
@@ -738,6 +747,7 @@ pub fn flow_validation_branches_do_not_stage_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { badSig: flowGenerateSignature(id: \"gid://shopify/FlowTrigger/0\", payload: \"{}\") { signature userErrors { field message } } badReceive: flowTriggerReceive(handle: \"har-374-missing\", payload: \"{}\") { userErrors { field message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
 
   let body = json.to_string(outcome.data)
@@ -756,6 +766,7 @@ pub fn flow_trigger_receive_validation_matches_shopify_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { flowTriggerReceive { userErrors { field message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let no_args_body = json.to_string(no_args.data)
   assert string.contains(no_args_body, "\"field\":[\"handle\"]")
@@ -772,6 +783,7 @@ pub fn flow_trigger_receive_validation_matches_shopify_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { flowTriggerReceive(payload: { test: \"value\" }) { userErrors { field message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let payload_only_body = json.to_string(payload_only.data)
   assert string.contains(payload_only_body, "\"field\":[\"handle\"]")
@@ -788,6 +800,7 @@ pub fn flow_trigger_receive_validation_matches_shopify_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { flowTriggerReceive(handle: \"\") { userErrors { field message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let empty_handle_body = json.to_string(empty_handle.data)
   assert string.contains(empty_handle_body, "\"field\":[\"handle\"]")
@@ -804,6 +817,7 @@ pub fn flow_trigger_receive_validation_matches_shopify_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { flowTriggerReceive(handle: null) { userErrors { field message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let null_handle_body = json.to_string(null_handle.data)
   assert string.contains(null_handle_body, "\"field\":[\"handle\"]")
@@ -820,6 +834,7 @@ pub fn flow_trigger_receive_validation_matches_shopify_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"properties\\\":{}}\", handle: \"test\") { userErrors { field message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
   let conflict_body = json.to_string(conflict.data)
   assert string.contains(conflict_body, "\"field\":[\"body\"]")
@@ -839,6 +854,7 @@ pub fn flow_trigger_receive_accepts_non_local_handle_test() {
       "/admin/api/2026-04/graphql.json",
       "mutation { flowTriggerReceive(handle: \"my-real-trigger-handle\", payload: { key: \"v\" }) { userErrors { field message } } }",
       empty_vars(),
+      empty_upstream_context(),
     )
 
   let body = json.to_string(outcome.data)
@@ -859,6 +875,7 @@ pub fn flow_trigger_receive_payload_size_uses_json_utf8_bytes_test() {
       "/admin/api/2026-04/graphql.json",
       document,
       dict.from_list([#("payload", root_field.StringVal(too_large_payload))]),
+      empty_upstream_context(),
     )
   let too_large_body = json.to_string(too_large.data)
   assert string.contains(
@@ -875,6 +892,7 @@ pub fn flow_trigger_receive_payload_size_uses_json_utf8_bytes_test() {
       "/admin/api/2026-04/graphql.json",
       document,
       dict.from_list([#("payload", root_field.StringVal(allowed_payload))]),
+      empty_upstream_context(),
     )
   let allowed_body = json.to_string(allowed.data)
   assert string.contains(allowed_body, "\"userErrors\":[]")

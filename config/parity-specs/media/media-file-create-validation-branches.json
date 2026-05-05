@@ -1,0 +1,80 @@
+{
+  "scenarioId": "media-file-create-validation-branches",
+  "operationNames": ["fileCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/media/media-file-create-validation-branches.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/media_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/media/media-file-create-validation-branches.graphql",
+    "variablesCapturePath": "$.scenarios[0].variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-700 captured public-Shopify executable fileCreate validation branches for data URL rejection, filename/originalSource extension mismatch, duplicateResolutionMode guardrails, and a successful create. Current public Admin schemas through unstable do not expose referencesToAdd on FileCreateInput, and public 2026-04 still emits ALT_VALUE_LIMIT_EXCEEDED for 513-character alt input; the fixture records both probes while focused runtime tests cover the private-core guardrails requested by the ticket.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "data-url-source",
+        "capturePath": "$.scenarios[0].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate"
+      },
+      {
+        "name": "filename-extension-mismatch",
+        "capturePath": "$.scenarios[1].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-create-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[1].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "replace-mode-missing-content-type",
+        "capturePath": "$.scenarios[2].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-create-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[2].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "replace-mode-missing-filename",
+        "capturePath": "$.scenarios[3].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-create-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[3].variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "successful-create",
+        "capturePath": "$.scenarios[4].response.payload.data.fileCreate",
+        "proxyPath": "$.data.fileCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.files[0].id",
+            "matcher": "shopify-gid:MediaImage",
+            "reason": "The proxy generates a local MediaImage GID; Shopify returns the dev-store MediaImage GID."
+          },
+          {
+            "path": "$.files[0].createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic staged timestamp sequence; Shopify returns the live creation timestamp."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/media/media-file-create-validation-branches.graphql",
+          "variablesCapturePath": "$.scenarios[4].variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

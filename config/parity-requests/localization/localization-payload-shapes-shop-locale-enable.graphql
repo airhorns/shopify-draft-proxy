@@ -1,0 +1,19 @@
+mutation LocalizationPayloadShapesShopLocaleEnable($locale: String!, $marketWebPresenceIds: [ID!]) {
+  shopLocaleEnable(locale: $locale, marketWebPresenceIds: $marketWebPresenceIds) {
+    shopLocale {
+      locale
+      published
+      marketWebPresences {
+        id
+        __typename
+        defaultLocale {
+          locale
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

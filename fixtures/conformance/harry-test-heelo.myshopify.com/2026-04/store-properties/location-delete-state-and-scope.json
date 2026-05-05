@@ -1,0 +1,1509 @@
+{
+  "capturedAt": "2026-05-05T05:25:20.061Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "notes": [
+    "Captures public Admin API locationDelete guard behavior for successful inactive/no-inventory deletion, active/no-inventory validation, active stocked validation, primary-location validation, and fulfillment-service-managed scope validation.",
+    "The public Admin API did not permit constructing an inactive stocked location: inventoryActivate rejects deactivated locations, and locationDeactivate requires inventory relocation while stock remains. The proxy still models inactive stocked fixture state in runtime tests."
+  ],
+  "setup": {
+    "primaryLocations": {
+      "name": "primaryLocations",
+      "query": "query LocationDeletePrimaryLocationSeed {\n    locations(first: 20) {\n      nodes {\n        id\n        name\n        isActive\n        isFulfillmentService\n        hasActiveInventory\n        hasUnfulfilledOrders\n        isPrimary\n      }\n    }\n  }",
+      "variables": {},
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112833036594",
+                  "name": "HAR-654 Main 20260505044352",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112833069362",
+                  "name": "HAR-654 Sub 20260505044352",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/112831103282",
+                  "name": "HAR-658 lifecycle 20260505013332",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": false,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": true,
+                  "hasUnfulfilledOrders": false,
+                  "isPrimary": false
+                },
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "isActive": true,
+                  "isFulfillmentService": false,
+                  "hasActiveInventory": true,
+                  "hasUnfulfilledOrders": true,
+                  "isPrimary": true
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "inactiveNoInventoryCreate": {
+      "name": "HAR-663 delete success 20260505052520LocationAdd",
+      "query": "mutation LocationDeleteFixtureAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        hasActiveInventory\n        isFulfillmentService\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "HAR-663 delete success 20260505052520",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "663 State St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112833986866",
+                "name": "HAR-663 delete success 20260505052520",
+                "isActive": true,
+                "hasActiveInventory": false,
+                "isFulfillmentService": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "inactiveNoInventoryDeactivate": {
+      "name": "inactiveNoInventoryDeactivate",
+      "query": "mutation LocationDeleteFixtureDeactivate($locationId: ID!) {\n    locationDeactivate(locationId: $locationId)\n      @idempotent(key: \"location-delete-state-and-scope-inactive-no-inventory-20260505052520\") {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112833986866"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112833986866",
+                "isActive": false,
+                "hasActiveInventory": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeNoInventoryCreate": {
+      "name": "HAR-663 active no inventory 20260505052520LocationAdd",
+      "query": "mutation LocationDeleteFixtureAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        hasActiveInventory\n        isFulfillmentService\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "HAR-663 active no inventory 20260505052520",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "663 State St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112834019634",
+                "name": "HAR-663 active no inventory 20260505052520",
+                "isActive": true,
+                "hasActiveInventory": false,
+                "isFulfillmentService": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeInventoryCreate": {
+      "name": "HAR-663 active inventory 20260505052520LocationAdd",
+      "query": "mutation LocationDeleteFixtureAdd($input: LocationAddInput!) {\n    locationAdd(input: $input) {\n      location {\n        id\n        name\n        isActive\n        hasActiveInventory\n        isFulfillmentService\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "name": "HAR-663 active inventory 20260505052520",
+          "fulfillsOnlineOrders": false,
+          "address": {
+            "address1": "663 State St",
+            "city": "Boston",
+            "provinceCode": "MA",
+            "countryCode": "US",
+            "zip": "02110"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationAdd": {
+              "location": {
+                "id": "gid://shopify/Location/112834052402",
+                "name": "HAR-663 active inventory 20260505052520",
+                "isActive": true,
+                "hasActiveInventory": false,
+                "isFulfillmentService": false
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeInventoryProductCreate": {
+      "name": "activeInventoryProductCreate",
+      "query": "mutation LocationDeleteInventoryProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product {\n        id\n        title\n        variants(first: 1) {\n          nodes {\n            id\n            inventoryItem {\n              id\n              tracked\n              requiresShipping\n            }\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "product": {
+          "title": "activeInventory product 20260505052520"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10177066664242",
+                "title": "activeInventory product 20260505052520",
+                "variants": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/ProductVariant/51126404448562",
+                      "inventoryItem": {
+                        "id": "gid://shopify/InventoryItem/53229509476658",
+                        "tracked": false,
+                        "requiresShipping": true
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 14,
+              "actualQueryCost": 14,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1986,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeInventoryProductTrack": {
+      "name": "activeInventoryProductTrackInventory",
+      "query": "mutation LocationDeleteInventoryProductTrack($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {\n    productVariantsBulkUpdate(productId: $productId, variants: $variants) {\n      product {\n        id\n        tracksInventory\n        totalInventory\n      }\n      productVariants {\n        id\n        inventoryItem {\n          id\n          tracked\n          requiresShipping\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "productId": "gid://shopify/Product/10177066664242",
+        "variants": [
+          {
+            "id": "gid://shopify/ProductVariant/51126404448562",
+            "inventoryItem": {
+              "tracked": true
+            }
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkUpdate": {
+              "product": {
+                "id": "gid://shopify/Product/10177066664242",
+                "tracksInventory": true,
+                "totalInventory": 0
+              },
+              "productVariants": [
+                {
+                  "id": "gid://shopify/ProductVariant/51126404448562",
+                  "inventoryItem": {
+                    "id": "gid://shopify/InventoryItem/53229509476658",
+                    "tracked": true,
+                    "requiresShipping": true
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeInventoryActivate": {
+      "name": "activeInventoryInventoryActivate",
+      "query": "mutation LocationDeleteInventoryActivate(\n    $inventoryItemId: ID!\n    $locationId: ID!\n    $available: Int\n    $idempotencyKey: String!\n  ) {\n    inventoryActivate(\n      inventoryItemId: $inventoryItemId\n      locationId: $locationId\n      available: $available\n    ) @idempotent(key: $idempotencyKey) {\n      inventoryLevel {\n        id\n        location {\n          id\n          name\n        }\n        quantities(names: [\"available\", \"committed\", \"on_hand\"]) {\n          name\n          quantity\n          updatedAt\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/53229509476658",
+        "locationId": "gid://shopify/Location/112834052402",
+        "available": 7,
+        "idempotencyKey": "location-delete-state-and-scope-activeInventory-20260505052520"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "inventoryActivate": {
+              "inventoryLevel": {
+                "id": "gid://shopify/InventoryLevel/150029304114?inventory_item_id=53229509476658",
+                "location": {
+                  "id": "gid://shopify/Location/112834052402",
+                  "name": "HAR-663 active inventory 20260505052520"
+                },
+                "quantities": [
+                  {
+                    "name": "available",
+                    "quantity": 7,
+                    "updatedAt": "2026-05-05T05:25:23Z"
+                  },
+                  {
+                    "name": "committed",
+                    "quantity": 0,
+                    "updatedAt": null
+                  },
+                  {
+                    "name": "on_hand",
+                    "quantity": 7,
+                    "updatedAt": null
+                  }
+                ]
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentServiceCreate": {
+      "name": "fulfillmentServiceCreate",
+      "query": "mutation LocationDeleteFulfillmentServiceCreate($name: String!) {\n    fulfillmentServiceCreate(\n      name: $name\n      trackingSupport: true\n      inventoryManagement: true\n      requiresShippingMethod: true\n    ) {\n      fulfillmentService {\n        id\n        handle\n        serviceName\n        location {\n          id\n          name\n          isFulfillmentService\n          isActive\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "name": "HAR-663 FS 20260505052520"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/71918944562?id=true",
+                "handle": "har-663-fs-20260505052520",
+                "serviceName": "HAR-663 FS 20260505052520",
+                "location": {
+                  "id": "gid://shopify/Location/112834085170",
+                  "name": "HAR-663 FS 20260505052520",
+                  "isFulfillmentService": true,
+                  "isActive": true
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "workflow": {
+    "inactiveNoInventoryDelete": {
+      "name": "inactiveNoInventoryDelete",
+      "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112833986866"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/112833986866",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "locationsAfterInactiveNoInventoryDelete": {
+      "name": "locationsAfterInactiveNoInventoryDelete",
+      "query": "query LocationDeleteReadBack($first: Int!) {\n    locations(first: $first) {\n      edges {\n        node {\n          id\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n        startCursor\n        endCursor\n      }\n    }\n  }",
+      "variables": {
+        "first": 50
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locations": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112829759794"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112829956402"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112833036594"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112833069362"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112831103282"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/106318463282"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMTI4Mjk3NTk3OTQsImxhc3RfdmFsdWUiOiJIQVItNTcxIHRyYW5zZmVyIGRlc3RpbmF0aW9uIDIwMjYwNTA1MDAwNjE5In0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDYzMTg0MzA1MTQsImxhc3RfdmFsdWUiOiJTaG9wIGxvY2F0aW9uIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 9,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeNoInventoryDelete": {
+      "name": "activeNoInventoryDelete",
+      "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112834019634"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": null,
+              "locationDeleteUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it is active.",
+                  "code": "LOCATION_IS_ACTIVE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "activeInventoryDelete": {
+      "name": "activeInventoryDelete",
+      "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112834052402"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": null,
+              "locationDeleteUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it is active.",
+                  "code": "LOCATION_IS_ACTIVE"
+                },
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it has inventory.",
+                  "code": "LOCATION_HAS_INVENTORY"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "primaryLocationDelete": {
+      "name": "primaryLocationDelete",
+      "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/106318430514"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": null,
+              "locationDeleteUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it is active.",
+                  "code": "LOCATION_IS_ACTIVE"
+                },
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it has inventory.",
+                  "code": "LOCATION_HAS_INVENTORY"
+                },
+                {
+                  "field": ["locationId"],
+                  "message": "The location cannot be deleted while it has pending orders.",
+                  "code": "LOCATION_HAS_PENDING_ORDERS"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentServiceLocationDelete": {
+      "name": "fulfillmentServiceLocationDelete",
+      "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112834085170"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": null,
+              "locationDeleteUserErrors": [
+                {
+                  "field": ["locationId"],
+                  "message": "Location not found.",
+                  "code": "LOCATION_NOT_FOUND"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "name": "activeInventoryProductCleanup",
+      "query": "mutation LocationDeleteInventoryProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10177066664242"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10177066664242",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "activeInventoryLocationCleanupDeactivate",
+      "query": "mutation LocationDeleteFixtureCleanupDeactivate($locationId: ID!, $destinationLocationId: ID!) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: \"location-delete-state-and-scope-activeInventoryLocation-cleanup-20260505052520\") {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112834052402",
+        "destinationLocationId": "gid://shopify/Location/106318430514"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112834052402",
+                "isActive": false,
+                "hasActiveInventory": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "activeInventoryLocationCleanupDelete",
+      "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112834052402"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/112834052402",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "activeNoInventoryLocationCleanupDeactivate",
+      "query": "mutation LocationDeleteFixtureCleanupDeactivate($locationId: ID!, $destinationLocationId: ID!) {\n    locationDeactivate(locationId: $locationId, destinationLocationId: $destinationLocationId)\n      @idempotent(key: \"location-delete-state-and-scope-activeNoInventoryLocation-cleanup-20260505052520\") {\n      location {\n        id\n        isActive\n        hasActiveInventory\n      }\n      locationDeactivateUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112834019634",
+        "destinationLocationId": "gid://shopify/Location/106318430514"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDeactivate": {
+              "location": {
+                "id": "gid://shopify/Location/112834019634",
+                "isActive": false,
+                "hasActiveInventory": false
+              },
+              "locationDeactivateUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "activeNoInventoryLocationCleanupDelete",
+      "query": "mutation LocationDeleteStateAndScope($locationId: ID!) {\n    locationDelete(locationId: $locationId) {\n      deletedLocationId\n      locationDeleteUserErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "locationId": "gid://shopify/Location/112834019634"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationDelete": {
+              "deletedLocationId": "gid://shopify/Location/112834019634",
+              "locationDeleteUserErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "fulfillmentServiceCleanup",
+      "query": "mutation LocationDeleteFulfillmentServiceCleanup($id: ID!) {\n    fulfillmentServiceDelete(id: $id, inventoryAction: DELETE) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71918944562?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/71918944562",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "LocationDeleteReadBack",
+      "variables": {
+        "first": 50
+      },
+      "query": "sha256:8f6697a2776c1712648a0742d97f074168f8afbf8ce84b65d86f1626e0f7ad1d",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "locations": {
+              "edges": [
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112829759794"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112829956402"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112833036594"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112833069362"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/112831103282"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/106318463282"
+                  }
+                },
+                {
+                  "node": {
+                    "id": "gid://shopify/Location/106318430514"
+                  }
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false,
+                "startCursor": "eyJsYXN0X2lkIjoxMTI4Mjk3NTk3OTQsImxhc3RfdmFsdWUiOiJIQVItNTcxIHRyYW5zZmVyIGRlc3RpbmF0aW9uIDIwMjYwNTA1MDAwNjE5In0=",
+                "endCursor": "eyJsYXN0X2lkIjoxMDYzMTg0MzA1MTQsImxhc3RfdmFsdWUiOiJTaG9wIGxvY2F0aW9uIn0="
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 9,
+              "actualQueryCost": 3,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1997,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112833986866"
+      },
+      "query": "sha256:697cafa8c8ab02c39484e5685b1148881d2ed23aad4fdfa3aa365220b2f062c6",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112833986866",
+              "legacyResourceId": "112833986866",
+              "name": "HAR-663 delete success 20260505052520",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T05:25:20Z",
+              "deactivatable": true,
+              "deactivatedAt": "2026-05-05T05:25:20Z",
+              "deletable": true,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": false,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T05:25:20Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "663 State St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["663 State St", "Boston MA 02110", "United States"],
+                "latitude": 42.3596375,
+                "longitude": -71.0517783,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "663 State St",
+                  "countryCode": "US",
+                  "formatted": ["663 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112834019634"
+      },
+      "query": "sha256:697cafa8c8ab02c39484e5685b1148881d2ed23aad4fdfa3aa365220b2f062c6",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112834019634",
+              "legacyResourceId": "112834019634",
+              "name": "HAR-663 active no inventory 20260505052520",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T05:25:21Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T05:25:21Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "663 State St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["663 State St", "Boston MA 02110", "United States"],
+                "latitude": 42.3596375,
+                "longitude": -71.0517783,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "663 State St",
+                  "countryCode": "US",
+                  "formatted": ["663 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112834052402"
+      },
+      "query": "sha256:697cafa8c8ab02c39484e5685b1148881d2ed23aad4fdfa3aa365220b2f062c6",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112834052402",
+              "legacyResourceId": "112834052402",
+              "name": "HAR-663 active inventory 20260505052520",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2026-05-05T05:25:22Z",
+              "deactivatable": true,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": false,
+              "hasActiveInventory": true,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T05:25:22Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "663 State St",
+                "address2": null,
+                "city": "Boston",
+                "country": "United States",
+                "countryCode": "US",
+                "formatted": ["663 State St", "Boston MA 02110", "United States"],
+                "latitude": 42.3596375,
+                "longitude": -71.0517783,
+                "phone": null,
+                "province": "Massachusetts",
+                "provinceCode": "MA",
+                "zip": "02110"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "663 State St",
+                  "countryCode": "US",
+                  "formatted": ["663 State St", "Boston MA 02109", "United States"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/150029304114?inventory_item_id=53229509476658",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/53229509476658"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/112834052402",
+                      "name": "HAR-663 active inventory 20260505052520"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 7,
+                        "updatedAt": "2026-05-05T05:25:23Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 7,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1NjM4Mjc2NTY2MjUxNCwibGFzdF92YWx1ZSI6IjU2MzgyNzY1NjYyNTE0In0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1NjM4Mjc2NTY2MjUxNCwibGFzdF92YWx1ZSI6IjU2MzgyNzY1NjYyNTE0In0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 15,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1985,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/106318430514"
+      },
+      "query": "sha256:697cafa8c8ab02c39484e5685b1148881d2ed23aad4fdfa3aa365220b2f062c6",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/106318430514",
+              "legacyResourceId": "106318430514",
+              "name": "Shop location",
+              "activatable": true,
+              "addressVerified": false,
+              "createdAt": "2025-03-26T19:50:47Z",
+              "deactivatable": false,
+              "deactivatedAt": null,
+              "deletable": false,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": true,
+              "hasUnfulfilledOrders": true,
+              "isActive": true,
+              "isFulfillmentService": false,
+              "isPrimary": true,
+              "shipsInventory": true,
+              "updatedAt": "2026-05-05T05:03:01Z",
+              "fulfillmentService": null,
+              "address": {
+                "address1": "103 ossington",
+                "address2": null,
+                "city": "Ottawa",
+                "country": "Canada",
+                "countryCode": "CA",
+                "formatted": ["103 ossington", "Ottawa ON K1S 3B7", "Canada"],
+                "latitude": 45.3898157,
+                "longitude": -75.6869358,
+                "phone": null,
+                "province": "Ontario",
+                "provinceCode": "ON",
+                "zip": "K1S 3B7"
+              },
+              "suggestedAddresses": [
+                {
+                  "address1": "103 Ossington Ave",
+                  "countryCode": "CA",
+                  "formatted": ["103 Ossington Ave", "Ottawa ON K1S 3B7", "Canada"]
+                }
+              ],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=51930318700850",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/51930318700850"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": -15,
+                        "updatedAt": "2026-04-26T02:28:41Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 5,
+                        "updatedAt": "2026-04-26T00:06:26Z"
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0,
+                        "updatedAt": "2026-04-26T00:06:26Z"
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=51930318733618",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/51930318733618"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0,
+                        "updatedAt": "2025-03-26T19:51:38Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0,
+                        "updatedAt": null
+                      }
+                    ]
+                  },
+                  {
+                    "id": "gid://shopify/InventoryLevel/143273001266?inventory_item_id=51930318766386",
+                    "item": {
+                      "id": "gid://shopify/InventoryItem/51930318766386"
+                    },
+                    "location": {
+                      "id": "gid://shopify/Location/106318430514",
+                      "name": "Shop location"
+                    },
+                    "quantities": [
+                      {
+                        "name": "available",
+                        "quantity": 0,
+                        "updatedAt": "2025-03-26T19:51:38Z"
+                      },
+                      {
+                        "name": "committed",
+                        "quantity": 0,
+                        "updatedAt": null
+                      },
+                      {
+                        "name": "on_hand",
+                        "quantity": 0,
+                        "updatedAt": null
+                      }
+                    ]
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": true,
+                  "hasPreviousPage": false,
+                  "startCursor": "eyJsYXN0X2lkIjo1NDg5NTI5MzYyODcyMiwibGFzdF92YWx1ZSI6IjU0ODk1MjkzNjI4NzIyIn0=",
+                  "endCursor": "eyJsYXN0X2lkIjo1NDg5NTI5MzY5NDI1OCwibGFzdF92YWx1ZSI6IjU0ODk1MjkzNjk0MjU4In0="
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "StorePropertiesLocationHydrate",
+      "variables": {
+        "id": "gid://shopify/Location/112834085170"
+      },
+      "query": "sha256:697cafa8c8ab02c39484e5685b1148881d2ed23aad4fdfa3aa365220b2f062c6",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "location": {
+              "id": "gid://shopify/Location/112834085170",
+              "legacyResourceId": "112834085170",
+              "name": "HAR-663 FS 20260505052520",
+              "activatable": true,
+              "addressVerified": true,
+              "createdAt": "2026-05-05T05:25:24Z",
+              "deactivatable": false,
+              "deactivatedAt": null,
+              "deletable": true,
+              "fulfillsOnlineOrders": true,
+              "hasActiveInventory": false,
+              "hasUnfulfilledOrders": false,
+              "isActive": true,
+              "isFulfillmentService": true,
+              "isPrimary": false,
+              "shipsInventory": false,
+              "updatedAt": "2026-05-05T05:25:24Z",
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/71918944562?id=true",
+                "handle": "har-663-fs-20260505052520",
+                "serviceName": "HAR-663 FS 20260505052520"
+              },
+              "address": {
+                "address1": null,
+                "address2": null,
+                "city": null,
+                "country": "Canada",
+                "countryCode": "CA",
+                "formatted": ["Canada"],
+                "latitude": null,
+                "longitude": null,
+                "phone": null,
+                "province": null,
+                "provinceCode": null,
+                "zip": null
+              },
+              "suggestedAddresses": [],
+              "metafield": null,
+              "metafields": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              },
+              "inventoryLevels": {
+                "nodes": [],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": null,
+                  "endCursor": null
+                }
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

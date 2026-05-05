@@ -1,0 +1,31 @@
+{
+  "scenarioId": "orderOpen-noop-on-already-open",
+  "operationNames": ["orderOpen"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "state-machine-guardrail"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderOpen-noop-on-already-open.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderOpen-noop-on-already-open.graphql",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-588 captured redundant orderOpen against a never-closed disposable order after waiting across a timestamp boundary; Shopify returns silent success without changing updatedAt.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-order",
+        "capturePath": "$.mutation.response.data.orderOpen.order",
+        "proxyPath": "$.data.orderOpen.order"
+      },
+      {
+        "name": "mutation-user-errors",
+        "capturePath": "$.mutation.response.data.orderOpen.userErrors",
+        "proxyPath": "$.data.orderOpen.userErrors"
+      }
+    ]
+  }
+}
