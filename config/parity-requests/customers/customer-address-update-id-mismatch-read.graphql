@@ -1,0 +1,23 @@
+#graphql
+query CustomerAddressUpdateIdMismatchRead($id: ID!) {
+  customer(id: $id) {
+    id
+    email
+    addressesV2(first: 5) {
+      nodes {
+        id
+        address1
+        city
+        countryCodeV2
+        provinceCode
+        zip
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

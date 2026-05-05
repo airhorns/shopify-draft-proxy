@@ -211,6 +211,24 @@ fn customer_state_proxy(id: String, state: String) -> draft_proxy.DraftProxy {
   )
 }
 
+fn no_contact_customer_proxy() -> draft_proxy.DraftProxy {
+  let proxy = draft_proxy.new()
+  let customer =
+    CustomerRecord(
+      ..customer_with_state("gid://shopify/Customer/1", "Enabled"),
+      display_name: Some("No Contact Customer"),
+      email: None,
+      default_email_address: None,
+      default_phone_number: None,
+      email_marketing_consent: None,
+      sms_marketing_consent: None,
+    )
+  proxy_state.DraftProxy(
+    ..proxy,
+    store: store_mod.upsert_base_customers(proxy.store, [customer]),
+  )
+}
+
 fn activation_mutation(customer_id: String) -> String {
   "mutation { customerGenerateAccountActivationUrl(customerId: \""
   <> customer_id
@@ -867,6 +885,53 @@ pub fn customer_address_lifecycle_test() {
   )
 }
 
+pub fn customer_address_update_rejects_mismatched_nested_address_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"address-id-mismatch@example.com\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: first_address_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"1 Main St\", city: \"Ottawa\", countryCode: CA, provinceCode: ON, zip: \"K1A 0B1\" }) { address { id address1 } userErrors { field message } } }",
+    )
+  assert first_address_status == 200
+
+  let #(Response(status: second_address_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"2 Side St\", city: \"Toronto\", countryCode: CA, provinceCode: ON, zip: \"M5H 2N2\" }) { address { id address1 } userErrors { field message } } }",
+    )
+  assert second_address_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerAddressUpdate(customerId: \"gid://shopify/Customer/1\", addressId: \"gid://shopify/MailingAddress/3\", address: { id: \"gid://shopify/MailingAddress/5\", address1: \"999 Bryant\" }) { address { id address1 } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  assert string.contains(json.to_string(update_body), "\"address\":null")
+  assert string.contains(
+    json.to_string(update_body),
+    "\"userErrors\":[{\"field\":[\"addressId\"],\"message\":\"The id of the address does not match the id in the input\",\"code\":null}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { addressesV2(first: 5) { nodes { id address1 city } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"address1\":\"1 Main St\"")
+  assert string.contains(read_json, "\"address1\":\"2 Side St\"")
+  assert !string.contains(read_json, "999 Bryant")
+}
+
 pub fn customer_address_country_province_validation_test() {
   let proxy = draft_proxy.new()
 
@@ -1339,6 +1404,39 @@ pub fn marketing_consent_update_allowed_states_still_stage_test() {
   assert_sms_consent_state_stages("PENDING")
 }
 
+pub fn email_marketing_consent_update_without_email_noops_test() {
+  let proxy = no_contact_customer_proxy()
+  let mutation =
+    "mutation { customerEmailMarketingConsentUpdate(input: { customerId: \"gid://shopify/Customer/1\", emailMarketingConsent: { marketingState: SUBSCRIBED, marketingOptInLevel: SINGLE_OPT_IN } }) { customer { id email defaultEmailAddress { emailAddress marketingState } emailMarketingConsent { marketingState } defaultPhoneNumber { phoneNumber marketingState } smsMarketingConsent { marketingState } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"userErrors\":[]")
+  assert string.contains(body_json, "\"email\":null")
+  assert string.contains(body_json, "\"defaultEmailAddress\":null")
+  assert string.contains(body_json, "\"emailMarketingConsent\":null")
+  assert string.contains(body_json, "\"defaultPhoneNumber\":null")
+  assert string.contains(body_json, "\"smsMarketingConsent\":null")
+  assert_no_contact_consent_readback(proxy)
+}
+
+pub fn sms_marketing_consent_update_without_phone_errors_test() {
+  let proxy = no_contact_customer_proxy()
+  let mutation =
+    "mutation { customerSmsMarketingConsentUpdate(input: { customerId: \"gid://shopify/Customer/1\", smsMarketingConsent: { marketingState: SUBSCRIBED, marketingOptInLevel: SINGLE_OPT_IN } }) { customer { id defaultPhoneNumber { phoneNumber marketingState } smsMarketingConsent { marketingState } } userErrors { field message code } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"customer\":null")
+  assert string.contains(
+    body_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"smsMarketingConsent\"],\"message\":\"A phone number is required to set the SMS consent state.\",\"code\":\"INVALID\"}]",
+  )
+  assert_no_contact_consent_readback(proxy)
+}
+
 pub fn customer_create_requires_email_for_inline_email_consent_test() {
   let proxy = draft_proxy.new()
   let mutation =
@@ -1566,6 +1664,22 @@ fn assert_sms_consent_readback(proxy: draft_proxy.DraftProxy, state: String) {
     read_json,
     "\"smsMarketingConsent\":{\"marketingState\":\"" <> state <> "\"}",
   )
+}
+
+fn assert_no_contact_consent_readback(proxy: draft_proxy.DraftProxy) {
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { email defaultEmailAddress { emailAddress marketingState } emailMarketingConsent { marketingState } defaultPhoneNumber { phoneNumber marketingState } smsMarketingConsent { marketingState } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"email\":null")
+  assert string.contains(read_json, "\"defaultEmailAddress\":null")
+  assert string.contains(read_json, "\"emailMarketingConsent\":null")
+  assert string.contains(read_json, "\"defaultPhoneNumber\":null")
+  assert string.contains(read_json, "\"smsMarketingConsent\":null")
+  assert !string.contains(read_json, "\"marketingState\":\"SUBSCRIBED\"")
 }
 
 fn assert_log_omits_root(proxy: draft_proxy.DraftProxy, root_name: String) {

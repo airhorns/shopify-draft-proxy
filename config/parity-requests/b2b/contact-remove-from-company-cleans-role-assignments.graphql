@@ -1,0 +1,10 @@
+mutation ContactRemoveFromCompanyCleansRoleAssignments($companyContactId: ID!) {
+  companyContactRemoveFromCompany(companyContactId: $companyContactId) {
+    removedCompanyContactId
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
