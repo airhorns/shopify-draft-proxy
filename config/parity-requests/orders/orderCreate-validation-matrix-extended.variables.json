@@ -1,0 +1,27 @@
+{
+  "futureProcessedAt": {
+    "email": "hermes-order-validation-future@example.com",
+    "processedAt": "2099-01-01T00:00:00Z",
+    "lineItems": [
+      {
+        "variantId": "gid://shopify/ProductVariant/48540157378793",
+        "quantity": 1
+      }
+    ]
+  },
+  "redundantCustomer": {
+    "email": "hermes-order-validation-redundant@example.com",
+    "customerId": "gid://shopify/Customer/1",
+    "customer": {
+      "toUpsert": {
+        "email": "hermes-order-validation-redundant@example.com"
+      }
+    },
+    "lineItems": [
+      {
+        "variantId": "gid://shopify/ProductVariant/48540157378793",
+        "quantity": 1
+      }
+    ]
+  }
+}
