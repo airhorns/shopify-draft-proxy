@@ -1,0 +1,458 @@
+{
+  "scenarioId": "b2b-revoke-role-scope-preconditions",
+  "capturedAt": "2026-05-05T23:17:51.498Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-762",
+    "plan": "Create disposable B2B company/contact/location role assignments, capture Shopify revoke-role parent/scope preconditions, and delete the company."
+  },
+  "companyCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          roleAssignments(first: 5) { nodes { id } }\n        }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "B2B revoke role scope 1778023068661",
+            "note": "HAR-762 B2B revoke-role scope parity",
+            "externalId": "har-762-revoke-scope-1778023068661"
+          },
+          "companyContact": {
+            "firstName": "Har",
+            "lastName": "Revoke",
+            "email": "har-762-main-1778023068661@example.com",
+            "title": "Main buyer"
+          },
+          "companyLocation": {
+            "name": "B2B revoke role scope 1778023068661 HQ",
+            "phone": "+16135550762",
+            "billingAddress": {
+              "address1": "762 Scope Way",
+              "city": "Toronto",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5439521074",
+            "name": "B2B revoke role scope 1778023068661",
+            "mainContact": {
+              "id": "gid://shopify/CompanyContact/10150183218",
+              "roleAssignments": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44651053362"
+                  }
+                ]
+              }
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8251506994",
+                  "name": "B2B revoke role scope 1778023068661 HQ"
+                }
+              ]
+            },
+            "contactRoles": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContactRole/10670473522",
+                  "name": "Location admin"
+                },
+                {
+                  "id": "gid://shopify/CompanyContactRole/10670506290",
+                  "name": "Ordering only"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 26,
+          "actualQueryCost": 21,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1979,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondaryContactCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact { id company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5439521074",
+        "input": {
+          "firstName": "Har",
+          "lastName": "Other Contact",
+          "email": "har-762-other-contact-1778023068661@example.com",
+          "title": "Other buyer"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": {
+            "id": "gid://shopify/CompanyContact/10150215986",
+            "company": {
+              "id": "gid://shopify/Company/5439521074"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactAssignmentLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5439521074",
+        "input": {
+          "name": "B2B revoke role scope 1778023068661 contact assignment location",
+          "phone": "+16135550763"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8251539762",
+            "name": "B2B revoke role scope 1778023068661 contact assignment location",
+            "company": {
+              "id": "gid://shopify/Company/5439521074"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactAssignmentCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactAssignRoles($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {\n    companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10150215986",
+        "rolesToAssign": [
+          {
+            "companyLocationId": "gid://shopify/CompanyLocation/8251539762",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10670473522"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactAssignRoles": {
+          "roleAssignments": [
+            {
+              "id": "gid://shopify/CompanyContactRoleAssignment/44651086130"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationAssignmentLocationCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5439521074",
+        "input": {
+          "name": "B2B revoke role scope 1778023068661 location assignment location",
+          "phone": "+16135550764"
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationCreate": {
+          "companyLocation": {
+            "id": "gid://shopify/CompanyLocation/8251572530",
+            "name": "B2B revoke role scope 1778023068661 location assignment location",
+            "company": {
+              "id": "gid://shopify/Company/5439521074"
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationAssignmentCreate": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeLocationAssignRoles($companyLocationId: ID!, $rolesToAssign: [CompanyLocationRoleAssign!]!) {\n    companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8251572530",
+        "rolesToAssign": [
+          {
+            "companyContactId": "gid://shopify/CompanyContact/10150183218",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10670506290"
+          }
+        ]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationAssignRoles": {
+          "roleAssignments": [
+            {
+              "id": "gid://shopify/CompanyContactRoleAssignment/44651118898"
+            }
+          ],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactRevokeRoleWrongContact": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactRevokeRole($companyContactId: ID!, $companyContactRoleAssignmentId: ID!) {\n    companyContactRevokeRole(\n      companyContactId: $companyContactId\n      companyContactRoleAssignmentId: $companyContactRoleAssignmentId\n    ) {\n      revokedCompanyContactRoleAssignmentId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10150183218",
+        "companyContactRoleAssignmentId": "gid://shopify/CompanyContactRoleAssignment/44651086130"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactRevokeRole": {
+          "revokedCompanyContactRoleAssignmentId": null,
+          "userErrors": [
+            {
+              "field": ["companyContactRoleAssignmentId"],
+              "message": "The role assignment doesn't exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactRevokeRolesRequiresIds": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactRevokeRoles(\n    $companyContactId: ID!\n    $roleAssignmentIds: [ID!]!\n    $revokeAll: Boolean\n  ) {\n    companyContactRevokeRoles(\n      companyContactId: $companyContactId\n      roleAssignmentIds: $roleAssignmentIds\n      revokeAll: $revokeAll\n    ) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10150183218",
+        "roleAssignmentIds": [],
+        "revokeAll": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactRevokeRoles": {
+          "revokedRoleAssignmentIds": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Invalid input.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationRevokeRolesWrongLocation": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeLocationRevokeRoles($companyLocationId: ID!, $rolesToRevoke: [ID!]!) {\n    companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $rolesToRevoke) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8251506994",
+        "rolesToRevoke": ["gid://shopify/CompanyContactRoleAssignment/44651118898"]
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationRevokeRoles": {
+          "revokedRoleAssignmentIds": [],
+          "userErrors": [
+            {
+              "field": ["rolesToRevoke", "0"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactRevokeRolesWrongContactPartial": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactRevokeRoles(\n    $companyContactId: ID!\n    $roleAssignmentIds: [ID!]!\n    $revokeAll: Boolean\n  ) {\n    companyContactRevokeRoles(\n      companyContactId: $companyContactId\n      roleAssignmentIds: $roleAssignmentIds\n      revokeAll: $revokeAll\n    ) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10150183218",
+        "roleAssignmentIds": [
+          "gid://shopify/CompanyContactRoleAssignment/44651053362",
+          "gid://shopify/CompanyContactRoleAssignment/44651086130"
+        ],
+        "revokeAll": false
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactRevokeRoles": {
+          "revokedRoleAssignmentIds": ["gid://shopify/CompanyContactRoleAssignment/44651053362"],
+          "userErrors": [
+            {
+              "field": ["roleAssignmentIds", "1"],
+              "message": "Resource requested does not exist.",
+              "code": "RESOURCE_NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyDelete": {
+    "request": {
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Company/5439521074"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyDelete": {
+          "deletedCompanyId": "gid://shopify/Company/5439521074",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {},
+  "upstreamCalls": []
+}

@@ -1,0 +1,295 @@
+{
+  "scenarioId": "b2b-revoke-role-scope-preconditions",
+  "operationNames": [
+    "companyCreate",
+    "companyContactCreate",
+    "companyLocationCreate",
+    "companyContactAssignRoles",
+    "companyLocationAssignRoles",
+    "companyContactRevokeRole",
+    "companyContactRevokeRoles",
+    "companyLocationRevokeRoles"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "role-assignment", "scope-validation", "partial-success"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-revoke-role-scope-preconditions.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-company-create.graphql",
+    "variablesCapturePath": "$.companyCreate.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity coverage for HAR-762 B2B revoke-role parent/scope preconditions. The live fixture creates a disposable B2B company, secondary contact, and extra locations, assigns roles, records Shopify's public 2026-04 wrong-contact/wrong-location revoke errors plus the empty-ids precondition and contact partial-success branch, then deletes the company.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create",
+        "capturePath": "$.companyCreate.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different company IDs."
+          },
+          {
+            "path": "$.company.mainContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.company.mainContact.roleAssignments.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different automatic role assignment IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[*].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.company.contactRoles.nodes[*].id",
+            "matcher": "shopify-gid:CompanyContactRole",
+            "reason": "Live Shopify and local staging allocate different system role IDs."
+          }
+        ]
+      },
+      {
+        "name": "secondary-contact-create",
+        "capturePath": "$.secondaryContactCreate.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-contact-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.secondaryContactCreate.request.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyContact.id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different contact IDs."
+          },
+          {
+            "path": "$.companyContact.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy contact is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "contact-assignment-location-create",
+        "capturePath": "$.contactAssignmentLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.contactAssignmentLocationCreate.request.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "secondary-contact-assign-roles",
+        "capturePath": "$.contactAssignmentCreate.response.data.companyContactAssignRoles",
+        "proxyPath": "$.data.companyContactAssignRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-contact-assign-roles.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromProxyResponse": "secondary-contact-create",
+              "path": "$.data.companyContactCreate.companyContact.id"
+            },
+            "rolesToAssign": [
+              {
+                "companyLocationId": {
+                  "fromProxyResponse": "contact-assignment-location-create",
+                  "path": "$.data.companyLocationCreate.companyLocation.id"
+                },
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[0].id"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.roleAssignments[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different role assignment IDs."
+          }
+        ]
+      },
+      {
+        "name": "location-assignment-location-create",
+        "capturePath": "$.locationAssignmentLocationCreate.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationAssignmentLocationCreate.request.variables.input"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.companyLocation.id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different location IDs."
+          },
+          {
+            "path": "$.companyLocation.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "The proxy location is attached to the locally staged company ID."
+          }
+        ]
+      },
+      {
+        "name": "secondary-location-assign-roles",
+        "capturePath": "$.locationAssignmentCreate.response.data.companyLocationAssignRoles",
+        "proxyPath": "$.data.companyLocationAssignRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-location-assign-roles.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromProxyResponse": "location-assignment-location-create",
+              "path": "$.data.companyLocationCreate.companyLocation.id"
+            },
+            "rolesToAssign": [
+              {
+                "companyContactId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+                },
+                "companyContactRoleId": {
+                  "fromPrimaryProxyPath": "$.data.companyCreate.company.contactRoles.nodes[1].id"
+                }
+              }
+            ]
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.roleAssignments[*].id",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "Live Shopify and local staging allocate different role assignment IDs."
+          }
+        ]
+      },
+      {
+        "name": "contact-revoke-role-wrong-contact",
+        "capturePath": "$.contactRevokeRoleWrongContact.response.data.companyContactRevokeRole",
+        "proxyPath": "$.data.companyContactRevokeRole",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-contact-revoke-role.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "companyContactRoleAssignmentId": {
+              "fromProxyResponse": "secondary-contact-assign-roles",
+              "path": "$.data.companyContactAssignRoles.roleAssignments[0].id"
+            }
+          }
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "contact-revoke-roles-requires-ids",
+        "capturePath": "$.contactRevokeRolesRequiresIds.response.data.companyContactRevokeRoles",
+        "proxyPath": "$.data.companyContactRevokeRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-contact-revoke-roles.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "roleAssignmentIds": [],
+            "revokeAll": false
+          }
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "location-revoke-roles-wrong-location",
+        "capturePath": "$.locationRevokeRolesWrongLocation.response.data.companyLocationRevokeRoles",
+        "proxyPath": "$.data.companyLocationRevokeRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-location-revoke-roles.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "rolesToRevoke": [
+              {
+                "fromProxyResponse": "secondary-location-assign-roles",
+                "path": "$.data.companyLocationAssignRoles.roleAssignments[0].id"
+              }
+            ]
+          }
+        },
+        "expectedDifferences": []
+      },
+      {
+        "name": "contact-revoke-roles-wrong-contact-partial",
+        "capturePath": "$.contactRevokeRolesWrongContactPartial.response.data.companyContactRevokeRoles",
+        "proxyPath": "$.data.companyContactRevokeRoles",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-revoke-role-scope-contact-revoke-roles.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.id"
+            },
+            "roleAssignmentIds": [
+              {
+                "fromPrimaryProxyPath": "$.data.companyCreate.company.mainContact.roleAssignments.nodes[0].id"
+              },
+              {
+                "fromProxyResponse": "secondary-contact-assign-roles",
+                "path": "$.data.companyContactAssignRoles.roleAssignments[0].id"
+              }
+            ],
+            "revokeAll": false
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.revokedRoleAssignmentIds[*]",
+            "matcher": "shopify-gid:CompanyContactRoleAssignment",
+            "reason": "The proxy revokes the locally staged main-contact assignment ID."
+          }
+        ]
+      }
+    ]
+  }
+}

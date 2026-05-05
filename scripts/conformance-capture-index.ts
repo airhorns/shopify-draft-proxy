@@ -146,6 +146,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-revoke-role-scope-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-revoke-role-scope-conformance.mts',
+    purpose:
+      'B2B contact/location revoke-role parent lookup, wrong-scope assignment validation, empty-id precondition, and partial-success semantics.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-revoke-role-scope-preconditions.json`,
+      'config/parity-specs/b2b/b2b-revoke-role-scope-preconditions.json',
+      'config/parity-requests/b2b/b2b-revoke-role-scope-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable B2B company with a secondary contact and extra locations, assigns contact/location roles, records revoke validation branches, and deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public Admin 2026-04 returns RESOURCE_NOT_FOUND for wrong-scope contact revoke assignment IDs and a null field/null revokedRoleAssignmentIds payload for empty roleAssignmentIds with revokeAll false.',
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-removal-role-assignment-cascade',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-removal-role-assignment-cascade-conformance.mts',
@@ -2130,6 +2149,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-app-function-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-app-function-validation-conformance.ts',
+    purpose: 'App-discount functionId/functionHandle missing, multiple, unknown, and wrong-API validation guardrails.',
+    requiredAuthScopes: [
+      'read_discounts',
+      'write_discounts',
+      'shopifyFunctions read access',
+      'released non-discount Shopify Function in the installed conformance app for wrong-API validation',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-app-function-validation.json`,
+      'config/parity-specs/discounts/discount-app-function-validation.json',
+      'config/parity-requests/discounts/discount-app-function-validation.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-context-customer-selection-conflict',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-context-customer-selection-conflict-conformance.ts',
@@ -2290,6 +2329,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Captures missing-delete userErrors only; no live resources are created. The local lifecycle leg is cassette-backed because the current unattended shop lacks released cart-transform/validation Function handles.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'functions',
+    captureId: 'functions-validation-create-error-shape',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-functions-validation-create-error-shape-conformance.ts',
+    purpose:
+      'validationCreate unknown Function id, wrong Function API, missing Function identifier, and multiple Function identifier userError shapes.',
+    requiredAuthScopes: [
+      'read_validations',
+      'write_validations for validationCreate userError capture',
+      'released conformance-cart-transform Function in the installed conformance app',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}functions-validation-create-error-shape.json`,
+      'config/parity-specs/functions/functions-validation-create-error-shape.json',
+    ],
+    cleanupBehavior:
+      'Captures validationCreate userErrors only; all branches return validation null and no live resources are created.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
