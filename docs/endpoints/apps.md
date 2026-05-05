@@ -63,7 +63,20 @@ Current modeled behavior:
   context is surfaced as `MISSING_SOURCE_APP`, a current installation whose app
   record cannot be resolved as `APPLICATION_CANNOT_BE_FOUND`, and an app record
   without an installed current installation as `APP_NOT_INSTALLED`.
-- `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
+- `appUninstall` resolves `input.id` to a known app when provided, otherwise
+  falls back to the current app installation. Unknown app IDs return
+  `APP_NOT_FOUND` on `field: ["id"]`; known apps without a visible local
+  installation return `APP_NOT_INSTALLED` on `field: ["id"]`, while omitted
+  input uses `field: ["base"]`. Input IDs for an app other than the current
+  installation require the current installation to hold the `apps` access
+  scope; otherwise the mutation returns `INSUFFICIENT_PERMISSIONS` without
+  staging. Successful uninstall marks the targeted installation uninstalled,
+  clears its active access grant, cancels locally staged
+  `PENDING`/`ACCEPTED`/`ACTIVE` subscriptions attached to the installation, and
+  destroys stored delegated access tokens so later token-destroy calls return
+  `ACCESS_TOKEN_NOT_FOUND`. Downstream `currentAppInstallation` reads return
+  `null` when the current installation is targeted, and app-subscription Node
+  reads show cancelled status.
 - `delegateAccessTokenCreate` accepts the current singular `delegateAccessScope` input, returns the selected scope through the payload's `accessScopes` list, and stores only a SHA-256 hash plus redacted preview in meta-visible state. The older local fixture shape using `input.accessScopes` remains tolerated for compatibility but is not the documented Admin API input shape; the broad app-billing local-runtime parity replay keeps that older request shape while `config/parity-specs/apps/delegate-access-token-current-input-local-staging.json` executes the current `delegateAccessScope` input.
 - `delegateAccessTokenDestroy` matches the raw token against the stored hash, marks it destroyed locally, and returns `ACCESS_TOKEN_NOT_FOUND` when repeated or unknown.
 
@@ -76,6 +89,13 @@ Admin GraphQL 2026-04 billing docs and public app examples continue to treat bil
 Delegate access token docs use the singular `delegateAccessScope` create input and return the selected permissions through the token payload's `accessScopes` list. The local runtime accepts that current input shape, stores only token hash/preview metadata, and still cannot emulate real bearer-token authorization effects. The executable runtime test and `delegate-access-token-current-input-local-staging` parity spec cover `delegateAccessScope`; the broad app-billing local-runtime parity replay continues to use the already-recorded `accessScopes` request shape so replay evidence is not silently changed without a fresh capture.
 
 `appRevokeAccessScopes` and `appUninstall` are locally staged only as downstream app-installation state changes. Real app grant revocation and app uninstall side effects remain external Shopify/app-installation events that can only happen later through explicit commit replay or intentional live conformance work on a disposable shop.
+
+HAR-747 tightened `appUninstall` error and cascade fidelity with
+`config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json`. The
+scenario is executable local-runtime evidence because the current custom app
+credential cannot exercise billing-backed subscription setup live; it earns
+setup state through replayed `appSubscriptionCreate`, `delegateAccessTokenCreate`,
+and `appUninstall` requests rather than pre-seeding parity runner state.
 
 ### Safety notes
 
@@ -121,6 +141,7 @@ The capture records:
   app-domain generic Node read targets
 - `config/parity-specs/apps/app-purchase-one-time-create-validation.json`
 - `config/parity-specs/apps/app-revoke-access-scopes-error-codes.json`
+- `config/parity-specs/apps/app-uninstall-error-codes-and-cascade.json`
 - `config/parity-specs/apps/app-usage-record-create-cap-and-idempotency.json`
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
 - `config/parity-specs/apps/app-subscription-trial-extend-validation.json`
