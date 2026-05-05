@@ -1858,16 +1858,14 @@ pub type SegmentRecord {
 }
 
 /// Mirrors `CustomerSegmentMembersQueryRecord`. A staged record captures
-/// the resolved query string + originating segmentId, plus the
-/// realized member count and `done` flag. The proxy stages these in
-/// finished form (done=true) at create time; the create-mutation
-/// response shape returns currentCount=0/done=false to match Shopify's
-/// asynchronous job semantics.
+/// the resolved query string + originating segmentId, plus Shopify's
+/// asynchronous query-job status fields.
 pub type CustomerSegmentMembersQueryRecord {
   CustomerSegmentMembersQueryRecord(
     id: String,
     query: Option(String),
     segment_id: Option(String),
+    status: String,
     current_count: Int,
     done: Bool,
   )

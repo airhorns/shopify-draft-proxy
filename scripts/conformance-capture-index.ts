@@ -749,6 +749,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'segments',
+    captureId: 'customer-segment-members-query-create-validation-and-shape',
+    scriptPath: 'scripts/capture-customer-segment-members-query-create-conformance.ts',
+    purpose:
+      'customerSegmentMembersQueryCreate selector validation, INITIALIZED response shape, segmentId success branch, and immediate customerSegmentMembersQuery lookup consistency.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-segment-members-query-create-validation-and-shape.json`,
+      'config/parity-specs/segments/customer-segment-members-query-create-validation-and-shape.json',
+      'config/parity-requests/segments/customer-segment-members-query-*-validation-and-shape.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable segment for the segmentId-backed branch and deletes it during cleanup; member-query jobs are async Shopify state without a cleanup mutation.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'online-store',
     captureId: 'online-store-content-search',
     scriptPath: 'scripts/capture-online-store-content-search-conformance.ts',

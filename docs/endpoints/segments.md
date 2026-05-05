@@ -40,8 +40,8 @@ Staged mutations:
 - `segmentDelete` records local deletion state and removes the segment from downstream detail, catalog, and count reads.
 - Captured validation coverage currently includes blank names, blank/invalid query strings, unknown IDs, missing required GraphQL arguments, and delete-after-delete/unknown delete behavior.
 - `customerSegmentMembersQueryCreate` stages a local query job and retains the original raw mutation request in the
-  mutation log for commit replay. The creation payload follows the captured async shape (`currentCount: 0`,
-  `done: false`), while the stored local job is immediately readable with the evaluated count and `done: true`.
+  mutation log for commit replay. New jobs follow Shopify's initial async shape in both the creation payload and
+  immediate downstream lookup (`status: INITIALIZED`, `currentCount: 0`, `done: false`).
 - Member-query evaluation is intentionally narrow and evidence-backed. The proxy currently supports:
   - `number_of_orders = N`, `>`, `>=`, `<`, and `<=`
   - `customer_tags CONTAINS 'tag'`
