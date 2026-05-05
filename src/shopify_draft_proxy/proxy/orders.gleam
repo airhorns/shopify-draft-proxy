@@ -11348,7 +11348,7 @@ fn fulfillment_order_hold_validation_errors(
           nullable_user_error(
             Some(["fulfillmentHold", "handle"]),
             "Handle is too long (maximum is 64 characters)",
-            Some("TOO_LONG"),
+            None,
           ),
         ]
         False -> {
@@ -11362,7 +11362,7 @@ fn fulfillment_order_hold_validation_errors(
               nullable_user_error(
                 Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
                 "The fulfillment order is not in a splittable state.",
-                Some("FULFILLMENT_ORDER_NOT_SPLITTABLE"),
+                None,
               ),
             ]
             False ->
@@ -11376,7 +11376,7 @@ fn fulfillment_order_hold_validation_errors(
                   nullable_user_error(
                     Some(["fulfillmentHold", "handle"]),
                     "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
-                    Some("DUPLICATE_FULFILLMENT_HOLD_HANDLE"),
+                    None,
                   ),
                 ]
                 False ->
@@ -11390,7 +11390,7 @@ fn fulfillment_order_hold_validation_errors(
                       nullable_user_error(
                         Some(["id"]),
                         "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
-                        Some("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"),
+                        None,
                       ),
                     ]
                     False -> []
@@ -11425,11 +11425,7 @@ fn fulfillment_order_hold_line_item_quantity_errors(
               "quantity",
             ]),
             message,
-            Some(case message {
-              "You must select at least one item to place on partial hold." ->
-                "GREATER_THAN_ZERO"
-              _ -> "INVALID_LINE_ITEM_QUANTITY"
-            }),
+            None,
           ),
         ])
       None -> errors
@@ -11453,7 +11449,7 @@ fn fulfillment_order_hold_duplicate_line_item_errors(
       nullable_user_error(
         Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
         "must contain unique line item ids",
-        Some("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"),
+        None,
       ),
     ]
     False -> []
