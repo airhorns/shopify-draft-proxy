@@ -19,8 +19,8 @@ grep -c "^pub " src/shopify_draft_proxy/proxy/saved_searches.gleam   # rough com
 - 1.5K–4K TS LOC: split into substrate (state + read) + mutations (and
   optionally hybrid hydration). See pass 11/12/13 for webhooks split, or
   pass 15/16/17 for apps split.
-- > 4K TS LOC: unusual; pre-plan multiple passes and add an entry to the
-  > log marking "Pass A of N".
+- More than 4K TS LOC: unusual; pre-plan multiple passes and record "Pass A of N"
+  in the workpad or Linear notes.
 
 ## Step 1 — State types
 
@@ -205,40 +205,8 @@ gleam test --target javascript
 
 Do not ship Erlang-only or JS-only changes.
 
-## Step 8 — Log entry
+## Step 8 — Handoff notes
 
-Append to `GLEAM_PORT_LOG.md` (newer entries go at the top):
-
-```markdown
-## YYYY-MM-DD — Pass N: <one-line summary>
-
-<2–4 sentence summary of what this pass shipped, what's deferred, and any
-load-bearing decisions.>
-
-### Module table
-
-| Module | Lines | Notes |
-| ------ | ----- | ----- |
-| ...    | ...   | ...   |
-
-**Test count: <before> → <after>** (+N). Both targets clean (Erlang OTP 28 + JS ESM).
-
-### What landed
-
-<bullet list of substantive landings with code references>
-
-### Findings
-
-<bullet list of patterns confirmed, surprises, decisions made>
-
-### Risks / open items
-
-<bullet list of explicit deferrals and gaps the next pass should know about>
-
-### Pass N+1 candidates
-
-<2–3 ranked candidates for the next pass>
-```
-
-The log is the running narrative. Keep `GLEAM_PORT_INTENT.md` for
-non-negotiables only — do not append to it per pass.
+Record pass-specific findings, risks, and follow-up candidates in the active
+Linear workpad or linked follow-up issues. Keep `GLEAM_PORT_INTENT.md` for
+non-negotiables only.

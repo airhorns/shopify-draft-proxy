@@ -161,6 +161,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-set-validator',
+    scriptPath: 'scripts/capture-product-set-validator-conformance.ts',
+    purpose:
+      'productSet ProductSetShapeValidator guardrails, unknown-product validation, and asynchronous ProductSetOperation polling behavior.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-set-shape-validator-parity.json`,
+      `${CAPTURE_ROOT}product-set-async-operation-parity.json`,
+      'config/parity-specs/products/productSet-shape-validator-parity.json',
+      'config/parity-specs/products/productSet-async-operation-parity.json',
+    ],
+    cleanupBehavior:
+      'Validation branches create no products; async productSet creates one disposable product and deletes it in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-state-mutations',
     scriptPath: 'scripts/capture-product-state-mutation-conformance.mts',
     purpose: 'productChangeStatus/tagsAdd/tagsRemove mutation branches.',
@@ -542,6 +559,36 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Uses disposable products/inventory levels where possible; review store topology before success captures.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-set-quantities-name-validation-2025',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-inventory-set-quantities-name-validation.ts',
+    purpose:
+      'inventorySetQuantities name, maximum quantity, and duplicate item/location validation against the 2025-01 contract.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventorySetQuantities-name-validation.json`,
+      'config/parity-specs/products/inventorySetQuantities-name-validation.json',
+    ],
+    cleanupBehavior: 'Creates one disposable product per validation branch and deletes each product immediately.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'inventory',
+    captureId: 'inventory-set-quantities-name-validation-2026',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-inventory-set-quantities-name-validation.ts',
+    purpose:
+      'inventorySetQuantities name, maximum quantity, and duplicate item/location validation against the 2026-04 @idempotent/changeFromQuantity contract.',
+    requiredAuthScopes: ['read_inventory', 'write_inventory', 'read_locations', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}inventorySetQuantities-name-validation.json`,
+      'config/parity-specs/products/inventorySetQuantities-name-validation-2026-04.json',
+    ],
+    cleanupBehavior: 'Creates one disposable product per validation branch and deletes each product immediately.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'inventory',
