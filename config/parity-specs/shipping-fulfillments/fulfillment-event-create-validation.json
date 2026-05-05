@@ -1,0 +1,84 @@
+{
+  "scenarioId": "fulfillment-event-create-validation",
+  "operationNames": ["fulfillmentEventCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "downstream-read-parity",
+    "runtime-staging",
+    "no-upstream-mutation"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-event-create-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-event-create-validation.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.unknownFulfillmentEventCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-582 captured Admin GraphQL 2026-04 fulfillmentEventCreate validation and success behavior against a disposable fulfilled order. Public Admin GraphQL does not expose a code field on this mutation's UserError, so the parity target compares public field/message shape while runtime tests assert the ticket's source-backed local code values. The fixture also records that public 2026-04 accepted an event after fulfillmentCancel on the sampled fulfillment; the proxy retains the HAR-582 internal-source cancellation guard and HAR-744 tracks the public/API-version discrepancy.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-fulfillment-user-error",
+        "capturePath": "$.unknownFulfillmentEventCreate.response.data.fulfillmentEventCreate",
+        "proxyPath": "$.data.fulfillmentEventCreate",
+        "selectedPaths": ["$.fulfillmentEvent", "$.userErrors[0].field", "$.userErrors[0].message"]
+      },
+      {
+        "name": "valid-event-create",
+        "capturePath": "$.fulfillmentEventCreate.response.data.fulfillmentEventCreate",
+        "proxyPath": "$.data.fulfillmentEventCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-event-create-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.fulfillmentEventCreate.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.fulfillmentEvent.id",
+            "matcher": "shopify-gid:FulfillmentEvent",
+            "reason": "The proxy creates a stable synthetic FulfillmentEvent ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.fulfillmentEvent.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy emits a deterministic local createdAt timestamp for staged fulfillment events."
+          }
+        ]
+      },
+      {
+        "name": "event-detail-read-after-create",
+        "capturePath": "$.detailRead.response.data.fulfillment",
+        "proxyPath": "$.data.fulfillment",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-event-create-detail-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.detailRead.variables"
+        },
+        "selectedPaths": [
+          "$.status",
+          "$.displayStatus",
+          "$.estimatedDeliveryAt",
+          "$.inTransitAt",
+          "$.events.nodes[0].status",
+          "$.events.nodes[0].message",
+          "$.events.nodes[0].happenedAt",
+          "$.events.nodes[0].estimatedDeliveryAt",
+          "$.events.nodes[0].city",
+          "$.events.nodes[0].province",
+          "$.events.nodes[0].country",
+          "$.events.nodes[0].zip",
+          "$.events.nodes[0].address1",
+          "$.events.nodes[0].latitude",
+          "$.events.nodes[0].longitude"
+        ]
+      }
+    ]
+  }
+}

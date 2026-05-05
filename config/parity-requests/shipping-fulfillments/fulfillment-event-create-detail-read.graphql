@@ -1,0 +1,32 @@
+query FulfillmentEventCreateDetailRead($fulfillmentId: ID!) {
+  fulfillment(id: $fulfillmentId) {
+    id
+    status
+    displayStatus
+    estimatedDeliveryAt
+    inTransitAt
+    events(first: 5) {
+      nodes {
+        id
+        status
+        message
+        happenedAt
+        createdAt
+        estimatedDeliveryAt
+        city
+        province
+        country
+        zip
+        address1
+        latitude
+        longitude
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

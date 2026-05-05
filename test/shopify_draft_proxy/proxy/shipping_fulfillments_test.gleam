@@ -19,7 +19,7 @@ import shopify_draft_proxy/state/types.{
   CapturedInt, CapturedNull, CapturedObject, CapturedString,
   CarrierServiceRecord, DeliveryProfileRecord, FulfillmentOrderRecord,
   FulfillmentRecord, LocationRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ReverseFulfillmentOrderRecord,
+  ProductVariantRecord, ReverseFulfillmentOrderRecord, ShippingOrderRecord,
   ShippingPackageDimensionsRecord, ShippingPackageRecord,
   ShippingPackageWeightRecord, StorePropertyBool, StorePropertyNull,
   StorePropertyRecord, StorePropertyString,
@@ -1922,6 +1922,191 @@ pub fn fulfillment_event_create_stages_event_and_downstream_read_test() {
     <> "\",\"endCursor\":\"cursor:"
     <> event_id
     <> "\"}}}}}"
+}
+
+pub fn fulfillment_event_create_rejects_unknown_fulfillment_with_code_test() {
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Event($fulfillmentEvent: FulfillmentEventInput!) { fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) { fulfillmentEvent { id } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "fulfillmentEvent",
+          root_field.ObjectVal(
+            dict.from_list([
+              #(
+                "fulfillmentId",
+                root_field.StringVal("gid://shopify/Fulfillment/999999999"),
+              ),
+              #("status", root_field.StringVal("IN_TRANSIT")),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentEventCreate\":{\"fulfillmentEvent\":null,\"userErrors\":[{\"field\":[\"fulfillmentEvent\",\"fulfillmentId\"],\"message\":\"Fulfillment does not exist.\",\"code\":\"fulfillment_not_found\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn fulfillment_event_create_rejects_cancelled_fulfillment_test() {
+  let fulfillment_id = "gid://shopify/Fulfillment/cancelled-event"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillments([
+      FulfillmentRecord(
+        id: fulfillment_id,
+        order_id: Some("gid://shopify/Order/cancelled-event"),
+        data: CapturedObject([
+          #("id", CapturedString(fulfillment_id)),
+          #("status", CapturedString("CANCELLED")),
+          #("displayStatus", CapturedString("CANCELED")),
+          #("events", CapturedObject([#("nodes", CapturedArray([]))])),
+        ]),
+      ),
+    ])
+
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Event($fulfillmentEvent: FulfillmentEventInput!) { fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) { fulfillmentEvent { id } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "fulfillmentEvent",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("fulfillmentId", root_field.StringVal(fulfillment_id)),
+              #("status", root_field.StringVal("DELIVERED")),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentEventCreate\":{\"fulfillmentEvent\":null,\"userErrors\":[{\"field\":[\"fulfillmentEvent\",\"fulfillmentId\"],\"message\":\"Fulfillment is cancelled.\",\"code\":\"fulfillment_cancelled\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn fulfillment_event_create_rejects_unknown_status_test() {
+  let fulfillment_id = "gid://shopify/Fulfillment/status-validation"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillments([
+      FulfillmentRecord(
+        id: fulfillment_id,
+        order_id: Some("gid://shopify/Order/status-validation"),
+        data: CapturedObject([
+          #("id", CapturedString(fulfillment_id)),
+          #("status", CapturedString("SUCCESS")),
+          #("displayStatus", CapturedString("FULFILLED")),
+          #("events", CapturedObject([#("nodes", CapturedArray([]))])),
+        ]),
+      ),
+    ])
+
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Event($fulfillmentEvent: FulfillmentEventInput!) { fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) { fulfillmentEvent { id } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "fulfillmentEvent",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("fulfillmentId", root_field.StringVal(fulfillment_id)),
+              #("status", root_field.StringVal("NOT_A_STATUS")),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentEventCreate\":{\"fulfillmentEvent\":null,\"userErrors\":[{\"field\":[\"fulfillmentEvent\",\"status\"],\"message\":\"Status is invalid.\",\"code\":\"invalid_status\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn fulfillment_event_create_appends_requested_order_timeline_event_test() {
+  let order_id = "gid://shopify/Order/event-timeline"
+  let fulfillment_id = "gid://shopify/Fulfillment/event-timeline"
+  let base_store =
+    store.new()
+    |> store.upsert_base_shipping_orders([
+      ShippingOrderRecord(
+        id: order_id,
+        data: CapturedObject([
+          #("id", CapturedString(order_id)),
+          #("events", CapturedObject([#("nodes", CapturedArray([]))])),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_fulfillments([
+      FulfillmentRecord(
+        id: fulfillment_id,
+        order_id: Some(order_id),
+        data: CapturedObject([
+          #("id", CapturedString(fulfillment_id)),
+          #("status", CapturedString("SUCCESS")),
+          #("displayStatus", CapturedString("FULFILLED")),
+          #("events", CapturedObject([#("nodes", CapturedArray([]))])),
+        ]),
+      ),
+    ])
+
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation Event($fulfillmentEvent: FulfillmentEventInput!) { fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) { fulfillmentEvent { id status happenedAt createdAt } userErrors { field message code } } }",
+      dict.from_list([
+        #(
+          "fulfillmentEvent",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("fulfillmentId", root_field.StringVal(fulfillment_id)),
+              #("status", root_field.StringVal("IN_TRANSIT")),
+              #("message", root_field.StringVal("Package scanned")),
+              #("record_timeline_event", root_field.BoolVal(True)),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  let assert [updated_fulfillment, ..] =
+    store.list_effective_fulfillments(outcome.store)
+  let event_id =
+    captured_event_id(updated_fulfillment.data) |> result.unwrap("")
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentEventCreate\":{\"fulfillmentEvent\":{\"id\":\""
+    <> event_id
+    <> "\",\"status\":\"IN_TRANSIT\",\"happenedAt\":\"2026-04-28T02:25:00Z\",\"createdAt\":\"2026-04-28T02:25:00Z\"},\"userErrors\":[]}}}"
+
+  let assert Ok(read_response) =
+    shipping_fulfillments.process(
+      outcome.store,
+      "query ReadOrder($id: ID!) { order(id: $id) { id events(first: 5) { nodes { __typename id action message createdAt subjectId subjectType } } } }",
+      dict.from_list([#("id", root_field.StringVal(order_id))]),
+    )
+  assert json.to_string(read_response)
+    == "{\"data\":{\"order\":{\"id\":\""
+    <> order_id
+    <> "\",\"events\":{\"nodes\":[{\"__typename\":\"BasicEvent\",\"id\":\"gid://shopify/BasicEvent/2\",\"action\":\"fulfillment_event_create\",\"message\":\"Package scanned\",\"createdAt\":\"2026-04-28T02:25:00Z\",\"subjectId\":\""
+    <> fulfillment_id
+    <> "\",\"subjectType\":\"FULFILLMENT\"}]}}}}"
 }
 
 pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
