@@ -2105,20 +2105,16 @@ fn validate_discount_input(
     }
     _ -> errors
   }
-  let errors = case input_name {
-    "automaticBasicDiscount" ->
-      case invalid_date_range(input) {
-        True ->
-          list.append(errors, [
-            user_error(
-              [input_name, "endsAt"],
-              "Ends at needs to be after starts_at",
-              "INVALID",
-            ),
-          ])
-        False -> errors
-      }
-    _ -> errors
+  let errors = case invalid_date_range(input) {
+    True ->
+      list.append(errors, [
+        user_error(
+          [input_name, "endsAt"],
+          "Ends at needs to be after starts_at",
+          "INVALID",
+        ),
+      ])
+    False -> errors
   }
   case input_name {
     "basicCodeDiscount" ->
@@ -3052,9 +3048,12 @@ fn bool_value(
 fn invalid_date_range(input: Dict(String, root_field.ResolvedValue)) -> Bool {
   case read_string(input, "startsAt"), read_string(input, "endsAt") {
     Some(starts_at), Some(ends_at) ->
-      case string.compare(ends_at, starts_at) {
-        order.Lt | order.Eq -> True
-        order.Gt -> False
+      case
+        iso_timestamp.parse_iso(starts_at),
+        iso_timestamp.parse_iso(ends_at)
+      {
+        Ok(starts_at_ms), Ok(ends_at_ms) -> ends_at_ms <= starts_at_ms
+        _, _ -> False
       }
     _, _ -> False
   }
