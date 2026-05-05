@@ -6939,7 +6939,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-366 supports explicit redeem-code ID bulk delete locally with a completed Job payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering. Search and saved-search redeem-code selectors remain locally refused to avoid broad code deletion without captured redeem-code matching semantics.",
+        "HAR-366 supports explicit redeem-code ID bulk delete locally with a completed Job payload, durable discountBulkOperations state, downstream code/detail/count reads, userErrors, and raw commit replay ordering. HAR-785 adds live-captured selector validation for missing selector, too-many selectors, unknown discount, empty ids, blank search, and unknown savedSearchId, with local code matching for search and saved-search selectors.",
       ),
     ),
     RegistryEntry(

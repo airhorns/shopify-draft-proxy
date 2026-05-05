@@ -1,0 +1,82 @@
+mutation DiscountRedeemCodeBulkDeleteValidation(
+  $discountId: ID!
+  $unknownDiscountId: ID!
+  $ids: [ID!]
+  $emptyIds: [ID!]
+  $search: String
+  $blankSearch: String
+  $savedSearchId: ID!
+) {
+  missing: discountCodeRedeemCodeBulkDelete(discountId: $discountId) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  tooMany: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $ids, search: $search) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  unknownDiscount: discountCodeRedeemCodeBulkDelete(discountId: $unknownDiscountId, ids: $ids) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  emptyIds: discountCodeRedeemCodeBulkDelete(discountId: $discountId, ids: $emptyIds) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  blankSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, search: $blankSearch) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  invalidSavedSearch: discountCodeRedeemCodeBulkDelete(discountId: $discountId, savedSearchId: $savedSearchId) {
+    job {
+      id
+      done
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

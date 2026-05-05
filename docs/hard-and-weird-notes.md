@@ -2863,7 +2863,7 @@ Useful constraints:
 
 - `discountRedeemCodeBulkAdd` is narrow and locally stageable because an explicit code list can be appended to one known code discount and reflected in `codes`, `codesCount`, `codeDiscountNodeByCode`, and catalog reads.
 - The introspected delete root is `discountCodeRedeemCodeBulkDelete`; the older `discountRedeemCodeBulkDelete` name remains a compatibility match alias, but new tests and docs should use the introspected root.
-- Local redeem-code bulk delete supports explicit redeem-code IDs only. Search and saved-search selectors are intentionally refused locally because they can describe broad destructive writes and need separate conformance evidence before staging.
+- HAR-785 live 2026-04 validation capture for `discountCodeRedeemCodeBulkDelete` shows the base selector errors serialize as `field: null` in Admin GraphQL, despite the internal source helper naming the base field. The same capture shows unknown discounts return `field: ["discountId"]`, message `Code discount does not exist.`, and empty `ids` returns the generic `Something went wrong, please try again.` with `code: null`.
 - The broad code/automatic bulk roots stay unimplemented. Blank search and no-selector destructive inputs are locally refused; other unsupported selector shapes still use the unsupported passthrough escape hatch so the mutation log records the registered unimplemented operation.
 - Local job-like payloads are completed immediately because the in-memory state change has already happened. Keep this scoped to selected fields with stable evidence (`id`, `done`, `query`, and bulk creation counts) until live captures justify modeling asynchronous progress or failure details.
 
