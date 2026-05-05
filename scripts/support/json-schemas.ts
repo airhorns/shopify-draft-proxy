@@ -141,6 +141,7 @@ export const paritySpecSchema = z
     scenarioStatus: z.string().optional(),
     assertionKinds: z.array(z.string()).optional(),
     comparisonMode: parityComparisonModeSchema.optional(),
+    setup: z.array(parityProxyRequestSpecSchema).optional(),
     proxyRequest: parityProxyRequestSpecSchema.optional(),
     comparison: comparisonContractSchema.optional(),
     liveCaptureFiles: z.array(z.string()).optional(),

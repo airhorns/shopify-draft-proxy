@@ -55,6 +55,14 @@ result. See _Per-operation upstream access_ below.
 `comparison.mode` is the comparison contract for the target payloads. It
 is distinct from proxy runtime read mode, which the runner owns.
 
+Specs may include an optional `setup` array of proxy requests. Setup
+requests run before the primary `proxyRequest` and thread the resulting
+`DraftProxy` value forward, but they are not included in
+`operationNames` validation. Use this only when the scenario needs local
+state that can be produced by supported proxy operations before the
+operation under test runs; do not use setup to pre-seed `base_state` or
+copy captured Shopify payloads into the store.
+
 ## Cassette shape
 
 The cassette lives inside the same capture file the spec already points

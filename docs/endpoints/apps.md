@@ -100,6 +100,6 @@ The capture records:
 - `tests/unit/app-billing-conformance-fixture.test.ts`
 - `config/parity-specs/apps/app-billing-access-local-staging.json`, including
   app-domain generic Node read targets
-- `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
+- `config/parity-specs/apps/app-subscription-cancel-state-transitions.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`

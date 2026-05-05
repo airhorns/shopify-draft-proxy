@@ -1,0 +1,60 @@
+{
+  "scenarioId": "app-subscription-cancel-state-transitions",
+  "captureType": "local-runtime-parity",
+  "storeDomain": "local-runtime.myshopify.com",
+  "apiVersion": "2026-04",
+  "upstreamCalls": [],
+  "evidence": {
+    "setup": {
+      "createdSubscriptionId": "gid://shopify/AppSubscription/3"
+    },
+    "expected": {
+      "cancelPending": {
+        "data": {
+          "appSubscriptionCancel": {
+            "appSubscription": {
+              "id": "gid://shopify/AppSubscription/expected",
+              "status": "CANCELLED"
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "cancelAgain": {
+        "data": {
+          "appSubscriptionCancel": {
+            "appSubscription": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Cannot transition status via :cancel from :cancelled",
+                "code": null
+              }
+            ]
+          }
+        }
+      },
+      "unknownCancel": {
+        "variables": {
+          "id": "gid://shopify/AppSubscription/0"
+        },
+        "data": {
+          "appSubscriptionCancel": {
+            "appSubscription": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "Couldn't find RecurringApplicationCharge",
+                "code": null
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "The setup request creates the local subscription before the primary appSubscriptionCancel request; setup operations are excluded from operationNames validation.",
+    "The current conformance app cannot execute live Billing API mutations (`Custom apps cannot use the Billing API`), so EXPIRED/DECLINED/FROZEN pre-state branches remain covered by the runtime test file."
+  ]
+}
