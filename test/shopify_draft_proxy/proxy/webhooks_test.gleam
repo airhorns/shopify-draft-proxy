@@ -713,6 +713,79 @@ pub fn webhook_subscription_create_blank_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address can't be blank\"}]}}}"
 }
 
+pub fn webhook_subscription_create_http_uri_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"http://example.com/hook\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol http:// is not supported\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_webhook_subscriptions(outcome.store) == []
+}
+
+pub fn webhook_subscription_create_internal_domain_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://localhost:3000/hook\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address cannot be a Shopify or an internal domain\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_webhook_subscriptions(outcome.store) == []
+}
+
+pub fn webhook_subscription_create_shopify_domain_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \"https://example.myshopify.com/hook\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address cannot be a Shopify or an internal domain\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_webhook_subscriptions(outcome.store) == []
+}
+
+pub fn webhook_subscription_create_disallowed_host_user_error_test() {
+  let examples = [
+    "https://shopify.com/hook",
+    "https://admin.shopify.com/hook",
+    "https://example.myshopify.com/hook",
+    "https://example.shopifypreview.com/hook",
+    "https://example.myshopify.dev/hook",
+    "https://localhost:3000/hook",
+    "https://127.0.0.1/hook",
+    "https://192.168.1.10/hook",
+    "https://172.16.1.10/hook",
+    "https://172.31.1.10/hook",
+    "https://10.0.0.5/hook",
+    "https://0.1.2.3/hook",
+  ]
+  list.each(examples, fn(uri) {
+    let document =
+      "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { uri: \""
+      <> uri
+      <> "\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+    let outcome = run_mutation_outcome(store.new(), document)
+    let body = json.to_string(outcome.data)
+    assert body
+      == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address cannot be a Shopify or an internal domain\"}]}}}"
+    assert outcome.staged_resource_ids == []
+    assert store.list_effective_webhook_subscriptions(outcome.store) == []
+  })
+}
+
+pub fn webhook_subscription_create_callback_url_uses_uri_validation_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: ORDERS_CREATE, webhookSubscription: { callbackUrl: \"http://example.com/hook\", format: JSON }) { webhookSubscription { id } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(store.new(), document)
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol http:// is not supported\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_webhook_subscriptions(outcome.store) == []
+}
+
 pub fn webhook_subscription_create_accepts_callback_url_alias_test() {
   // Real Shopify accepts `callbackUrl` on `WebhookSubscriptionInput` as a
   // legacy alias for `uri`. The proxy used to read only `uri`, fabricating
@@ -764,6 +837,56 @@ pub fn webhook_subscription_update_modifies_record_test() {
   let body = run_mutation(s, document)
   assert body
     == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1\",\"uri\":\"https://new\"},\"userErrors\":[]}}}"
+}
+
+pub fn webhook_subscription_update_http_uri_user_error_test() {
+  let r =
+    make_record(
+      "gid://shopify/WebhookSubscription/1",
+      Some("ORDERS_CREATE"),
+      Some("https://old"),
+      Some("JSON"),
+      Some("2024-01-01T00:00:00Z"),
+      Some("2024-01-01T00:00:00Z"),
+      Some(WebhookHttpEndpoint(callback_url: Some("https://old"))),
+    )
+  let s = store.upsert_base_webhook_subscriptions(store.new(), [r])
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { uri: \"http://example.com/hook\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(s, document)
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol http:// is not supported\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let effective_uris =
+    store.list_effective_webhook_subscriptions(outcome.store)
+    |> list.map(webhooks.webhook_subscription_uri)
+  assert effective_uris == [Some("https://old")]
+}
+
+pub fn webhook_subscription_update_callback_url_uses_uri_validation_test() {
+  let r =
+    make_record(
+      "gid://shopify/WebhookSubscription/1",
+      Some("ORDERS_CREATE"),
+      Some("https://old"),
+      Some("JSON"),
+      Some("2024-01-01T00:00:00Z"),
+      Some("2024-01-01T00:00:00Z"),
+      Some(WebhookHttpEndpoint(callback_url: Some("https://old"))),
+    )
+  let s = store.upsert_base_webhook_subscriptions(store.new(), [r])
+  let document =
+    "mutation { webhookSubscriptionUpdate(id: \"gid://shopify/WebhookSubscription/1\", webhookSubscription: { callbackUrl: \"https://shopify.com/hook\" }) { webhookSubscription { id uri } userErrors { field message } } }"
+  let outcome = run_mutation_outcome(s, document)
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionUpdate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address cannot be a Shopify or an internal domain\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  let effective_uris =
+    store.list_effective_webhook_subscriptions(outcome.store)
+    |> list.map(webhooks.webhook_subscription_uri)
+  assert effective_uris == [Some("https://old")]
 }
 
 pub fn webhook_subscription_update_unknown_id_user_error_test() {

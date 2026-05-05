@@ -1427,6 +1427,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'webhooks',
+    captureId: 'webhook-subscription-uri-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-uri-validation.ts',
+    purpose: 'Webhook subscription URI validation userErrors for create and update.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-uri-validation.json`,
+      'config/parity-specs/webhooks/webhook-subscription-uri-validation.json',
+      'config/parity-requests/webhooks/webhook-subscription-uri-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one baseline API webhook subscription for invalid update validation, then deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'gift-cards',
     captureId: 'gift-cards',
     scriptPath: 'scripts/capture-gift-card-conformance.ts',

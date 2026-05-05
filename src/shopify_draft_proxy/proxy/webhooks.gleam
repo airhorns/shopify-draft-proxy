@@ -24,6 +24,7 @@
 ////   a `{"errors": [...]}` envelope instead of `{"data": {...}}`.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -912,16 +913,7 @@ fn handle_create(
       }
       let input = read_webhook_subscription_input(args)
       let user_errors = case input {
-        Some(input_dict) ->
-          case normalize_uri_from_input(input_dict) {
-            Some(_) -> []
-            None -> [
-              UserError(
-                field: ["webhookSubscription", "callbackUrl"],
-                message: "Address can't be blank",
-              ),
-            ]
-          }
+        Some(input_dict) -> validate_webhook_uri_input(input_dict, True)
         None -> []
       }
       let #(record_opt, store_after, identity_after, staged_ids) = case
@@ -1018,9 +1010,11 @@ fn handle_update(
         Some(gid) -> store.get_effective_webhook_subscription_by_id(store, gid)
         None -> None
       }
-      let user_errors = case existing {
-        Some(_) -> []
-        None -> [
+      let user_errors = case existing, input {
+        Some(_), Some(input_dict) ->
+          validate_webhook_uri_input(input_dict, False)
+        Some(_), None -> []
+        None, _ -> [
           UserError(
             field: ["id"],
             message: "Webhook subscription does not exist",
@@ -1297,6 +1291,161 @@ fn read_first_string_field(
         _ -> read_first_string_field(input, rest)
       }
   }
+}
+
+fn validate_webhook_uri_input(
+  input: Dict(String, root_field.ResolvedValue),
+  require_uri: Bool,
+) -> List(UserError) {
+  case normalize_uri_from_input(input) {
+    Some(uri) ->
+      case validate_webhook_subscription_uri(uri) {
+        Ok(Nil) -> []
+        Error(message) -> [webhook_uri_user_error(message)]
+      }
+    None ->
+      case require_uri {
+        True -> [webhook_uri_user_error("Address can't be blank")]
+        False -> []
+      }
+  }
+}
+
+fn validate_webhook_subscription_uri(uri: String) -> Result(Nil, String) {
+  let lower_uri = string.lowercase(uri)
+  case
+    string.starts_with(lower_uri, "pubsub://"),
+    string.starts_with(lower_uri, "arn:aws:events:")
+  {
+    True, _ -> Ok(Nil)
+    _, True -> Ok(Nil)
+    False, False ->
+      case string.starts_with(lower_uri, "https://") {
+        False ->
+          case string.starts_with(lower_uri, "http://") {
+            True -> Error("Address protocol http:// is not supported")
+            False -> Error("Address is not a valid URL")
+          }
+        True -> validate_https_webhook_uri_host(uri)
+      }
+  }
+}
+
+fn validate_https_webhook_uri_host(uri: String) -> Result(Nil, String) {
+  let host = https_uri_host(uri)
+  case host {
+    "" -> Error("Address is not a valid URL")
+    _ ->
+      case is_disallowed_webhook_host(host) {
+        True -> Error("Address cannot be a Shopify or an internal domain")
+        False -> Ok(Nil)
+      }
+  }
+}
+
+fn https_uri_host(uri: String) -> String {
+  uri
+  |> string.drop_start(8)
+  |> uri_authority
+  |> host_without_userinfo
+  |> host_without_port
+  |> trim_trailing_dot
+  |> string.lowercase
+}
+
+fn uri_authority(after_scheme: String) -> String {
+  after_scheme
+  |> string_before("/")
+  |> string_before("?")
+  |> string_before("#")
+}
+
+fn string_before(value: String, delimiter: String) -> String {
+  case string.split(value, on: delimiter) {
+    [head, ..] -> head
+    [] -> value
+  }
+}
+
+fn host_without_userinfo(authority: String) -> String {
+  case string.split(authority, on: "@") |> list.last {
+    Ok(host) -> host
+    Error(_) -> authority
+  }
+}
+
+fn host_without_port(host_port: String) -> String {
+  case string.starts_with(host_port, "[") {
+    True ->
+      case string.drop_start(host_port, 1) |> string.split_once("]") {
+        Ok(#(host, _)) -> host
+        Error(_) -> host_port
+      }
+    False -> string_before(host_port, ":")
+  }
+}
+
+fn trim_trailing_dot(host: String) -> String {
+  case string.ends_with(host, ".") {
+    True -> trim_trailing_dot(string.drop_end(host, 1))
+    False -> host
+  }
+}
+
+fn is_disallowed_webhook_host(host: String) -> Bool {
+  is_disallowed_webhook_domain(host) || is_disallowed_webhook_ipv4(host)
+}
+
+fn is_disallowed_webhook_domain(host: String) -> Bool {
+  host == "localhost"
+  || domain_matches(host, "shopify.com")
+  || domain_matches(host, "myshopify.com")
+  || domain_matches(host, "shopifypreview.com")
+  || domain_matches(host, "myshopify.dev")
+}
+
+fn domain_matches(host: String, domain: String) -> Bool {
+  host == domain || string.ends_with(host, "." <> domain)
+}
+
+fn is_disallowed_webhook_ipv4(host: String) -> Bool {
+  case parse_ipv4(host) {
+    Some(#(first, second, _, _)) ->
+      first == 0
+      || first == 10
+      || first == 127
+      || { first == 192 && second == 168 }
+      || { first == 172 && second >= 16 && second <= 31 }
+    None -> False
+  }
+}
+
+fn parse_ipv4(host: String) -> Option(#(Int, Int, Int, Int)) {
+  case string.split(host, on: ".") {
+    [a, b, c, d] ->
+      case int.parse(a), int.parse(b), int.parse(c), int.parse(d) {
+        Ok(first), Ok(second), Ok(third), Ok(fourth) ->
+          case
+            valid_ipv4_octet(first)
+            && valid_ipv4_octet(second)
+            && valid_ipv4_octet(third)
+            && valid_ipv4_octet(fourth)
+          {
+            True -> Some(#(first, second, third, fourth))
+            False -> None
+          }
+        _, _, _, _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn valid_ipv4_octet(value: Int) -> Bool {
+  value >= 0 && value <= 255
+}
+
+fn webhook_uri_user_error(message: String) -> UserError {
+  UserError(field: ["webhookSubscription", "callbackUrl"], message: message)
 }
 
 // ---- Mutation projection --------------------------------------------------
