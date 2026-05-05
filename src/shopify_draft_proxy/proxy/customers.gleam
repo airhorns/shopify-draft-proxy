@@ -4216,50 +4216,83 @@ fn handle_customer_update(
               )
             }
             [] -> {
-              let #(timestamp, after_ts) =
-                synthetic_identity.make_synthetic_timestamp(identity)
               let updated =
-                update_customer_from_input(existing, input, timestamp)
-              let #(stored, store_after_customer) =
-                store.stage_update_customer(store, updated)
-              let store_after_metafields = case
-                read_customer_metafields(input, stored.id, after_ts)
-              {
-                [] -> store_after_customer
-                metafields ->
-                  store.stage_customer_metafields(
-                    store_after_customer,
-                    stored.id,
-                    metafields,
-                  )
-              }
-              let #(payload_customer, store_after_addresses) =
-                replace_customer_input_addresses(
-                  store_after_metafields,
-                  stored,
+                update_customer_from_input(
+                  existing,
                   input,
+                  option.unwrap(existing.updated_at, ""),
                 )
-              let payload =
-                customer_payload_json(
-                  store_after_addresses,
-                  "CustomerUpdatePayload",
-                  Some(payload_customer),
-                  None,
-                  None,
-                  [],
-                  field,
-                  fragments,
-                )
-              #(
-                MutationFieldResult(
-                  get_field_response_key(field),
-                  payload,
-                  [payload_customer.id],
-                  "customerUpdate",
-                ),
-                store_after_addresses,
-                after_ts,
-              )
+              case customer_identity_presence_errors(updated) {
+                [_, ..] as errors -> {
+                  let payload =
+                    customer_payload_json(
+                      store,
+                      "CustomerUpdatePayload",
+                      None,
+                      None,
+                      None,
+                      errors,
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [],
+                      "customerUpdate",
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+                [] -> {
+                  let #(timestamp, after_ts) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let updated =
+                    update_customer_from_input(existing, input, timestamp)
+                  let #(stored, store_after_customer) =
+                    store.stage_update_customer(store, updated)
+                  let store_after_metafields = case
+                    read_customer_metafields(input, stored.id, after_ts)
+                  {
+                    [] -> store_after_customer
+                    metafields ->
+                      store.stage_customer_metafields(
+                        store_after_customer,
+                        stored.id,
+                        metafields,
+                      )
+                  }
+                  let #(payload_customer, store_after_addresses) =
+                    replace_customer_input_addresses(
+                      store_after_metafields,
+                      stored,
+                      input,
+                    )
+                  let payload =
+                    customer_payload_json(
+                      store_after_addresses,
+                      "CustomerUpdatePayload",
+                      Some(payload_customer),
+                      None,
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [payload_customer.id],
+                      "customerUpdate",
+                    ),
+                    store_after_addresses,
+                    after_ts,
+                  )
+                }
+              }
             }
           }
         }
@@ -4282,6 +4315,38 @@ fn handle_customer_update(
         "CustomerUpdatePayload",
         "customerUpdate",
       )
+  }
+}
+
+fn customer_identity_presence_errors(
+  customer: CustomerRecord,
+) -> List(UserError) {
+  case customer_has_contact_identity(customer) {
+    True -> []
+    False -> [
+      UserError(
+        [],
+        "A name, phone number, or email address must be present",
+        Some("INVALID"),
+      ),
+    ]
+  }
+}
+
+fn customer_has_contact_identity(customer: CustomerRecord) -> Bool {
+  option_has_text(customer.first_name)
+  || option_has_text(customer.last_name)
+  || option_has_text(customer.email)
+  || option_has_text(
+    customer.default_phone_number
+    |> option.then(fn(value) { value.phone_number }),
+  )
+}
+
+fn option_has_text(value: Option(String)) -> Bool {
+  case value {
+    Some(text) -> string.trim(text) != ""
+    None -> False
   }
 }
 

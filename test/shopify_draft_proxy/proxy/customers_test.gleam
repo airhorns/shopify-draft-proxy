@@ -1,5 +1,6 @@
 import gleam/dict
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
@@ -304,6 +305,115 @@ pub fn customer_create_readback_and_log_test() {
     log_json,
     "\"query\":\"" <> escape(create_query) <> "\"",
   )
+}
+
+pub fn customer_update_rejects_clearing_last_email_identity_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"identity-only@example.com\" }) { customer { id email } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", email: null }) { customer { id email firstName lastName displayName defaultEmailAddress { emailAddress } defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"customer\":null")
+  assert_required_identity_user_error(update_json)
+  assert_log_omits_root(proxy, "customerUpdate")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email defaultEmailAddress { emailAddress } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"email\":\"identity-only@example.com\"")
+  assert string.contains(
+    read_json,
+    "\"defaultEmailAddress\":{\"emailAddress\":\"identity-only@example.com\"}",
+  )
+}
+
+pub fn customer_update_rejects_clearing_last_phone_identity_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { phone: \"+14155550123\" }) { customer { id defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", phone: null }) { customer { id defaultPhoneNumber { phoneNumber } } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"customer\":null")
+  assert_required_identity_user_error(update_json)
+  assert_log_omits_root(proxy, "customerUpdate")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email defaultPhoneNumber { phoneNumber } } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"defaultPhoneNumber\":{\"phoneNumber\":\"+14155550123\"}",
+  )
+}
+
+pub fn customer_update_rejects_clearing_last_name_identity_after_control_update_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"name-control@example.com\", firstName: \"Hermes\", lastName: \"Identity\" }) { customer { id firstName lastName email } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: control_status, body: control_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", email: null }) { customer { id firstName lastName email defaultEmailAddress { emailAddress } } userErrors { field message code } } }",
+    )
+  assert control_status == 200
+  let control_json = json.to_string(control_body)
+  assert string.contains(control_json, "\"userErrors\":[]")
+  assert string.contains(control_json, "\"email\":null")
+  assert_log_contains_root(proxy, "customerUpdate")
+
+  let #(Response(status: reject_status, body: reject_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", firstName: null, lastName: null }) { customer { id firstName lastName email } userErrors { field message code } } }",
+    )
+  assert reject_status == 200
+  let reject_json = json.to_string(reject_body)
+  assert string.contains(reject_json, "\"customer\":null")
+  assert_required_identity_user_error(reject_json)
+  assert_log_occurrences(proxy, "customerUpdate", 1)
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id firstName lastName email defaultEmailAddress { emailAddress } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"firstName\":\"Hermes\"")
+  assert string.contains(read_json, "\"lastName\":\"Identity\"")
+  assert string.contains(read_json, "\"email\":null")
 }
 
 pub fn customer_account_invite_stages_only_invitable_customers_test() {
@@ -1022,6 +1132,37 @@ fn assert_log_contains_root(proxy: draft_proxy.DraftProxy, root_name: String) {
     draft_proxy.process_request(proxy, log_request)
   assert log_status == 200
   assert string.contains(json.to_string(log_body), root_name)
+}
+
+fn assert_log_occurrences(
+  proxy: draft_proxy.DraftProxy,
+  root_name: String,
+  expected: Int,
+) {
+  let log_request =
+    Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, log_request)
+  assert log_status == 200
+  assert substring_occurrences(
+      json.to_string(log_body),
+      "\"primaryRootField\":\"" <> root_name <> "\"",
+    )
+    == expected
+}
+
+fn substring_occurrences(haystack: String, needle: String) -> Int {
+  case needle {
+    "" -> 0
+    _ -> list.length(string.split(haystack, needle)) - 1
+  }
+}
+
+fn assert_required_identity_user_error(body_json: String) {
+  assert string.contains(
+    body_json,
+    "\"userErrors\":[{\"field\":null,\"message\":\"A name, phone number, or email address must be present\",\"code\":\"INVALID\"}]",
+  )
 }
 
 fn assert_next_customer_create_uses_first_customer_id(

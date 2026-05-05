@@ -2664,6 +2664,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-update-requires-identity',
+    scriptPath: 'scripts/capture-customer-update-requires-identity-conformance.mts',
+    purpose: 'customerUpdate rejects changes that would leave a customer without name, phone, or email identity.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-update-requires-identity.json`,
+      'config/parity-specs/customers/customer_update_requires_identity.json',
+      'config/parity-requests/customers/customer_update_requires_identity_*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable email-only, phone-only, and name-pair customers, records rejection/control branches, then deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-input-addresses',
     scriptPath: 'scripts/capture-customer-input-addresses-conformance.mts',
     purpose: 'CustomerInput.addresses create/update replacement behavior and downstream reads.',
