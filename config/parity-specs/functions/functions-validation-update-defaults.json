@@ -1,0 +1,100 @@
+{
+  "scenarioId": "functions-validation-update-defaults",
+  "operationNames": ["validationCreate", "validationUpdate", "validation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "payload-shape",
+    "downstream-read-parity",
+    "side-effect-boundary",
+    "functions-validation-update-defaults",
+    "user-errors-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-validation-update-defaults.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-validation-update-defaults-create.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.createActive.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-active-data",
+        "capturePath": "$.createActive.response.payload.data.validationCreate",
+        "proxyPath": "$.data.validationCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "any-string",
+            "reason": "The proxy mints Validation IDs from a fresh synthetic counter; the live shop id differs."
+          }
+        ]
+      },
+      {
+        "name": "validation-update-omitted-defaults-data",
+        "capturePath": "$.updateTitleOnly.response.payload.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "any-string",
+            "reason": "The proxy updates its synthetic Validation id while Shopify returns the live Validation id."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-defaults-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            },
+            "validation": {
+              "title": "HAR-778 validation update renamed"
+            }
+          }
+        }
+      },
+      {
+        "name": "validation-post-update-read-data",
+        "capturePath": "$.postUpdateRead.response.payload.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.validation.id",
+            "matcher": "any-string",
+            "reason": "The proxy read returns the synthetic Validation id staged by the primary create."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-defaults-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.validationCreate.validation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "validation-update-unknown-id-user-error",
+        "capturePath": "$.unknownId.response.payload.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-defaults-unknown.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": "gid://shopify/Validation/999999999999",
+            "validation": {}
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-778 live Shopify parity evidence for validationUpdate defaults and unknown-id shape. The capture creates one disposable active validation with enable:true input and blockOnFailure:true through the released conformance-validation Function, updates it with a title-only ValidationUpdateInput, verifies the mutation payload and downstream validation(id:) read both report enabled:false and blockOnFailure:false, records the generic unknown-id userError message, and deletes the disposable validation during cleanup. The cassette contains only the ShopifyFunction lookup needed for local staging; supported mutations remain local-only under the proxy."
+}

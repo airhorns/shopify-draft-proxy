@@ -1,6 +1,6 @@
 {
   "scenarioId": "b2b-revoke-role-scope-preconditions",
-  "capturedAt": "2026-05-05T22:07:26.564Z",
+  "capturedAt": "2026-05-05T23:17:51.498Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
   "intent": {
@@ -9,22 +9,22 @@
   },
   "companyCreate": {
     "request": {
-      "query": "#graphql\n  mutation HAR762CompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          roleAssignments(first: 5) { nodes { id } }\n        }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        mainContact {\n          id\n          roleAssignments(first: 5) { nodes { id } }\n        }\n        locations(first: 5) { nodes { id name } }\n        contactRoles(first: 5) { nodes { id name } }\n      }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
         "input": {
           "company": {
-            "name": "HAR-762 B2B revoke scope 1778018844066",
+            "name": "B2B revoke role scope 1778023068661",
             "note": "HAR-762 B2B revoke-role scope parity",
-            "externalId": "har-762-revoke-scope-1778018844066"
+            "externalId": "har-762-revoke-scope-1778023068661"
           },
           "companyContact": {
             "firstName": "Har",
             "lastName": "Revoke",
-            "email": "har-762-main-1778018844066@example.com",
+            "email": "har-762-main-1778023068661@example.com",
             "title": "Main buyer"
           },
           "companyLocation": {
-            "name": "HAR-762 B2B revoke scope 1778018844066 HQ",
+            "name": "B2B revoke role scope 1778023068661 HQ",
             "phone": "+16135550762",
             "billingAddress": {
               "address1": "762 Scope Way",
@@ -40,14 +40,14 @@
       "data": {
         "companyCreate": {
           "company": {
-            "id": "gid://shopify/Company/5438964018",
-            "name": "HAR-762 B2B revoke scope 1778018844066",
+            "id": "gid://shopify/Company/5439521074",
+            "name": "B2B revoke role scope 1778023068661",
             "mainContact": {
-              "id": "gid://shopify/CompanyContact/10149560626",
+              "id": "gid://shopify/CompanyContact/10150183218",
               "roleAssignments": {
                 "nodes": [
                   {
-                    "id": "gid://shopify/CompanyContactRoleAssignment/44648431922"
+                    "id": "gid://shopify/CompanyContactRoleAssignment/44651053362"
                   }
                 ]
               }
@@ -55,19 +55,19 @@
             "locations": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyLocation/8248688946",
-                  "name": "HAR-762 B2B revoke scope 1778018844066 HQ"
+                  "id": "gid://shopify/CompanyLocation/8251506994",
+                  "name": "B2B revoke role scope 1778023068661 HQ"
                 }
               ]
             },
             "contactRoles": {
               "nodes": [
                 {
-                  "id": "gid://shopify/CompanyContactRole/10669359410",
+                  "id": "gid://shopify/CompanyContactRole/10670473522",
                   "name": "Location admin"
                 },
                 {
-                  "id": "gid://shopify/CompanyContactRole/10669392178",
+                  "id": "gid://shopify/CompanyContactRole/10670506290",
                   "name": "Ordering only"
                 }
               ]
@@ -91,13 +91,13 @@
   },
   "secondaryContactCreate": {
     "request": {
-      "query": "#graphql\n  mutation HAR762ContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact { id company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact { id company { id } }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5438964018",
+        "companyId": "gid://shopify/Company/5439521074",
         "input": {
           "firstName": "Har",
           "lastName": "Other Contact",
-          "email": "har-762-other-contact-1778018844066@example.com",
+          "email": "har-762-other-contact-1778023068661@example.com",
           "title": "Other buyer"
         }
       }
@@ -107,9 +107,9 @@
       "data": {
         "companyContactCreate": {
           "companyContact": {
-            "id": "gid://shopify/CompanyContact/10149593394",
+            "id": "gid://shopify/CompanyContact/10150215986",
             "company": {
-              "id": "gid://shopify/Company/5438964018"
+              "id": "gid://shopify/Company/5439521074"
             }
           },
           "userErrors": []
@@ -130,11 +130,11 @@
   },
   "contactAssignmentLocationCreate": {
     "request": {
-      "query": "#graphql\n  mutation HAR762LocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5438964018",
+        "companyId": "gid://shopify/Company/5439521074",
         "input": {
-          "name": "HAR-762 B2B revoke scope 1778018844066 contact assignment location",
+          "name": "B2B revoke role scope 1778023068661 contact assignment location",
           "phone": "+16135550763"
         }
       }
@@ -144,10 +144,10 @@
       "data": {
         "companyLocationCreate": {
           "companyLocation": {
-            "id": "gid://shopify/CompanyLocation/8248721714",
-            "name": "HAR-762 B2B revoke scope 1778018844066 contact assignment location",
+            "id": "gid://shopify/CompanyLocation/8251539762",
+            "name": "B2B revoke role scope 1778023068661 contact assignment location",
             "company": {
-              "id": "gid://shopify/Company/5438964018"
+              "id": "gid://shopify/Company/5439521074"
             }
           },
           "userErrors": []
@@ -168,13 +168,13 @@
   },
   "contactAssignmentCreate": {
     "request": {
-      "query": "#graphql\n  mutation HAR762ContactAssignRoles($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {\n    companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactAssignRoles($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {\n    companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10149593394",
+        "companyContactId": "gid://shopify/CompanyContact/10150215986",
         "rolesToAssign": [
           {
-            "companyLocationId": "gid://shopify/CompanyLocation/8248721714",
-            "companyContactRoleId": "gid://shopify/CompanyContactRole/10669359410"
+            "companyLocationId": "gid://shopify/CompanyLocation/8251539762",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10670473522"
           }
         ]
       }
@@ -185,7 +185,7 @@
         "companyContactAssignRoles": {
           "roleAssignments": [
             {
-              "id": "gid://shopify/CompanyContactRoleAssignment/44648464690"
+              "id": "gid://shopify/CompanyContactRoleAssignment/44651086130"
             }
           ],
           "userErrors": []
@@ -206,11 +206,11 @@
   },
   "locationAssignmentLocationCreate": {
     "request": {
-      "query": "#graphql\n  mutation HAR762LocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {\n    companyLocationCreate(companyId: $companyId, input: $input) {\n      companyLocation { id name company { id } }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyId": "gid://shopify/Company/5438964018",
+        "companyId": "gid://shopify/Company/5439521074",
         "input": {
-          "name": "HAR-762 B2B revoke scope 1778018844066 location assignment location",
+          "name": "B2B revoke role scope 1778023068661 location assignment location",
           "phone": "+16135550764"
         }
       }
@@ -220,10 +220,10 @@
       "data": {
         "companyLocationCreate": {
           "companyLocation": {
-            "id": "gid://shopify/CompanyLocation/8248754482",
-            "name": "HAR-762 B2B revoke scope 1778018844066 location assignment location",
+            "id": "gid://shopify/CompanyLocation/8251572530",
+            "name": "B2B revoke role scope 1778023068661 location assignment location",
             "company": {
-              "id": "gid://shopify/Company/5438964018"
+              "id": "gid://shopify/Company/5439521074"
             }
           },
           "userErrors": []
@@ -244,13 +244,13 @@
   },
   "locationAssignmentCreate": {
     "request": {
-      "query": "#graphql\n  mutation HAR762LocationAssignRoles($companyLocationId: ID!, $rolesToAssign: [CompanyLocationRoleAssign!]!) {\n    companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeLocationAssignRoles($companyLocationId: ID!, $rolesToAssign: [CompanyLocationRoleAssign!]!) {\n    companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {\n      roleAssignments { id }\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8248754482",
+        "companyLocationId": "gid://shopify/CompanyLocation/8251572530",
         "rolesToAssign": [
           {
-            "companyContactId": "gid://shopify/CompanyContact/10149560626",
-            "companyContactRoleId": "gid://shopify/CompanyContactRole/10669392178"
+            "companyContactId": "gid://shopify/CompanyContact/10150183218",
+            "companyContactRoleId": "gid://shopify/CompanyContactRole/10670506290"
           }
         ]
       }
@@ -261,7 +261,7 @@
         "companyLocationAssignRoles": {
           "roleAssignments": [
             {
-              "id": "gid://shopify/CompanyContactRoleAssignment/44648497458"
+              "id": "gid://shopify/CompanyContactRoleAssignment/44651118898"
             }
           ],
           "userErrors": []
@@ -282,10 +282,10 @@
   },
   "contactRevokeRoleWrongContact": {
     "request": {
-      "query": "#graphql\n  mutation HAR762ContactRevokeRole($companyContactId: ID!, $companyContactRoleAssignmentId: ID!) {\n    companyContactRevokeRole(\n      companyContactId: $companyContactId\n      companyContactRoleAssignmentId: $companyContactRoleAssignmentId\n    ) {\n      revokedCompanyContactRoleAssignmentId\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactRevokeRole($companyContactId: ID!, $companyContactRoleAssignmentId: ID!) {\n    companyContactRevokeRole(\n      companyContactId: $companyContactId\n      companyContactRoleAssignmentId: $companyContactRoleAssignmentId\n    ) {\n      revokedCompanyContactRoleAssignmentId\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10149560626",
-        "companyContactRoleAssignmentId": "gid://shopify/CompanyContactRoleAssignment/44648464690"
+        "companyContactId": "gid://shopify/CompanyContact/10150183218",
+        "companyContactRoleAssignmentId": "gid://shopify/CompanyContactRoleAssignment/44651086130"
       }
     },
     "response": {
@@ -317,9 +317,9 @@
   },
   "contactRevokeRolesRequiresIds": {
     "request": {
-      "query": "#graphql\n  mutation HAR762ContactRevokeRoles(\n    $companyContactId: ID!\n    $roleAssignmentIds: [ID!]!\n    $revokeAll: Boolean\n  ) {\n    companyContactRevokeRoles(\n      companyContactId: $companyContactId\n      roleAssignmentIds: $roleAssignmentIds\n      revokeAll: $revokeAll\n    ) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactRevokeRoles(\n    $companyContactId: ID!\n    $roleAssignmentIds: [ID!]!\n    $revokeAll: Boolean\n  ) {\n    companyContactRevokeRoles(\n      companyContactId: $companyContactId\n      roleAssignmentIds: $roleAssignmentIds\n      revokeAll: $revokeAll\n    ) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10149560626",
+        "companyContactId": "gid://shopify/CompanyContact/10150183218",
         "roleAssignmentIds": [],
         "revokeAll": false
       }
@@ -344,7 +344,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1989,
+            "currentlyAvailable": 1990,
             "restoreRate": 100
           }
         }
@@ -353,10 +353,10 @@
   },
   "locationRevokeRolesWrongLocation": {
     "request": {
-      "query": "#graphql\n  mutation HAR762LocationRevokeRoles($companyLocationId: ID!, $rolesToRevoke: [ID!]!) {\n    companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $rolesToRevoke) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeLocationRevokeRoles($companyLocationId: ID!, $rolesToRevoke: [ID!]!) {\n    companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $rolesToRevoke) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyLocationId": "gid://shopify/CompanyLocation/8248688946",
-        "rolesToRevoke": ["gid://shopify/CompanyContactRoleAssignment/44648497458"]
+        "companyLocationId": "gid://shopify/CompanyLocation/8251506994",
+        "rolesToRevoke": ["gid://shopify/CompanyContactRoleAssignment/44651118898"]
       }
     },
     "response": {
@@ -388,12 +388,12 @@
   },
   "contactRevokeRolesWrongContactPartial": {
     "request": {
-      "query": "#graphql\n  mutation HAR762ContactRevokeRoles(\n    $companyContactId: ID!\n    $roleAssignmentIds: [ID!]!\n    $revokeAll: Boolean\n  ) {\n    companyContactRevokeRoles(\n      companyContactId: $companyContactId\n      roleAssignmentIds: $roleAssignmentIds\n      revokeAll: $revokeAll\n    ) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeContactRevokeRoles(\n    $companyContactId: ID!\n    $roleAssignmentIds: [ID!]!\n    $revokeAll: Boolean\n  ) {\n    companyContactRevokeRoles(\n      companyContactId: $companyContactId\n      roleAssignmentIds: $roleAssignmentIds\n      revokeAll: $revokeAll\n    ) {\n      revokedRoleAssignmentIds\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "companyContactId": "gid://shopify/CompanyContact/10149560626",
+        "companyContactId": "gid://shopify/CompanyContact/10150183218",
         "roleAssignmentIds": [
-          "gid://shopify/CompanyContactRoleAssignment/44648431922",
-          "gid://shopify/CompanyContactRoleAssignment/44648464690"
+          "gid://shopify/CompanyContactRoleAssignment/44651053362",
+          "gid://shopify/CompanyContactRoleAssignment/44651086130"
         ],
         "revokeAll": false
       }
@@ -402,7 +402,7 @@
       "status": 200,
       "data": {
         "companyContactRevokeRoles": {
-          "revokedRoleAssignmentIds": ["gid://shopify/CompanyContactRoleAssignment/44648431922"],
+          "revokedRoleAssignmentIds": ["gid://shopify/CompanyContactRoleAssignment/44651053362"],
           "userErrors": [
             {
               "field": ["roleAssignmentIds", "1"],
@@ -418,7 +418,7 @@
           "actualQueryCost": 10,
           "throttleStatus": {
             "maximumAvailable": 2000,
-            "currentlyAvailable": 1990,
+            "currentlyAvailable": 1989,
             "restoreRate": 100
           }
         }
@@ -427,16 +427,16 @@
   },
   "companyDelete": {
     "request": {
-      "query": "#graphql\n  mutation HAR762CompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
+      "query": "#graphql\n  mutation B2BRevokeRoleScopeCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors { field message code }\n    }\n  }\n",
       "variables": {
-        "id": "gid://shopify/Company/5438964018"
+        "id": "gid://shopify/Company/5439521074"
       }
     },
     "response": {
       "status": 200,
       "data": {
         "companyDelete": {
-          "deletedCompanyId": "gid://shopify/Company/5438964018",
+          "deletedCompanyId": "gid://shopify/Company/5439521074",
           "userErrors": []
         }
       },

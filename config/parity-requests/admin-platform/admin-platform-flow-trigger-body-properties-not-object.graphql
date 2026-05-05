@@ -1,0 +1,8 @@
+mutation FlowTriggerReceiveBodyPropertiesNotObject {
+  flowTriggerReceive(body: "{\"properties\":\"oops\"}") {
+    userErrors {
+      field
+      message
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "scenarioId": "customer-set-unknown-id-errors",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T23:05:00.000Z",
+  "notes": "HAR-770 deterministic local-runtime evidence for customerSet identifier.id dispatch. The ticketed Shopify source-level contract routes the presence of identifier.id through the update path; an unknown id returns a payload userError and must not stage a synthetic customer.",
+  "cases": {
+    "unknownId": {
+      "request": {
+        "variables": {
+          "identifier": {
+            "id": "gid://shopify/Customer/999999999"
+          },
+          "input": {
+            "email": "buyer@example.com"
+          }
+        }
+      },
+      "response": {
+        "data": {
+          "customerSet": {
+            "customer": null,
+            "userErrors": [
+              {
+                "field": ["input", "id"],
+                "message": "Customer does not exist",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      },
+      "state": {
+        "stagedState": {
+          "customers": {}
+        }
+      },
+      "log": {
+        "entries": []
+      }
+    }
+  },
+  "upstreamCalls": []
+}

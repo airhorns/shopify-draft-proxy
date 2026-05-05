@@ -3092,6 +3092,93 @@
         }
       }
     },
+    "flowTriggerReceiveBodyNotJson": {
+      "query": "#graphql\n  mutation FlowTriggerReceiveBodyNotJson {\n    flowTriggerReceive(body: \"not json\") {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "flowTriggerReceive": {
+              "userErrors": [
+                {
+                  "field": ["body"],
+                  "message": "Errors validating schema:\n  unexpected token 'not' at line 1 column 1\n"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "flowTriggerReceiveBodyPropertiesNotObject": {
+      "query": "#graphql\n  mutation FlowTriggerReceiveBodyPropertiesNotObject {\n    flowTriggerReceive(body: \"{\\\"properties\\\":\\\"oops\\\"}\") {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "flowTriggerReceive": {
+              "userErrors": [
+                {
+                  "field": ["body"],
+                  "message": "Errors validating schema:\n  Type error for field 'properties': oops is not an Object.\n"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "flowTriggerReceiveBodyMissingResourceUrl": {
+      "query": "#graphql\n  mutation FlowTriggerReceiveBodyMissingResourceUrl {\n    flowTriggerReceive(body: \"{\\\"trigger_id\\\":\\\"abc\\\",\\\"resources\\\":[{\\\"name\\\":\\\"x\\\"}],\\\"properties\\\":{}}\") {\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "flowTriggerReceive": {
+              "userErrors": [
+                {
+                  "field": ["body"],
+                  "message": "Errors validating schema:\n  Required field missing: 'url'.\n"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
     "flowGenerateSignatureUnknown": {
       "query": "mutation {\n  flowGenerateSignature(id: \"gid://shopify/FlowTrigger/0\", payload: \"{}\") {\n    signature\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "result": {

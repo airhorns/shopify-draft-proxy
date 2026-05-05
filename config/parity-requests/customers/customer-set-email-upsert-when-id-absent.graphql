@@ -1,0 +1,14 @@
+mutation CustomerSetEmailUpsertWhenIdAbsent($input: CustomerSetInput!, $identifier: CustomerSetIdentifiers) {
+  customerSet(input: $input, identifier: $identifier) {
+    customer {
+      id
+      email
+      firstName
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

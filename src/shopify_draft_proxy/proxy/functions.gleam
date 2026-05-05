@@ -56,7 +56,7 @@ import shopify_draft_proxy/state/types.{
   ValidationMetafieldRecord, ValidationRecord,
 }
 
-const max_active_validations: Int = 10
+const max_active_validations: Int = 25
 
 const function_app_id: String = "347082227713"
 
@@ -1005,22 +1005,13 @@ fn function_already_registered_error(field_name: String) -> UserError {
 
 fn max_validations_activated_error() -> UserError {
   UserError(
-    field: ["enable"],
-    message: "Cannot have more than 10 active validation functions.",
+    field: [],
+    message: "Cannot have more than 25 active validation functions.",
     code: Some("MAX_VALIDATIONS_ACTIVATED"),
   )
 }
 
-fn not_found_error(field_name: String, id: String) -> UserError {
-  UserError(
-    field: [field_name],
-    message: "No function-backed resource exists with id " <> id,
-    code: Some("NOT_FOUND"),
-  )
-}
-
-fn validation_delete_not_found_error(id: String) -> UserError {
-  let _canonical_id = canonical_validation_id(id)
+fn validation_not_found_error() -> UserError {
   UserError(
     field: ["id"],
     message: "Extension not found.",
@@ -1091,14 +1082,9 @@ fn handle_validation_create(
       )
     }
     _, _ -> {
-      let enable = case graphql_helpers.read_arg_bool(input, "enable") {
-        Some(b) -> Some(b)
-        None ->
-          case graphql_helpers.read_arg_bool(input, "enabled") {
-            Some(b) -> Some(b)
-            None -> Some(False)
-          }
-      }
+      let enable =
+        graphql_helpers.read_arg_bool(input, "enable")
+        |> option.or(Some(False))
       case validation_enable_would_exceed_cap(store, "", enable) {
         True -> {
           let payload =
@@ -1217,7 +1203,7 @@ fn handle_validation_update(
     None -> {
       let payload =
         validation_mutation_payload(store, field, fragments, None, [
-          not_found_error("id", id),
+          validation_not_found_error(),
         ])
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),
@@ -1246,14 +1232,9 @@ fn handle_validation_update(
         Some(s) -> Some(s)
         None -> current.title
       }
-      let new_enable = case graphql_helpers.read_arg_bool(input, "enable") {
-        Some(b) -> Some(b)
-        None ->
-          case graphql_helpers.read_arg_bool(input, "enabled") {
-            Some(b) -> Some(b)
-            None -> current.enable
-          }
-      }
+      let new_enable =
+        graphql_helpers.read_arg_bool(input, "enable")
+        |> option.or(Some(False))
       case validation_enable_would_exceed_cap(store, current.id, new_enable) {
         True -> {
           let payload =
@@ -1275,7 +1256,7 @@ fn handle_validation_update(
             graphql_helpers.read_arg_bool(input, "blockOnFailure")
           {
             Some(b) -> Some(b)
-            None -> current.block_on_failure
+            None -> Some(False)
           }
           let #(new_metafields, identity_after_metafields) = case
             dict.has_key(input, "metafields")
@@ -1350,7 +1331,7 @@ fn handle_validation_delete(
     None -> {
       let payload =
         delete_payload(field, fragments, None, [
-          validation_delete_not_found_error(id),
+          validation_not_found_error(),
         ])
       #(
         MutationFieldResult(key: key, payload: payload, staged_resource_ids: []),

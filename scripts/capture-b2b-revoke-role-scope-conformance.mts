@@ -18,7 +18,7 @@ type RecordedOperation = {
 
 const scenarioId = 'b2b-revoke-role-scope-preconditions';
 const timestamp = Date.now();
-const companyName = `HAR-762 B2B revoke scope ${timestamp}`;
+const companyName = `B2B revoke role scope ${timestamp}`;
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -29,7 +29,7 @@ const { runGraphqlRequest } = createAdminGraphqlClient({
 });
 
 const companyCreateDocument = `#graphql
-  mutation HAR762CompanyCreate($input: CompanyCreateInput!) {
+  mutation B2BRevokeRoleScopeCompanyCreate($input: CompanyCreateInput!) {
     companyCreate(input: $input) {
       company {
         id
@@ -47,7 +47,7 @@ const companyCreateDocument = `#graphql
 `;
 
 const contactCreateDocument = `#graphql
-  mutation HAR762ContactCreate($companyId: ID!, $input: CompanyContactInput!) {
+  mutation B2BRevokeRoleScopeContactCreate($companyId: ID!, $input: CompanyContactInput!) {
     companyContactCreate(companyId: $companyId, input: $input) {
       companyContact { id company { id } }
       userErrors { field message code }
@@ -56,7 +56,7 @@ const contactCreateDocument = `#graphql
 `;
 
 const locationCreateDocument = `#graphql
-  mutation HAR762LocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+  mutation B2BRevokeRoleScopeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
     companyLocationCreate(companyId: $companyId, input: $input) {
       companyLocation { id name company { id } }
       userErrors { field message code }
@@ -65,7 +65,7 @@ const locationCreateDocument = `#graphql
 `;
 
 const contactAssignRolesDocument = `#graphql
-  mutation HAR762ContactAssignRoles($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {
+  mutation B2BRevokeRoleScopeContactAssignRoles($companyContactId: ID!, $rolesToAssign: [CompanyContactRoleAssign!]!) {
     companyContactAssignRoles(companyContactId: $companyContactId, rolesToAssign: $rolesToAssign) {
       roleAssignments { id }
       userErrors { field message code }
@@ -74,7 +74,7 @@ const contactAssignRolesDocument = `#graphql
 `;
 
 const locationAssignRolesDocument = `#graphql
-  mutation HAR762LocationAssignRoles($companyLocationId: ID!, $rolesToAssign: [CompanyLocationRoleAssign!]!) {
+  mutation B2BRevokeRoleScopeLocationAssignRoles($companyLocationId: ID!, $rolesToAssign: [CompanyLocationRoleAssign!]!) {
     companyLocationAssignRoles(companyLocationId: $companyLocationId, rolesToAssign: $rolesToAssign) {
       roleAssignments { id }
       userErrors { field message code }
@@ -83,7 +83,7 @@ const locationAssignRolesDocument = `#graphql
 `;
 
 const contactRevokeRoleDocument = `#graphql
-  mutation HAR762ContactRevokeRole($companyContactId: ID!, $companyContactRoleAssignmentId: ID!) {
+  mutation B2BRevokeRoleScopeContactRevokeRole($companyContactId: ID!, $companyContactRoleAssignmentId: ID!) {
     companyContactRevokeRole(
       companyContactId: $companyContactId
       companyContactRoleAssignmentId: $companyContactRoleAssignmentId
@@ -95,7 +95,7 @@ const contactRevokeRoleDocument = `#graphql
 `;
 
 const contactRevokeRolesDocument = `#graphql
-  mutation HAR762ContactRevokeRoles(
+  mutation B2BRevokeRoleScopeContactRevokeRoles(
     $companyContactId: ID!
     $roleAssignmentIds: [ID!]!
     $revokeAll: Boolean
@@ -112,7 +112,7 @@ const contactRevokeRolesDocument = `#graphql
 `;
 
 const locationRevokeRolesDocument = `#graphql
-  mutation HAR762LocationRevokeRoles($companyLocationId: ID!, $rolesToRevoke: [ID!]!) {
+  mutation B2BRevokeRoleScopeLocationRevokeRoles($companyLocationId: ID!, $rolesToRevoke: [ID!]!) {
     companyLocationRevokeRoles(companyLocationId: $companyLocationId, rolesToRevoke: $rolesToRevoke) {
       revokedRoleAssignmentIds
       userErrors { field message code }
@@ -121,7 +121,7 @@ const locationRevokeRolesDocument = `#graphql
 `;
 
 const companyDeleteDocument = `#graphql
-  mutation HAR762CompanyDelete($id: ID!) {
+  mutation B2BRevokeRoleScopeCompanyDelete($id: ID!) {
     companyDelete(id: $id) {
       deletedCompanyId
       userErrors { field message code }

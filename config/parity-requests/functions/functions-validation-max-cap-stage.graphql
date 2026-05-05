@@ -1,0 +1,326 @@
+mutation FunctionsValidationMaxCapStage {
+  active1: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 1", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active2: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 2", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active3: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 3", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active4: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 4", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active5: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 5", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active6: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 6", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active7: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 7", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active8: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 8", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active9: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 9", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active10: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 10", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active11: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 11", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active12: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 12", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active13: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 13", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active14: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 14", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active15: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 15", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active16: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 16", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active17: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 17", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active18: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 18", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active19: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 19", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active20: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 20", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active21: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 21", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active22: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 22", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active23: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 23", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active24: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 24", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  active25: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 active 25", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  inactiveSubject: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 inactive", enable: false }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  maxActive: validationCreate(
+    validation: { functionHandle: "conformance-validation", title: "HAR-777 max active", enable: true }
+  ) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

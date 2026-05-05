@@ -64,6 +64,24 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: Customer address Atlas validation normalizes some apparent conflicts
+
+HAR-776 captured Admin GraphQL 2025-01 customer address validation against
+`harry-test-heelo.myshopify.com`. Two branches contradicted the original ticket
+expectation:
+
+- `countryCode` / `countryCodeV2` wins over a conflicting display `country`.
+  `countryCode: US` plus `country: "Canada"` is accepted and returns
+  `country: "United States"`.
+- countries without Atlas zones, such as `SG`, ignore submitted province values
+  instead of returning a userError; Shopify returns `province: null` and
+  `provinceCode: null`.
+
+Unknown countries and country-specific province mismatches still return payload
+`userErrors` (`Country is invalid` / `Province is invalid`) and do not stage a
+local address. The executable evidence is
+`config/parity-specs/customers/customer_address_country_province_validation.json`.
+
 ## Current: Online-store body HTML is not scrubbed by Admin GraphQL
 
 HAR-741 resolves the HAR-561 source-of-truth mismatch: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned page/article bodies containing script blocks and event-handler attributes verbatim in create payloads and immediate detail reads.
@@ -95,6 +113,28 @@ Two nearby 2026-04 traps from the same capture:
 - duplicate `companyLocationAssignAddress(addressTypes: [BILLING, BILLING])`
   returns `addresses: null` and a single `INVALID_INPUT` userError with
   `field: null` and message `Invalid input.`
+
+## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
+
+HAR-755 is implemented from the Business Customers package guardrail that caps
+bulk action inputs at 50 entries before per-entry processing. A live feasibility
+probe against `harry-test-heelo.myshopify.com` on Admin GraphQL 2026-04 did not
+produce one clean parity fixture for that contract:
+
+- `companiesDelete(companyIds: <51 missing-style gids>)` returned
+  `LIMIT_REACHED`, but with message
+  `Exceeded max input size of 50. Consider using BulkOperation.` and
+  `deletedCompanyIds: null`.
+- `companyContactAssignRoles(rolesToAssign: <51 valid role specs>)` accepted
+  the request and created 51 role assignments on a disposable company.
+- `currentStaffMember` and `staffMembers` remain access denied for the current
+  conformance token, so valid staff-assignment bulk limit evidence cannot be
+  captured on this host.
+
+Practical rule: keep HAR-755 runtime coverage focused on the internal B2B
+request guard contract and avoid adding a checked-in parity spec for the public
+2026-04 probe until a future live target reproduces the intended branch across
+the affected roots.
 
 ## Current: SavedSearch query storage separates grouped terms from top-level filters
 
@@ -2406,7 +2446,7 @@ Practical rule:
 
 The HAR-154 customer mutation capture added `taxExemptions`, `customer.metafield(...)`, and `customer.metafields(...)` to the existing customer CRUD parity fixture.
 
-Captured facts:
+Captured and ticketed facts:
 
 - `customerUpdate(input.taxExemptions)` replaces the customer's applied tax exemption list independently from the boolean `taxExempt`
 - `CustomerInput.metafields` can create a customer-owned metafield and the immediate mutation payload plus downstream `customer(id:)` read expose it through both singular `metafield(namespace:, key:)` and the `metafields` connection
@@ -2642,6 +2682,16 @@ Captured mutation-scoped `DiscountUserError` branches:
   `discountCodeBasicUpdate` carrying a `code` field once the bulk-added redeem code is
   query-visible; immediate update attempts before bulk processing can still
   succeed on the live store
+- `discountRedeemCodeBulkAdd` validation is split across GraphQL validation,
+  mutation-scoped `DiscountUserError`s, and async per-code bulk results:
+  unknown `discountId` returns `field: ['discountId']`, `code: 'INVALID'`,
+  and `Code discount does not exist.`; an empty code array returns
+  `field: ['codes']`, `code: 'BLANK'`, and `Codes can't be blank`; more than
+  250 input codes is a top-level `MAX_INPUT_SIZE_EXCEEDED` error on
+  `['discountRedeemCodeBulkAdd', 'codes']`; schema-shaped empty, CR/LF,
+  too-long, and duplicate code strings are accepted into a
+  `DiscountRedeemCodeBulkCreation` and appear later as per-code
+  `codes.nodes[].errors` on `discountRedeemCodeBulkCreation(id:)`
 - `discountCodeBasicUpdate` against a `DiscountCodeBxgy` record coerces the
   record to `DiscountCodeBasic` instead of preserving the prior type
 - code and automatic bulk roots use different wording for mutually exclusive selector errors even though both use `code: 'TOO_MANY_ARGUMENTS'`
@@ -2820,14 +2870,14 @@ Captured facts:
 - `CustomerSetIdentifiers` uses `email` and `phone`, while `customerByIdentifier` uses `emailAddress` and `phoneNumber`
 - no-identifier `customerSet` creates a customer when the input has a name, phone, or email
 - `identifier.email` upserts: a missing email identifier creates a customer, and a later call with the same identifier updates that customer
-- unknown `identifier.id` returns payload `userErrors` with `field: ["input"]` and message `Resource matching the identifier was not found.`
+- HAR-770 source-level evidence says unknown `identifier.id` is id-first and update-like: it returns payload `userErrors` with `field: ["input", "id"]`, `code: "INVALID"`, and message `Customer does not exist`; it must not fall back to create even when email or phone inputs are also present
 - `identifier.customId` without an id-typed unique metafield definition returns `data.customerSet: null` plus a top-level `NOT_FOUND` error
 - `input.addresses` behaves as a replacement list for an existing customer; an empty list clears the default address and downstream `addressesV2`
 - `identifier.phone` follows the same upsert/update pattern as `identifier.email`; downstream `customerByIdentifier(identifier: { phoneNumber })` observes the staged customer locally
 - no-identifier creates reject duplicate native identifiers: duplicate email returns `field: ["input", "email"]` / `Email has already been taken`, and duplicate phone returns `field: ["input", "phone"]` / `Phone has already been taken`
 - identifier/input alignment errors are not field-specific beyond `["input"]`: missing corresponding input fields return `The input field corresponding to the identifier is required.`, while mismatches return `The identifier value does not match the value of the corresponding field in the input.`
 - `addresses: null` is a successful no-op for an existing customer, while `taxExempt: null` returns `field: ["input", "taxExempt"]` / `Tax exempt is of unexpected type NilClass`
-- after a customer is deleted, `customerSet(identifier: { id: deletedId })` returns the same `Resource matching the identifier was not found.` payload userError as an unknown id
+- after a customer is deleted, `customerSet(identifier: { id: deletedId })` should follow the same id-first missing-customer branch as an unknown id
 
 Practical rule:
 
@@ -2863,7 +2913,7 @@ Useful constraints:
 
 - `discountRedeemCodeBulkAdd` is narrow and locally stageable because an explicit code list can be appended to one known code discount and reflected in `codes`, `codesCount`, `codeDiscountNodeByCode`, and catalog reads.
 - The introspected delete root is `discountCodeRedeemCodeBulkDelete`; the older `discountRedeemCodeBulkDelete` name remains a compatibility match alias, but new tests and docs should use the introspected root.
-- Local redeem-code bulk delete supports explicit redeem-code IDs only. Search and saved-search selectors are intentionally refused locally because they can describe broad destructive writes and need separate conformance evidence before staging.
+- HAR-785 live 2026-04 validation capture for `discountCodeRedeemCodeBulkDelete` shows the base selector errors serialize as `field: null` in Admin GraphQL, despite the internal source helper naming the base field. The same capture shows unknown discounts return `field: ["discountId"]`, message `Code discount does not exist.`, and empty `ids` returns the generic `Something went wrong, please try again.` with `code: null`.
 - The broad code/automatic bulk roots stay unimplemented. Blank search and no-selector destructive inputs are locally refused; other unsupported selector shapes still use the unsupported passthrough escape hatch so the mutation log records the registered unimplemented operation.
 - Local job-like payloads are completed immediately because the in-memory state change has already happened. Keep this scoped to selected fields with stable evidence (`id`, `done`, `query`, and bulk creation counts) until live captures justify modeling asynchronous progress or failure details.
 

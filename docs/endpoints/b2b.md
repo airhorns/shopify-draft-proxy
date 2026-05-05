@@ -99,6 +99,16 @@ defaults the created contact locale and derives the contact customer payload
 from the resolved local `Customer` record instead of synthesizing an arbitrary
 customer shape.
 
+Empty-object B2B write inputs short-circuit before local staging. The
+2026-04 `b2b-no-input-validation` parity capture records the public Admin
+payloads for the empty-object branches: `companyContactCreate`,
+`companyContactUpdate`, and `companyLocationUpdate` return root-specific
+`NO_INPUT` userErrors with a null field, while `companyUpdate` returns
+`INVALID` at `input` with Shopify's "At least one attribute to change must be
+present" message. The same capture records null-only probes showing the public
+schema does not treat explicit null keys as a uniform NO_INPUT branch, so the
+runtime null-only guardrail remains covered by the focused local test.
+
 HAR-446 captured a fidelity trap in the company-create path: when
 `companyCreate` creates both a main contact and a default company location,
 Shopify automatically assigns that contact the `Ordering only` role for that
@@ -159,6 +169,28 @@ still does not synthesize a broader staff catalog, but missing staff-member and
 staff-assignment IDs use Shopify's indexed user error paths and null payload
 shape for the failed list-valued fields.
 
+HAR-755 adds the B2B package's request-level bulk action guard before per-entry
+processing. The local bulk delete, role assignment/revoke, and location staff
+assignment/removal roots reject lists with more than 50 entries with a single
+`LIMIT_REACHED` userError at the bare top-level argument path and leave the
+staged B2B graph unchanged.
+
+HAR-756 extends the bulk role-assignment surfaces to match Shopify's
+partial-success behavior while preserving those indexed field paths.
+`companyContactAssignRoles` and `companyLocationAssignRoles` validate every
+`rolesToAssign` entry, stage each successful assignment, return successful
+`roleAssignments` in original input order minus failed entries, and report
+indexed `userErrors` for failures. `companyContactRevokeRoles` and
+`companyLocationRevokeRoles` likewise validate every requested assignment ID,
+revoke each valid parent-scoped assignment once, return
+`revokedRoleAssignmentIds` in input order minus failed entries, and keep
+per-index `RESOURCE_NOT_FOUND` errors for invalid IDs. The local runtime also
+echoes the resolved parent contact/location in these payloads when selected, as
+required by the Business Customers contract; the public 2026-04 Admin schema
+used for conformance does not expose those parent payload fields, so live
+parity covers public partial-success fields while focused runtime tests cover
+parent echo selections.
+
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`
@@ -218,9 +250,12 @@ names and unknown company/contact/location IDs. These return resolver-level
 `userErrors` without appending commit-log work.
 
 The local implementation intentionally models durable lifecycle state rather
-than every Shopify-side integration. Customer and staff member references are
-stored by ID for downstream B2B reads, but the proxy does not synthesize broader
-customer or staff catalog side effects from B2B assignment mutations.
+than every Shopify-side integration. Customer references are stored by ID for
+downstream B2B reads. Staff-location assignment validates each supplied staff
+member ID against the effective local Admin Platform `StaffMember` node catalog
+and returns per-index `RESOURCE_NOT_FOUND` for absent staff or assignment IDs,
+but the proxy does not synthesize broader staff catalog side effects from B2B
+assignment mutations.
 The HAR-446 live capture records that the current conformance token receives
 `ACCESS_DENIED` for `staffMembers(first:)`, so staff assignment remains covered
 by executable runtime tests instead of live staff-catalog parity. Generic Node
@@ -258,6 +293,10 @@ conformance-backed local modeling.
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
 - Location/address management parity scenario:
   `config/parity-specs/b2b/b2b-location-address-management.json`
+- Empty input validation capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json`
+- Empty input validation parity scenario:
+  `config/parity-specs/b2b/b2b-no-input-validation.json`
 - Lifecycle runtime coverage:
 - Root inventory:
   `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
@@ -321,3 +360,12 @@ external IDs returning Shopify's observable `TAKEN` code, so the proxy emits
 DB-conflict enum names. Update mutations use the same checks while allowing the
 current record to retain its own unchanged external ID. Executable parity specs
 cover charset, too-long, duplicate-company, and duplicate-location branches.
+
+HAR-760 adds the captured create-only `customerSince` guard for
+`companyUpdate`. Shopify 2026-04 accepts `customerSince` on `companyCreate` but
+rejects `companyUpdate(input.customerSince)` whenever the key is present,
+including `null`, with `INVALID_INPUT`, field `["input", "customerSince"]`, and
+message `This field may only be set on creation.` The checked-in parity
+scenario records timestamp-only, mixed `name` plus `customerSince`, and
+`customerSince: null` updates; each rejected update is followed by a company
+read proving the original `name` and `customerSince` stayed unchanged.

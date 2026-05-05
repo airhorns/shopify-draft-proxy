@@ -45,6 +45,7 @@ type RecordedCall = {
 
 type SpecTargetRequest = {
   documentPath?: string;
+  documentCapturePath?: string;
   variablesPath?: string;
   variablesCapturePath?: string;
 };
@@ -136,12 +137,21 @@ function loadDocumentAndVariables(
   request: SpecTargetRequest | undefined,
   capture: unknown,
 ): { document: string; variables: Record<string, unknown> } | null {
-  if (!request || !request.documentPath) return null;
-  const documentPath = resolve(repoRoot, request.documentPath);
-  if (!existsSync(documentPath)) {
-    throw new Error(`Spec references missing document: ${request.documentPath}`);
+  if (!request || (!request.documentPath && !request.documentCapturePath)) return null;
+  let document: string;
+  if (request.documentCapturePath) {
+    const capturedDocument = resolveJsonPath(capture, request.documentCapturePath);
+    if (typeof capturedDocument !== 'string') {
+      throw new Error(`Spec references missing captured document: ${request.documentCapturePath}`);
+    }
+    document = capturedDocument;
+  } else {
+    const documentPath = resolve(repoRoot, request.documentPath);
+    if (!existsSync(documentPath)) {
+      throw new Error(`Spec references missing document: ${request.documentPath}`);
+    }
+    document = readFileSync(documentPath, 'utf8');
   }
-  const document = readFileSync(documentPath, 'utf8');
 
   let variables: Record<string, unknown> = {};
   if (request.variablesPath) {

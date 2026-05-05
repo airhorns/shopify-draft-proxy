@@ -1,0 +1,13 @@
+mutation BackupRegionUpdateValidationTypename {
+  backupRegionUpdate(region: { countryCode: ZZ }) {
+    backupRegion {
+      id
+    }
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

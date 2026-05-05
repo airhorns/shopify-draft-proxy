@@ -1,4 +1,4 @@
-mutation HAR762ContactRevokeRoles($companyContactId: ID!, $roleAssignmentIds: [ID!]!, $revokeAll: Boolean) {
+mutation B2BRevokeRoleScopeContactRevokeRoles($companyContactId: ID!, $roleAssignmentIds: [ID!]!, $revokeAll: Boolean) {
   companyContactRevokeRoles(
     companyContactId: $companyContactId
     roleAssignmentIds: $roleAssignmentIds

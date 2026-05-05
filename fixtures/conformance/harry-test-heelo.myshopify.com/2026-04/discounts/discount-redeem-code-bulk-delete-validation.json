@@ -1,0 +1,156 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "variables": {
+    "discountId": "gid://shopify/DiscountCodeNode/1640468283698",
+    "unknownDiscountId": "gid://shopify/DiscountCodeNode/0",
+    "ids": ["gid://shopify/DiscountRedeemCode/21667051995442"],
+    "emptyIds": [],
+    "search": "code:ANY",
+    "blankSearch": "   ",
+    "savedSearchId": "gid://shopify/SavedSearch/0"
+  },
+  "requests": {
+    "validation": {
+      "query": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-validation.graphql",
+      "variablesCapturePath": "$.variables"
+    },
+    "happy": {
+      "query": "config/parity-requests/discounts/discount-redeem-code-bulk-delete-happy.graphql",
+      "variables": {
+        "discountId": "gid://shopify/DiscountCodeNode/1640468283698",
+        "ids": ["gid://shopify/DiscountRedeemCode/21667051995442"]
+      }
+    }
+  },
+  "validation": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "missing": {
+          "job": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Missing expected argument key: 'ids', 'search' or 'saved_search_id'.",
+              "code": "MISSING_ARGUMENT",
+              "extraInfo": null
+            }
+          ]
+        },
+        "tooMany": {
+          "job": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Only one of 'ids', 'search' or 'saved_search_id' is allowed.",
+              "code": "TOO_MANY_ARGUMENTS",
+              "extraInfo": null
+            }
+          ]
+        },
+        "unknownDiscount": {
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["discountId"],
+              "message": "Code discount does not exist.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "emptyIds": {
+          "job": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Something went wrong, please try again.",
+              "code": null,
+              "extraInfo": null
+            }
+          ]
+        },
+        "blankSearch": {
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["search"],
+              "message": "'Search' can't be blank.",
+              "code": "BLANK",
+              "extraInfo": null
+            }
+          ]
+        },
+        "invalidSavedSearch": {
+          "job": null,
+          "userErrors": [
+            {
+              "field": ["savedSearchId"],
+              "message": "Invalid 'saved_search_id'.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        }
+      }
+    }
+  },
+  "happy": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "happy": {
+          "job": {
+            "id": "gid://shopify/Job/45ed84bf-3490-489b-9950-9a4992c1c4e0",
+            "done": true
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "discountCodeDelete": {
+          "deletedCodeDiscountId": "gid://shopify/DiscountCodeNode/1640468283698",
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "DiscountHydrate",
+      "variables": {
+        "id": "gid://shopify/DiscountCodeNode/1640468283698"
+      },
+      "query": "sha:DiscountHydrate",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "codeDiscountNode": {
+              "id": "gid://shopify/DiscountCodeNode/1640468283698",
+              "codeDiscount": {
+                "__typename": "DiscountCodeBasic",
+                "title": "HAR-785 redeem delete validation 1778020602881",
+                "status": "ACTIVE",
+                "codes": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/DiscountRedeemCode/21667051995442",
+                      "code": "HAR785BASE1778020602881"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

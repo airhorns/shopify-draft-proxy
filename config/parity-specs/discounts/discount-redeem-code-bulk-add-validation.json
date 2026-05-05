@@ -1,0 +1,149 @@
+{
+  "scenarioId": "discount-redeem-code-bulk-add-validation",
+  "operationNames": ["discountCodeBasicCreate", "discountRedeemCodeBulkAdd", "discountRedeemCodeBulkCreation"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "top-level-error-parity", "async-job-payload"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-redeem-code-bulk-add-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-create.graphql",
+    "variablesCapturePath": "$.requests.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-discount-create-setup",
+        "capturePath": "$.create.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountCodeBasicCreate.userErrors"]
+      },
+      {
+        "name": "unknown-discount-id-rejection",
+        "capturePath": "$.unknown.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountRedeemCodeBulkAdd.bulkCreation", "$.discountRedeemCodeBulkAdd.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-add.graphql",
+          "variablesCapturePath": "$.requests.unknown.variables"
+        }
+      },
+      {
+        "name": "oversized-code-list-top-level-error",
+        "capturePath": "$.tooMany.payload",
+        "proxyPath": "$",
+        "selectedPaths": ["$.errors[0].message", "$.errors[0].path", "$.errors[0].extensions.code"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-add.graphql",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "codes": {
+              "fromCapturePath": "$.requests.tooMany.variables.codes"
+            }
+          }
+        }
+      },
+      {
+        "name": "empty-code-list-user-error",
+        "capturePath": "$.emptyCodes.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountRedeemCodeBulkAdd.bulkCreation", "$.discountRedeemCodeBulkAdd.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-add.graphql",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "codes": {
+              "fromCapturePath": "$.requests.emptyCodes.variables.codes"
+            }
+          }
+        }
+      },
+      {
+        "name": "per-code-validation-accepted-creation",
+        "capturePath": "$.invalidCodes.add.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.discountRedeemCodeBulkAdd.bulkCreation.done",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.codesCount",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.importedCount",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.failedCount",
+          "$.discountRedeemCodeBulkAdd.bulkCreation.codes.nodes",
+          "$.discountRedeemCodeBulkAdd.userErrors"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.discountRedeemCodeBulkAdd.bulkCreation.id",
+            "matcher": "shopify-gid:DiscountRedeemCodeBulkCreation",
+            "reason": "The proxy uses synthetic IDs for local bulk creations."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-add.graphql",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "codes": {
+              "fromCapturePath": "$.requests.invalidCodes.variables.codes"
+            }
+          }
+        }
+      },
+      {
+        "name": "per-code-validation-final-creation",
+        "capturePath": "$.invalidCodes.finalRead.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": ["$.discountRedeemCodeBulkCreation"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-creation-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "per-code-validation-accepted-creation",
+              "path": "$.data.discountRedeemCodeBulkAdd.bulkCreation.id"
+            }
+          }
+        }
+      },
+      {
+        "name": "valid-codes-stage-downstream",
+        "capturePath": "$.invalidCodes.readAfter.payload.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.codeDiscountNode.codeDiscount.codes.nodes",
+          "$.codeDiscountNode.codeDiscount.codesCount",
+          "$.duplicate",
+          "$.valid"
+        ],
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:DiscountCodeNode",
+            "reason": "The proxy uses synthetic IDs for locally staged discounts."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/discounts/discount-redeem-code-bulk-validation-read.graphql",
+          "variables": {
+            "discountId": {
+              "fromPrimaryProxyPath": "$.data.discountCodeBasicCreate.codeDiscountNode.id"
+            },
+            "duplicateCode": {
+              "fromCapturePath": "$.variables.duplicateCode"
+            },
+            "validCode": {
+              "fromCapturePath": "$.variables.validCode"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 validation evidence for discountRedeemCodeBulkAdd. Unknown discount IDs and empty code arrays reject via mutation userErrors; more than 250 inputs is a top-level MAX_INPUT_SIZE_EXCEEDED GraphQL error; per-code blank/newline/too-long/duplicate failures are accepted into a bulk creation and surface on discountRedeemCodeBulkCreation codes.nodes.errors after processing. The proxy keeps legacy local-runtime string-code inputs completed immediately, but schema-shaped DiscountRedeemCodeInput arrays follow the captured async response shape."
+}

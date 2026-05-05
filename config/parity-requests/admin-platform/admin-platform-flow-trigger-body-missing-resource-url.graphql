@@ -1,0 +1,8 @@
+mutation FlowTriggerReceiveBodyMissingResourceUrl {
+  flowTriggerReceive(body: "{\"trigger_id\":\"abc\",\"resources\":[{\"name\":\"x\"}],\"properties\":{}}") {
+    userErrors {
+      field
+      message
+    }
+  }
+}

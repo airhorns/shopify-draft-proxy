@@ -1,0 +1,32 @@
+mutation DiscountRedeemCodeBulkValidationAdd($discountId: ID!, $codes: [DiscountRedeemCodeInput!]!) {
+  discountRedeemCodeBulkAdd(discountId: $discountId, codes: $codes) {
+    bulkCreation {
+      id
+      done
+      codesCount
+      importedCount
+      failedCount
+      codes(first: 10) {
+        nodes {
+          code
+          errors {
+            field
+            message
+            code
+            extraInfo
+          }
+          discountRedeemCode {
+            id
+            code
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

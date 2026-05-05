@@ -1,0 +1,25 @@
+mutation CustomerCreateRejectsNestedIds($input: CustomerInput!) {
+  customerCreate(input: $input) {
+    customer {
+      id
+      email
+      defaultAddress {
+        id
+        address1
+      }
+      metafields(first: 5) {
+        nodes {
+          id
+          namespace
+          key
+          value
+          type
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

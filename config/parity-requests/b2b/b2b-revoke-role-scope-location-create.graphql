@@ -1,4 +1,4 @@
-mutation HAR762LocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+mutation B2BRevokeRoleScopeLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
   companyLocationCreate(companyId: $companyId, input: $input) {
     companyLocation {
       id

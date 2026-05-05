@@ -345,7 +345,8 @@ describe('Node HTTP adapter', () => {
                 type: string;
                 objectCount: string;
                 rootObjectCount: string;
-                url: string;
+                fileSize: string | null;
+                url: string | null;
                 partialDataUrl: string | null;
               };
               userErrors: unknown[];
@@ -360,14 +361,53 @@ describe('Node HTTP adapter', () => {
           .bulkOperationRunMutation.userErrors,
       ).toEqual([]);
       expect(bulkOperation).toMatchObject({
-        status: 'COMPLETED',
+        status: 'CREATED',
         type: 'MUTATION',
-        objectCount: '1',
-        rootObjectCount: '1',
+        objectCount: '0',
+        rootObjectCount: '0',
+        fileSize: null,
+        url: null,
         partialDataUrl: null,
       });
 
-      resultPath = new URL(bulkOperation.url).pathname;
+      const bulkRead = await jsonRequest(origin, '/admin/api/2026-04/graphql.json', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          query: `query BulkOperationById($id: ID!) {
+            bulkOperation(id: $id) {
+              id
+              status
+              type
+              objectCount
+              rootObjectCount
+              fileSize
+              url
+              partialDataUrl
+            }
+          }`,
+          variables: { id: bulkOperation.id },
+        }),
+      });
+      const terminalOperation = (
+        bulkRead.body as {
+          data: {
+            bulkOperation: {
+              status: string;
+              objectCount: string;
+              rootObjectCount: string;
+              url: string;
+            };
+          };
+        }
+      ).data.bulkOperation;
+
+      expect(terminalOperation).toMatchObject({
+        status: 'COMPLETED',
+        objectCount: '1',
+        rootObjectCount: '1',
+      });
+      resultPath = new URL(terminalOperation.url).pathname;
 
       const result = await textRequest(origin, resultPath);
       expect(result.status).toBe(200);

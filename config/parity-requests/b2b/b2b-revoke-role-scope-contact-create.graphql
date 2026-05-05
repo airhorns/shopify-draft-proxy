@@ -1,4 +1,4 @@
-mutation HAR762ContactCreate($companyId: ID!, $input: CompanyContactInput!) {
+mutation B2BRevokeRoleScopeContactCreate($companyId: ID!, $input: CompanyContactInput!) {
   companyContactCreate(companyId: $companyId, input: $input) {
     companyContact {
       id

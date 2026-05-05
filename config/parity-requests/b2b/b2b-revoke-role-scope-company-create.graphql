@@ -1,4 +1,4 @@
-mutation HAR762CompanyCreate($input: CompanyCreateInput!) {
+mutation B2BRevokeRoleScopeCompanyCreate($input: CompanyCreateInput!) {
   companyCreate(input: $input) {
     company {
       id
