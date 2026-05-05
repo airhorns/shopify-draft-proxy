@@ -30,6 +30,7 @@ fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
     id: id,
     name: Some(name),
     type_: Some("BOX"),
+    box_type: None,
     default: default,
     weight: Some(ShippingPackageWeightRecord(
       value: Some(1.0),
@@ -43,6 +44,13 @@ fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
     )),
     created_at: "2026-04-27T00:00:00.000Z",
     updated_at: "2026-04-27T00:00:00.000Z",
+  )
+}
+
+fn flat_rate_package(id: String) -> ShippingPackageRecord {
+  ShippingPackageRecord(
+    ..package(id, "Carrier flat-rate box", False),
+    box_type: Some("FLAT_RATE"),
   )
 }
 
@@ -413,7 +421,7 @@ pub fn shipping_package_update_stages_local_record_test() {
       seeded_store(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
-      "mutation UpdatePackage($id: ID!, $shippingPackage: CustomShippingPackageInput!) { shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message } } }",
+      "mutation UpdatePackage($id: ID!, $shippingPackage: CustomShippingPackageInput!) { shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } } }",
       variables,
       empty_upstream_context(),
     )
@@ -427,6 +435,66 @@ pub fn shipping_package_update_stages_local_record_test() {
     )
   assert updated.name == Some("Updated box")
   assert updated.updated_at == "2024-01-01T00:00:00.000Z"
+}
+
+pub fn shipping_package_update_rejects_flat_rate_box_test() {
+  let package_id = "gid://shopify/ShippingPackage/10"
+  let variables =
+    mutation_vars(
+      package_id,
+      root_field.ObjectVal(
+        dict.from_list([
+          #(
+            "dimensions",
+            root_field.ObjectVal(
+              dict.from_list([
+                #("length", root_field.FloatVal(999.0)),
+                #("width", root_field.FloatVal(8.0)),
+                #("height", root_field.FloatVal(4.0)),
+                #("unit", root_field.StringVal("CENTIMETERS")),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+    )
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      store.upsert_base_shipping_packages(store.new(), [
+        flat_rate_package(package_id),
+      ]),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      "mutation UpdatePackage($id: ID!, $shippingPackage: CustomShippingPackageInput!) { shippingPackageUpdate(id: $id, shippingPackage: $shippingPackage) { userErrors { field message code } } }",
+      variables,
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"shippingPackageUpdate\":{\"userErrors\":[{\"field\":[\"shippingPackage\"],\"message\":\"Custom shipping box is not updatable\",\"code\":\"CUSTOM_SHIPPING_BOX_NOT_UPDATABLE\"}]}}}"
+  let assert Some(unchanged) =
+    store.get_effective_shipping_package_by_id(outcome.store, package_id)
+  let assert Some(dimensions) = unchanged.dimensions
+  assert dimensions.length == Some(10.0)
+}
+
+pub fn shipping_package_state_restore_round_trips_box_type_test() {
+  let package_id = "gid://shopify/ShippingPackage/10"
+  let proxy =
+    proxy_state.DraftProxy(
+      ..draft_proxy.new(),
+      store: store.upsert_base_shipping_packages(store.new(), [
+        flat_rate_package(package_id),
+      ]),
+    )
+  let dumped =
+    json.to_string(draft_proxy.dump_state(proxy, "2026-05-05T00:00:00.000Z"))
+  assert string.contains(dumped, "\"boxType\":\"FLAT_RATE\"")
+
+  let assert Ok(restored) = draft_proxy.restore_state(draft_proxy.new(), dumped)
+  let assert Some(restored_package) =
+    store.get_effective_shipping_package_by_id(restored.store, package_id)
+  assert restored_package.box_type == Some("FLAT_RATE")
 }
 
 pub fn shipping_package_make_default_clears_previous_default_test() {

@@ -412,6 +412,7 @@ pub type ShippingPackageRecord {
     id: String,
     name: Option(String),
     type_: Option(String),
+    box_type: Option(String),
     default: Bool,
     weight: Option(ShippingPackageWeightRecord),
     dimensions: Option(ShippingPackageDimensionsRecord),
