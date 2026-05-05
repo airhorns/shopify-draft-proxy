@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 202: HAR-562 order edit user-error payloads
+## 2026-05-04 - Pass 203: HAR-562 order edit user-error payloads
 
 Aligns the Gleam order-edit handlers with Shopify's mutation payload contract
 for local user-error branches without sending supported mutations upstream.
@@ -32,18 +32,18 @@ Validation:
 - `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm parity:record orderEdit-lifecycle-userErrors`
 - `cd gleam && gleam test --target javascript -- parity_test` (853 passed)
 - `corepack pnpm gleam:format:check`
-- `cd gleam && gleam test --target javascript` (865 passed after merging
+- `cd gleam && gleam test --target javascript` (870 passed after merging
   `origin/main`)
 - `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
   known `gleam_json` OTP 27+ requirement
 - `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
-  (OTP 28, 856 passed after merging `origin/main`)
+  (OTP 28, 861 passed after merging `origin/main`)
 - `corepack pnpm conformance:capture:check` (9 passed)
-- `corepack pnpm conformance:check` (1449 passed)
+- `corepack pnpm conformance:check` (1452 passed)
 - `corepack pnpm typecheck`
 - `corepack pnpm lint` (passes with the pre-existing
   `scripts/parity-record.mts` unused catch-parameter warning)
-- `corepack pnpm test` (123 files passed; 2313 passed)
+- `corepack pnpm test` (123 files passed; 2316 passed)
 - `corepack pnpm build`
 - `git diff --check`
 
@@ -61,6 +61,61 @@ Validation:
 - The new unknown-target messages are local approximations anchored to the
   ticket's field/code acceptance criteria. Fresh live capture can tighten exact
   wording later if Shopify exposes different translated text in the target shop.
+
+---
+
+## 2026-05-04 - Pass 202: HAR-599 BXGY disallowed value validation
+
+Aligns local BXGY validation with live Shopify for `customerGets.value` branch
+selection and subscription purchase flags. Code and automatic BXGY now reject
+`percentage` / `discountAmount` value branches before staging, and both reject
+`customerGets.appliesOnSubscription` / `appliesOnOneTimePurchase` with the
+captured code-vs-automatic messages. Code BXGY also mirrors Shopify's captured
+secondary blank `discountOnQuantity.quantity` userError when the submitted value
+omits `discountOnQuantity`.
+
+| Module / fixture                                                                                                      | Change                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/discounts.gleam`                                                                 | Adds BXGY value-branch, missing discount-on-quantity quantity, and subscription-flag guardrails.                       |
+| `gleam/test/shopify_draft_proxy/proxy/discounts_test.gleam`                                                           | Covers code and automatic create/update validation for value branches and subscription flags.                          |
+| `scripts/capture-discount-bxgy-disallowed-value-shapes-conformance.ts` / `scripts/conformance-capture-index.ts`       | Adds an aggregate-indexed capture that creates two temporary products, records rejected BXGY branches, then cleans up. |
+| `config/parity-specs/discounts/discount-bxgy-disallowed-value-shapes.json` / matching request and conformance fixture | Adds executable strict JSON parity for the captured userErrors.                                                        |
+| `docs/endpoints/discounts.md`                                                                                         | Documents the captured BXGY validation boundary and capture script.                                                    |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run discount-bxgy-disallowed-value-shapes`
+- `cd gleam && gleam test --target javascript -- discounts_test parity_test`
+- `cd gleam && gleam test --target erlang -- discounts_test parity_test` failed on
+  host OTP 25 with the known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- discounts_test parity_test'`
+  (OTP 28, 847 passed)
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (856 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 847 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2298 passed)
+- `git diff --check`
+
+### Findings
+
+- Live 2026-04 Shopify returns `Only discountOnQuantity permitted with bxgy
+discounts.`, not the older wording in the ticket body.
+- Live 2026-04 Shopify rejects automatic BXGY `customerGets` subscription flags
+  with an automatic-specific unsupported-field message, so the local proxy now
+  treats those fields as invalid for both code and automatic BXGY.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
 
 ---
 
