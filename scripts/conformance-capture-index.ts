@@ -269,6 +269,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'staged-upload-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-staged-upload-validation-conformance.ts',
+    purpose: 'stagedUploadsCreate resource, fileSize, MIME validation, and representative success branches.',
+    requiredAuthScopes: ['write_files'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-staged-uploads-create-validation.json`,
+      'config/parity-specs/media/media-staged-uploads-create-validation.json',
+    ],
+    cleanupBehavior: 'Requests signed upload metadata only; does not upload bytes and creates no Shopify files.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'file-acknowledge-update-failed',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-file-acknowledge-update-failed-conformance.ts',
