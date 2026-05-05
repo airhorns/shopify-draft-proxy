@@ -1,0 +1,62 @@
+mutation AppSubscriptionLineItemUpdateValidation($usageLineItemId: ID!, $recurringLineItemId: ID!) {
+  recurring: appSubscriptionLineItemUpdate(id: $recurringLineItemId, cappedAmount: { amount: 10, currencyCode: USD }) {
+    appSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  currencyMismatch: appSubscriptionLineItemUpdate(
+    id: $usageLineItemId
+    cappedAmount: { amount: 10, currencyCode: EUR }
+  ) {
+    appSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  nonIncreasing: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 3, currencyCode: USD }) {
+    appSubscription {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+  success: appSubscriptionLineItemUpdate(id: $usageLineItemId, cappedAmount: { amount: 10, currencyCode: USD }) {
+    confirmationUrl
+    appSubscription {
+      id
+      lineItems {
+        id
+        plan {
+          pricingDetails {
+            __typename
+            ... on AppUsagePricing {
+              cappedAmount {
+                amount
+                currencyCode
+              }
+            }
+            ... on AppRecurringPricing {
+              price {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
