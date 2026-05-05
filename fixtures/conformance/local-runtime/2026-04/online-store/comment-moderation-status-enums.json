@@ -1,0 +1,140 @@
+{
+  "fixtureKind": "local-runtime-comment-moderation-status-enums",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-05T00:00:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for HAR-587 comment moderation status enum transitions. The fixture starts from a cassette-hydrated unapproved comment, runs spam/not-spam/approve/delete, then proves removed comments reject approve/spam with INVALID while delete remains idempotent.",
+  "variables": {
+    "id": "gid://shopify/Comment/har-587"
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OnlineStoreCommentHydrate",
+      "variables": {
+        "id": "gid://shopify/Comment/har-587"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "comment": {
+              "__typename": "Comment",
+              "id": "gid://shopify/Comment/har-587",
+              "status": "UNAPPROVED",
+              "body": "HAR-587 moderation fixture",
+              "bodyHtml": "<p>HAR-587 moderation fixture</p>",
+              "isPublished": false,
+              "publishedAt": null,
+              "createdAt": "2026-05-05T00:00:00.000Z",
+              "updatedAt": "2026-05-05T00:00:00.000Z",
+              "article": {
+                "id": "gid://shopify/Article/har-587"
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "spam": {
+    "response": {
+      "data": {
+        "commentSpam": {
+          "comment": {
+            "id": "gid://shopify/Comment/har-587",
+            "status": "SPAM"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "notSpam": {
+    "response": {
+      "data": {
+        "commentNotSpam": {
+          "comment": {
+            "id": "gid://shopify/Comment/har-587",
+            "status": "UNAPPROVED"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "approve": {
+    "response": {
+      "data": {
+        "commentApprove": {
+          "comment": {
+            "id": "gid://shopify/Comment/har-587",
+            "status": "PUBLISHED"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "delete": {
+    "response": {
+      "data": {
+        "commentDelete": {
+          "deletedCommentId": "gid://shopify/Comment/har-587",
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "readAfterDelete": {
+    "response": {
+      "data": {
+        "comment": {
+          "id": "gid://shopify/Comment/har-587",
+          "status": "REMOVED"
+        }
+      }
+    }
+  },
+  "spamRemoved": {
+    "response": {
+      "data": {
+        "commentSpam": {
+          "comment": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Comment has been removed",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "approveRemoved": {
+    "response": {
+      "data": {
+        "commentApprove": {
+          "comment": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Comment has been removed",
+              "code": "INVALID"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "deleteRemoved": {
+    "response": {
+      "data": {
+        "commentDelete": {
+          "deletedCommentId": "gid://shopify/Comment/har-587",
+          "userErrors": []
+        }
+      }
+    }
+  }
+}

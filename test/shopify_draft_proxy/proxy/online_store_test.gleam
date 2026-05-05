@@ -1,16 +1,44 @@
 import gleam/dict
 import gleam/json
 import gleam/list
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, Request, Response,
 }
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/types
+
+const comment_id: String = "gid://shopify/Comment/har-587"
 
 fn proxy() -> DraftProxy {
   draft_proxy.new()
   |> draft_proxy.with_default_registry()
+}
+
+fn proxy_with_comment(status: String) -> DraftProxy {
+  let proxy = proxy()
+  let comment =
+    types.OnlineStoreContentRecord(
+      id: comment_id,
+      kind: "comment",
+      cursor: None,
+      parent_id: Some("gid://shopify/Article/har-587"),
+      created_at: Some("2026-05-05T00:00:00.000Z"),
+      updated_at: Some("2026-05-05T00:00:00.000Z"),
+      data: types.CapturedObject([
+        #("__typename", types.CapturedString("Comment")),
+        #("id", types.CapturedString(comment_id)),
+        #("status", types.CapturedString(status)),
+        #("isPublished", types.CapturedBool(status == "PUBLISHED")),
+        #("body", types.CapturedString("HAR-587 moderation fixture")),
+        #("bodyHtml", types.CapturedString("<p>HAR-587 moderation fixture</p>")),
+      ]),
+    )
+  let seeded_store =
+    store.upsert_base_online_store_content(proxy.store, [comment])
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
 fn graphql_request(query: String) -> Request {
@@ -37,6 +65,72 @@ fn run_graphql(proxy: DraftProxy, query: String) -> #(String, DraftProxy) {
     draft_proxy.process_request(proxy, graphql_request(query))
   assert status == 200
   #(json.to_string(body), proxy)
+}
+
+pub fn comment_moderation_uses_core_status_enum_values_test() {
+  let #(approved, proxy) =
+    run_graphql(
+      proxy_with_comment("UNAPPROVED"),
+      "mutation { commentApprove(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } }",
+    )
+  assert approved
+    == "{\"data\":{\"commentApprove\":{\"comment\":{\"id\":\"gid://shopify/Comment/har-587\",\"status\":\"PUBLISHED\"},\"userErrors\":[]}}}"
+
+  let #(spam, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { commentSpam(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } }",
+    )
+  assert spam
+    == "{\"data\":{\"commentSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/har-587\",\"status\":\"SPAM\"},\"userErrors\":[]}}}"
+
+  let #(not_spam, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { commentNotSpam(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } }",
+    )
+  assert not_spam
+    == "{\"data\":{\"commentNotSpam\":{\"comment\":{\"id\":\"gid://shopify/Comment/har-587\",\"status\":\"UNAPPROVED\"},\"userErrors\":[]}}}"
+
+  let #(deleted, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { commentDelete(id: \""
+        <> comment_id
+        <> "\") { deletedCommentId userErrors { field message code } } }",
+    )
+  assert deleted
+    == "{\"data\":{\"commentDelete\":{\"deletedCommentId\":\"gid://shopify/Comment/har-587\",\"userErrors\":[]}}}"
+
+  let #(read_after_delete, _) =
+    run_graphql(
+      proxy,
+      "query { comment(id: \"" <> comment_id <> "\") { id status } }",
+    )
+  assert read_after_delete
+    == "{\"data\":{\"comment\":{\"id\":\"gid://shopify/Comment/har-587\",\"status\":\"REMOVED\"}}}"
+}
+
+pub fn removed_comment_moderation_returns_invalid_and_delete_is_idempotent_test() {
+  let #(body, _) =
+    run_graphql(
+      proxy_with_comment("REMOVED"),
+      "mutation { approve: commentApprove(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } spam: commentSpam(id: \""
+        <> comment_id
+        <> "\") { comment { id status } userErrors { field message code } } delete: commentDelete(id: \""
+        <> comment_id
+        <> "\") { deletedCommentId userErrors { field message code } } }",
+    )
+  assert body
+    == "{\"data\":{\"approve\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"spam\":{\"comment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Comment has been removed\",\"code\":\"INVALID\"}]},\"delete\":{\"deletedCommentId\":\"gid://shopify/Comment/har-587\",\"userErrors\":[]}}}"
 }
 
 fn read_state(proxy: DraftProxy) -> String {
