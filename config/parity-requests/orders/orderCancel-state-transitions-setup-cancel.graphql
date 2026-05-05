@@ -1,0 +1,14 @@
+mutation OrderCancelStateTransitionsSetupCancel($orderId: ID!, $restock: Boolean!, $reason: OrderCancelReason!) {
+  orderCancel(orderId: $orderId, restock: $restock, reason: $reason) {
+    orderCancelUserErrors {
+      field
+      message
+      code
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
