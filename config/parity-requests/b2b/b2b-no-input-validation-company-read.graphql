@@ -1,0 +1,23 @@
+query HAR759NoInputCompanyRead($companyId: ID!) {
+  company(id: $companyId) {
+    id
+    name
+    note
+    externalId
+    contacts(first: 5) {
+      nodes {
+        id
+        title
+        locale
+        isMainContact
+      }
+    }
+    locations(first: 5) {
+      nodes {
+        id
+        name
+        externalId
+      }
+    }
+  }
+}

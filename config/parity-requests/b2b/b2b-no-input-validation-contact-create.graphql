@@ -1,0 +1,17 @@
+mutation HAR759NoInputContactCreate($companyId: ID!, $input: CompanyContactInput!) {
+  companyContactCreate(companyId: $companyId, input: $input) {
+    companyContact {
+      id
+      title
+      locale
+      company {
+        id
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -99,6 +99,16 @@ defaults the created contact locale and derives the contact customer payload
 from the resolved local `Customer` record instead of synthesizing an arbitrary
 customer shape.
 
+Empty-object B2B write inputs short-circuit before local staging. The
+2026-04 `b2b-no-input-validation` parity capture records the public Admin
+payloads for the empty-object branches: `companyContactCreate`,
+`companyContactUpdate`, and `companyLocationUpdate` return root-specific
+`NO_INPUT` userErrors with a null field, while `companyUpdate` returns
+`INVALID` at `input` with Shopify's "At least one attribute to change must be
+present" message. The same capture records null-only probes showing the public
+schema does not treat explicit null keys as a uniform NO_INPUT branch, so the
+runtime null-only guardrail remains covered by the focused local test.
+
 HAR-446 captured a fidelity trap in the company-create path: when
 `companyCreate` creates both a main contact and a default company location,
 Shopify automatically assigns that contact the `Ordering only` role for that
@@ -232,6 +242,10 @@ conformance-backed local modeling.
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
 - Location/address management parity scenario:
   `config/parity-specs/b2b/b2b-location-address-management.json`
+- Empty input validation capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json`
+- Empty input validation parity scenario:
+  `config/parity-specs/b2b/b2b-no-input-validation.json`
 - Lifecycle runtime coverage:
 - Root inventory:
   `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`

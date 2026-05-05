@@ -1,0 +1,14 @@
+mutation HAR759NoInputContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
+  companyContactUpdate(companyContactId: $companyContactId, input: $input) {
+    companyContact {
+      id
+      title
+      locale
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

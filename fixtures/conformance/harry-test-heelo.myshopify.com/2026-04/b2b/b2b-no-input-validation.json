@@ -1,0 +1,643 @@
+{
+  "scenarioId": "b2b-no-input-validation",
+  "capturedAt": "2026-05-05T21:10:24.291Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "intent": {
+    "ticket": "HAR-759",
+    "plan": "Create a disposable B2B company with contact/location, record Shopify NO_INPUT validation for empty and null-only B2B update/contact-create inputs, verify readback remains unchanged, and clean up the company."
+  },
+  "schemaProbe": {
+    "request": {
+      "query": "#graphql\n  query HAR759B2BNoInputSchema {\n    companyInput: __type(name: \"CompanyInput\") { inputFields { name } }\n    contactInput: __type(name: \"CompanyContactInput\") { inputFields { name } }\n    locationUpdateInput: __type(name: \"CompanyLocationUpdateInput\") { inputFields { name } }\n  }\n",
+      "variables": {}
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyInput": {
+          "inputFields": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "note"
+            },
+            {
+              "name": "externalId"
+            },
+            {
+              "name": "customerSince"
+            }
+          ]
+        },
+        "contactInput": {
+          "inputFields": [
+            {
+              "name": "firstName"
+            },
+            {
+              "name": "lastName"
+            },
+            {
+              "name": "email"
+            },
+            {
+              "name": "title"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "phone"
+            }
+          ]
+        },
+        "locationUpdateInput": {
+          "inputFields": [
+            {
+              "name": "name"
+            },
+            {
+              "name": "phone"
+            },
+            {
+              "name": "locale"
+            },
+            {
+              "name": "externalId"
+            },
+            {
+              "name": "note"
+            },
+            {
+              "name": "buyerExperienceConfiguration"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 6,
+          "actualQueryCost": 3,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1997,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "setupCompany": {
+    "request": {
+      "query": "#graphql\n  mutation HAR759NoInputCompanyCreate($input: CompanyCreateInput!) {\n    companyCreate(input: $input) {\n      company {\n        id\n        name\n        note\n        externalId\n        contacts(first: 5) {\n          nodes {\n            id\n            title\n            locale\n            isMainContact\n          }\n        }\n        locations(first: 5) {\n          nodes {\n            id\n            name\n            externalId\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "company": {
+            "name": "HAR-759 B2B no input 1778015422295",
+            "note": "unchanged note",
+            "externalId": "har-759-1778015422295"
+          },
+          "companyContact": {
+            "firstName": "Har",
+            "lastName": "No Input",
+            "email": "har-759-no-input-1778015422295@example.com",
+            "title": "Unchanged buyer"
+          },
+          "companyLocation": {
+            "name": "HAR-759 B2B no input 1778015422295 HQ",
+            "externalId": "har-759-location-1778015422295",
+            "billingAddress": {
+              "address1": "759 B2B Way",
+              "city": "Ottawa",
+              "countryCode": "CA"
+            }
+          }
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyCreate": {
+          "company": {
+            "id": "gid://shopify/Company/5438538034",
+            "name": "HAR-759 B2B no input 1778015422295",
+            "note": "unchanged note",
+            "externalId": "har-759-1778015422295",
+            "contacts": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyContact/10148938034",
+                  "title": "Unchanged buyer",
+                  "locale": "en",
+                  "isMainContact": true
+                }
+              ]
+            },
+            "locations": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/CompanyLocation/8247476530",
+                  "name": "HAR-759 B2B no input 1778015422295 HQ",
+                  "externalId": "har-759-location-1778015422295"
+                }
+              ]
+            }
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 20,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "baselineRead": {
+    "request": {
+      "query": "#graphql\n  query HAR759NoInputCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          locale\n          isMainContact\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438538034"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5438538034",
+          "name": "HAR-759 B2B no input 1778015422295",
+          "note": "unchanged note",
+          "externalId": "har-759-1778015422295",
+          "contacts": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContact/10148938034",
+                "title": "Unchanged buyer",
+                "locale": "en",
+                "isMainContact": true
+              }
+            ]
+          },
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8247476530",
+                "name": "HAR-759 B2B no input 1778015422295 HQ",
+                "externalId": "har-759-location-1778015422295"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactCreateEmptyInput": {
+    "request": {
+      "query": "#graphql\n  mutation HAR759NoInputContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438538034",
+        "input": {}
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Company contact create input is empty.",
+              "code": "NO_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactCreateNullOnlyInput": {
+    "request": {
+      "query": "#graphql\n  mutation HAR759NoInputContactCreate($companyId: ID!, $input: CompanyContactInput!) {\n    companyContactCreate(companyId: $companyId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n        company {\n          id\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438538034",
+        "input": {
+          "firstName": null,
+          "lastName": null,
+          "email": null,
+          "title": null,
+          "locale": null,
+          "phone": null
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactCreate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": [
+                "input"
+              ],
+              "message": "Either the attribute email or customer_id must be provided",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyUpdateEmptyInput": {
+    "request": {
+      "query": "#graphql\n  mutation HAR759NoInputCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        note\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438538034",
+        "input": {}
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": [
+                "input"
+              ],
+              "message": "At least one attribute to change must be present",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "companyUpdateNullOnlyInput": {
+    "request": {
+      "query": "#graphql\n  mutation HAR759NoInputCompanyUpdate($companyId: ID!, $input: CompanyInput!) {\n    companyUpdate(companyId: $companyId, input: $input) {\n      company {\n        id\n        name\n        note\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438538034",
+        "input": {
+          "name": null,
+          "note": null,
+          "externalId": null,
+          "customerSince": null
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyUpdate": {
+          "company": null,
+          "userErrors": [
+            {
+              "field": [
+                "input",
+                "customerSince"
+              ],
+              "message": "This field may only be set on creation.",
+              "code": "INVALID_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactUpdateEmptyInput": {
+    "request": {
+      "query": "#graphql\n  mutation HAR759NoInputContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10148938034",
+        "input": {}
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactUpdate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Company contact update input is empty.",
+              "code": "NO_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "contactUpdateNullOnlyInput": {
+    "request": {
+      "query": "#graphql\n  mutation HAR759NoInputContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {\n    companyContactUpdate(companyContactId: $companyContactId, input: $input) {\n      companyContact {\n        id\n        title\n        locale\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyContactId": "gid://shopify/CompanyContact/10148938034",
+        "input": {
+          "firstName": null,
+          "lastName": null,
+          "email": null,
+          "title": null,
+          "locale": null,
+          "phone": null
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyContactUpdate": {
+          "companyContact": null,
+          "userErrors": [
+            {
+              "field": [
+                "input",
+                "firstName"
+              ],
+              "message": "First name is of unexpected type NilClass",
+              "code": "UNEXPECTED_TYPE"
+            },
+            {
+              "field": [
+                "input",
+                "lastName"
+              ],
+              "message": "Last name is of unexpected type NilClass",
+              "code": "UNEXPECTED_TYPE"
+            },
+            {
+              "field": [
+                "input",
+                "phone"
+              ],
+              "message": "Phone is of unexpected type NilClass",
+              "code": "UNEXPECTED_TYPE"
+            },
+            {
+              "field": [
+                "input",
+                "phone"
+              ],
+              "message": "Phone is invalid",
+              "code": "INVALID"
+            },
+            {
+              "field": [
+                "input"
+              ],
+              "message": "Unexpected keys given: email",
+              "code": "INVALID"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationUpdateEmptyInput": {
+    "request": {
+      "query": "#graphql\n  mutation HAR759NoInputLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8247476530",
+        "input": {}
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "Company location update input is empty.",
+              "code": "NO_INPUT"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "locationUpdateNullOnlyInput": {
+    "request": {
+      "query": "#graphql\n  mutation HAR759NoInputLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {\n    companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {\n      companyLocation {\n        id\n        name\n        externalId\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "companyLocationId": "gid://shopify/CompanyLocation/8247476530",
+        "input": {
+          "name": null,
+          "phone": null,
+          "locale": null,
+          "externalId": null,
+          "note": null
+        }
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "companyLocationUpdate": {
+          "companyLocation": null,
+          "userErrors": [
+            {
+              "field": [
+                "input",
+                "name"
+              ],
+              "message": "Name is of unexpected type NilClass",
+              "code": "UNEXPECTED_TYPE"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "readAfterNoInput": {
+    "request": {
+      "query": "#graphql\n  query HAR759NoInputCompanyRead($companyId: ID!) {\n    company(id: $companyId) {\n      id\n      name\n      note\n      externalId\n      contacts(first: 5) {\n        nodes {\n          id\n          title\n          locale\n          isMainContact\n        }\n      }\n      locations(first: 5) {\n        nodes {\n          id\n          name\n          externalId\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "companyId": "gid://shopify/Company/5438538034"
+      }
+    },
+    "response": {
+      "status": 200,
+      "data": {
+        "company": {
+          "id": "gid://shopify/Company/5438538034",
+          "name": "HAR-759 B2B no input 1778015422295",
+          "note": "unchanged note",
+          "externalId": "har-759-1778015422295",
+          "contacts": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyContact/10148938034",
+                "title": "Unchanged buyer",
+                "locale": "en",
+                "isMainContact": true
+              }
+            ]
+          },
+          "locations": {
+            "nodes": [
+              {
+                "id": "gid://shopify/CompanyLocation/8247476530",
+                "name": "HAR-759 B2B no input 1778015422295 HQ",
+                "externalId": "har-759-location-1778015422295"
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 7,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1993,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "companyDelete:gid://shopify/Company/5438538034": {
+      "request": {
+        "query": "#graphql\n  mutation HAR759NoInputCompanyDelete($id: ID!) {\n    companyDelete(id: $id) {\n      deletedCompanyId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Company/5438538034"
+        }
+      },
+      "response": {
+        "status": 200,
+        "data": {
+          "companyDelete": {
+            "deletedCompanyId": "gid://shopify/Company/5438538034",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

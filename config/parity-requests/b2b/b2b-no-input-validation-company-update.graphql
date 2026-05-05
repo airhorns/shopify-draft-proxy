@@ -1,0 +1,15 @@
+mutation HAR759NoInputCompanyUpdate($companyId: ID!, $input: CompanyInput!) {
+  companyUpdate(companyId: $companyId, input: $input) {
+    company {
+      id
+      name
+      note
+      externalId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

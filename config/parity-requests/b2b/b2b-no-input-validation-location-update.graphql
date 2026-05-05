@@ -1,0 +1,14 @@
+mutation HAR759NoInputLocationUpdate($companyLocationId: ID!, $input: CompanyLocationUpdateInput!) {
+  companyLocationUpdate(companyLocationId: $companyLocationId, input: $input) {
+    companyLocation {
+      id
+      name
+      externalId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

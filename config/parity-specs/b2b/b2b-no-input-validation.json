@@ -1,0 +1,157 @@
+{
+  "scenarioId": "b2b-no-input-validation",
+  "operationNames": [
+    "companyCreate",
+    "companyContactCreate",
+    "companyUpdate",
+    "companyContactUpdate",
+    "companyLocationUpdate"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "validation-atomicity",
+    "downstream-read-parity"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-no-input-validation-company-create.graphql",
+    "variablesCapturePath": "$.setupCompany.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": [
+    "test/shopify_draft_proxy/proxy/b2b_test.gleam"
+  ],
+  "notes": "Executable parity coverage for HAR-759 empty-object B2B validation. Shopify Admin 2026-04 returns root-specific NO_INPUT payloads for empty companyContactCreate/companyContactUpdate/companyLocationUpdate, and returns INVALID with field [\"input\"] for empty companyUpdate. The live capture also records null-only probes as evidence that the public schema does not treat null-only keys as a uniform NO_INPUT branch; the local null-only guardrail remains covered by the focused runtime test.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-company-create",
+        "capturePath": "$.setupCompany.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.company.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.company.contacts.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.company.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          }
+        ]
+      },
+      {
+        "name": "contact-create-empty-input",
+        "capturePath": "$.contactCreateEmptyInput.response.data.companyContactCreate",
+        "proxyPath": "$.data.companyContactCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-no-input-validation-contact-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.contactCreateEmptyInput.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-update-empty-input",
+        "capturePath": "$.companyUpdateEmptyInput.response.data.companyUpdate",
+        "proxyPath": "$.data.companyUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-no-input-validation-company-update.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.companyUpdateEmptyInput.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "contact-update-empty-input",
+        "capturePath": "$.contactUpdateEmptyInput.response.data.companyContactUpdate",
+        "proxyPath": "$.data.companyContactUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-no-input-validation-contact-update.graphql",
+          "variables": {
+            "companyContactId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.contacts.nodes[0].id"
+            },
+            "input": {
+              "fromCapturePath": "$.contactUpdateEmptyInput.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-update-empty-input",
+        "capturePath": "$.locationUpdateEmptyInput.response.data.companyLocationUpdate",
+        "proxyPath": "$.data.companyLocationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-no-input-validation-location-update.graphql",
+          "variables": {
+            "companyLocationId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.locations.nodes[0].id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationUpdateEmptyInput.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "read-after-empty-inputs",
+        "capturePath": "$.readAfterNoInput.response.data.company",
+        "proxyPath": "$.data.company",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-no-input-validation-company-read.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            }
+          },
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Company",
+            "reason": "Live Shopify and local staging allocate different stable company IDs."
+          },
+          {
+            "path": "$.contacts.nodes[0].id",
+            "matcher": "shopify-gid:CompanyContact",
+            "reason": "Live Shopify and local staging allocate different stable contact IDs."
+          },
+          {
+            "path": "$.locations.nodes[0].id",
+            "matcher": "shopify-gid:CompanyLocation",
+            "reason": "Live Shopify and local staging allocate different stable location IDs."
+          }
+        ]
+      }
+    ]
+  }
+}

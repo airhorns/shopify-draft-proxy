@@ -439,12 +439,14 @@ fn status_for(result: RootResult) -> store.EntryStatus {
 }
 
 fn should_log_result(result: RootResult) -> Bool {
-  !is_no_input_result(result)
+  !is_empty_input_result(result)
 }
 
-fn is_no_input_result(result: RootResult) -> Bool {
+fn is_empty_input_result(result: RootResult) -> Bool {
   case result.staged_ids, result.payload.user_errors {
-    [], [error] -> error.code == user_error_code.no_input
+    [], [error] ->
+      error.code == user_error_code.no_input
+      || error == company_update_empty_input_error()
     _, _ -> False
   }
 }
@@ -1718,6 +1720,38 @@ fn no_input_error() -> UserError {
   user_error(Some(["input"]), "No input provided.", user_error_code.no_input)
 }
 
+fn contact_create_empty_input_error() -> UserError {
+  user_error(
+    None,
+    "Company contact create input is empty.",
+    user_error_code.no_input,
+  )
+}
+
+fn company_update_empty_input_error() -> UserError {
+  user_error(
+    Some(["input"]),
+    "At least one attribute to change must be present",
+    user_error_code.invalid,
+  )
+}
+
+fn contact_update_empty_input_error() -> UserError {
+  user_error(
+    None,
+    "Company contact update input is empty.",
+    user_error_code.no_input,
+  )
+}
+
+fn location_update_empty_input_error() -> UserError {
+  user_error(
+    None,
+    "Company location update input is empty.",
+    user_error_code.no_input,
+  )
+}
+
 fn validate_billing_same_as_shipping(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
@@ -2916,10 +2950,17 @@ fn handle_company_update(
       case store.get_effective_b2b_company_by_id(store, company_id) {
         Some(company) -> {
           let raw_input = read_object(args, "input")
-          case has_any_non_null_input(raw_input) {
-            False ->
+          case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
+            True, _ ->
+              RootResult(
+                empty_payload([company_update_empty_input_error()]),
+                store,
+                identity,
+                [],
+              )
+            _, False ->
               RootResult(empty_payload([no_input_error()]), store, identity, [])
-            True -> {
+            _, True -> {
               let #(input, validation_errors) =
                 validate_company_input(raw_input, ["input"])
               let validation_errors =
@@ -3144,8 +3185,18 @@ fn handle_contact_create(
               )
             False -> {
               let raw_input = read_object(args, "input")
-              case has_any_non_null_input(raw_input) {
-                False ->
+              case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
+                True, _ ->
+                  RootResult(
+                    Payload(
+                      ..empty_payload([contact_create_empty_input_error()]),
+                      company_contact: None,
+                    ),
+                    store,
+                    identity,
+                    [],
+                  )
+                _, False ->
                   RootResult(
                     Payload(
                       ..empty_payload([no_input_error()]),
@@ -3155,7 +3206,7 @@ fn handle_contact_create(
                     identity,
                     [],
                   )
-                True -> {
+                _, True -> {
                   let #(prepared, prepare_errors) =
                     prepare_contact_create_input(store, raw_input)
                   let #(input, validation_errors) =
@@ -3222,8 +3273,18 @@ fn handle_contact_update(
       case store.get_effective_b2b_company_contact_by_id(store, contact_id) {
         Some(contact) -> {
           let raw_input = read_object(args, "input")
-          case has_any_non_null_input(raw_input) {
-            False ->
+          case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
+            True, _ ->
+              RootResult(
+                Payload(
+                  ..empty_payload([contact_update_empty_input_error()]),
+                  company_contact: None,
+                ),
+                store,
+                identity,
+                [],
+              )
+            _, False ->
               RootResult(
                 Payload(
                   ..empty_payload([no_input_error()]),
@@ -3233,7 +3294,7 @@ fn handle_contact_update(
                 identity,
                 [],
               )
-            True -> {
+            _, True -> {
               let #(prepared, prepare_errors) =
                 prepare_contact_update_input(store, raw_input, contact_id)
               let #(input, validation_errors) =
@@ -3865,10 +3926,17 @@ fn handle_location_update(
       case store.get_effective_b2b_company_location_by_id(store, id) {
         Some(location) -> {
           let raw_input = read_object(args, "input")
-          case has_any_non_null_input(raw_input) {
-            False ->
+          case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
+            True, _ ->
+              RootResult(
+                empty_payload([location_update_empty_input_error()]),
+                store,
+                identity,
+                [],
+              )
+            _, False ->
               RootResult(empty_payload([no_input_error()]), store, identity, [])
-            True -> {
+            _, True -> {
               let #(input, validation_errors) =
                 validate_location_input(raw_input, ["input"])
               let validation_errors =

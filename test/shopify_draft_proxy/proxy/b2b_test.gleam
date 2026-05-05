@@ -382,7 +382,13 @@ pub fn b2b_update_roots_reject_empty_and_null_only_input_test() {
         <> "\", input: {}) { companyContact { id } userErrors { field message code } } }",
     )
   assert empty_create_status == 200
-  assert_no_input_payload(json.to_string(empty_create_body), "companyContact")
+  assert_error_payload(
+    json.to_string(empty_create_body),
+    "companyContact",
+    "\"field\":null",
+    "Company contact create input is empty.",
+    "NO_INPUT",
+  )
 
   let #(
     Response(status: empty_company_status, body: empty_company_body, ..),
@@ -395,7 +401,13 @@ pub fn b2b_update_roots_reject_empty_and_null_only_input_test() {
         <> "\", input: {}) { company { id updatedAt } userErrors { field message code } } }",
     )
   assert empty_company_status == 200
-  assert_no_input_payload(json.to_string(empty_company_body), "company")
+  assert_error_payload(
+    json.to_string(empty_company_body),
+    "company",
+    "\"field\":[\"input\"]",
+    "At least one attribute to change must be present",
+    "INVALID",
+  )
 
   let #(
     Response(status: empty_contact_status, body: empty_contact_body, ..),
@@ -408,7 +420,13 @@ pub fn b2b_update_roots_reject_empty_and_null_only_input_test() {
         <> "\", input: {}) { companyContact { id updatedAt } userErrors { field message code } } }",
     )
   assert empty_contact_status == 200
-  assert_no_input_payload(json.to_string(empty_contact_body), "companyContact")
+  assert_error_payload(
+    json.to_string(empty_contact_body),
+    "companyContact",
+    "\"field\":null",
+    "Company contact update input is empty.",
+    "NO_INPUT",
+  )
 
   let #(
     Response(status: empty_location_status, body: empty_location_body, ..),
@@ -421,9 +439,12 @@ pub fn b2b_update_roots_reject_empty_and_null_only_input_test() {
         <> "\", input: {}) { companyLocation { id updatedAt } userErrors { field message code } } }",
     )
   assert empty_location_status == 200
-  assert_no_input_payload(
+  assert_error_payload(
     json.to_string(empty_location_body),
     "companyLocation",
+    "\"field\":null",
+    "Company location update input is empty.",
+    "NO_INPUT",
   )
 
   let #(Response(status: null_create_status, body: null_create_body, ..), proxy) =
@@ -483,10 +504,26 @@ pub fn b2b_update_roots_reject_empty_and_null_only_input_test() {
 }
 
 fn assert_no_input_payload(body_json: String, payload_field: String) {
+  assert_error_payload(
+    body_json,
+    payload_field,
+    "\"field\":[\"input\"]",
+    "No input provided.",
+    "NO_INPUT",
+  )
+}
+
+fn assert_error_payload(
+  body_json: String,
+  payload_field: String,
+  field_json: String,
+  message: String,
+  code: String,
+) {
   assert string.contains(body_json, "\"" <> payload_field <> "\":null")
-  assert string.contains(body_json, "\"field\":[\"input\"]")
-  assert string.contains(body_json, "\"message\":\"No input provided.\"")
-  assert string.contains(body_json, "\"code\":\"NO_INPUT\"")
+  assert string.contains(body_json, field_json)
+  assert string.contains(body_json, "\"message\":\"" <> message <> "\"")
+  assert string.contains(body_json, "\"code\":\"" <> code <> "\"")
 }
 
 pub fn b2b_contact_create_rejects_title_and_notes_validation_test() {
