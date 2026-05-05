@@ -10,7 +10,8 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type CustomerRecord, B2BCompanyRecord, CustomerRecord, ShopLocaleRecord,
+  type CustomerRecord, AdminPlatformGenericNodeRecord, B2BCompanyRecord,
+  CapturedObject, CapturedString, CustomerRecord, ShopLocaleRecord,
   StorePropertyString,
 }
 
@@ -74,6 +75,21 @@ fn seed_customer(
   proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
+fn seed_staff_member(
+  proxy: draft_proxy.DraftProxy,
+  staff_member_id: String,
+) -> draft_proxy.DraftProxy {
+  let record =
+    AdminPlatformGenericNodeRecord(
+      id: staff_member_id,
+      typename: "StaffMember",
+      data: CapturedObject([#("id", CapturedString(staff_member_id))]),
+    )
+  let seeded_store =
+    store.upsert_base_admin_platform_generic_nodes(proxy.store, [record])
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
 fn customer(id: String, email: Option(String)) -> CustomerRecord {
   CustomerRecord(
     id: id,
@@ -102,6 +118,193 @@ fn customer(id: String, email: Option(String)) -> CustomerRecord {
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-01T00:00:00.000Z"),
   )
+}
+
+pub fn b2b_location_assign_staff_members_rejects_unknown_user_and_keeps_partial_success_test() {
+  let known_staff_member_id = "gid://shopify/StaffMember/101"
+  let unknown_staff_member_id = "gid://shopify/StaffMember/999"
+  let proxy =
+    draft_proxy.new()
+    |> seed_staff_member(known_staff_member_id)
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"HAR 761 Staff\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignStaffMembers(companyLocationId: \""
+        <> location_id
+        <> "\", staffMemberIds: [\""
+        <> known_staff_member_id
+        <> "\", \""
+        <> unknown_staff_member_id
+        <> "\"]) { companyLocationStaffMemberAssignments { id staffMemberId staffMember { id } companyLocation { id } } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(
+    assign_json,
+    "\"staffMemberId\":\"" <> known_staff_member_id <> "\"",
+  )
+  assert !string.contains(
+    assign_json,
+    "\"staffMemberId\":\"" <> unknown_staff_member_id <> "\"",
+  )
+  assert string.contains(assign_json, "\"field\":[\"staffMemberIds\",\"1\"]")
+  assert string.contains(assign_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \""
+        <> location_id
+        <> "\") { staffMemberAssignments(first: 5) { nodes { staffMemberId staffMember { id } } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"staffMemberId\":\"" <> known_staff_member_id <> "\"",
+  )
+  assert !string.contains(
+    read_json,
+    "\"staffMemberId\":\"" <> unknown_staff_member_id <> "\"",
+  )
+}
+
+pub fn b2b_location_assign_staff_members_returns_null_payload_when_all_staff_unknown_test() {
+  let unknown_staff_member_id = "gid://shopify/StaffMember/999"
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"HAR 761 Unknown Staff\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignStaffMembers(companyLocationId: \""
+        <> location_id
+        <> "\", staffMemberIds: [\""
+        <> unknown_staff_member_id
+        <> "\"]) { companyLocationStaffMemberAssignments { id staffMember { id } companyLocation { id } } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(
+    assign_json,
+    "\"companyLocationStaffMemberAssignments\":null",
+  )
+  assert string.contains(assign_json, "\"field\":[\"staffMemberIds\",\"0\"]")
+  assert string.contains(assign_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \""
+        <> location_id
+        <> "\") { staffMemberAssignments(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"nodes\":[]")
+}
+
+pub fn b2b_location_remove_staff_members_rejects_unknown_assignment_and_keeps_partial_success_test() {
+  let staff_member_id = "gid://shopify/StaffMember/102"
+  let proxy =
+    draft_proxy.new()
+    |> seed_staff_member(staff_member_id)
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"HAR 761 Remove\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert create_status == 200
+
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let assignment_id =
+    "gid://shopify/CompanyLocationStaffMemberAssignment/6?shopify-draft-proxy=synthetic"
+  let unknown_assignment_id =
+    "gid://shopify/CompanyLocationStaffMemberAssignment/999"
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignStaffMembers(companyLocationId: \""
+        <> location_id
+        <> "\", staffMemberIds: [\""
+        <> staff_member_id
+        <> "\"]) { companyLocationStaffMemberAssignments { id staffMemberId } userErrors { code } } }",
+    )
+  assert assign_status == 200
+  assert string.contains(
+    json.to_string(assign_body),
+    "\"id\":\"" <> assignment_id <> "\"",
+  )
+
+  let #(Response(status: remove_status, body: remove_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationRemoveStaffMembers(companyLocationStaffMemberAssignmentIds: [\""
+        <> assignment_id
+        <> "\", \""
+        <> unknown_assignment_id
+        <> "\"]) { deletedCompanyLocationStaffMemberAssignmentIds userErrors { field message code } } }",
+    )
+  assert remove_status == 200
+  let remove_json = json.to_string(remove_body)
+  assert string.contains(
+    remove_json,
+    "\"deletedCompanyLocationStaffMemberAssignmentIds\":[\"" <> assignment_id,
+  )
+  assert string.contains(
+    remove_json,
+    "\"field\":[\"companyLocationStaffMemberAssignmentIds\",\"1\"]",
+  )
+  assert string.contains(remove_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \""
+        <> location_id
+        <> "\") { staffMemberAssignments(first: 5) { nodes { id } } } }",
+    )
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"nodes\":[]")
+}
+
+pub fn b2b_location_remove_staff_members_returns_null_payload_when_all_assignments_unknown_test() {
+  let unknown_assignment_id =
+    "gid://shopify/CompanyLocationStaffMemberAssignment/999"
+  let #(Response(status: remove_status, body: remove_body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyLocationRemoveStaffMembers(companyLocationStaffMemberAssignmentIds: [\""
+        <> unknown_assignment_id
+        <> "\"]) { deletedCompanyLocationStaffMemberAssignmentIds userErrors { field message code } } }",
+    )
+  assert remove_status == 200
+  let remove_json = json.to_string(remove_body)
+  assert string.contains(
+    remove_json,
+    "\"deletedCompanyLocationStaffMemberAssignmentIds\":null",
+  )
+  assert string.contains(
+    remove_json,
+    "\"field\":[\"companyLocationStaffMemberAssignmentIds\",\"0\"]",
+  )
+  assert string.contains(remove_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
 }
 
 fn contact_ids(count: Int) -> List(String) {
@@ -1351,7 +1554,7 @@ pub fn b2b_bulk_revoke_and_staff_user_errors_include_input_indices_test() {
 
   let proxy =
     seed_company_with_contact_and_location(
-      draft_proxy.new(),
+      seed_staff_member(draft_proxy.new(), "gid://shopify/StaffMember/1"),
       "HAR 754 Assign Staff",
       "har754-assign-staff@example.com",
     )
@@ -1364,14 +1567,14 @@ pub fn b2b_bulk_revoke_and_staff_user_errors_include_input_indices_test() {
   let assign_json = json.to_string(assign_body)
   assert string.contains(
     assign_json,
-    "\"companyLocationStaffMemberAssignments\":null",
+    "\"companyLocationStaffMemberAssignments\":[{\"id\":\"gid://shopify/CompanyLocationStaffMemberAssignment/9?shopify-draft-proxy=synthetic\"",
   )
   assert string.contains(assign_json, "\"field\":[\"staffMemberIds\",\"1\"]")
   assert string.contains(assign_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
 
   let proxy =
     seed_company_with_contact_and_location(
-      draft_proxy.new(),
+      seed_staff_member(draft_proxy.new(), "gid://shopify/StaffMember/1"),
       "HAR 754 Remove Staff",
       "har754-remove-staff@example.com",
     )

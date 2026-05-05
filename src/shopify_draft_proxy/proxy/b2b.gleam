@@ -5438,10 +5438,54 @@ fn handle_assign_staff(
     Some(location_id) ->
       case store.get_effective_b2b_company_location_by_id(store, location_id) {
         Some(location) -> {
-          let staff_member_ids = read_string_list(args, "staffMemberIds")
-          let errors = invalid_staff_member_id_errors(staff_member_ids)
-          case errors {
-            [_, ..] ->
+          let #(assignments, errors, identity) =
+            list.index_fold(
+              read_string_list(args, "staffMemberIds"),
+              #([], [], identity),
+              fn(acc, staff_id, index) {
+                let #(items, errors, current_identity) = acc
+                case staff_member_exists(store, staff_id) {
+                  True -> {
+                    let #(id, next_identity) =
+                      make_gid(
+                        current_identity,
+                        "CompanyLocationStaffMemberAssignment",
+                      )
+                    let assignment =
+                      src_object([
+                        #(
+                          "__typename",
+                          SrcString("CompanyLocationStaffMemberAssignment"),
+                        ),
+                        #("id", SrcString(id)),
+                        #("staffMemberId", SrcString(staff_id)),
+                        #("companyLocationId", SrcString(location.id)),
+                        #(
+                          "staffMember",
+                          src_object([
+                            #("__typename", SrcString("StaffMember")),
+                            #("id", SrcString(staff_id)),
+                          ]),
+                        ),
+                        #("companyLocation", location_source(location)),
+                      ])
+                    #(list.append(items, [assignment]), errors, next_identity)
+                  }
+                  False -> #(
+                    items,
+                    list.append(errors, [
+                      resource_not_found([
+                        "staffMemberIds",
+                        int.to_string(index),
+                      ]),
+                    ]),
+                    current_identity,
+                  )
+                }
+              },
+            )
+          case assignments {
+            [] ->
               RootResult(
                 Payload(
                   ..empty_payload(errors),
@@ -5451,35 +5495,7 @@ fn handle_assign_staff(
                 identity,
                 [],
               )
-            [] -> {
-              let #(assignments, identity) =
-                list.fold(staff_member_ids, #([], identity), fn(acc, staff_id) {
-                  let #(items, current_identity) = acc
-                  let #(id, next_identity) =
-                    make_gid(
-                      current_identity,
-                      "CompanyLocationStaffMemberAssignment",
-                    )
-                  let assignment =
-                    src_object([
-                      #(
-                        "__typename",
-                        SrcString("CompanyLocationStaffMemberAssignment"),
-                      ),
-                      #("id", SrcString(id)),
-                      #("staffMemberId", SrcString(staff_id)),
-                      #("companyLocationId", SrcString(location.id)),
-                      #(
-                        "staffMember",
-                        src_object([
-                          #("__typename", SrcString("StaffMember")),
-                          #("id", SrcString(staff_id)),
-                        ]),
-                      ),
-                      #("companyLocation", location_source(location)),
-                    ])
-                  #(list.append(items, [assignment]), next_identity)
-                })
+            [_, ..] -> {
               let current =
                 read_object_sources(data_get(
                   location.data,
@@ -5498,7 +5514,7 @@ fn handle_assign_staff(
                 store.upsert_staged_b2b_company_location(store, updated)
               RootResult(
                 Payload(
-                  ..empty_payload([]),
+                  ..empty_payload(errors),
                   company_location_staff_member_assignments: assignments,
                 ),
                 store,
@@ -5532,28 +5548,11 @@ fn handle_assign_staff(
   }
 }
 
-fn invalid_staff_member_id_errors(ids: List(String)) -> List(UserError) {
-  ids
-  |> list.index_map(fn(id, index) { #(id, index) })
-  |> list.fold([], fn(errors, entry) {
-    let #(id, index) = entry
-    case valid_staff_member_id(id) {
-      True -> errors
-      False ->
-        list.append(errors, [
-          resource_not_found(indexed_field_path("staffMemberIds", index)),
-        ])
-    }
-  })
-}
-
-fn valid_staff_member_id(id: String) -> Bool {
-  valid_shopify_gid_type(id, "StaffMember")
-  && !string.ends_with(id, "/999999999999")
-}
-
-fn valid_shopify_gid_type(id: String, resource_type: String) -> Bool {
-  string.starts_with(id, "gid://shopify/" <> resource_type <> "/")
+fn staff_member_exists(store: Store, staff_id: String) -> Bool {
+  case store.get_effective_admin_platform_generic_node_by_id(store, staff_id) {
+    Some(record) -> record.typename == "StaffMember"
+    None -> False
+  }
 }
 
 fn handle_remove_staff(
@@ -5562,6 +5561,21 @@ fn handle_remove_staff(
   args,
 ) -> RootResult {
   let ids = read_string_list(args, "companyLocationStaffMemberAssignmentIds")
+  let existing_ids = effective_staff_assignment_ids(store)
+  let valid_ids = list.filter(ids, fn(id) { list.contains(existing_ids, id) })
+  let errors =
+    list.index_fold(ids, [], fn(errors, id, index) {
+      case list.contains(existing_ids, id) {
+        True -> errors
+        False ->
+          list.append(errors, [
+            resource_not_found([
+              "companyLocationStaffMemberAssignmentIds",
+              int.to_string(index),
+            ]),
+          ])
+      }
+    })
   let #(store, removed, staged) =
     list.fold(
       store.list_effective_b2b_company_locations(store),
@@ -5571,7 +5585,7 @@ fn handle_remove_staff(
         let current =
           read_object_sources(data_get(location.data, "staffMemberAssignments"))
         let #(next, removed_here) =
-          filter_removed_assignments(current, ids, False)
+          filter_removed_assignments(current, valid_ids, False)
         case list.length(next) == list.length(current) {
           True -> acc
           False -> {
@@ -5595,12 +5609,6 @@ fn handle_remove_staff(
         }
       },
     )
-  let errors =
-    missing_indexed_id_errors(
-      ids,
-      removed,
-      "companyLocationStaffMemberAssignmentIds",
-    )
   RootResult(
     Payload(
       ..empty_payload(errors),
@@ -5610,6 +5618,14 @@ fn handle_remove_staff(
     identity,
     list.append(staged, removed),
   )
+}
+
+fn effective_staff_assignment_ids(store: Store) -> List(String) {
+  store.list_effective_b2b_company_locations(store)
+  |> list.flat_map(fn(location) {
+    read_object_sources(data_get(location.data, "staffMemberAssignments"))
+    |> list.map(source_id)
+  })
 }
 
 fn handle_tax_settings_update(
