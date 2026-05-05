@@ -1,0 +1,26 @@
+mutation ProductSetAsyncOperationParity($input: ProductSetInput!, $synchronous: Boolean!) {
+  productSet(input: $input, synchronous: $synchronous) {
+    product {
+      id
+    }
+    productSetOperation {
+      id
+      status
+      product {
+        id
+        title
+        handle
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

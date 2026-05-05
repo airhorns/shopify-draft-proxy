@@ -4800,50 +4800,63 @@ fn handle_location_local_pickup_enable(
   let location_id = read_string(input, "locationId")
   case find_active_store_property_location(draft_store, location_id) {
     Some(location) -> {
-      let settings =
-        StorePropertyObject(
-          dict.from_list([
-            #(
-              "pickupTime",
-              StorePropertyString(
-                read_string(input, "pickupTime") |> option.unwrap("ONE_HOUR"),
-              ),
-            ),
-            #(
-              "instructions",
-              StorePropertyString(
-                read_string(input, "instructions") |> option.unwrap(""),
-              ),
-            ),
-          ]),
-        )
-      let #(timestamp, next_identity) =
-        synthetic_identity.make_synthetic_timestamp(identity)
-      let updated =
-        StorePropertyRecord(
-          ..location,
-          data: location.data
-            |> dict.insert("localPickupSettingsV2", settings)
-            |> dict.insert("localPickupSettings", settings)
-            |> dict.insert("updatedAt", StorePropertyString(timestamp)),
-        )
-      let #(_, next_store) =
-        store.upsert_staged_store_property_location(draft_store, updated)
-      #(
-        MutationFieldResult(
-          key: get_field_response_key(field),
-          payload: local_pickup_enable_payload_json(
-            field,
-            fragments,
-            Some(settings),
-            [],
+      let pickup_time =
+        read_string(input, "pickupTime") |> option.unwrap("ONE_HOUR")
+      case is_standard_local_pickup_time(pickup_time) {
+        False -> #(
+          MutationFieldResult(
+            key: get_field_response_key(field),
+            payload: local_pickup_enable_payload_json(field, fragments, None, [
+              local_pickup_custom_pickup_time_not_allowed(),
+            ]),
+            errors: [],
+            staged_resource_ids: [],
           ),
-          errors: [],
-          staged_resource_ids: [location.id],
-        ),
-        next_store,
-        next_identity,
-      )
+          draft_store,
+          identity,
+        )
+        True -> {
+          let settings =
+            StorePropertyObject(
+              dict.from_list([
+                #("pickupTime", StorePropertyString(pickup_time)),
+                #(
+                  "instructions",
+                  StorePropertyString(
+                    read_string(input, "instructions") |> option.unwrap(""),
+                  ),
+                ),
+              ]),
+            )
+          let #(timestamp, next_identity) =
+            synthetic_identity.make_synthetic_timestamp(identity)
+          let updated =
+            StorePropertyRecord(
+              ..location,
+              data: location.data
+                |> dict.insert("localPickupSettingsV2", settings)
+                |> dict.insert("localPickupSettings", settings)
+                |> dict.insert("updatedAt", StorePropertyString(timestamp)),
+            )
+          let #(_, next_store) =
+            store.upsert_staged_store_property_location(draft_store, updated)
+          #(
+            MutationFieldResult(
+              key: get_field_response_key(field),
+              payload: local_pickup_enable_payload_json(
+                field,
+                fragments,
+                Some(settings),
+                [],
+              ),
+              errors: [],
+              staged_resource_ids: [location.id],
+            ),
+            next_store,
+            next_identity,
+          )
+        }
+      }
     }
     None -> #(
       MutationFieldResult(
@@ -4857,6 +4870,18 @@ fn handle_location_local_pickup_enable(
       draft_store,
       identity,
     )
+  }
+}
+
+fn is_standard_local_pickup_time(value: String) -> Bool {
+  case value {
+    "ONE_HOUR"
+    | "TWO_HOURS"
+    | "FOUR_HOURS"
+    | "TWENTY_FOUR_HOURS"
+    | "TWO_TO_FOUR_DAYS"
+    | "FIVE_OR_MORE_DAYS" -> True
+    _ -> False
   }
 }
 
@@ -7135,6 +7160,14 @@ fn local_pickup_location_not_found(
     field: Some([field]),
     message: "Unable to find an active location for location ID " <> legacy_id,
     code: Some("ACTIVE_LOCATION_NOT_FOUND"),
+  )
+}
+
+fn local_pickup_custom_pickup_time_not_allowed() -> LocalPickupUserError {
+  LocalPickupUserError(
+    field: Some(["localPickupSettings"]),
+    message: "Custom pickup time is not allowed for local pickup settings.",
+    code: Some("CUSTOM_PICKUP_TIME_NOT_ALLOWED"),
   )
 }
 

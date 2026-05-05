@@ -1,5 +1,5 @@
 {
-  "query": "mutation OrderCreateValidationMatrix($noLineItems: OrderCreateOrderInput!) { noLineItems: orderCreate(order: $noLineItems) { order { id } userErrors { field message } } }",
+  "query": "mutation OrderCreateValidationMatrix($noLineItems: OrderCreateOrderInput!) { noLineItems: orderCreate(order: $noLineItems) { order { id } userErrors { field message code } } }",
   "variables": {
     "noLineItems": {
       "email": "hermes-order-validation-no-lines@example.com",
@@ -14,7 +14,8 @@
           "userErrors": [
             {
               "field": ["order", "lineItems"],
-              "message": "Line items must have at least one line item"
+              "message": "Line items must have at least one line item",
+              "code": "INVALID"
             }
           ]
         }
