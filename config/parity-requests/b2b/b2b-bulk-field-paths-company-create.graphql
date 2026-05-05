@@ -1,0 +1,50 @@
+mutation HAR754CompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      mainContact {
+        id
+        title
+        isMainContact
+        roleAssignments(first: 5) {
+          nodes {
+            id
+            role {
+              id
+              name
+            }
+            companyLocation {
+              id
+              name
+            }
+          }
+        }
+      }
+      contacts(first: 5) {
+        nodes {
+          id
+          title
+          isMainContact
+        }
+      }
+      locations(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+      contactRoles(first: 5) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

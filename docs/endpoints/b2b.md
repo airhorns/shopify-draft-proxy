@@ -133,20 +133,34 @@ duplicate role, foreign/missing role, foreign/missing location, successful main
 contact delete, and completed B2B order-history delete rejection branches as
 strict replayable parity evidence.
 
+HAR-754 aligns bulk B2B resolver `userErrors.field` paths with Shopify's
+string-indexed list paths. Bulk company/contact/location deletes, role
+assignment/revoke roots, and location staff assignment/removal roots report
+failed entries at paths such as `["companyContactIds", "1"]` or
+`["rolesToAssign", "0", "companyLocationId"]` while preserving top-level
+single-ID field paths on the single-resource mutation surfaces. The 2026-04
+capture records the Shopify quirk that `companyLocationAssignRoles` reports
+missing contact/role entries at the indexed list item path (for example
+`["rolesToAssign", "0"]`) rather than at a nested sub-field. Staff assignment
+still does not synthesize a broader staff catalog, but missing staff-member and
+staff-assignment IDs use Shopify's indexed user error paths and null payload
+shape for the failed list-valued fields.
+
 HAR-756 extends the bulk role-assignment surfaces to match Shopify's
-partial-success behavior. `companyContactAssignRoles` and
-`companyLocationAssignRoles` validate every `rolesToAssign` entry, stage each
-successful assignment, return successful `roleAssignments` in original input
-order minus failed entries, and report indexed `userErrors` for failures.
-`companyContactRevokeRoles` and `companyLocationRevokeRoles` likewise validate
-every requested assignment ID, revoke each valid parent-scoped assignment once,
-return `revokedRoleAssignmentIds` in input order minus failed entries, and keep
+partial-success behavior while preserving those indexed field paths.
+`companyContactAssignRoles` and `companyLocationAssignRoles` validate every
+`rolesToAssign` entry, stage each successful assignment, return successful
+`roleAssignments` in original input order minus failed entries, and report
+indexed `userErrors` for failures. `companyContactRevokeRoles` and
+`companyLocationRevokeRoles` likewise validate every requested assignment ID,
+revoke each valid parent-scoped assignment once, return
+`revokedRoleAssignmentIds` in input order minus failed entries, and keep
 per-index `RESOURCE_NOT_FOUND` errors for invalid IDs. The local runtime also
 echoes the resolved parent contact/location in these payloads when selected, as
 required by the Business Customers contract; the public 2026-04 Admin schema
-used for conformance does not expose those parent payload fields, so the live
-parity scenario covers public partial-success fields while focused runtime
-tests cover parent echo selections.
+used for conformance does not expose those parent payload fields, so live
+parity covers public partial-success fields while focused runtime tests cover
+parent echo selections.
 
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
