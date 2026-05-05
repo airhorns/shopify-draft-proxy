@@ -1,0 +1,158 @@
+{
+  "capturedAt": "2026-05-05T00:00:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "notes": "HAR-781 executable local-runtime evidence for subscription-field gating on the default synthetic non-subscription shop. The active live credential targets a shop whose shop.features.sellsSubscriptions is true, so non-subscription _not_permitted branches cannot be recaptured there; focused runtime tests and this strict replay cover the required local gate while the existing free-shipping lifecycle fixture carries cassette-backed subscription-shop success evidence.",
+  "expected": {
+    "primary": {
+      "data": {
+        "basicSub": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "customerGets", "appliesOnSubscription"],
+              "message": "Customer gets applies on subscription is not permitted for this shop.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "basicBlank": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "customerGets", "appliesOnSubscription"],
+              "message": "Customer gets applies on subscription is not permitted for this shop.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "freeShippingSub": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["freeShippingCodeDiscount", "appliesOnSubscription"],
+              "message": "Applies on subscription is not permitted for this shop.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "freeShippingRecurring": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["freeShippingCodeDiscount", "recurringCycleLimit"],
+              "message": "Recurring cycle limit is not permitted for this shop.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "automaticBasicSub": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["automaticBasicDiscount", "customerGets", "appliesOnSubscription"],
+              "message": "Customer gets applies on subscription is not permitted for this shop.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "automaticBasicRecurring": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["automaticBasicDiscount", "recurringCycleLimit"],
+              "message": "Recurring cycle limit is not permitted for this shop.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        },
+        "automaticFreeShippingSkip": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic"
+          },
+          "userErrors": []
+        },
+        "setupBasic": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/2?shopify-draft-proxy=synthetic"
+          },
+          "userErrors": []
+        },
+        "setupFreeShipping": {
+          "codeDiscountNode": {
+            "id": "gid://shopify/DiscountCodeNode/4?shopify-draft-proxy=synthetic"
+          },
+          "userErrors": []
+        },
+        "setupAutomaticBasic": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/6?shopify-draft-proxy=synthetic"
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "basicUpdate": {
+      "data": {
+        "basicUpdate": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["basicCodeDiscount", "customerGets", "appliesOnSubscription"],
+              "message": "Customer gets applies on subscription is not permitted for this shop.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        }
+      }
+    },
+    "freeShippingUpdate": {
+      "data": {
+        "freeShippingUpdate": {
+          "codeDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["freeShippingCodeDiscount", "appliesOnOneTimePurchase"],
+              "message": "Applies on one time purchase is not permitted for this shop.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        }
+      }
+    },
+    "automaticBasicUpdate": {
+      "data": {
+        "automaticBasicUpdate": {
+          "automaticDiscountNode": null,
+          "userErrors": [
+            {
+              "field": ["automaticBasicDiscount", "recurringCycleLimit"],
+              "message": "Recurring cycle limit is not permitted for this shop.",
+              "code": "INVALID",
+              "extraInfo": null
+            }
+          ]
+        }
+      }
+    },
+    "automaticFreeShippingUpdate": {
+      "data": {
+        "automaticFreeShippingUpdate": {
+          "automaticDiscountNode": {
+            "id": "gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

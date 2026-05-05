@@ -44,22 +44,23 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type CustomerAccountPageRecord, type CustomerAddressRecord,
-  type CustomerCatalogConnectionRecord, type CustomerCatalogPageInfoRecord,
-  type CustomerDefaultAddressRecord, type CustomerDefaultEmailAddressRecord,
-  type CustomerDefaultPhoneNumberRecord,
+  type CapturedJsonValue, type CustomerAccountPageRecord,
+  type CustomerAddressRecord, type CustomerCatalogConnectionRecord,
+  type CustomerCatalogPageInfoRecord, type CustomerDefaultAddressRecord,
+  type CustomerDefaultEmailAddressRecord, type CustomerDefaultPhoneNumberRecord,
   type CustomerEmailMarketingConsentRecord, type CustomerEventSummaryRecord,
   type CustomerMergeRequestRecord, type CustomerMetafieldRecord,
   type CustomerOrderSummaryRecord, type CustomerPaymentMethodRecord,
   type CustomerRecord, type CustomerSmsMarketingConsentRecord, type Money,
-  type ProductMetafieldRecord, type StoreCreditAccountRecord,
-  type StoreCreditAccountTransactionRecord, CustomerAccountPageRecord,
-  CustomerAddressRecord, CustomerCatalogPageInfoRecord,
-  CustomerDefaultAddressRecord, CustomerDefaultEmailAddressRecord,
-  CustomerDefaultPhoneNumberRecord, CustomerEmailMarketingConsentRecord,
-  CustomerMergeRequestRecord, CustomerMetafieldRecord,
-  CustomerOrderSummaryRecord, CustomerRecord, CustomerSmsMarketingConsentRecord,
-  Money, StoreCreditAccountRecord, StoreCreditAccountTransactionRecord,
+  type OrderRecord, type ProductMetafieldRecord, type StoreCreditAccountRecord,
+  type StoreCreditAccountTransactionRecord, CapturedObject, CapturedString,
+  CustomerAccountPageRecord, CustomerAddressRecord,
+  CustomerCatalogPageInfoRecord, CustomerDefaultAddressRecord,
+  CustomerDefaultEmailAddressRecord, CustomerDefaultPhoneNumberRecord,
+  CustomerEmailMarketingConsentRecord, CustomerMergeRequestRecord,
+  CustomerMetafieldRecord, CustomerOrderSummaryRecord, CustomerRecord,
+  CustomerSmsMarketingConsentRecord, Money, StoreCreditAccountRecord,
+  StoreCreditAccountTransactionRecord,
 }
 
 pub type CustomersError {
@@ -513,6 +514,17 @@ fn read_obj_string(
         "" -> None
         _ -> Some(s)
       }
+    Ok(root_field.IntVal(i)) -> Some(int.to_string(i))
+    _ -> None
+  }
+}
+
+fn read_obj_raw_string(
+  obj: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case dict.get(obj, name) {
+    Ok(root_field.StringVal(s)) -> Some(s)
     Ok(root_field.IntVal(i)) -> Some(int.to_string(i))
     _ -> None
   }
@@ -4254,50 +4266,83 @@ fn handle_customer_update(
               )
             }
             [] -> {
-              let #(timestamp, after_ts) =
-                synthetic_identity.make_synthetic_timestamp(identity)
               let updated =
-                update_customer_from_input(existing, input, timestamp)
-              let #(stored, store_after_customer) =
-                store.stage_update_customer(store, updated)
-              let store_after_metafields = case
-                read_customer_metafields(input, stored.id, after_ts)
-              {
-                [] -> store_after_customer
-                metafields ->
-                  store.stage_customer_metafields(
-                    store_after_customer,
-                    stored.id,
-                    metafields,
-                  )
-              }
-              let #(payload_customer, store_after_addresses) =
-                replace_customer_input_addresses(
-                  store_after_metafields,
-                  stored,
+                update_customer_from_input(
+                  existing,
                   input,
+                  option.unwrap(existing.updated_at, ""),
                 )
-              let payload =
-                customer_payload_json(
-                  store_after_addresses,
-                  "CustomerUpdatePayload",
-                  Some(payload_customer),
-                  None,
-                  None,
-                  [],
-                  field,
-                  fragments,
-                )
-              #(
-                MutationFieldResult(
-                  get_field_response_key(field),
-                  payload,
-                  [payload_customer.id],
-                  "customerUpdate",
-                ),
-                store_after_addresses,
-                after_ts,
-              )
+              case customer_identity_presence_errors(updated) {
+                [_, ..] as errors -> {
+                  let payload =
+                    customer_payload_json(
+                      store,
+                      "CustomerUpdatePayload",
+                      None,
+                      None,
+                      None,
+                      errors,
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [],
+                      "customerUpdate",
+                    ),
+                    store,
+                    identity,
+                  )
+                }
+                [] -> {
+                  let #(timestamp, after_ts) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let updated =
+                    update_customer_from_input(existing, input, timestamp)
+                  let #(stored, store_after_customer) =
+                    store.stage_update_customer(store, updated)
+                  let store_after_metafields = case
+                    read_customer_metafields(input, stored.id, after_ts)
+                  {
+                    [] -> store_after_customer
+                    metafields ->
+                      store.stage_customer_metafields(
+                        store_after_customer,
+                        stored.id,
+                        metafields,
+                      )
+                  }
+                  let #(payload_customer, store_after_addresses) =
+                    replace_customer_input_addresses(
+                      store_after_metafields,
+                      stored,
+                      input,
+                    )
+                  let payload =
+                    customer_payload_json(
+                      store_after_addresses,
+                      "CustomerUpdatePayload",
+                      Some(payload_customer),
+                      None,
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    )
+                  #(
+                    MutationFieldResult(
+                      get_field_response_key(field),
+                      payload,
+                      [payload_customer.id],
+                      "customerUpdate",
+                    ),
+                    store_after_addresses,
+                    after_ts,
+                  )
+                }
+              }
             }
           }
         }
@@ -4320,6 +4365,38 @@ fn handle_customer_update(
         "CustomerUpdatePayload",
         "customerUpdate",
       )
+  }
+}
+
+fn customer_identity_presence_errors(
+  customer: CustomerRecord,
+) -> List(UserError) {
+  case customer_has_contact_identity(customer) {
+    True -> []
+    False -> [
+      UserError(
+        [],
+        "A name, phone number, or email address must be present",
+        Some("INVALID"),
+      ),
+    ]
+  }
+}
+
+fn customer_has_contact_identity(customer: CustomerRecord) -> Bool {
+  option_has_text(customer.first_name)
+  || option_has_text(customer.last_name)
+  || option_has_text(customer.email)
+  || option_has_text(
+    customer.default_phone_number
+    |> option.then(fn(value) { value.phone_number }),
+  )
+}
+
+fn option_has_text(value: Option(String)) -> Bool {
+  case value {
+    Some(text) -> string.trim(text) != ""
+    None -> False
   }
 }
 
@@ -4655,28 +4732,61 @@ fn handle_customer_delete(
     Some(customer_id) ->
       case store.get_effective_customer_by_id(store, customer_id) {
         Some(_) -> {
-          let next_store = store.stage_delete_customer(store, customer_id)
-          let payload =
-            customer_payload_json(
-              next_store,
-              "CustomerDeletePayload",
-              None,
-              Some(customer_id),
-              None,
-              [],
-              field,
-              fragments,
-            )
-          #(
-            MutationFieldResult(
-              get_field_response_key(field),
-              payload,
-              [customer_id],
-              "customerDelete",
-            ),
-            next_store,
-            identity,
-          )
+          case customer_has_associated_orders(store, customer_id) {
+            True -> {
+              let payload =
+                customer_payload_json(
+                  store,
+                  "CustomerDeletePayload",
+                  None,
+                  None,
+                  None,
+                  [
+                    UserError(
+                      ["id"],
+                      "Customer can’t be deleted because they have associated orders",
+                      None,
+                    ),
+                  ],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [],
+                  "customerDelete",
+                ),
+                store,
+                identity,
+              )
+            }
+            False -> {
+              let next_store = store.stage_delete_customer(store, customer_id)
+              let payload =
+                customer_payload_json(
+                  next_store,
+                  "CustomerDeletePayload",
+                  None,
+                  Some(customer_id),
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              #(
+                MutationFieldResult(
+                  get_field_response_key(field),
+                  payload,
+                  [customer_id],
+                  "customerDelete",
+                ),
+                next_store,
+                identity,
+              )
+            }
+          }
         }
         None -> {
           let payload =
@@ -4729,6 +4839,49 @@ fn handle_customer_delete(
         identity,
       )
     }
+  }
+}
+
+fn customer_has_associated_orders(store: Store, customer_id: String) -> Bool {
+  case store.list_effective_customer_order_summaries(store, customer_id) {
+    [_, ..] -> True
+    [] ->
+      store.list_effective_orders(store)
+      |> list.any(fn(order) { order_customer_id(order) == Some(customer_id) })
+  }
+}
+
+fn order_customer_id(order: OrderRecord) -> Option(String) {
+  captured_object_field(order.data, "customer")
+  |> option.then(fn(customer) { captured_string_field(customer, "id") })
+}
+
+fn captured_object_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(CapturedJsonValue) {
+  case value {
+    CapturedObject(fields) ->
+      fields
+      |> list.find_map(fn(pair) {
+        let #(key, item) = pair
+        case key == name {
+          True -> Ok(item)
+          False -> Error(Nil)
+        }
+      })
+      |> option.from_result
+    _ -> None
+  }
+}
+
+fn captured_string_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(String) {
+  case captured_object_field(value, name) {
+    Some(CapturedString(value)) -> Some(value)
+    _ -> None
   }
 }
 
@@ -5634,6 +5787,7 @@ fn token_safe_customer_id(customer_id: String) -> String {
 fn handle_account_invite(store, identity, field, fragments, variables) {
   let args = graphql_helpers.field_args(field, variables)
   let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
+  let email_input = read_account_invite_email_input(args)
   case customer_id {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
@@ -5642,22 +5796,44 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
             customer_account_invitable(customer)
           {
             True -> {
-              let updated = CustomerRecord(..customer, state: Some("INVITED"))
-              let #(_, next_store) = store.stage_update_customer(store, updated)
-              #(
-                customer_payload_json(
-                  next_store,
-                  "CustomerSendAccountInviteEmailPayload",
-                  Some(updated),
-                  None,
-                  None,
+              let email_errors =
+                validate_account_invite_email(customer, email_input)
+              case email_errors {
+                [] -> {
+                  let updated =
+                    CustomerRecord(..customer, state: Some("INVITED"))
+                  let #(_, next_store) =
+                    store.stage_update_customer(store, updated)
+                  #(
+                    customer_payload_json(
+                      next_store,
+                      "CustomerSendAccountInviteEmailPayload",
+                      Some(updated),
+                      None,
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    [id],
+                  )
+                }
+                _ -> #(
+                  customer_payload_json(
+                    store,
+                    "CustomerSendAccountInviteEmailPayload",
+                    None,
+                    None,
+                    None,
+                    email_errors,
+                    field,
+                    fragments,
+                  ),
+                  store,
                   [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                [id],
-              )
+                )
+              }
             }
             False -> #(
               customer_payload_json(
@@ -5716,6 +5892,147 @@ fn handle_account_invite(store, identity, field, fragments, variables) {
         "Customer can't be found",
         None,
       )
+  }
+}
+
+fn read_account_invite_email_input(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case dict.get(args, "email") {
+    Ok(root_field.ObjectVal(input)) -> Some(input)
+    _ -> None
+  }
+}
+
+fn validate_account_invite_email(
+  customer: CustomerRecord,
+  email_input: Option(Dict(String, root_field.ResolvedValue)),
+) -> List(UserError) {
+  case email_input {
+    None -> []
+    Some(input) -> {
+      [
+        validate_account_invite_subject(input),
+        validate_account_invite_to(customer, input),
+        validate_account_invite_from(input),
+        validate_account_invite_bcc(input),
+        validate_account_invite_custom_message(input),
+      ]
+      |> list.flatten()
+    }
+  }
+}
+
+fn validate_account_invite_subject(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_raw_string(input, "subject") {
+    None | Some("") -> [
+      UserError(["email", "subject"], "Subject can't be blank", Some("INVALID")),
+    ]
+    Some(subject) ->
+      case string.length(subject) > 1000 {
+        True -> [account_invite_send_error()]
+        False -> []
+      }
+  }
+}
+
+fn validate_account_invite_to(
+  customer: CustomerRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_raw_string(input, "to") {
+    None | Some("") -> []
+    Some(to) ->
+      case customer.email {
+        Some(email) if email != "" -> [
+          UserError(
+            ["email", "to"],
+            "To must be blank when the customer has an email address",
+            Some("INVALID"),
+          ),
+        ]
+        _ ->
+          case valid_account_invite_email_address(to) {
+            True -> []
+            False -> [
+              UserError(["email", "to"], "To is invalid", Some("INVALID")),
+            ]
+          }
+      }
+  }
+}
+
+fn validate_account_invite_from(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case dict.get(input, "from") {
+    Ok(_) -> [
+      UserError(["email", "from"], "From Sender is invalid", Some("INVALID")),
+    ]
+    _ -> []
+  }
+}
+
+fn validate_account_invite_bcc(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  let bcc = read_obj_array_strings(input, "bcc")
+  case bcc {
+    [] -> []
+    _ -> [
+      UserError(
+        ["email", "bcc"],
+        account_invite_bcc_message(bcc),
+        Some("INVALID"),
+      ),
+    ]
+  }
+}
+
+fn validate_account_invite_custom_message(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case read_obj_raw_string(input, "customMessage") {
+    Some(message) -> {
+      let invalid =
+        string.length(message) > 5000
+        || string.contains(message, "<")
+        || string.contains(message, ">")
+      case invalid {
+        True -> [account_invite_send_error()]
+        False -> []
+      }
+    }
+    _ -> []
+  }
+}
+
+fn account_invite_bcc_message(bcc: List(String)) -> String {
+  "Bcc "
+  <> string.join(
+    list.map(bcc, fn(address) { address <> " is not a valid bcc address" }),
+    " and ",
+  )
+}
+
+fn account_invite_send_error() -> UserError {
+  UserError(
+    ["customerId"],
+    "Error sending account invite to customer.",
+    Some("INVALID"),
+  )
+}
+
+fn valid_account_invite_email_address(email: String) -> Bool {
+  case string.split(email, "@") {
+    [local, domain] ->
+      local != ""
+      && domain != ""
+      && string.contains(domain, ".")
+      && !string.contains(email, " ")
+    _ -> False
   }
 }
 

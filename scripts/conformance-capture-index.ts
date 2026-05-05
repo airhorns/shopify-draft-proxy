@@ -2104,6 +2104,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-minimum-requirement-exclusivity',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-minimum-requirement-exclusivity-conformance.ts',
+    purpose:
+      'Discount minimumRequirement mutually exclusive quantity/subtotal branches and quantity/subtotal upper-bound validation guardrails.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-minimum-requirement-exclusivity.json`,
+      'config/parity-specs/discounts/discount-minimum-requirement-exclusivity.json',
+      'config/parity-requests/discounts/discount-minimum-requirement-exclusivity.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no discounts are created on successful capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-combines-with-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-combines-with-validation-conformance.ts',
@@ -2844,6 +2860,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'customers',
+    captureId: 'customer-update-requires-identity',
+    scriptPath: 'scripts/capture-customer-update-requires-identity-conformance.mts',
+    purpose: 'customerUpdate rejects changes that would leave a customer without name, phone, or email identity.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-update-requires-identity.json`,
+      'config/parity-specs/customers/customer_update_requires_identity.json',
+      'config/parity-requests/customers/customer_update_requires_identity_*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable email-only, phone-only, and name-pair customers, records rejection/control branches, then deletes them.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
     captureId: 'customer-input-addresses',
     scriptPath: 'scripts/capture-customer-input-addresses-conformance.mts',
     purpose: 'CustomerInput.addresses create/update replacement behavior and downstream reads.',
@@ -2984,6 +3015,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}customer-outbound-side-effect-validation-parity.json`],
     cleanupBehavior: 'Validation-only unknown-ID capture; no created Shopify resources to clean up.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'customers',
+    captureId: 'customer-invite-email-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-customer-invite-email-validation-conformance.ts',
+    purpose:
+      'customerSendAccountInviteEmail nested EmailInput validation for subject, to, from, bcc, and customMessage.',
+    requiredAuthScopes: ['read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}customer-invite-email-validation.json`,
+      'config/parity-specs/customers/customer_invite_email_validation.json',
+      'config/parity-requests/customers/customer-invite-email-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable customer per validation branch and deletes all created customers during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The valid phone-customer to override control remains runtime-test-backed because the live conformance shop currently returns a generic outbound-delivery failure for success-path invite attempts.',
   },
 ]);
 
