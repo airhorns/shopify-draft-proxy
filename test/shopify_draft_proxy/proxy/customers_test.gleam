@@ -6,7 +6,7 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/types.{
-  CustomerRecord, Money, StoreCreditAccountRecord,
+  type CustomerRecord, CustomerRecord, Money, StoreCreditAccountRecord,
 }
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
@@ -73,6 +73,106 @@ fn assert_missing_customer_error(body: json.Json) {
     json.to_string(body),
     "\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"Customer does not exist\"}]",
   )
+}
+
+fn customer_with_state(id: String, state: String) -> CustomerRecord {
+  CustomerRecord(
+    id: id,
+    first_name: None,
+    last_name: None,
+    display_name: Some(state <> " Customer"),
+    email: Some(string.lowercase(state) <> "@example.com"),
+    legacy_resource_id: None,
+    locale: Some("en"),
+    note: None,
+    can_delete: Some(True),
+    verified_email: Some(True),
+    data_sale_opt_out: False,
+    tax_exempt: Some(False),
+    tax_exemptions: [],
+    state: Some(state),
+    tags: [],
+    number_of_orders: Some("0"),
+    amount_spent: Some(Money(amount: "0.0", currency_code: "USD")),
+    default_email_address: None,
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    account_activation_token: None,
+    created_at: Some("2024-01-01T00:00:00.000Z"),
+    updated_at: Some("2024-01-01T00:00:00.000Z"),
+  )
+}
+
+fn customer_state_proxy(id: String, state: String) -> draft_proxy.DraftProxy {
+  let proxy = draft_proxy.new()
+  proxy_state.DraftProxy(
+    ..proxy,
+    store: store_mod.upsert_base_customers(proxy.store, [
+      customer_with_state(id, state),
+    ]),
+  )
+}
+
+fn activation_mutation(customer_id: String) -> String {
+  "mutation { customerGenerateAccountActivationUrl(customerId: \""
+  <> customer_id
+  <> "\") { accountActivationUrl userErrors { field message code } } }"
+}
+
+pub fn customer_activation_url_rejects_enabled_or_declined_customers_test() {
+  assert_activation_rejects_state("ENABLED")
+  assert_activation_rejects_state("DECLINED")
+}
+
+fn assert_activation_rejects_state(state: String) {
+  let customer_id = "gid://shopify/Customer/" <> state
+  let proxy = customer_state_proxy(customer_id, state)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(proxy, activation_mutation(customer_id))
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"accountActivationUrl\":null")
+  assert string.contains(body_json, "\"code\":\"account_already_enabled\"")
+}
+
+pub fn customer_activation_url_generates_token_for_disabled_or_invited_customers_test() {
+  assert_activation_generates_token("DISABLED")
+  assert_activation_generates_token("INVITED")
+}
+
+fn assert_activation_generates_token(state: String) {
+  let customer_id = "gid://shopify/Customer/" <> state
+  let proxy = customer_state_proxy(customer_id, state)
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(proxy, activation_mutation(customer_id))
+  assert first_status == 200
+  let first_json = json.to_string(first_body)
+  assert string.contains(first_json, "\"userErrors\":[]")
+  assert string.contains(first_json, "account_activation_token=")
+
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql(proxy, activation_mutation(customer_id))
+  assert second_status == 200
+  assert json.to_string(second_body) == first_json
+
+  let state_json =
+    draft_proxy.get_state_snapshot(proxy)
+    |> json.to_string
+  assert string.contains(state_json, "\"accountActivationToken\":\"")
+}
+
+pub fn customer_activation_url_missing_customer_uses_snake_case_code_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      draft_proxy.new(),
+      activation_mutation("gid://shopify/Customer/999999"),
+    )
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"accountActivationUrl\":null")
+  assert string.contains(body_json, "\"code\":\"customer_does_not_exist\"")
 }
 
 pub fn customer_merge_required_argument_validation_test() {
@@ -524,6 +624,136 @@ pub fn store_credit_credit_debit_readback_test() {
     read_json,
     "\"owner\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"credit@example.com\"}",
   )
+}
+
+pub fn store_credit_credit_customer_id_creates_account_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"credit-owner@example.com\", firstName: \"Credit\", lastName: \"Owner\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: credit_status, body: credit_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"50.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id balance { amount currencyCode } owner { ... on Customer { id email } } } balanceAfterTransaction { amount currencyCode } } userErrors { field message code } } }",
+    )
+  assert credit_status == 200
+  let credit_json = json.to_string(credit_body)
+  assert string.contains(credit_json, "\"userErrors\":[]")
+  assert string.contains(
+    credit_json,
+    "\"balanceAfterTransaction\":{\"amount\":\"50.0\",\"currencyCode\":\"USD\"}",
+  )
+  assert string.contains(
+    credit_json,
+    "\"owner\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"credit-owner@example.com\"}",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { storeCreditAccounts(first: 5) { nodes { id balance { amount currencyCode } owner { ... on Customer { id email } } } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"balance\":{\"amount\":\"50.0\",\"currencyCode\":\"USD\"}",
+  )
+}
+
+pub fn store_credit_credit_company_location_id_creates_account_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: company_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"Credit B2B\" }, companyLocation: { name: \"HQ\" } }) { company { id locations(first: 5) { nodes { id name } } } userErrors { field message code } } }",
+    )
+  assert company_status == 200
+
+  let #(Response(status: credit_status, body: credit_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { storeCreditAccountCredit(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", creditInput: { creditAmount: { amount: \"30.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { balance { amount currencyCode } owner { ... on CompanyLocation { id } } } } userErrors { field message code } } }",
+    )
+  assert credit_status == 200
+  let credit_json = json.to_string(credit_body)
+  assert string.contains(credit_json, "\"userErrors\":[]")
+  assert string.contains(
+    credit_json,
+    "\"owner\":{\"id\":\"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\"}",
+  )
+}
+
+pub fn store_credit_adjustments_validate_currency_amount_expiry_and_limits_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"credit-validation@example.com\" }) { customer { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: seed_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"10.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
+    )
+  assert seed_status == 200
+
+  assert_store_credit_error(
+    proxy,
+    "mutation { storeCreditAccountCredit(id: \"gid://shopify/StoreCreditAccount/3\", creditInput: { creditAmount: { amount: \"2.00\", currencyCode: CAD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
+    "MISMATCHING_CURRENCY",
+  )
+  let #(Response(status: cad_status, body: cad_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"2.00\", currencyCode: CAD } }) { storeCreditAccountTransaction { account { balance { amount currencyCode } owner { ... on Customer { id } } } balanceAfterTransaction { amount currencyCode } } userErrors { field message code } } }",
+    )
+  assert cad_status == 200
+  let cad_json = json.to_string(cad_body)
+  assert string.contains(cad_json, "\"userErrors\":[]")
+  assert string.contains(
+    cad_json,
+    "\"balanceAfterTransaction\":{\"amount\":\"2.0\",\"currencyCode\":\"CAD\"}",
+  )
+  assert_store_credit_error(
+    proxy,
+    "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"0.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
+    "NEGATIVE_OR_ZERO_AMOUNT",
+  )
+  assert_store_credit_error(
+    proxy,
+    "mutation { storeCreditAccountDebit(id: \"gid://shopify/Customer/1\", debitInput: { debitAmount: { amount: \"-1.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
+    "NEGATIVE_OR_ZERO_AMOUNT",
+  )
+  assert_store_credit_error(
+    proxy,
+    "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"1.00\", currencyCode: USD }, expiresAt: \"2000-01-01T00:00:00Z\" }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
+    "EXPIRES_AT_IN_PAST",
+  )
+  assert_store_credit_error(
+    proxy,
+    "mutation { storeCreditAccountCredit(id: \"gid://shopify/Customer/1\", creditInput: { creditAmount: { amount: \"1.00\", currencyCode: XXX } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
+    "UNSUPPORTED_CURRENCY",
+  )
+  assert_store_credit_error(
+    proxy,
+    "mutation { storeCreditAccountDebit(id: \"gid://shopify/Customer/1\", debitInput: { debitAmount: { amount: \"99.00\", currencyCode: USD } }) { storeCreditAccountTransaction { account { id } } userErrors { field message code } } }",
+    "INSUFFICIENT_FUNDS",
+  )
+}
+
+fn assert_store_credit_error(proxy, query, code) {
+  let #(Response(status: status, body: body, ..), _) = graphql(proxy, query)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"storeCreditAccountTransaction\":null")
+  assert string.contains(body_json, "\"code\":\"" <> code <> "\"")
 }
 
 pub fn email_marketing_consent_update_rejects_disallowed_states_test() {

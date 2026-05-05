@@ -74,9 +74,13 @@ catalog state. `companyAssignCustomerAsContact` stores the provided customer ID
 as that contact reference only after resolving the customer from the effective
 local customer registry. It rejects unknown customers, customers without an
 email address, duplicate customer/contact assignments on the same company, and
-companies that have reached the 10,000-contact cap. `companyRevokeMainContact`
-clears all local `isMainContact` flags and downstream `Company.mainContact`
-reads return `null`, matching the captured Shopify 2026-04 behavior.
+companies that have reached the 10,000-contact cap. Main-contact lifecycle
+stores a single `Company.mainContactId` pointer; returned
+`CompanyContact.isMainContact` values are derived from that pointer.
+`companyRevokeMainContact` clears only the company pointer and downstream
+`Company.mainContact` reads return `null`, matching the captured Shopify
+2026-04 behavior. `companyAssignMainContact` returns `INVALID_INPUT` when the
+provided contact belongs to a different company.
 
 Contact create/update inputs are prepared before staging to mirror Shopify's
 B2B contact input handling. Supported local paths normalize valid phone numbers
@@ -100,7 +104,9 @@ HAR-446 captured a fidelity trap in the company-create path: when
 Shopify automatically assigns that contact the `Ordering only` role for that
 location. The local staged graph now creates the same normalized role
 assignment, rejects attempts to assign a second role to the same contact/location
-pair with Shopify's `LIMIT_REACHED` userError, and resolves nested
+pair with Shopify's current `LIMIT_REACHED` userError for the single-role
+assignment surface,
+and resolves nested
 `CompanyContactRoleAssignment.companyContact` / `.companyLocation` fields from
 the current normalized contact/location records so later contact or location
 updates are reflected in downstream assignment reads. Generic Admin
@@ -108,6 +114,24 @@ updates are reflected in downstream assignment reads. Generic Admin
 `CompanyContactRoleAssignment` IDs through the same assignment serializer and
 `CompanyAddress` IDs from effective company-location billing/shipping address
 payloads.
+
+HAR-620 tightens B2B contact deletion and role-assignment guardrails from the
+Business Customers implementation. Company contacts can carry local associated
+order evidence in their normalized data (`ordersCount`,
+`associatedOrdersCount`, `hasAssociatedOrders`, or an `orders` list). When that
+marker indicates one or more orders, `companyContactDelete` returns
+`FAILED_TO_DELETE` with Shopify's current "Cannot delete a company contact with
+existing orders or draft orders." message and retains the contact. Successful
+deletion continues to remove the contact from the company contact list, so
+downstream `Company.mainContact` reads clear when the deleted contact was the
+main contact.
+Role-assignment mutation roots now reject missing or cross-company locations and
+roles with `RESOURCE_NOT_FOUND` and Shopify's current company-location or
+company-contact-role not-found messages instead of a generic `rolesToAssign`
+error. The 2026-04 `b2b-contact-business-rule-preconditions` capture records the
+duplicate role, foreign/missing role, foreign/missing location, successful main
+contact delete, and completed B2B order-history delete rejection branches as
+strict replayable parity evidence.
 
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
@@ -200,6 +224,10 @@ conformance-backed local modeling.
   `config/parity-specs/b2b/b2b-company-contact-main-delete.json`
 - Contact/location assignment and tax settings parity scenario:
   `config/parity-specs/b2b/b2b-contact-location-assignments-tax.json`
+- Contact business-rule preconditions capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-contact-business-rule-preconditions.json`
+- Contact business-rule preconditions parity scenario:
+  `config/parity-specs/b2b/b2b-contact-business-rule-preconditions.json`
 - Location/address management capture:
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
 - Location/address management parity scenario:

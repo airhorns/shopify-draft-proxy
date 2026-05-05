@@ -98,6 +98,7 @@ fn customer(id: String, email: Option(String)) -> CustomerRecord {
     email_marketing_consent: None,
     sms_marketing_consent: None,
     default_address: None,
+    account_activation_token: None,
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-01T00:00:00.000Z"),
   )
@@ -133,6 +134,7 @@ fn proxy_with_company_at_contact_cap(
         #("name", StorePropertyString("HAR 606 Cap")),
       ]),
       contact_ids: contact_ids(10_000),
+      main_contact_id: None,
       location_ids: [],
       contact_role_ids: [],
     )
@@ -1064,6 +1066,354 @@ pub fn b2b_contact_create_and_update_reject_duplicate_email_and_phone_test() {
   )
 }
 
+pub fn b2b_contact_delete_rejects_contacts_with_associated_orders_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"HAR 620 Orders\" }, companyContact: { email: \"orders620@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id mainContact { id } } userErrors { code } } }",
+    )
+  assert create_status == 200
+
+  let contact_id =
+    "gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic"
+  let #(Response(status: draft_status, body: draft_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { draftOrderCreate(input: { purchasingEntity: { purchasingCompany: { companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", companyContactId: \""
+        <> contact_id
+        <> "\", companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\" } }, email: \"orders620@example.com\", lineItems: [{ title: \"HAR 620 custom item\", quantity: 1, originalUnitPrice: \"1.00\", requiresShipping: false, taxable: false }] }) { draftOrder { id status } userErrors { field message code } } }",
+    )
+  assert draft_status == 200
+  assert string.contains(json.to_string(draft_body), "\"userErrors\":[]")
+  let assert [draft_order] = store.list_effective_draft_orders(proxy.store)
+  let #(Response(status: complete_status, body: complete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { draftOrderComplete(id: \""
+        <> draft_order.id
+        <> "\", paymentPending: true) { draftOrder { id status order { id purchasingEntity { ... on PurchasingCompany { contact { id } } } } } userErrors { field message } } }",
+    )
+  assert complete_status == 200
+  let complete_json = json.to_string(complete_body)
+  assert string.contains(complete_json, "\"userErrors\":[]")
+  assert string.contains(complete_json, "\"status\":\"COMPLETED\"")
+  assert string.contains(complete_json, "\"contact\":{\"id\":\"" <> contact_id)
+
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactDelete(companyContactId: \""
+        <> contact_id
+        <> "\") { deletedCompanyContactId userErrors { field message code } } }",
+    )
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(delete_json, "\"deletedCompanyContactId\":null")
+  assert string.contains(delete_json, "\"field\":[\"companyContactId\"]")
+  assert string.contains(delete_json, "\"code\":\"FAILED_TO_DELETE\"")
+  assert string.contains(
+    delete_json,
+    "Cannot delete a company contact with existing orders or draft orders.",
+  )
+
+  let read =
+    "query { companyContact(id: \""
+    <> contact_id
+    <> "\") { id isMainContact } company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { mainContact { id } contactsCount { count } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"companyContact\":{\"id\":\"" <> contact_id,
+  )
+  assert string.contains(read_json, "\"mainContact\":{\"id\":\"" <> contact_id)
+  assert string.contains(read_json, "\"contactsCount\":{\"count\":1")
+}
+
+pub fn b2b_contact_delete_clears_main_contact_on_success_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"HAR 620 Main\" }, companyContact: { email: \"main620@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id mainContact { id } } userErrors { code } } }",
+    )
+  assert create_status == 200
+
+  let contact_id =
+    "gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactDelete(companyContactId: \""
+        <> contact_id
+        <> "\") { deletedCompanyContactId userErrors { field message code } } }",
+    )
+  assert delete_status == 200
+  let delete_json = json.to_string(delete_body)
+  assert string.contains(
+    delete_json,
+    "\"deletedCompanyContactId\":\"" <> contact_id,
+  )
+  assert string.contains(delete_json, "\"userErrors\":[]")
+
+  let read =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { mainContact { id } contactsCount { count } } companyContact(id: \""
+    <> contact_id
+    <> "\") { id } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"mainContact\":null")
+  assert string.contains(read_json, "\"contactsCount\":{\"count\":0")
+  assert string.contains(read_json, "\"companyContact\":null")
+}
+
+pub fn b2b_contact_assign_role_rejects_duplicate_contact_location_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"HAR 620 Role\" }, companyContact: { email: \"role620@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: assign_status, body: assign_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyContactAssignRole(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", companyContactRoleId: \"gid://shopify/CompanyContactRole/2?shopify-draft-proxy=synthetic\", companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { companyContactRoleAssignment { id } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"companyContactRoleAssignment\":null")
+  assert string.contains(assign_json, "\"field\":null")
+  assert string.contains(assign_json, "\"code\":\"LIMIT_REACHED\"")
+  assert string.contains(
+    assign_json,
+    "Company contact has already been assigned a role in that company location.",
+  )
+}
+
+pub fn b2b_contact_assign_role_rejects_missing_and_cross_company_resources_test() {
+  let #(Response(status: first_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"HAR 620 One\" }, companyContact: { email: \"one620@example.com\" }, companyLocation: { name: \"One HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert first_status == 200
+  let #(Response(status: second_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyCreate(input: { company: { name: \"HAR 620 Two\" }, companyLocation: { name: \"Two HQ\" } }) { company { id } userErrors { code } } }",
+    )
+  assert second_status == 200
+
+  let #(
+    Response(status: foreign_role_status, body: foreign_role_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyContactAssignRole(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", companyContactRoleId: \"gid://shopify/CompanyContactRole/9?shopify-draft-proxy=synthetic\", companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { companyContactRoleAssignment { id } userErrors { field message code } } }",
+    )
+  assert foreign_role_status == 200
+  let foreign_role_json = json.to_string(foreign_role_body)
+  assert string.contains(
+    foreign_role_json,
+    "\"companyContactRoleAssignment\":null",
+  )
+  assert string.contains(
+    foreign_role_json,
+    "\"field\":[\"companyContactRoleId\"]",
+  )
+  assert string.contains(foreign_role_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+  assert string.contains(
+    foreign_role_json,
+    "The company contact role doesn't exist.",
+  )
+
+  let #(
+    Response(status: foreign_location_status, body: foreign_location_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyContactAssignRole(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", companyContactRoleId: \"gid://shopify/CompanyContactRole/2?shopify-draft-proxy=synthetic\", companyLocationId: \"gid://shopify/CompanyLocation/10?shopify-draft-proxy=synthetic\") { companyContactRoleAssignment { id } userErrors { field message code } } }",
+    )
+  assert foreign_location_status == 200
+  let foreign_location_json = json.to_string(foreign_location_body)
+  assert string.contains(
+    foreign_location_json,
+    "\"companyContactRoleAssignment\":null",
+  )
+  assert string.contains(
+    foreign_location_json,
+    "\"field\":[\"companyLocationId\"]",
+  )
+  assert string.contains(
+    foreign_location_json,
+    "\"code\":\"RESOURCE_NOT_FOUND\"",
+  )
+  assert string.contains(
+    foreign_location_json,
+    "The company location doesn't exist.",
+  )
+
+  let #(Response(status: missing_role_status, body: missing_role_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { companyContactAssignRole(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\", companyContactRoleId: \"gid://shopify/CompanyContactRole/999?shopify-draft-proxy=synthetic\", companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { companyContactRoleAssignment { id } userErrors { field message code } } }",
+    )
+  assert missing_role_status == 200
+  let missing_role_json = json.to_string(missing_role_body)
+  assert string.contains(
+    missing_role_json,
+    "\"field\":[\"companyContactRoleId\"]",
+  )
+  assert string.contains(missing_role_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+  assert string.contains(
+    missing_role_json,
+    "The company contact role doesn't exist.",
+  )
+}
+
+pub fn b2b_assign_main_contact_rejects_wrong_company_contact_test() {
+  let proxy = draft_proxy.new()
+  let create_first =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 First\" }, companyContact: { email: \"first618@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id mainContact { id isMainContact } } userErrors { code } } }"
+  let #(Response(status: first_status, body: first_body, ..), proxy) =
+    graphql(proxy, create_first)
+  assert first_status == 200
+  assert string.contains(json.to_string(first_body), "\"userErrors\":[]")
+
+  let create_second =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 Second\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: second_status, body: second_body, ..), proxy) =
+    graphql(proxy, create_second)
+  assert second_status == 200
+  assert string.contains(json.to_string(second_body), "\"userErrors\":[]")
+
+  let assign_wrong_company =
+    "mutation { companyAssignMainContact(companyId: \"gid://shopify/Company/9?shopify-draft-proxy=synthetic\", companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\") { company { id mainContact { id } } userErrors { field message code } } }"
+  let #(Response(status: assign_status, body: assign_body, ..), _) =
+    graphql(proxy, assign_wrong_company)
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"company\":null")
+  assert string.contains(assign_json, "\"field\":[\"companyContactId\"]")
+  assert string.contains(assign_json, "\"code\":\"INVALID_INPUT\"")
+  assert !string.contains(assign_json, "\"code\":\"RESOURCE_NOT_FOUND\"")
+}
+
+pub fn b2b_main_contact_state_uses_company_pointer_test() {
+  let create =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 Pointer\" }, companyContact: { email: \"pointer618@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id mainContact { id isMainContact } contacts(first: 5) { nodes { id isMainContact } } } userErrors { code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(draft_proxy.new(), create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let state_request =
+    Request(method: "GET", path: "/__meta/state", headers: dict.new(), body: "")
+  let #(Response(status: state_status, body: state_body, ..), _) =
+    draft_proxy.process_request(proxy, state_request)
+  assert state_status == 200
+  let state_json = json.to_string(state_body)
+  assert string.contains(
+    state_json,
+    "\"mainContactId\":\"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\"",
+  )
+  assert !string.contains(state_json, "\"isMainContact\"")
+}
+
+pub fn b2b_revoke_main_contact_derives_contact_booleans_from_pointer_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 Revoke\" }, companyContact: { email: \"revoke-main618@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id } userErrors { code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let create_contact =
+    "mutation { companyContactCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { email: \"revoke-secondary618@example.com\" }) { companyContact { id isMainContact } userErrors { code } } }"
+  let #(Response(status: contact_status, body: contact_body, ..), proxy) =
+    graphql(proxy, create_contact)
+  assert contact_status == 200
+  assert string.contains(json.to_string(contact_body), "\"userErrors\":[]")
+
+  let assign =
+    "mutation { companyAssignMainContact(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", companyContactId: \"gid://shopify/CompanyContact/9?shopify-draft-proxy=synthetic\") { company { mainContact { id isMainContact } contacts(first: 5) { nodes { id isMainContact } } } userErrors { code } } }"
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(proxy, assign)
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"userErrors\":[]")
+  assert string.contains(
+    assign_json,
+    "\"mainContact\":{\"id\":\"gid://shopify/CompanyContact/9?shopify-draft-proxy=synthetic\",\"isMainContact\":true}",
+  )
+  assert string.contains(
+    assign_json,
+    "\"id\":\"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\",\"isMainContact\":false",
+  )
+
+  let revoke =
+    "mutation { companyRevokeMainContact(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { company { mainContact { id } contacts(first: 5) { nodes { id isMainContact } } } userErrors { code } } }"
+  let #(Response(status: revoke_status, body: revoke_body, ..), proxy) =
+    graphql(proxy, revoke)
+  assert revoke_status == 200
+  let revoke_json = json.to_string(revoke_body)
+  assert string.contains(revoke_json, "\"mainContact\":null")
+  assert string.contains(revoke_json, "\"isMainContact\":false")
+  assert !string.contains(revoke_json, "\"isMainContact\":true")
+
+  let read =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { mainContact { id } contacts(first: 5) { nodes { id isMainContact } } } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"mainContact\":null")
+  assert string.contains(read_json, "\"isMainContact\":false")
+  assert !string.contains(read_json, "\"isMainContact\":true")
+}
+
+pub fn b2b_deleting_main_contact_clears_company_pointer_test() {
+  let create =
+    "mutation { companyCreate(input: { company: { name: \"HAR 618 Delete\" }, companyContact: { email: \"delete-main618@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id mainContact { id isMainContact } } userErrors { code } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(draft_proxy.new(), create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let delete_contact =
+    "mutation { companyContactDelete(companyContactId: \"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\") { deletedCompanyContactId userErrors { code } } }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(proxy, delete_contact)
+  assert delete_status == 200
+  assert string.contains(
+    json.to_string(delete_body),
+    "\"deletedCompanyContactId\":\"gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic\"",
+  )
+
+  let read =
+    "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { mainContact { id } contacts(first: 5) { nodes { id isMainContact } } } }"
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql(proxy, read)
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"mainContact\":null")
+
+  let state_request =
+    Request(method: "GET", path: "/__meta/state", headers: dict.new(), body: "")
+  let #(Response(status: state_status, body: state_body, ..), _) =
+    draft_proxy.process_request(proxy, state_request)
+  assert state_status == 200
+  let state_json = json.to_string(state_body)
+  assert string.contains(state_json, "\"mainContactId\":null")
+  assert !string.contains(state_json, "\"isMainContact\"")
+}
+
 pub fn b2b_assign_customer_as_contact_rejects_unknown_customer_test() {
   let create_company =
     "mutation { companyCreate(input: { company: { name: \"HAR 606 Unknown Customer\" } }) { company { id } userErrors { code } } }"
@@ -1205,6 +1555,7 @@ pub fn b2b_business_customer_user_error_code_snapshot_test() {
     "CUSTOMER_EMAIL_MUST_EXIST",
     "COMPANY_CONTACT_MAX_CAP_REACHED",
     "ROLE_ASSIGNMENTS_MAX_CAP_REACHED",
+    "FAILED_TO_DELETE",
     "ONE_ROLE_ALREADY_ASSIGNED",
     "CONTACT_DOES_NOT_MATCH_COMPANY",
     "EXISTING_ORDERS",

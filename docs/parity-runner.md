@@ -496,8 +496,7 @@ Per-scenario steps:
 Capture files must not carry top-level `seedProducts`, `seedCustomers`,
 `seedDiscounts`, `localRuntimeCases`, or similar artificial setup keys.
 Parity specs must not carry `localSetups`. Those keys were inputs to the
-unsupported seed-based runner. The schema and corpus tests reject
-`localSetups` and `localRuntimeCases`; seed-style fixture keys remain
+unsupported seed-based runner. Seed-style fixture and spec keys remain
 banned by policy and should be removed rather than expanded.
 
 ## Why we changed

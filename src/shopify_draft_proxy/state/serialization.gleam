@@ -1683,6 +1683,7 @@ fn b2b_company_json(record: types.B2BCompanyRecord) -> Json {
     #("id", json.string(record.id)),
     #("cursor", optional_string(record.cursor)),
     #("data", store_property_data_json(record.data)),
+    #("mainContactId", optional_string(record.main_contact_id)),
     #("contactIds", json.array(record.contact_ids, json.string)),
     #("locationIds", json.array(record.location_ids, json.string)),
     #("contactRoleIds", json.array(record.contact_role_ids, json.string)),
@@ -2805,6 +2806,7 @@ fn shipping_package_json(record: types.ShippingPackageRecord) -> Json {
     #("id", json.string(record.id)),
     #("name", optional_string(record.name)),
     #("type", optional_string(record.type_)),
+    #("boxType", optional_string(record.box_type)),
     #("default", json.bool(record.default)),
     #("weight", optional_to_json(record.weight, shipping_package_weight_json)),
     #(
@@ -3035,6 +3037,10 @@ fn customer_json(record: types.CustomerRecord) -> Json {
     #(
       "defaultAddress",
       optional_to_json(record.default_address, customer_default_address_json),
+    ),
+    #(
+      "accountActivationToken",
+      optional_string(record.account_activation_token),
     ),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
@@ -3656,6 +3662,14 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
   )
   use shop_locales <- dict_field("shopLocales", shop_locale_decoder())
   use translations <- dict_field("translations", translation_decoder())
+  use shipping_packages <- dict_field(
+    "shippingPackages",
+    shipping_package_decoder(),
+  )
+  use shipping_package_order <- string_list_field("shippingPackageOrder")
+  use deleted_shipping_package_ids <- bool_dict_field(
+    "deletedShippingPackageIds",
+  )
   decode.success(store.BaseState(
     products: empty.products,
     product_order: empty.product_order,
@@ -3739,9 +3753,9 @@ pub fn base_state_decoder() -> Decoder(store.BaseState) {
     delivery_profiles: empty.delivery_profiles,
     delivery_profile_order: empty.delivery_profile_order,
     deleted_delivery_profile_ids: empty.deleted_delivery_profile_ids,
-    shipping_packages: empty.shipping_packages,
-    shipping_package_order: empty.shipping_package_order,
-    deleted_shipping_package_ids: empty.deleted_shipping_package_ids,
+    shipping_packages: shipping_packages,
+    shipping_package_order: shipping_package_order,
+    deleted_shipping_package_ids: deleted_shipping_package_ids,
     backup_region: backup_region,
     admin_platform_generic_nodes: empty.admin_platform_generic_nodes,
     admin_platform_taxonomy_categories: empty.admin_platform_taxonomy_categories,
@@ -4104,6 +4118,14 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
   use deleted_shop_locales <- bool_dict_field("deletedShopLocales")
   use translations <- dict_field("translations", translation_decoder())
   use deleted_translations <- bool_dict_field("deletedTranslations")
+  use shipping_packages <- dict_field(
+    "shippingPackages",
+    shipping_package_decoder(),
+  )
+  use shipping_package_order <- string_list_field("shippingPackageOrder")
+  use deleted_shipping_package_ids <- bool_dict_field(
+    "deletedShippingPackageIds",
+  )
   decode.success(store.StagedState(
     products: empty.products,
     product_order: empty.product_order,
@@ -4184,9 +4206,9 @@ pub fn staged_state_decoder() -> Decoder(store.StagedState) {
     delivery_profiles: empty.delivery_profiles,
     delivery_profile_order: empty.delivery_profile_order,
     deleted_delivery_profile_ids: empty.deleted_delivery_profile_ids,
-    shipping_packages: empty.shipping_packages,
-    shipping_package_order: empty.shipping_package_order,
-    deleted_shipping_package_ids: empty.deleted_shipping_package_ids,
+    shipping_packages: shipping_packages,
+    shipping_package_order: shipping_package_order,
+    deleted_shipping_package_ids: deleted_shipping_package_ids,
     backup_region: backup_region,
     admin_platform_generic_nodes: empty.admin_platform_generic_nodes,
     admin_platform_taxonomy_categories: empty.admin_platform_taxonomy_categories,
@@ -4548,6 +4570,60 @@ fn order_decoder() -> Decoder(types.OrderRecord) {
   use cursor <- optional_string_field("cursor")
   use data <- decode.field("data", captured_json_value_decoder())
   decode.success(types.OrderRecord(id: id, cursor: cursor, data: data))
+}
+
+fn shipping_package_decoder() -> Decoder(types.ShippingPackageRecord) {
+  use id <- decode.field("id", decode.string)
+  use name <- optional_string_field("name")
+  use type_ <- optional_string_field("type")
+  use box_type <- optional_string_field("boxType")
+  use default <- optional_field("default", False, decode.bool)
+  use weight <- optional_field(
+    "weight",
+    None,
+    decode.optional(shipping_package_weight_decoder()),
+  )
+  use dimensions <- optional_field(
+    "dimensions",
+    None,
+    decode.optional(shipping_package_dimensions_decoder()),
+  )
+  use created_at <- optional_field("createdAt", "", decode.string)
+  use updated_at <- optional_field("updatedAt", "", decode.string)
+  decode.success(types.ShippingPackageRecord(
+    id: id,
+    name: name,
+    type_: type_,
+    box_type: box_type,
+    default: default,
+    weight: weight,
+    dimensions: dimensions,
+    created_at: created_at,
+    updated_at: updated_at,
+  ))
+}
+
+fn shipping_package_weight_decoder() -> Decoder(
+  types.ShippingPackageWeightRecord,
+) {
+  use value <- optional_field("value", None, decode.optional(float_decoder()))
+  use unit <- optional_string_field("unit")
+  decode.success(types.ShippingPackageWeightRecord(value: value, unit: unit))
+}
+
+fn shipping_package_dimensions_decoder() -> Decoder(
+  types.ShippingPackageDimensionsRecord,
+) {
+  use length <- optional_field("length", None, decode.optional(float_decoder()))
+  use width <- optional_field("width", None, decode.optional(float_decoder()))
+  use height <- optional_field("height", None, decode.optional(float_decoder()))
+  use unit <- optional_string_field("unit")
+  decode.success(types.ShippingPackageDimensionsRecord(
+    length: length,
+    width: width,
+    height: height,
+    unit: unit,
+  ))
 }
 
 fn draft_order_variant_catalog_decoder() -> Decoder(

@@ -1,0 +1,70 @@
+{
+  "fixtureKind": "local-runtime-shipping-package-update-flat-rate",
+  "apiVersion": "2025-01",
+  "update": {
+    "variables": {
+      "id": "gid://shopify/ShippingPackage/10",
+      "shippingPackage": {
+        "dimensions": {
+          "length": 999,
+          "width": 8,
+          "height": 4,
+          "unit": "CENTIMETERS"
+        }
+      }
+    },
+    "response": {
+      "data": {
+        "shippingPackageUpdate": {
+          "userErrors": [
+            {
+              "field": ["shippingPackage"],
+              "message": "Custom shipping box is not updatable",
+              "code": "CUSTOM_SHIPPING_BOX_NOT_UPDATABLE"
+            }
+          ]
+        }
+      }
+    },
+    "state": {
+      "stagedState": {
+        "shippingPackages": {}
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "ShippingPackageHydrate",
+      "variables": {
+        "id": "gid://shopify/ShippingPackage/10"
+      },
+      "query": "sha:hand-synthesized",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "shippingPackage": {
+              "id": "gid://shopify/ShippingPackage/10",
+              "name": "Carrier flat-rate box",
+              "type": "BOX",
+              "boxType": "FLAT_RATE",
+              "default": false,
+              "weight": {
+                "value": 1,
+                "unit": "KILOGRAMS"
+              },
+              "dimensions": {
+                "length": 10,
+                "width": 8,
+                "height": 4,
+                "unit": "CENTIMETERS"
+              },
+              "createdAt": "2026-05-05T00:00:00.000Z",
+              "updatedAt": "2026-05-05T00:00:00.000Z"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

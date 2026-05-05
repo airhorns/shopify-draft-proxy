@@ -77,7 +77,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-company-lifecycle-conformance.mts',
     purpose:
-      'B2B company lifecycle, customer-as-contact assignment, main-contact assignment/revocation, bulk delete, explicit delete, and post-delete empty reads.',
+      'B2B company lifecycle, customer-as-contact assignment, main-contact assignment/revocation, wrong-company main-contact validation, main-contact delete clearing, bulk delete, explicit delete, and post-delete empty reads.',
     requiredAuthScopes: ['read_companies', 'write_companies', 'read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}b2b-company-contact-main-delete.json`,
@@ -194,6 +194,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates one disposable company with contact, locations, and addresses; deletes the company during scenario cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
+    captureId: 'b2b-contact-business-rule-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-business-rule-preconditions-conformance.mts',
+    purpose:
+      'B2B contact role assignment one-role-per-location/resource lookup guards and contact delete order-history/main-contact preconditions.',
+    requiredAuthScopes: ['read_companies', 'write_companies', 'write_draft_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-contact-business-rule-preconditions.json`,
+      'config/parity-specs/b2b/b2b-contact-business-rule-preconditions.json',
+      'config/parity-requests/b2b/b2b-contact-business-rules-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable companies and a B2B draft order completed into an order; cancels the order and attempts company deletes during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Shopify retains company order history after cancellation, so the order-history company delete may return a cleanup userError in the fixture.',
   },
   {
     domain: 'products',
@@ -1827,6 +1846,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior: 'Creates a disposable code discount and deletes it after redeem-code bulk probes.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-update-edge-cases',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-update-edge-cases-conformance.ts',
+    purpose:
+      'discountCodeBasicUpdate update-only guardrails for redeem-code bulk rules, BXGY-to-basic coercion, and unknown-id errors.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-update-edge-cases.json`,
+      'config/parity-specs/discounts/discount-update-edge-cases.json',
+      'config/parity-requests/discounts/discount-update-edge-cases-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable products, one disposable code-basic discount, and one disposable code-BXGY discount; deletes discounts and products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The public 2026-04 conformance store still returns null error codes for the update-only rejection branches; HAR-605 intentionally models INVALID from the referenced Shopify source path.',
   },
   {
     domain: 'discounts',

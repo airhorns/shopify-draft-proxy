@@ -104,7 +104,7 @@ mutation CustomerPaymentMethodLocalStaging(
     }
   }
   duplication: customerPaymentMethodGetDuplicationData(
-    customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card"
+    customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-shop-pay"
     targetShopId: "gid://shopify/Shop/target"
     targetCustomerId: $targetCustomerId
   ) {
@@ -115,7 +115,7 @@ mutation CustomerPaymentMethodLocalStaging(
     }
   }
   updateUrl: customerPaymentMethodGetUpdateUrl(
-    customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-card"
+    customerPaymentMethodId: "gid://shopify/CustomerPaymentMethod/base-shop-pay"
   ) {
     updatePaymentMethodUrl
     userErrors {
