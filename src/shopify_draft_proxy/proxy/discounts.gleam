@@ -903,6 +903,7 @@ fn handle_discount_mutation_field(
         fragments,
         variables,
         "code",
+        "basic",
         "basicCodeDiscount",
       )
     "discountCodeBxgyCreate" ->
@@ -929,6 +930,7 @@ fn handle_discount_mutation_field(
         fragments,
         variables,
         "code",
+        "bxgy",
         "bxgyCodeDiscount",
       )
     "discountCodeFreeShippingCreate" ->
@@ -955,6 +957,7 @@ fn handle_discount_mutation_field(
         fragments,
         variables,
         "code",
+        "free_shipping",
         "freeShippingCodeDiscount",
       )
     "discountCodeAppCreate" ->
@@ -981,6 +984,7 @@ fn handle_discount_mutation_field(
         fragments,
         variables,
         "code",
+        "app",
         "codeAppDiscount",
       )
     "discountAutomaticBasicCreate" ->
@@ -1007,6 +1011,7 @@ fn handle_discount_mutation_field(
         fragments,
         variables,
         "automatic",
+        "basic",
         "automaticBasicDiscount",
       )
     "discountAutomaticBxgyCreate" ->
@@ -1033,6 +1038,7 @@ fn handle_discount_mutation_field(
         fragments,
         variables,
         "automatic",
+        "bxgy",
         "automaticBxgyDiscount",
       )
     "discountAutomaticFreeShippingCreate" ->
@@ -1059,6 +1065,7 @@ fn handle_discount_mutation_field(
         fragments,
         variables,
         "automatic",
+        "free_shipping",
         "freeShippingAutomaticDiscount",
       )
     "discountAutomaticAppCreate" ->
@@ -1085,6 +1092,7 @@ fn handle_discount_mutation_field(
         fragments,
         variables,
         "automatic",
+        "app",
         "automaticAppDiscount",
       )
     "discountCodeActivate" | "discountAutomaticActivate" ->
@@ -1214,6 +1222,7 @@ fn create_discount_after_top_level_validation(
       input,
       discount_type,
       owner_kind == "code",
+      None,
     )
   // Cross-discount uniqueness check: when local validation otherwise
   // passes and the input carries a `code`, ask upstream whether a
@@ -1294,6 +1303,7 @@ fn update_discount(
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
   owner_kind: String,
+  target_discount_type: String,
   input_name: String,
 ) -> MutationResult {
   let key = get_field_response_key(field)
@@ -1325,6 +1335,7 @@ fn update_discount(
             field,
             fragments,
             owner_kind,
+            target_discount_type,
             input_name,
             id,
             input,
@@ -1353,6 +1364,7 @@ fn update_discount_after_top_level_validation(
   field: Selection,
   fragments: FragmentMap,
   owner_kind: String,
+  target_discount_type: String,
   input_name: String,
   id: String,
   input: Dict(String, root_field.ResolvedValue),
@@ -1364,7 +1376,7 @@ fn update_discount_after_top_level_validation(
       MutationResult(
         key: key,
         payload: payload_json(root, field, fragments, None, [
-          user_error_with_code(["id"], "Discount does not exist", None),
+          user_error(["id"], "Discount does not exist", "INVALID"),
         ]),
         store: store,
         identity: identity,
@@ -1372,9 +1384,19 @@ fn update_discount_after_top_level_validation(
         top_level_errors: [],
       )
     Some(existing_record) -> {
-      let discount_type = existing_record.discount_type
-      let user_errors =
-        validate_discount_input(store, input_name, input, discount_type, False)
+      let user_errors = validate_discount_update_input(input, existing_record)
+      let user_errors = case user_errors {
+        [_, ..] -> user_errors
+        [] ->
+          validate_discount_input(
+            store,
+            input_name,
+            input,
+            target_discount_type,
+            False,
+            Some(existing_record.id),
+          )
+      }
       case user_errors {
         [_, ..] ->
           MutationResult(
@@ -1392,7 +1414,7 @@ fn update_discount_after_top_level_validation(
               identity,
               id,
               owner_kind,
-              discount_type,
+              target_discount_type,
               input,
               Some(existing_record),
             )
@@ -2190,6 +2212,7 @@ fn validate_discount_input(
   input: Dict(String, root_field.ResolvedValue),
   discount_type: String,
   require_code: Bool,
+  ignored_discount_id: Option(String),
 ) -> List(SourceValue) {
   let errors = validate_discount_code_input(input_name, input, require_code)
   let errors = case read_string(input, "code") {
@@ -2197,19 +2220,21 @@ fn validate_discount_input(
       case errors {
         [_, ..] -> errors
         [] ->
-          case find_effective_discount_by_code(store, code) {
-            Some(existing) ->
-              case synthetic_identity.is_proxy_synthetic_gid(existing.id) {
-                True -> errors
-                False ->
-                  list.append(errors, [
-                    user_error(
-                      [input_name, "code"],
-                      "Code must be unique. Please try a different code.",
-                      "TAKEN",
-                    ),
-                  ])
-              }
+          case
+            find_effective_discount_by_code_ignoring(
+              store,
+              code,
+              ignored_discount_id,
+            )
+          {
+            Some(_) ->
+              list.append(errors, [
+                user_error(
+                  [input_name, "code"],
+                  "Code must be unique. Please try a different code.",
+                  "TAKEN",
+                ),
+              ])
             None -> errors
           }
       }
@@ -2261,6 +2286,31 @@ fn validate_discount_input(
       list.append(errors, validate_basic_refs(input_name, input))
     _ -> errors
   }
+}
+
+fn validate_discount_update_input(
+  input: Dict(String, root_field.ResolvedValue),
+  existing_record: DiscountRecord,
+) -> List(SourceValue) {
+  case read_string(input, "code") {
+    Some(_) -> {
+      case is_bulk_rule_discount(existing_record) {
+        True -> [
+          user_error(
+            ["id"],
+            "Cannot update the code of a bulk discount.",
+            "INVALID",
+          ),
+        ]
+        False -> []
+      }
+    }
+    None -> []
+  }
+}
+
+fn is_bulk_rule_discount(record: DiscountRecord) -> Bool {
+  list.length(existing_code_nodes(record)) > 1
 }
 
 fn validate_discount_code_input(
@@ -4621,10 +4671,22 @@ fn find_effective_discount_by_code(
   store: Store,
   code: String,
 ) -> Option(DiscountRecord) {
+  find_effective_discount_by_code_ignoring(store, code, None)
+}
+
+fn find_effective_discount_by_code_ignoring(
+  store: Store,
+  code: String,
+  ignored_discount_id: Option(String),
+) -> Option(DiscountRecord) {
   let wanted = string.lowercase(code)
   case
     list.find(store.list_effective_discounts(store), fn(record) {
-      discount_record_has_code(record, wanted)
+      let ignored = case ignored_discount_id {
+        Some(id) -> record.id == id
+        None -> False
+      }
+      !ignored && discount_record_has_code(record, wanted)
     })
   {
     Ok(record) -> Some(record)
