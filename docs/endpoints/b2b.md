@@ -192,9 +192,12 @@ names and unknown company/contact/location IDs. These return resolver-level
 `userErrors` without appending commit-log work.
 
 The local implementation intentionally models durable lifecycle state rather
-than every Shopify-side integration. Customer and staff member references are
-stored by ID for downstream B2B reads, but the proxy does not synthesize broader
-customer or staff catalog side effects from B2B assignment mutations.
+than every Shopify-side integration. Customer references are stored by ID for
+downstream B2B reads. Staff-location assignment validates each supplied staff
+member ID against the effective local Admin Platform `StaffMember` node catalog
+and returns per-index `RESOURCE_NOT_FOUND` for absent staff or assignment IDs,
+but the proxy does not synthesize broader staff catalog side effects from B2B
+assignment mutations.
 The HAR-446 live capture records that the current conformance token receives
 `ACCESS_DENIED` for `staffMembers(first:)`, so staff assignment remains covered
 by executable runtime tests instead of live staff-catalog parity. Generic Node
