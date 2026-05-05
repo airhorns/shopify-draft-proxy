@@ -18,6 +18,7 @@ import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
+import shopify_draft_proxy/proxy/functions
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SerializeConnectionConfig, SrcBool, SrcInt,
   SrcList, SrcNull, SrcString, default_connection_page_info_options,
@@ -44,11 +45,11 @@ import shopify_draft_proxy/state/types.{
   type CustomerRecord, type Money, type PaymentCustomizationMetafieldRecord,
   type PaymentCustomizationRecord, type PaymentScheduleRecord,
   type PaymentTermsRecord, type PaymentTermsTemplateRecord,
-  CustomerPaymentMethodInstrumentRecord, CustomerPaymentMethodRecord,
-  CustomerPaymentMethodUpdateUrlRecord, CustomerRecord, Money,
-  PaymentCustomizationMetafieldRecord, PaymentCustomizationRecord,
-  PaymentReminderSendRecord, PaymentScheduleRecord, PaymentTermsRecord,
-  PaymentTermsTemplateRecord,
+  type ShopifyFunctionRecord, CustomerPaymentMethodInstrumentRecord,
+  CustomerPaymentMethodRecord, CustomerPaymentMethodUpdateUrlRecord,
+  CustomerRecord, Money, PaymentCustomizationMetafieldRecord,
+  PaymentCustomizationRecord, PaymentReminderSendRecord, PaymentScheduleRecord,
+  PaymentTermsRecord, PaymentTermsTemplateRecord,
 }
 
 const customization_app_id: String = "347082227713"
@@ -1233,6 +1234,22 @@ fn missing_function_error(function_id: String) -> UserError {
   )
 }
 
+fn missing_function_handle_error(function_handle: String) -> UserError {
+  payment_customization_error(
+    ["paymentCustomization", "functionHandle"],
+    "Could not find function with handle: " <> function_handle <> ".",
+    "FUNCTION_NOT_FOUND",
+  )
+}
+
+fn function_id_cannot_be_changed_error() -> UserError {
+  payment_customization_error(
+    ["paymentCustomization", "functionId"],
+    "Function ID cannot be changed.",
+    "FUNCTION_ID_CANNOT_BE_CHANGED",
+  )
+}
+
 fn invalid_metafield_error(index: Int, field_name: String) -> UserError {
   payment_customization_error(
     ["paymentCustomization", "metafields", int.to_string(index), field_name],
@@ -1287,6 +1304,146 @@ fn validate_create_input(
         False -> validate_payment_customization_metafield_input(input)
       }
     _, _, None, Some(_) -> validate_payment_customization_metafield_input(input)
+  }
+}
+
+fn validate_update_input(
+  store: Store,
+  current: PaymentCustomizationRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  let function_errors = validate_update_function_input(store, current, input)
+  case function_errors {
+    [_, ..] -> function_errors
+    [] -> validate_payment_customization_metafield_input(input)
+  }
+}
+
+fn validate_update_function_input(
+  store: Store,
+  current: PaymentCustomizationRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  case
+    read_string_field(input, "functionId"),
+    read_string_field(input, "functionHandle")
+  {
+    Some(function_id), _ -> validate_update_function_id(current, function_id)
+    None, Some(function_handle) ->
+      validate_update_function_handle(store, current, function_handle)
+    None, None -> []
+  }
+}
+
+fn validate_update_function_id(
+  current: PaymentCustomizationRecord,
+  function_id: String,
+) -> List(UserError) {
+  case function_id_matches_current(current, function_id) {
+    True -> []
+    False -> [function_id_cannot_be_changed_error()]
+  }
+}
+
+fn validate_update_function_handle(
+  store: Store,
+  current: PaymentCustomizationRecord,
+  function_handle: String,
+) -> List(UserError) {
+  case function_handle_matches_current(current, function_handle) {
+    True -> []
+    False ->
+      case find_payment_shopify_function_by_handle(store, function_handle) {
+        Some(record) ->
+          case function_record_matches_current(current, record) {
+            True -> []
+            False -> [function_id_cannot_be_changed_error()]
+          }
+        None ->
+          case raw_function_id_can_accept_handle(current) {
+            True -> []
+            False ->
+              case
+                list.is_empty(store.list_effective_shopify_functions(store))
+              {
+                True -> [function_id_cannot_be_changed_error()]
+                False -> [missing_function_handle_error(function_handle)]
+              }
+          }
+      }
+  }
+}
+
+fn function_id_matches_current(
+  current: PaymentCustomizationRecord,
+  function_id: String,
+) -> Bool {
+  current.function_id == Some(function_id)
+  || current.function_id
+  |> option.map(fn(current_id) { gid_tail(current_id) == gid_tail(function_id) })
+  |> option.unwrap(False)
+  || case current.function_handle {
+    Some(handle) ->
+      function_id == functions.shopify_function_id_from_handle(handle)
+    None -> False
+  }
+}
+
+fn function_handle_matches_current(
+  current: PaymentCustomizationRecord,
+  function_handle: String,
+) -> Bool {
+  let normalized = functions.normalize_function_handle(function_handle)
+  case current.function_handle {
+    Some(handle) ->
+      handle == function_handle
+      || functions.normalize_function_handle(handle) == normalized
+    None ->
+      current.function_id
+      == Some(functions.shopify_function_id_from_handle(function_handle))
+  }
+}
+
+fn find_payment_shopify_function_by_handle(
+  store: Store,
+  function_handle: String,
+) -> Option(ShopifyFunctionRecord) {
+  let normalized = functions.normalize_function_handle(function_handle)
+  let handle_id = functions.shopify_function_id_from_handle(function_handle)
+  store.list_effective_shopify_functions(store)
+  |> list.find(fn(record) {
+    record.handle == Some(function_handle)
+    || record.handle == Some(normalized)
+    || record.id == handle_id
+  })
+  |> option.from_result
+}
+
+fn function_record_matches_current(
+  current: PaymentCustomizationRecord,
+  record: ShopifyFunctionRecord,
+) -> Bool {
+  current.function_id == Some(record.id)
+  || case current.function_id, record.handle {
+    Some(id), Some(handle) ->
+      id == functions.shopify_function_id_from_handle(handle)
+    _, _ -> False
+  }
+  || case current.function_handle, record.handle {
+    Some(current_handle), Some(record_handle) ->
+      functions.normalize_function_handle(current_handle)
+      == functions.normalize_function_handle(record_handle)
+    _, _ -> False
+  }
+}
+
+fn raw_function_id_can_accept_handle(
+  current: PaymentCustomizationRecord,
+) -> Bool {
+  case current.function_id, current.function_handle {
+    Some(function_id), None ->
+      !string.starts_with(function_id, "gid://shopify/ShopifyFunction/")
+    _, _ -> False
   }
 }
 
@@ -1551,7 +1708,7 @@ fn update_payment_customization(store, identity, field, fragments, variables) {
       let input =
         graphql_helpers.read_arg_object(args, "paymentCustomization")
         |> option.unwrap(dict.new())
-      let errors = validate_payment_customization_metafield_input(input)
+      let errors = validate_update_input(store, current, input)
       case errors {
         [_, ..] -> #(
           MutationFieldResult(
@@ -1567,8 +1724,6 @@ fn update_payment_customization(store, identity, field, fragments, variables) {
           identity,
         )
         [] -> {
-          let function_id_input = read_string_field(input, "functionId")
-          let function_handle_input = read_string_field(input, "functionHandle")
           let #(metafields, next_identity) =
             apply_payment_customization_metafield_inputs(
               identity,
@@ -1583,12 +1738,8 @@ fn update_payment_customization(store, identity, field, fragments, variables) {
                 |> option.or(current.title),
               enabled: read_bool_field(input, "enabled")
                 |> option.or(current.enabled),
-              function_id: function_id_input |> option.or(current.function_id),
-              function_handle: case function_id_input {
-                Some(_) -> None
-                None ->
-                  function_handle_input |> option.or(current.function_handle)
-              },
+              function_id: current.function_id,
+              function_handle: current.function_handle,
               metafields: metafields,
             )
           let next_store =
