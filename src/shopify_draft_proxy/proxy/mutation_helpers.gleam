@@ -29,7 +29,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{
   type Argument, type Location, type Selection, Argument, Field, NullValue,
-  VariableValue,
+  StringValue, VariableValue,
 }
 import shopify_draft_proxy/graphql/location as graphql_location
 import shopify_draft_proxy/graphql/parser as graphql_parser
@@ -302,6 +302,43 @@ pub fn build_null_argument_error(
   )
 }
 
+fn build_invalid_global_id_literal_error(
+  operation_name: String,
+  argument_name: String,
+  operation_path: String,
+  field_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [#("message", json.string("Invalid global id ''"))]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array([operation_path, operation_name, argument_name], json.string),
+      ),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("CoercionError")),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn schema_type_is_id(type_) -> Bool {
+  case type_ {
+    mutation_schema.NonNullType(of: inner) -> schema_type_is_id(inner)
+    mutation_schema.NamedType(name: "ID") -> True
+    _ -> False
+  }
+}
+
 /// Build the structured error for an argument bound to a variable
 /// that resolved to `null` or wasn't supplied.
 pub fn build_missing_variable_error(
@@ -539,6 +576,22 @@ fn validate_top_level_args(
                     _, _ -> acc
                   }
                 }
+                StringValue(value: value, ..) ->
+                  case value == "" && schema_type_is_id(schema_arg.type_) {
+                    True -> #(
+                      missing,
+                      list.append(errs, [
+                        build_invalid_global_id_literal_error(
+                          operation_name,
+                          schema_arg.name,
+                          operation_path,
+                          field_loc,
+                          source_body,
+                        ),
+                      ]),
+                    )
+                    False -> acc
+                  }
                 _ -> acc
               }
           }

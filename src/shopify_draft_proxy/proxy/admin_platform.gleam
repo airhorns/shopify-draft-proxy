@@ -812,6 +812,16 @@ fn serialize_node_by_id(
           )
         None -> serialize_generic_node_by_id(store, id, selections, fragments)
       }
+    "Job" ->
+      case store.get_customer_merge_request(store, id) {
+        Some(_) ->
+          project_graphql_value(
+            job_source(id),
+            admin_node_selected_fields(selections, "Job", fragments),
+            fragments,
+          )
+        None -> json.null()
+      }
     "Location" ->
       case store.get_effective_store_property_location_by_id(store, id) {
         Some(_) ->

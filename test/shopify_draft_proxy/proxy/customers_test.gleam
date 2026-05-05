@@ -73,6 +73,93 @@ fn assert_missing_customer_error(body: json.Json) {
   )
 }
 
+pub fn customer_merge_required_argument_validation_test() {
+  let proxy = draft_proxy.new()
+
+  let #(Response(status: missing_status, body: missing_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation CustomerMergeMissingArgument { customerMerge(customerOneId: \"gid://shopify/Customer/1\") { resultingCustomerId job { id done } userErrors { field message code } } }",
+    )
+  assert missing_status == 200
+  let missing_json = json.to_string(missing_body)
+  assert string.contains(
+    missing_json,
+    "\"message\":\"Field 'customerMerge' is missing required arguments: customerTwoId\"",
+  )
+  assert string.contains(
+    missing_json,
+    "\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"customerMerge\",\"arguments\":\"customerTwoId\"}",
+  )
+
+  let #(Response(status: blank_status, body: blank_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation CustomerMergeBlankIds { customerMerge(customerOneId: \"\", customerTwoId: \"\") { resultingCustomerId job { id done } userErrors { field message code } } }",
+    )
+  assert blank_status == 200
+  let blank_json = json.to_string(blank_body)
+  assert string.contains(blank_json, "\"message\":\"Invalid global id ''\"")
+  assert string.contains(
+    blank_json,
+    "\"path\":[\"mutation CustomerMergeBlankIds\",\"customerMerge\",\"customerOneId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"CoercionError\"}",
+  )
+  assert string.contains(
+    blank_json,
+    "\"path\":[\"mutation CustomerMergeBlankIds\",\"customerMerge\",\"customerTwoId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"CoercionError\"}",
+  )
+}
+
+pub fn customer_merge_job_and_result_nodes_readback_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: first_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"merge-one@example.com\", firstName: \"One\", lastName: \"Source\", tags: [\"source\"] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert first_status == 200
+
+  let #(Response(status: second_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"merge-two@example.com\", firstName: \"Two\", lastName: \"Result\", tags: [\"result\"] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert second_status == 200
+
+  let #(Response(status: merge_status, body: merge_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerMerge(customerOneId: \"gid://shopify/Customer/1\", customerTwoId: \"gid://shopify/Customer/3\") { resultingCustomerId job { id done } userErrors { field message code } } }",
+    )
+  assert merge_status == 200
+  let merge_json = json.to_string(merge_body)
+  assert string.contains(
+    merge_json,
+    "\"customerMerge\":{\"resultingCustomerId\":\"gid://shopify/Customer/3\",\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":false},\"userErrors\":[]}",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { job(id: \"gid://shopify/Job/5\") { __typename id done query { __typename } } jobNode: node(id: \"gid://shopify/Job/5\") { __typename id ... on Job { done query { __typename } } } resultNode: node(id: \"gid://shopify/Customer/3\") { __typename id ... on Customer { email tags displayName } } sourceNode: node(id: \"gid://shopify/Customer/1\") { __typename id } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":true,\"query\":{\"__typename\":\"QueryRoot\"}}",
+  )
+  assert string.contains(
+    read_json,
+    "\"jobNode\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":true,\"query\":{\"__typename\":\"QueryRoot\"}}",
+  )
+  assert string.contains(
+    read_json,
+    "\"resultNode\":{\"__typename\":\"Customer\",\"id\":\"gid://shopify/Customer/3\",\"email\":\"merge-two@example.com\",\"tags\":[\"result\",\"source\"],\"displayName\":\"Two Result\"}",
+  )
+  assert string.contains(read_json, "\"sourceNode\":null")
+}
+
 pub fn customer_create_readback_and_log_test() {
   let proxy = draft_proxy.new()
   let create_query =
