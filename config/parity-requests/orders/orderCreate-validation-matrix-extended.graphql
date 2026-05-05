@@ -1,0 +1,67 @@
+mutation OrderCreateValidationMatrixExtended(
+  $futureProcessedAt: OrderCreateOrderInput!
+  $redundantCustomer: OrderCreateOrderInput!
+) {
+  futureProcessedAt: orderCreate(order: $futureProcessedAt) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      code
+    }
+  }
+  redundantCustomer: orderCreate(order: $redundantCustomer) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      code
+    }
+  }
+  lineItemTaxLineMissingRate: orderCreate(
+    order: {
+      email: "hermes-order-validation-line-tax@example.com"
+      lineItems: [
+        {
+          title: "Validation custom item"
+          quantity: 1
+          priceSet: { shopMoney: { amount: "1.00", currencyCode: USD } }
+          taxLines: [{ title: "Line tax", rate: "", priceSet: { shopMoney: { amount: "1.00", currencyCode: USD } } }]
+        }
+      ]
+    }
+  ) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      code
+    }
+  }
+  shippingLineTaxLineMissingRate: orderCreate(
+    order: {
+      email: "hermes-order-validation-shipping-tax@example.com"
+      lineItems: [{ variantId: "gid://shopify/ProductVariant/48540157378793", quantity: 1 }]
+      shippingLines: [
+        {
+          title: "Standard"
+          priceSet: { shopMoney: { amount: "5.00", currencyCode: USD } }
+          taxLines: [
+            { title: "Shipping tax", rate: "", priceSet: { shopMoney: { amount: "1.00", currencyCode: USD } } }
+          ]
+        }
+      ]
+    }
+  ) {
+    order {
+      id
+    }
+    userErrors {
+      field
+      code
+    }
+  }
+}
