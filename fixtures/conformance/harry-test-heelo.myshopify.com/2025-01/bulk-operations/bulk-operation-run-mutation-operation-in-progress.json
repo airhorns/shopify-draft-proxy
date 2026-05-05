@@ -1,0 +1,154 @@
+{
+  "scenarioId": "bulk-operation-run-mutation-operation-in-progress",
+  "capturedAt": "2026-05-05T20:34:00.888Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "productTitle": "HAR-752 bulk throttle har-752-1778013239015",
+  "firstRun": {
+    "operationName": "BulkOperationRunMutationOperationInProgress",
+    "query": "#graphql\n  mutation BulkOperationRunMutationOperationInProgress($mutation: String!, $path: String!) {\n    bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "mutation": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "path": "tmp/92891250994/bulk/4018e5fb-a53d-4363-824e-359ff2b90740/har-752-1778013239015-first.jsonl"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperationRunMutation": {
+          "bulkOperation": {
+            "id": "gid://shopify/BulkOperation/7749099127090",
+            "status": "CREATED",
+            "type": "MUTATION",
+            "errorCode": null,
+            "createdAt": "2026-05-05T20:34:00Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "secondRun": {
+    "operationName": "BulkOperationRunMutationOperationInProgress",
+    "query": "#graphql\n  mutation BulkOperationRunMutationOperationInProgress($mutation: String!, $path: String!) {\n    bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+    "variables": {
+      "mutation": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
+      "path": "tmp/92891250994/bulk/081d1d54-e9d5-4033-994a-0d39269b3b50/har-752-1778013239015-second.jsonl"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperationRunMutation": {
+          "bulkOperation": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "A bulk mutation operation for this app and shop is already in progress: gid://shopify/BulkOperation/7749099127090.",
+              "code": "OPERATION_IN_PROGRESS"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cancelAttempt": {
+    "operationName": "BulkOperationCancelParity",
+    "query": "#graphql\n  mutation BulkOperationCancelParity($id: ID!) {\n    bulkOperationCancel(id: $id) {\n      bulkOperation {\n        \n  id\n  status\n  type\n  errorCode\n  createdAt\n  completedAt\n  objectCount\n  rootObjectCount\n  fileSize\n  url\n  partialDataUrl\n  query\n\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+    "variables": {
+      "id": "gid://shopify/BulkOperation/7749099127090"
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "bulkOperationCancel": {
+          "bulkOperation": {
+            "id": "gid://shopify/BulkOperation/7749099127090",
+            "status": "CANCELING",
+            "type": "MUTATION",
+            "errorCode": null,
+            "createdAt": "2026-05-05T20:34:00Z",
+            "completedAt": null,
+            "objectCount": "0",
+            "rootObjectCount": "0",
+            "fileSize": null,
+            "url": null,
+            "partialDataUrl": null,
+            "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [],
+  "upstreamCalls": [
+    {
+      "operationName": "BulkOperationHydrate",
+      "variables": {
+        "id": "gid://shopify/BulkOperation/7749099127090"
+      },
+      "query": "hand-synthesized from captured first run operation",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "bulkOperation": {
+              "id": "gid://shopify/BulkOperation/7749099127090",
+              "status": "CREATED",
+              "type": "MUTATION",
+              "errorCode": null,
+              "createdAt": "2026-05-05T20:34:00Z",
+              "completedAt": null,
+              "objectCount": "0",
+              "rootObjectCount": "0",
+              "fileSize": null,
+              "url": null,
+              "partialDataUrl": null,
+              "query": "#graphql\nmutation ProductCreate($product: ProductCreateInput!) {\n  productCreate(product: $product) {\n    product {\n      id\n      title\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Captured with two uploaded JSONL variable files. The parity spec records consecutive runMutation OPERATION_IN_PROGRESS behavior, then uses cassette-backed cancel hydration to create the local non-terminal operation without pre-seeding; local throttle validation happens before staged upload lookup."
+}

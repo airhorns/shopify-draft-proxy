@@ -1,0 +1,38 @@
+{
+  "scenarioId": "bulk-operation-run-query-operation-in-progress",
+  "operationNames": ["bulkOperationCancel", "bulkOperationRunQuery"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/bulk-operations/bulk-operation-run-query-operation-in-progress.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/bulk_operations_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/bulk-operations/bulk-operation-cancel-parity.graphql",
+    "variablesCapturePath": "$.cancelAttempt.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cancel-hydrates-query-operation-as-non-terminal",
+        "capturePath": "$.cancelAttempt.response.data.bulkOperationCancel",
+        "proxyPath": "$.data.bulkOperationCancel"
+      },
+      {
+        "name": "second-query-run-operation-in-progress",
+        "capturePath": "$.secondRun.response.data.bulkOperationRunQuery",
+        "proxyPath": "$.data.bulkOperationRunQuery",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/bulk-operations/bulk-operation-run-query-with-code.graphql",
+          "variablesCapturePath": "$.secondRun.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-752 captures Shopify Admin GraphQL 2025-01 returning OPERATION_IN_PROGRESS for two consecutive bulkOperationRunQuery calls. The generic parity runner cannot make the local successful runQuery stay non-terminal because the current local export model completes synchronously, so the executable comparison hydrates the captured first operation through bulkOperationCancel and then proves the same non-terminal throttle response without localSetups or seeded state."
+}
