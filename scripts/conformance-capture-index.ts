@@ -870,6 +870,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'online-store',
+    captureId: 'online-store-page-handle-dedupe-and-takenness',
+    scriptPath: 'scripts/capture-online-store-page-handle-conformance.ts',
+    purpose:
+      'pageCreate handle normalization, auto-dedupe for derived handle collisions, and explicit TAKEN userErrors.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-page-handle-dedupe-and-takenness.json`,
+      'config/parity-specs/online-store/online-store-page-handle-dedupe-and-takenness.json',
+      'config/parity-requests/online-store/online-store-page-handle-dedupe-and-takenness.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable pages and deletes every successful pageCreate result during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'collections',
     captureId: 'collections',
     scriptPath: 'scripts/capture-collection-conformance.mts',
