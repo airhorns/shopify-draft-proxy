@@ -36,6 +36,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -462,9 +463,9 @@ fn empty_payload(errors: List(UserError)) -> Payload {
 
 fn status_for(result: RootResult) -> store.EntryStatus {
   case result.staged_ids, result.payload.user_errors {
-    [_, ..], _ -> store.Staged
-    [], [] -> store.Staged
-    [], _ -> store.Failed
+    [_, ..], _ -> store_types.Staged
+    [], [] -> store_types.Staged
+    [], _ -> store_types.Failed
   }
 }
 

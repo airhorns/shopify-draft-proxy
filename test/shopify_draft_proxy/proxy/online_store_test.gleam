@@ -8,6 +8,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, DraftProxy, Request, Response,
 }
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
   AccessScopeRecord, AppInstallationRecord, AppRecord,
 }
@@ -264,7 +265,7 @@ pub fn storefront_access_token_create_blank_title_returns_blank_user_error_test(
     |> list.length
     == 0
   let assert [log] = store.get_log(proxy.store)
-  assert log.status == store.Failed
+  assert log.status == store_types.Failed
   assert log.staged_resource_ids == []
 }
 
@@ -453,7 +454,7 @@ pub fn content_create_missing_or_blank_title_returns_blank_user_error_test() {
     |> list.length
     == 0
   let assert [page_log] = store.get_log(page_proxy.store)
-  assert page_log.status == store.Failed
+  assert page_log.status == store_types.Failed
   assert page_log.staged_resource_ids == []
 
   let blog_blank_query =
@@ -470,7 +471,7 @@ pub fn content_create_missing_or_blank_title_returns_blank_user_error_test() {
     |> list.length
     == 0
   let assert [blog_log] = store.get_log(blog_proxy.store)
-  assert blog_log.status == store.Failed
+  assert blog_log.status == store_types.Failed
   assert blog_log.staged_resource_ids == []
 }
 
@@ -498,8 +499,8 @@ pub fn article_create_missing_title_returns_blank_user_error_before_staging_test
     |> list.length
     == 0
   let assert [blog_log, article_log] = store.get_log(proxy.store)
-  assert blog_log.status == store.Staged
-  assert article_log.status == store.Failed
+  assert blog_log.status == store_types.Staged
+  assert article_log.status == store_types.Failed
   assert article_log.staged_resource_ids == []
 }
 
@@ -774,7 +775,7 @@ pub fn article_create_validates_blog_and_author_before_staging_test() {
     |> list.length
     == 0
   let assert [missing_blog_log] = store.get_log(missing_blog_proxy.store)
-  assert missing_blog_log.status == store.Failed
+  assert missing_blog_log.status == store_types.Failed
   assert missing_blog_log.staged_resource_ids == []
 
   let ambiguous_blog_query =
@@ -803,7 +804,7 @@ pub fn article_create_validates_blog_and_author_before_staging_test() {
     |> list.length
     == 0
   let assert [ambiguous_blog_log] = store.get_log(ambiguous_blog_proxy.store)
-  assert ambiguous_blog_log.status == store.Failed
+  assert ambiguous_blog_log.status == store_types.Failed
   assert ambiguous_blog_log.staged_resource_ids == []
 
   let missing_author_query =
@@ -826,7 +827,7 @@ pub fn article_create_validates_blog_and_author_before_staging_test() {
     |> list.length
     == 0
   let assert [missing_author_log] = store.get_log(missing_author_proxy.store)
-  assert missing_author_log.status == store.Failed
+  assert missing_author_log.status == store_types.Failed
   assert missing_author_log.staged_resource_ids == []
 
   let ambiguous_author_query =
@@ -850,7 +851,7 @@ pub fn article_create_validates_blog_and_author_before_staging_test() {
     == 0
   let assert [ambiguous_author_log] =
     store.get_log(ambiguous_author_proxy.store)
-  assert ambiguous_author_log.status == store.Failed
+  assert ambiguous_author_log.status == store_types.Failed
   assert ambiguous_author_log.staged_resource_ids == []
 }
 
@@ -878,8 +879,8 @@ pub fn article_create_with_blog_id_and_author_name_still_stages_test() {
     |> list.length
     == 1
   let assert [blog_log, article_log] = store.get_log(proxy.store)
-  assert blog_log.status == store.Staged
-  assert article_log.status == store.Staged
+  assert blog_log.status == store_types.Staged
+  assert article_log.status == store_types.Staged
   assert article_log.staged_resource_ids
     == ["gid://shopify/Article/3?shopify-draft-proxy=synthetic"]
 }

@@ -34,7 +34,8 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
-import shopify_draft_proxy/state/store.{type Store, Staged}
+import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -1874,7 +1875,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  Staged,
+                  store_types.Staged,
                   "shipping-fulfillments",
                   "stage-locally",
                   Some(

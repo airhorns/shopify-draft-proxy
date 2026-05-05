@@ -16,6 +16,7 @@ import shopify_draft_proxy/proxy/apps
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/upstream_query
 import shopify_draft_proxy/state/store
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type AccessScopeRecord, type AppInstallationRecord, type AppRecord,
@@ -292,7 +293,7 @@ pub fn app_uninstall_no_installation_returns_app_not_installed_test() {
   assert dict.size(outcome.store.staged_state.apps) == 0
   assert dict.size(outcome.store.staged_state.app_installations) == 0
   let assert [draft] = outcome.log_drafts
-  assert draft.status == store.Failed
+  assert draft.status == store_types.Failed
 }
 
 pub fn app_uninstall_unknown_input_id_returns_app_not_found_test() {
@@ -307,7 +308,7 @@ pub fn app_uninstall_unknown_input_id_returns_app_not_found_test() {
   assert dict.size(outcome.store.staged_state.apps) == 0
   assert dict.size(outcome.store.staged_state.app_installations) == 0
   let assert [draft] = outcome.log_drafts
-  assert draft.status == store.Failed
+  assert draft.status == store_types.Failed
 }
 
 pub fn app_uninstall_existing_uninstalled_input_id_returns_not_installed_test() {
@@ -322,7 +323,7 @@ pub fn app_uninstall_existing_uninstalled_input_id_returns_not_installed_test() 
     == "{\"data\":{\"appUninstall\":{\"app\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"App is not installed on this shop.\",\"code\":\"APP_NOT_INSTALLED\"}]}}}"
   assert outcome.staged_resource_ids == []
   let assert [draft] = outcome.log_drafts
-  assert draft.status == store.Failed
+  assert draft.status == store_types.Failed
 }
 
 pub fn app_uninstall_marks_installation_uninstalled_test() {
@@ -349,7 +350,7 @@ pub fn app_uninstall_input_id_targets_existing_installation_test() {
     == "{\"data\":{\"appUninstall\":{\"app\":{\"id\":\"gid://shopify/App/100\"},\"userErrors\":[]}}}"
   assert store.get_current_app_installation(outcome.store) == None
   let assert [draft] = outcome.log_drafts
-  assert draft.status == store.Staged
+  assert draft.status == store_types.Staged
 }
 
 pub fn app_uninstall_cross_app_requires_apps_scope_test() {
@@ -531,7 +532,7 @@ pub fn revoke_access_scopes_not_granted_known_scope_is_undeclared_test() {
     == ["read_products", "write_products"]
   let assert [
     mutation_helpers.LogDraft(
-      status: store.Failed,
+      status: store_types.Failed,
       staged_resource_ids: ["gid://shopify/AppInstallation/100"],
       ..,
     ),
@@ -665,7 +666,11 @@ pub fn delegate_token_create_rejects_empty_scope_list_test() {
     == "{\"data\":{\"delegateAccessTokenCreate\":{\"delegateAccessToken\":null,\"shop\":{\"id\":\"gid://shopify/Shop/1?shopify-draft-proxy=synthetic\"},\"userErrors\":[{\"field\":null,\"message\":\"The access scope can't be empty.\",\"code\":\"EMPTY_ACCESS_SCOPE\"}]}}}"
   assert dict.size(outcome.store.staged_state.delegated_access_tokens) == 0
   let assert [
-    mutation_helpers.LogDraft(status: store.Failed, staged_resource_ids: [], ..),
+    mutation_helpers.LogDraft(
+      status: store_types.Failed,
+      staged_resource_ids: [],
+      ..,
+    ),
   ] = outcome.log_drafts
 }
 

@@ -29,6 +29,7 @@ import shopify_draft_proxy/proxy/upstream_query.{
   type UpstreamContext, empty_upstream_context,
 }
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -2593,7 +2594,7 @@ fn integration_validation_error_payload(
       outcome.identity,
       root,
       [],
-      store.Failed,
+      store_types.Failed,
       Some("Rejected " <> root <> " validation in shopify-draft-proxy."),
     ),
   )
@@ -2623,7 +2624,7 @@ fn storefront_token_create_error_payload(
       outcome.identity,
       "storefrontAccessTokenCreate",
       [],
-      store.Failed,
+      store_types.Failed,
       Some(
         "Rejected storefrontAccessTokenCreate validation in shopify-draft-proxy.",
       ),
@@ -2680,7 +2681,7 @@ fn mutation_outcome(
     identity,
     root,
     staged_ids,
-    store.Staged,
+    store_types.Staged,
     Some("Locally staged " <> root <> " in shopify-draft-proxy."),
   )
 }
@@ -2750,7 +2751,7 @@ fn content_validation_error_payload(
       outcome.identity,
       root,
       [],
-      store.Failed,
+      store_types.Failed,
       Some("Rejected " <> root <> " validation in shopify-draft-proxy."),
     ),
   )

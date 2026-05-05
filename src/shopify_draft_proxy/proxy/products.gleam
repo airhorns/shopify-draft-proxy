@@ -54,6 +54,7 @@ import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/shopify/resource_ids
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -7333,9 +7334,12 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Staged productOptionsCreate locally.")
+                False -> #(
+                  store_types.Staged,
+                  "Staged productOptionsCreate locally.",
+                )
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productOptionsCreate locally with userErrors before staging.",
                 )
               }
@@ -7370,9 +7374,9 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Staged productCreate locally.")
+                False -> #(store_types.Staged, "Staged productCreate locally.")
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productCreate locally with userErrors before staging.",
                 )
               }
@@ -7417,9 +7421,12 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Staged productOptionUpdate locally.")
+                False -> #(
+                  store_types.Staged,
+                  "Staged productOptionUpdate locally.",
+                )
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productOptionUpdate locally with userErrors before staging.",
                 )
               }
@@ -7451,9 +7458,12 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Staged productOptionsDelete locally.")
+                False -> #(
+                  store_types.Staged,
+                  "Staged productOptionsDelete locally.",
+                )
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productOptionsDelete locally with userErrors before staging.",
                 )
               }
@@ -7488,7 +7498,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productOptionsReorder locally."),
@@ -7517,7 +7527,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productChangeStatus locally."),
@@ -7558,7 +7568,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productDelete locally."),
@@ -7595,9 +7605,9 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Staged productUpdate locally.")
+                False -> #(store_types.Staged, "Staged productUpdate locally.")
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productUpdate locally with userErrors before staging.",
                 )
               }
@@ -7645,7 +7655,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productDuplicate locally."),
@@ -7670,9 +7680,9 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Staged productSet locally.")
+                False -> #(store_types.Staged, "Staged productSet locally.")
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productSet locally with userErrors before staging.",
                 )
               }
@@ -7717,9 +7727,12 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Staged productVariantCreate locally.")
+                False -> #(
+                  store_types.Staged,
+                  "Staged productVariantCreate locally.",
+                )
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productVariantCreate locally with userErrors before staging.",
                 )
               }
@@ -7751,9 +7764,12 @@ fn handle_mutation_fields(
                   variables,
                 )
               let #(entry_status, note) = case result.staging_failed {
-                False -> #(store.Staged, "Staged productVariantUpdate locally.")
+                False -> #(
+                  store_types.Staged,
+                  "Staged productVariantUpdate locally.",
+                )
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productVariantUpdate locally with userErrors before staging.",
                 )
               }
@@ -7788,7 +7804,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productVariantDelete locally."),
@@ -7814,11 +7830,11 @@ fn handle_mutation_fields(
                 )
               let #(entry_status, note) = case result.staging_failed {
                 False -> #(
-                  store.Staged,
+                  store_types.Staged,
                   "Staged productVariantsBulkCreate locally.",
                 )
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productVariantsBulkCreate locally with userErrors before staging.",
                 )
               }
@@ -7861,11 +7877,11 @@ fn handle_mutation_fields(
                 )
               let #(entry_status, note) = case result.staging_failed {
                 False -> #(
-                  store.Staged,
+                  store_types.Staged,
                   "Staged productVariantsBulkUpdate locally.",
                 )
                 True -> #(
-                  store.Failed,
+                  store_types.Failed,
                   "Rejected productVariantsBulkUpdate locally with userErrors before staging.",
                 )
               }
@@ -7900,7 +7916,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productVariantsBulkDelete locally."),
@@ -7927,7 +7943,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productVariantsBulkReorder locally."),
@@ -7955,7 +7971,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryAdjustQuantities locally."),
@@ -7995,7 +8011,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryActivate locally."),
@@ -8022,7 +8038,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryDeactivate locally."),
@@ -8049,7 +8065,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryBulkToggleActivation locally."),
@@ -8076,7 +8092,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryItemUpdate locally."),
@@ -8104,7 +8120,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventorySetQuantities locally."),
@@ -8144,7 +8160,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryMoveQuantities locally."),
@@ -8171,7 +8187,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged collectionAddProducts locally."),
@@ -8198,7 +8214,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged collectionAddProductsV2 locally."),
@@ -8225,7 +8241,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged collectionCreate locally."),
@@ -8252,7 +8268,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged collectionRemoveProducts locally."),
@@ -8279,7 +8295,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged collectionReorderProducts locally."),
@@ -8306,7 +8322,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged collectionUpdate locally."),
@@ -8333,7 +8349,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged collectionDelete locally."),
@@ -8361,7 +8377,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productPublish locally."),
@@ -8389,7 +8405,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productUnpublish locally."),
@@ -8417,7 +8433,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged " <> name.value <> " locally."),
@@ -8445,7 +8461,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged " <> name.value <> " locally."),
@@ -8472,7 +8488,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productFeedCreate locally."),
@@ -8499,7 +8515,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productFeedDelete locally."),
@@ -8526,7 +8542,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged productFullSync locally."),
@@ -8554,7 +8570,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged captured Product bundle guardrails locally."),
@@ -8581,7 +8597,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some(
@@ -8610,7 +8626,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some(
@@ -8644,7 +8660,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged " <> name.value <> " locally."),
@@ -8684,7 +8700,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged ProductVariant media membership locally."),
@@ -8711,7 +8727,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged bulkProductResourceFeedbackCreate locally."),
@@ -8739,7 +8755,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged " <> name.value <> " locally."),
@@ -8766,7 +8782,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryShipmentSetTracking locally."),
@@ -8793,7 +8809,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryShipmentMarkInTransit locally."),
@@ -8820,7 +8836,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryShipmentAddItems locally."),
@@ -8847,7 +8863,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryShipmentRemoveItems locally."),
@@ -8874,7 +8890,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryShipmentReceive locally."),
@@ -8901,7 +8917,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryShipmentUpdateItemQuantities locally."),
@@ -8928,7 +8944,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged inventoryShipmentDelete locally."),
@@ -8964,7 +8980,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged " <> name.value <> " locally."),
@@ -8991,7 +9007,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged shopResourceFeedbackCreate locally."),
@@ -9025,7 +9041,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged " <> name.value <> " locally."),
@@ -9056,7 +9072,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged " <> name.value <> " locally."),
@@ -9084,7 +9100,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged tagsAdd locally."),
@@ -9125,7 +9141,7 @@ fn handle_mutation_fields(
                 single_root_log_draft(
                   name.value,
                   result.staged_resource_ids,
-                  store.Staged,
+                  store_types.Staged,
                   "products",
                   "stage-locally",
                   Some("Staged tagsRemove locally."),

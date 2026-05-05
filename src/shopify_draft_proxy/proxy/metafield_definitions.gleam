@@ -39,6 +39,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -473,8 +474,8 @@ fn metafield_definitions_status_for(
   staged_resource_ids: List(String),
 ) -> store.EntryStatus {
   case staged_resource_ids {
-    [] -> store.Failed
-    [_, ..] -> store.Staged
+    [] -> store_types.Failed
+    [_, ..] -> store_types.Staged
   }
 }
 

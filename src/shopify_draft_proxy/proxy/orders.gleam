@@ -43,6 +43,7 @@ import shopify_draft_proxy/proxy/user_error_codes
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -3044,7 +3045,7 @@ fn handle_draft_order_complete(
                     single_root_log_draft(
                       "draftOrderComplete",
                       [completed_draft_order.id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(
@@ -3123,7 +3124,7 @@ fn handle_draft_order_delete(
                 single_root_log_draft(
                   "draftOrderDelete",
                   [id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -3205,7 +3206,7 @@ fn handle_order_delete_mutation(
             single_root_log_draft(
               "orderDelete",
               [order_id],
-              store.Staged,
+              store_types.Staged,
               "orders",
               "stage-locally",
               Some("Locally staged orderDelete in shopify-draft-proxy."),
@@ -3301,7 +3302,7 @@ fn handle_draft_order_duplicate(
             single_root_log_draft(
               "draftOrderDuplicate",
               [duplicated_draft_order.id],
-              store.Staged,
+              store_types.Staged,
               "orders",
               "stage-locally",
               Some("Locally staged draftOrderDuplicate in shopify-draft-proxy."),
@@ -3409,8 +3410,8 @@ fn handle_draft_order_invoice_send(
           "draftOrderInvoiceSend",
           [],
           case user_errors {
-            [] -> store.Staged
-            _ -> store.Failed
+            [] -> store_types.Staged
+            _ -> store_types.Failed
           },
           "orders",
           "stage-locally",
@@ -3558,7 +3559,7 @@ fn handle_draft_order_calculate(
                 single_root_log_draft(
                   "draftOrderCalculate",
                   [],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -3579,7 +3580,7 @@ fn handle_draft_order_calculate(
                 single_root_log_draft(
                   "draftOrderCalculate",
                   [],
-                  store.Failed,
+                  store_types.Failed,
                   "orders",
                   "stage-locally",
                   Some(
@@ -3680,8 +3681,8 @@ fn handle_draft_order_invoice_preview(
           "draftOrderInvoicePreview",
           [],
           case user_errors {
-            [] -> store.Staged
-            _ -> store.Failed
+            [] -> store_types.Staged
+            _ -> store_types.Failed
           },
           "orders",
           "stage-locally",
@@ -3774,8 +3775,8 @@ fn handle_draft_order_bulk_helper(
       root_name,
       changed_ids,
       case user_errors {
-        [] -> store.Staged
-        _ -> store.Failed
+        [] -> store_types.Staged
+        _ -> store_types.Failed
       },
       "orders",
       "stage-locally",
@@ -4019,7 +4020,7 @@ fn handle_draft_order_update(
                 single_root_log_draft(
                   "draftOrderUpdate",
                   [id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -4178,7 +4179,7 @@ fn handle_order_lifecycle_mutation(
                     single_root_log_draft(
                       root_name,
                       [id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(
@@ -4378,7 +4379,7 @@ fn handle_order_cancel_mutation(
                         single_root_log_draft(
                           "orderCancel",
                           [order_id],
-                          store.Staged,
+                          store_types.Staged,
                           "orders",
                           "stage-locally",
                           Some(
@@ -4744,7 +4745,7 @@ fn handle_order_mark_as_paid_mutation(
                     single_root_log_draft(
                       "orderMarkAsPaid",
                       [id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(
@@ -5027,7 +5028,7 @@ fn handle_order_capture_mutation(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("orderCapture", [], store.Failed),
+        payment_log_draft("orderCapture", [], store_types.Failed),
       ])
     }
     Some(input) -> {
@@ -5047,7 +5048,7 @@ fn handle_order_capture_mutation(
               fragments,
             )
           #(key, payload, store, identity, [], [
-            payment_log_draft("orderCapture", [], store.Failed),
+            payment_log_draft("orderCapture", [], store_types.Failed),
           ])
         }
         Some(order_id) ->
@@ -5062,7 +5063,7 @@ fn handle_order_capture_mutation(
                   fragments,
                 )
               #(key, payload, store, identity, [], [
-                payment_log_draft("orderCapture", [], store.Failed),
+                payment_log_draft("orderCapture", [], store_types.Failed),
               ])
             }
             Some(order) ->
@@ -5082,7 +5083,11 @@ fn handle_order_capture_mutation(
                       fragments,
                     )
                   #(key, payload, store, identity, [], [
-                    payment_log_draft("orderCapture", [order.id], store.Failed),
+                    payment_log_draft(
+                      "orderCapture",
+                      [order.id],
+                      store_types.Failed,
+                    ),
                   ])
                 }
                 Some(transaction_id) ->
@@ -5105,7 +5110,7 @@ fn handle_order_capture_mutation(
                         payment_log_draft(
                           "orderCapture",
                           [order.id],
-                          store.Failed,
+                          store_types.Failed,
                         ),
                       ])
                     }
@@ -5163,7 +5168,7 @@ fn capture_order_payment(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("orderCapture", [order.id], store.Failed),
+        payment_log_draft("orderCapture", [order.id], store_types.Failed),
       ])
     }
     False ->
@@ -5183,7 +5188,7 @@ fn capture_order_payment(
               fragments,
             )
           #(key, payload, store, identity, [], [
-            payment_log_draft("orderCapture", [order.id], store.Failed),
+            payment_log_draft("orderCapture", [order.id], store_types.Failed),
           ])
         }
         False ->
@@ -5203,7 +5208,11 @@ fn capture_order_payment(
                   fragments,
                 )
               #(key, payload, store, identity, [], [
-                payment_log_draft("orderCapture", [order.id], store.Failed),
+                payment_log_draft(
+                  "orderCapture",
+                  [order.id],
+                  store_types.Failed,
+                ),
               ])
             }
             False -> {
@@ -5254,7 +5263,11 @@ fn capture_order_payment(
                   fragments,
                 )
               #(key, payload, next_store, next_identity, [order.id], [
-                payment_log_draft("orderCapture", [order.id], store.Staged),
+                payment_log_draft(
+                  "orderCapture",
+                  [order.id],
+                  store_types.Staged,
+                ),
               ])
             }
           }
@@ -5289,7 +5302,7 @@ fn handle_transaction_void_mutation(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("transactionVoid", [], store.Failed),
+        payment_log_draft("transactionVoid", [], store_types.Failed),
       ])
     }
     Some(transaction_id) ->
@@ -5303,7 +5316,7 @@ fn handle_transaction_void_mutation(
               fragments,
             )
           #(key, payload, store, identity, [], [
-            payment_log_draft("transactionVoid", [], store.Failed),
+            payment_log_draft("transactionVoid", [], store_types.Failed),
           ])
         }
         Some(match) -> {
@@ -5373,7 +5386,7 @@ fn void_order_transaction(
       let payload =
         serialize_transaction_void_payload(field, None, user_errors, fragments)
       #(key, payload, store, identity, [], [
-        payment_log_draft("transactionVoid", [order.id], store.Failed),
+        payment_log_draft("transactionVoid", [order.id], store_types.Failed),
       ])
     }
     [] -> {
@@ -5400,7 +5413,7 @@ fn void_order_transaction(
           fragments,
         )
       #(key, payload, next_store, next_identity, [order.id], [
-        payment_log_draft("transactionVoid", [order.id], store.Staged),
+        payment_log_draft("transactionVoid", [order.id], store_types.Staged),
       ])
     }
   }
@@ -5437,7 +5450,7 @@ fn handle_order_create_mandate_payment_mutation(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("orderCreateMandatePayment", [], store.Failed),
+        payment_log_draft("orderCreateMandatePayment", [], store_types.Failed),
       ])
     }
     Some(order_id) ->
@@ -5453,7 +5466,11 @@ fn handle_order_create_mandate_payment_mutation(
               fragments,
             )
           #(key, payload, store, identity, [], [
-            payment_log_draft("orderCreateMandatePayment", [], store.Failed),
+            payment_log_draft(
+              "orderCreateMandatePayment",
+              [],
+              store_types.Failed,
+            ),
           ])
         }
         Some(order) -> {
@@ -5478,7 +5495,7 @@ fn handle_order_create_mandate_payment_mutation(
                 payment_log_draft(
                   "orderCreateMandatePayment",
                   [order.id],
-                  store.Failed,
+                  store_types.Failed,
                 ),
               ])
             }
@@ -5498,7 +5515,7 @@ fn handle_order_create_mandate_payment_mutation(
                     payment_log_draft(
                       "orderCreateMandatePayment",
                       [order.id],
-                      store.Staged,
+                      store_types.Staged,
                     ),
                   ])
                 }
@@ -5558,7 +5575,11 @@ fn create_mandate_payment(
           fragments,
         )
       #(key, payload, store, identity, [], [
-        payment_log_draft("orderCreateMandatePayment", [order.id], store.Failed),
+        payment_log_draft(
+          "orderCreateMandatePayment",
+          [order.id],
+          store_types.Failed,
+        ),
       ])
     }
     False -> {
@@ -5602,7 +5623,11 @@ fn create_mandate_payment(
           fragments,
         )
       #(key, payload, next_store, identity_after_job, [order.id], [
-        payment_log_draft("orderCreateMandatePayment", [order.id], store.Staged),
+        payment_log_draft(
+          "orderCreateMandatePayment",
+          [order.id],
+          store_types.Staged,
+        ),
       ])
     }
   }
@@ -6592,7 +6617,7 @@ fn handle_order_edit_commit_mutation(
             single_root_log_draft(
               "orderEditCommit",
               [order.id],
-              store.Staged,
+              store_types.Staged,
               "orders",
               "stage-locally",
               Some("Locally staged orderEditCommit in shopify-draft-proxy."),
@@ -8949,8 +8974,8 @@ fn return_log_draft(
   user_errors: List(#(List(String), String, Option(String))),
 ) -> LogDraft {
   let status = case user_errors {
-    [] -> store.Staged
-    _ -> store.Failed
+    [] -> store_types.Staged
+    _ -> store_types.Failed
   }
   single_root_log_draft(
     root_name,
@@ -11146,7 +11171,7 @@ fn handle_fulfillment_create_mutation(
                         captured_string_field(fulfillment, "id")
                         |> option.unwrap(""),
                       ],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(
@@ -11258,7 +11283,7 @@ fn handle_fulfillment_event_create_mutation(
                     single_root_log_draft(
                       "fulfillmentEventCreate",
                       [captured_string_field(event, "id") |> option.unwrap("")],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(
@@ -14865,7 +14890,7 @@ fn fulfillment_order_log_draft(
   single_root_log_draft(
     root_name,
     staged_ids,
-    store.Staged,
+    store_types.Staged,
     "orders",
     "stage-locally",
     Some("Locally staged " <> root_name <> " in shopify-draft-proxy."),
@@ -14948,7 +14973,7 @@ fn handle_order_update_mutation(
                     single_root_log_draft(
                       "orderUpdate",
                       [id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some("Locally staged orderUpdate in shopify-draft-proxy."),
@@ -15021,7 +15046,7 @@ fn handle_refund_create_mutation(
           identity,
           [],
           [],
-          [refund_create_log_draft([], store.Failed)],
+          [refund_create_log_draft([], store_types.Failed)],
         )
         Some(input) -> {
           let order_id = read_string(input, "orderId")
@@ -15055,7 +15080,7 @@ fn handle_refund_create_mutation(
               identity,
               [],
               [],
-              [refund_create_log_draft([], store.Failed)],
+              [refund_create_log_draft([], store_types.Failed)],
             )
             Some(order) -> {
               let line_item_errors =
@@ -15074,7 +15099,7 @@ fn handle_refund_create_mutation(
                   identity,
                   [],
                   [],
-                  [refund_create_log_draft([order.id], store.Failed)],
+                  [refund_create_log_draft([order.id], store_types.Failed)],
                 )
                 [] -> {
                   let refund_amount =
@@ -15110,7 +15135,12 @@ fn handle_refund_create_mutation(
                         identity,
                         [],
                         [],
-                        [refund_create_log_draft([order.id], store.Failed)],
+                        [
+                          refund_create_log_draft(
+                            [order.id],
+                            store_types.Failed,
+                          ),
+                        ],
                       )
                     }
                     False -> {
@@ -15136,7 +15166,10 @@ fn handle_refund_create_mutation(
                         [order.id],
                         [],
                         [
-                          refund_create_log_draft([order.id], store.Staged),
+                          refund_create_log_draft(
+                            [order.id],
+                            store_types.Staged,
+                          ),
                         ],
                       )
                     }
@@ -16221,7 +16254,7 @@ fn handle_order_create_mutation(
                 single_root_log_draft(
                   "orderCreate",
                   [order.id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some("Locally staged orderCreate in shopify-draft-proxy."),
@@ -17386,7 +17419,7 @@ fn handle_fulfillment_mutation(
                 single_root_log_draft(
                   root_name,
                   [id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -18083,7 +18116,7 @@ fn handle_draft_order_create(
                 single_root_log_draft(
                   "draftOrderCreate",
                   [draft_order.id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -18106,7 +18139,7 @@ fn handle_draft_order_create(
                 single_root_log_draft(
                   "draftOrderCreate",
                   [],
-                  store.Failed,
+                  store_types.Failed,
                   "orders",
                   "stage-locally",
                   Some("Locally rejected draftOrderCreate validation branch."),
@@ -18182,7 +18215,7 @@ fn handle_draft_order_create_from_order(
                 single_root_log_draft(
                   "draftOrderCreateFromOrder",
                   [draft_order.id],
-                  store.Staged,
+                  store_types.Staged,
                   "orders",
                   "stage-locally",
                   Some(
@@ -18222,7 +18255,7 @@ fn handle_draft_order_create_from_order(
                     single_root_log_draft(
                       "draftOrderCreateFromOrder",
                       [draft_order.id],
-                      store.Staged,
+                      store_types.Staged,
                       "orders",
                       "stage-locally",
                       Some(
@@ -20267,7 +20300,7 @@ fn handle_access_denied_guardrail(
     single_root_log_draft(
       root_name,
       [],
-      store.Failed,
+      store_types.Failed,
       "orders",
       "stage-locally",
       Some(root_name <> " failed local access-denied guardrail."),
@@ -20384,7 +20417,7 @@ fn handle_abandonment_delivery_status(
               let draft =
                 abandonment_log_draft(
                   [abandonment.id],
-                  store.Staged,
+                  store_types.Staged,
                   Some(
                     "Locally staged abandonmentUpdateActivitiesDeliveryStatuses in shopify-draft-proxy.",
                   ),
@@ -20433,7 +20466,7 @@ fn unknown_abandonment_result(
   let draft =
     abandonment_log_draft(
       [],
-      store.Failed,
+      store_types.Failed,
       Some(
         "abandonmentUpdateActivitiesDeliveryStatuses failed local validation.",
       ),

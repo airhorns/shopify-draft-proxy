@@ -32,6 +32,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
 }
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
@@ -3413,8 +3414,8 @@ fn user_error_with_typename(
 
 fn markets_log_draft(root_name: String, staged_ids: List(String)) -> LogDraft {
   let status = case staged_ids {
-    [] -> store.Failed
-    [_, ..] -> store.Staged
+    [] -> store_types.Failed
+    [_, ..] -> store_types.Staged
   }
   single_root_log_draft(
     root_name,
