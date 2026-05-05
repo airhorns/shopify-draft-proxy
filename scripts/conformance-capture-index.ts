@@ -232,6 +232,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-user-error-shapes',
+    scriptPath: 'scripts/capture-product-user-error-shape-conformance.ts',
+    purpose:
+      'Product-domain userError field/message/code validation branches for blank titles, unknown product ids, and unknown inventory item ids.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-user-error-shape-parity.json`,
+      'config/parity-specs/products/userError-shape-parity.json',
+      'config/parity-requests/products/productUserErrorShape-*.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify objects should be created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-with-options',
     scriptPath: 'scripts/capture-product-create-with-options-conformance.mts',
     purpose:
@@ -1665,6 +1680,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-class-inference',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-class-inference-conformance.ts',
+    purpose:
+      'Discount class inference for basic all/product/collection entitlements, BXGY product class, free-shipping shipping class, and product-class catalog filtering.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-class-inference.json`,
+      'config/parity-specs/discounts/discount-class-inference.json',
+      'config/parity-requests/discounts/discount-class-inference-*.graphql',
+    ],
+    cleanupBehavior: 'Creates disposable products, collection, and discounts; deletes them in reverse-order cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-free-shipping-lifecycle',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-free-shipping-lifecycle-conformance.ts',
@@ -1700,6 +1731,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/discounts/discount-timestamps-monotonic.json',
     ],
     cleanupBehavior: 'Creates two disposable code discounts and deletes both after timestamp probes.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-status-time-window-derivation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-status-time-window-derivation-conformance.ts',
+    purpose:
+      'DiscountCodeBasic status derivation from startsAt/endsAt for create payloads, downstream reads, and status filters.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-status-time-window-derivation.json`,
+      'config/parity-specs/discounts/discount-status-time-window-derivation.json',
+      'config/parity-requests/discounts/discount-status-time-window-derivation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates three disposable code discounts with scheduled, expired, and active windows, then deletes them after read/filter capture.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

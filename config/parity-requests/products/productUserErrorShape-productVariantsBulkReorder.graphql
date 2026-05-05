@@ -1,0 +1,12 @@
+mutation ProductUserErrorShapeProductVariantsBulkReorder($productId: ID!, $positions: [ProductVariantPositionInput!]!) {
+  productVariantsBulkReorder(productId: $productId, positions: $positions) {
+    product {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
