@@ -4483,6 +4483,31 @@ fn fulfillment_order_has_manually_reported_progress(
   |> option.unwrap(False)
 }
 
+type FulfillmentOrderSplitInput {
+  FulfillmentOrderSplitInput(
+    index: Int,
+    fulfillment_order_id: Option(String),
+    line_items: List(FulfillmentOrderSplitLineItemInput),
+  )
+}
+
+type FulfillmentOrderSplitLineItemInput {
+  FulfillmentOrderSplitLineItemInput(
+    index: Int,
+    id: Option(String),
+    quantity: Option(Int),
+    quantity_is_int: Bool,
+  )
+}
+
+type FulfillmentOrderSplitUserError {
+  FulfillmentOrderSplitUserError(
+    field: SourceValue,
+    message: String,
+    code: String,
+  )
+}
+
 fn handle_fulfillment_order_split(
   draft_store: Store,
   identity: SyntheticIdentityRegistry,
@@ -4492,132 +4517,350 @@ fn handle_fulfillment_order_split(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = resolved_args(field, variables)
-  let splits = read_object_array(args, "fulfillmentOrderSplits")
-  case splits {
-    [split, ..] -> {
-      let id = read_string(split, "fulfillmentOrderId")
-      let quantity =
-        first_fulfillment_order_line_item_quantity(read_object_array(
-          split,
-          "fulfillmentOrderLineItems",
-        ))
-      case id {
-        Some(id) ->
-          case store.get_effective_fulfillment_order_by_id(draft_store, id) {
-            Some(order) -> {
-              let remaining_quantity =
-                max_int(
-                  first_fulfillment_order_line_item_total(order.data) - quantity,
-                  0,
-                )
-              let original =
-                update_fulfillment_order_fields(order, [
-                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
-                  #(
-                    "supportedActions",
-                    captured_action_list([
-                      "CREATE_FULFILLMENT",
-                      "REPORT_PROGRESS",
-                      "MOVE",
-                      "HOLD",
-                      "SPLIT",
-                      "MERGE",
-                    ]),
-                  ),
-                  #(
-                    "lineItems",
-                    fulfillment_order_line_items_with_quantity(
-                      order.data,
-                      remaining_quantity,
-                      False,
-                    ),
-                  ),
-                ])
-              let #(remaining_id, identity) =
-                synthetic_identity.make_synthetic_gid(
-                  identity,
-                  "FulfillmentOrder",
-                )
-              let remaining =
-                update_fulfillment_order_fields(order, [
-                  #("id", CapturedString(remaining_id)),
-                  #("updatedAt", CapturedString(synthetic_timestamp_string())),
-                  #(
-                    "supportedActions",
-                    captured_action_list([
-                      "CREATE_FULFILLMENT",
-                      "REPORT_PROGRESS",
-                      "MOVE",
-                      "HOLD",
-                      "MERGE",
-                    ]),
-                  ),
-                  #(
-                    "lineItems",
-                    fulfillment_order_line_items_with_quantity(
-                      order.data,
-                      quantity,
-                      False,
-                    ),
-                  ),
-                ])
-              let remaining =
-                FulfillmentOrderRecord(..remaining, id: remaining_id)
-              let #(original, next_store) =
-                store.stage_upsert_fulfillment_order(draft_store, original)
-              let #(remaining, next_store) =
-                store.stage_upsert_fulfillment_order(next_store, remaining)
-              let split_source =
-                src_object([
-                  #("fulfillmentOrder", fulfillment_order_source(original)),
-                  #(
-                    "remainingFulfillmentOrder",
-                    fulfillment_order_source(remaining),
-                  ),
-                  #("replacementFulfillmentOrder", SrcNull),
-                ])
-              #(
-                MutationFieldResult(
-                  key: key,
-                  payload: fulfillment_order_payload_json(field, fragments, [
-                    #("__typename", SrcString("FulfillmentOrderSplitPayload")),
-                    #("fulfillmentOrderSplits", SrcList([split_source])),
-                    #("userErrors", SrcList([])),
-                  ]),
-                  errors: [],
-                  staged_resource_ids: [original.id, remaining.id],
-                ),
-                next_store,
-                identity,
-              )
-            }
-            None ->
-              fulfillment_order_missing_mutation_result(
-                draft_store,
-                identity,
-                field,
-                fragments,
-                "FulfillmentOrderSplitPayload",
-              )
-          }
-        None ->
-          fulfillment_order_missing_mutation_result(
-            draft_store,
-            identity,
-            field,
-            fragments,
-            "FulfillmentOrderSplitPayload",
-          )
-      }
-    }
-    _ ->
-      fulfillment_order_missing_mutation_result(
+  let splits = read_fulfillment_order_split_inputs(args)
+  let validation_errors =
+    validate_fulfillment_order_split_inputs(draft_store, splits)
+  case validation_errors {
+    [_, ..] ->
+      fulfillment_order_split_user_error_result(
         draft_store,
         identity,
         field,
         fragments,
-        "FulfillmentOrderSplitPayload",
+        validation_errors,
       )
+    [] -> {
+      let #(split_sources, next_store, next_identity, staged_ids) =
+        apply_fulfillment_order_splits(draft_store, identity, splits, [], [])
+      #(
+        MutationFieldResult(
+          key: key,
+          payload: fulfillment_order_payload_json(field, fragments, [
+            #("__typename", SrcString("FulfillmentOrderSplitPayload")),
+            #("fulfillmentOrderSplits", SrcList(split_sources)),
+            #("userErrors", SrcList([])),
+          ]),
+          errors: [],
+          staged_resource_ids: staged_ids,
+        ),
+        next_store,
+        next_identity,
+      )
+    }
+  }
+}
+
+fn read_fulfillment_order_split_inputs(
+  args: Dict(String, root_field.ResolvedValue),
+) -> List(FulfillmentOrderSplitInput) {
+  read_object_array(args, "fulfillmentOrderSplits")
+  |> indexed_fulfillment_order_split_inputs(0)
+}
+
+fn indexed_fulfillment_order_split_inputs(
+  splits: List(Dict(String, root_field.ResolvedValue)),
+  index: Int,
+) -> List(FulfillmentOrderSplitInput) {
+  case splits {
+    [] -> []
+    [split, ..rest] -> {
+      let input =
+        FulfillmentOrderSplitInput(
+          index: index,
+          fulfillment_order_id: read_string(split, "fulfillmentOrderId"),
+          line_items: read_object_array(split, "fulfillmentOrderLineItems")
+            |> indexed_fulfillment_order_split_line_items(0),
+        )
+      [input, ..indexed_fulfillment_order_split_inputs(rest, index + 1)]
+    }
+  }
+}
+
+fn indexed_fulfillment_order_split_line_items(
+  line_items: List(Dict(String, root_field.ResolvedValue)),
+  index: Int,
+) -> List(FulfillmentOrderSplitLineItemInput) {
+  case line_items {
+    [] -> []
+    [line_item, ..rest] -> {
+      let #(quantity, quantity_is_int) =
+        read_fulfillment_order_split_line_item_quantity(line_item)
+      let input =
+        FulfillmentOrderSplitLineItemInput(
+          index: index,
+          id: read_string(line_item, "id"),
+          quantity: quantity,
+          quantity_is_int: quantity_is_int,
+        )
+      [input, ..indexed_fulfillment_order_split_line_items(rest, index + 1)]
+    }
+  }
+}
+
+fn read_fulfillment_order_split_line_item_quantity(
+  line_item: Dict(String, root_field.ResolvedValue),
+) -> #(Option(Int), Bool) {
+  case dict.get(line_item, "quantity") {
+    Ok(root_field.IntVal(quantity)) -> #(Some(quantity), True)
+    Ok(_) -> #(None, False)
+    Error(_) -> #(None, False)
+  }
+}
+
+fn validate_fulfillment_order_split_inputs(
+  draft_store: Store,
+  splits: List(FulfillmentOrderSplitInput),
+) -> List(FulfillmentOrderSplitUserError) {
+  splits
+  |> list.flat_map(fn(split) {
+    let FulfillmentOrderSplitInput(index:, fulfillment_order_id:, line_items:) =
+      split
+    let line_item_errors =
+      validate_fulfillment_order_split_line_items(index, line_items)
+    case line_item_errors {
+      [_, ..] -> line_item_errors
+      [] ->
+        case fulfillment_order_id {
+          Some(id) ->
+            case store.get_effective_fulfillment_order_by_id(draft_store, id) {
+              Some(order) ->
+                validate_fulfillment_order_split_line_item_ids(
+                  index,
+                  line_items,
+                  order,
+                )
+              None -> [fulfillment_order_split_missing_order_error(id)]
+            }
+          None -> [fulfillment_order_split_missing_order_error("")]
+        }
+    }
+  })
+}
+
+fn validate_fulfillment_order_split_line_items(
+  split_index: Int,
+  line_items: List(FulfillmentOrderSplitLineItemInput),
+) -> List(FulfillmentOrderSplitUserError) {
+  case line_items {
+    [] -> [
+      FulfillmentOrderSplitUserError(
+        field: SrcList([
+          SrcString("fulfillmentOrderSplits"),
+          SrcString(int.to_string(split_index)),
+          SrcString("fulfillmentOrderLineItems"),
+        ]),
+        message: "There must be at least one item selected in this fulfillment to split it.",
+        code: "NO_LINE_ITEMS_PROVIDED_TO_SPLIT",
+      ),
+    ]
+    [_, ..] ->
+      line_items
+      |> list.filter_map(fn(line_item) {
+        let FulfillmentOrderSplitLineItemInput(
+          index:,
+          quantity:,
+          quantity_is_int:,
+          ..,
+        ) = line_item
+        let field =
+          SrcList([
+            SrcString("fulfillmentOrderSplits"),
+            SrcString(int.to_string(split_index)),
+            SrcString("fulfillmentOrderLineItems"),
+            SrcString(int.to_string(index)),
+            SrcString("quantity"),
+          ])
+        case quantity_is_int, quantity {
+          False, _ ->
+            Ok(FulfillmentOrderSplitUserError(
+              field: field,
+              message: "Line item quantity is invalid.",
+              code: "INVALID_LINE_ITEM_QUANTITY",
+            ))
+          True, Some(quantity) if quantity <= 0 ->
+            Ok(FulfillmentOrderSplitUserError(
+              field: field,
+              message: "You must select at least one item to split into a new fulfillment order.",
+              code: "GREATER_THAN",
+            ))
+          _, _ -> Error(Nil)
+        }
+      })
+  }
+}
+
+fn validate_fulfillment_order_split_line_item_ids(
+  split_index: Int,
+  line_items: List(FulfillmentOrderSplitLineItemInput),
+  order: FulfillmentOrderRecord,
+) -> List(FulfillmentOrderSplitUserError) {
+  line_items
+  |> list.filter_map(fn(line_item) {
+    let FulfillmentOrderSplitLineItemInput(index:, id:, ..) = line_item
+    case id {
+      Some(id) ->
+        case fulfillment_order_has_line_item_id(order.data, id) {
+          True -> Error(Nil)
+          False ->
+            Ok(FulfillmentOrderSplitUserError(
+              field: SrcList([
+                SrcString("fulfillmentOrderSplits"),
+                SrcString(int.to_string(split_index)),
+                SrcString("fulfillmentOrderLineItems"),
+                SrcString(int.to_string(index)),
+                SrcString("id"),
+              ]),
+              message: "Line item quantity is invalid.",
+              code: "INVALID_LINE_ITEM_QUANTITY",
+            ))
+        }
+      None ->
+        Ok(FulfillmentOrderSplitUserError(
+          field: SrcList([
+            SrcString("fulfillmentOrderSplits"),
+            SrcString(int.to_string(split_index)),
+            SrcString("fulfillmentOrderLineItems"),
+            SrcString(int.to_string(index)),
+            SrcString("id"),
+          ]),
+          message: "Line item quantity is invalid.",
+          code: "INVALID_LINE_ITEM_QUANTITY",
+        ))
+    }
+  })
+}
+
+fn fulfillment_order_has_line_item_id(
+  data: CapturedJsonValue,
+  id: String,
+) -> Bool {
+  captured_array_field(data, "lineItems", "nodes")
+  |> list.any(fn(node) { captured_string_field(node, "id") == Some(id) })
+}
+
+fn fulfillment_order_split_missing_order_error(
+  _id: String,
+) -> FulfillmentOrderSplitUserError {
+  FulfillmentOrderSplitUserError(
+    field: SrcNull,
+    message: "Fulfillment order does not exist.",
+    code: "FULFILLMENT_ORDER_NOT_FOUND",
+  )
+}
+
+fn fulfillment_order_split_user_error_result(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_errors: List(FulfillmentOrderSplitUserError),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: fulfillment_order_payload_json(field, fragments, [
+        #("__typename", SrcString("FulfillmentOrderSplitPayload")),
+        #("fulfillmentOrderSplits", SrcNull),
+        #(
+          "userErrors",
+          SrcList(list.map(user_errors, fulfillment_order_split_error_source)),
+        ),
+      ]),
+      errors: [],
+      staged_resource_ids: [],
+    ),
+    draft_store,
+    identity,
+  )
+}
+
+fn fulfillment_order_split_error_source(
+  error: FulfillmentOrderSplitUserError,
+) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("FulfillmentOrderSplitUserError")),
+    #("field", error.field),
+    #("message", SrcString(error.message)),
+    #("code", SrcString(error.code)),
+  ])
+}
+
+fn apply_fulfillment_order_splits(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  splits: List(FulfillmentOrderSplitInput),
+  split_sources: List(SourceValue),
+  staged_ids: List(String),
+) -> #(List(SourceValue), Store, SyntheticIdentityRegistry, List(String)) {
+  case splits {
+    [] -> #(split_sources, draft_store, identity, staged_ids)
+    [split, ..rest] -> {
+      let FulfillmentOrderSplitInput(fulfillment_order_id:, line_items:, ..) =
+        split
+      let assert Some(id) = fulfillment_order_id
+      let assert Some(order) =
+        store.get_effective_fulfillment_order_by_id(draft_store, id)
+      let requested_line_items =
+        line_items
+        |> list.filter_map(fn(item) {
+          let FulfillmentOrderSplitLineItemInput(id:, quantity:, ..) = item
+          case id, quantity {
+            Some(id), Some(quantity) -> Ok(#(id, quantity))
+            _, _ -> Error(Nil)
+          }
+        })
+      let original_line_items =
+        fulfillment_order_line_items_after_split(
+          order.data,
+          requested_line_items,
+        )
+      let original =
+        update_fulfillment_order_fields(order, [
+          #("updatedAt", CapturedString(synthetic_timestamp_string())),
+          #(
+            "supportedActions",
+            fulfillment_order_split_supported_actions(
+              fulfillment_order_line_items_total(original_line_items),
+            ),
+          ),
+          #("lineItems", original_line_items),
+        ])
+      let #(remaining_id, next_identity) =
+        synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
+      let remaining_line_items =
+        fulfillment_order_line_items_for_split(order.data, requested_line_items)
+      let remaining =
+        update_fulfillment_order_fields(order, [
+          #("id", CapturedString(remaining_id)),
+          #("updatedAt", CapturedString(synthetic_timestamp_string())),
+          #(
+            "supportedActions",
+            fulfillment_order_split_supported_actions(
+              fulfillment_order_line_items_total(remaining_line_items),
+            ),
+          ),
+          #("lineItems", remaining_line_items),
+        ])
+      let remaining = FulfillmentOrderRecord(..remaining, id: remaining_id)
+      let #(original, next_store) =
+        store.stage_upsert_fulfillment_order(draft_store, original)
+      let #(remaining, next_store) =
+        store.stage_upsert_fulfillment_order(next_store, remaining)
+      let split_source =
+        src_object([
+          #("fulfillmentOrder", fulfillment_order_source(original)),
+          #("remainingFulfillmentOrder", fulfillment_order_source(remaining)),
+          #("replacementFulfillmentOrder", SrcNull),
+        ])
+      apply_fulfillment_order_splits(
+        next_store,
+        next_identity,
+        rest,
+        list.append(split_sources, [split_source]),
+        list.append(staged_ids, [original.id, remaining.id]),
+      )
+    }
   }
 }
 
@@ -7807,6 +8050,91 @@ fn fulfillment_order_line_items_with_quantity(
       ])
     })
   captured_connection(nodes)
+}
+
+fn fulfillment_order_line_items_after_split(
+  data: CapturedJsonValue,
+  requested: List(#(String, Int)),
+) -> CapturedJsonValue {
+  let nodes =
+    captured_array_field(data, "lineItems", "nodes")
+    |> list.map(fn(node) {
+      let existing_quantity =
+        captured_int_field(node, "totalQuantity", "") |> option.unwrap(0)
+      let requested_quantity =
+        fulfillment_order_requested_line_item_quantity(
+          captured_string_field(node, "id"),
+          requested,
+        )
+      let next_quantity = max_int(existing_quantity - requested_quantity, 0)
+      captured_upsert_fields(node, [
+        #("totalQuantity", CapturedInt(next_quantity)),
+        #("remainingQuantity", CapturedInt(next_quantity)),
+      ])
+    })
+  captured_connection(nodes)
+}
+
+fn fulfillment_order_line_items_for_split(
+  data: CapturedJsonValue,
+  requested: List(#(String, Int)),
+) -> CapturedJsonValue {
+  let nodes =
+    captured_array_field(data, "lineItems", "nodes")
+    |> list.filter_map(fn(node) {
+      let requested_quantity =
+        fulfillment_order_requested_line_item_quantity(
+          captured_string_field(node, "id"),
+          requested,
+        )
+      case requested_quantity > 0 {
+        True ->
+          Ok(
+            captured_upsert_fields(node, [
+              #("totalQuantity", CapturedInt(requested_quantity)),
+              #("remainingQuantity", CapturedInt(requested_quantity)),
+            ]),
+          )
+        False -> Error(Nil)
+      }
+    })
+  captured_connection(nodes)
+}
+
+fn fulfillment_order_requested_line_item_quantity(
+  id: Option(String),
+  requested: List(#(String, Int)),
+) -> Int {
+  case id {
+    Some(id) ->
+      requested
+      |> list.fold(0, fn(total, item) {
+        let #(requested_id, quantity) = item
+        case requested_id == id {
+          True -> total + quantity
+          False -> total
+        }
+      })
+    None -> 0
+  }
+}
+
+fn fulfillment_order_line_items_total(line_items: CapturedJsonValue) -> Int {
+  captured_array_field(line_items, "nodes", "")
+  |> list.fold(0, fn(total, line_item) {
+    total
+    + { captured_int_field(line_item, "totalQuantity", "") |> option.unwrap(0) }
+  })
+}
+
+fn fulfillment_order_split_supported_actions(
+  total_quantity: Int,
+) -> CapturedJsonValue {
+  let actions = ["CREATE_FULFILLMENT", "REPORT_PROGRESS", "MOVE", "HOLD"]
+  case total_quantity > 1 {
+    True -> captured_action_list(list.append(actions, ["SPLIT", "MERGE"]))
+    False -> captured_action_list(list.append(actions, ["MERGE"]))
+  }
 }
 
 fn captured_action_list(actions: List(String)) -> CapturedJsonValue {

@@ -1683,13 +1683,14 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
       }
     }
   "
-  let assert Ok(closed_cancel) =
+  let closed_cancel =
     shipping_fulfillments.process_mutation(
       base_store,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(closed_order_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(closed_cancel.data)
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order is not in cancelable request state and can't be canceled.\",\"code\":\"fulfillment_order_cannot_be_cancelled\"}]}}}"
@@ -1709,21 +1710,23 @@ pub fn fulfillment_order_cancel_preconditions_direct_handler_test() {
       }
     }
   "
-  let assert Ok(progress_report) =
+  let progress_report =
     shipping_fulfillments.process_mutation(
       base_store,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       report_mutation,
       dict.from_list([#("id", root_field.StringVal(progress_order_id))]),
+      empty_upstream_context(),
     )
-  let assert Ok(progress_cancel) =
+  let progress_cancel =
     shipping_fulfillments.process_mutation(
       progress_report.store,
       progress_report.identity,
       "/admin/api/2026-04/graphql.json",
       cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(progress_order_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(progress_cancel.data)
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":null,\"replacementFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot cancel fulfillment order that has had progress reported. Mark as unfulfilled first.\",\"code\":\"fulfillment_order_has_manually_reported_progress\"}]}}}"
@@ -1750,6 +1753,249 @@ fn fulfillment_order_record(
       #("fulfillmentHolds", CapturedArray([])),
     ]),
   )
+}
+
+fn split_fulfillment_order_record(
+  id: String,
+  line_items: List(#(String, String, Int)),
+) -> FulfillmentOrderRecord {
+  FulfillmentOrderRecord(
+    id: id,
+    order_id: Some("gid://shopify/Order/har-559"),
+    status: "OPEN",
+    request_status: "UNSUBMITTED",
+    assigned_location_id: None,
+    assignment_status: None,
+    manually_held: False,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString("OPEN")),
+      #("requestStatus", CapturedString("UNSUBMITTED")),
+      #(
+        "supportedActions",
+        CapturedArray([
+          CapturedObject([#("action", CapturedString("SPLIT"))]),
+        ]),
+      ),
+      #(
+        "lineItems",
+        CapturedObject([
+          #(
+            "nodes",
+            CapturedArray(
+              list.map(line_items, fn(item) {
+                let #(fulfillment_order_line_item_id, line_item_id, quantity) =
+                  item
+                CapturedObject([
+                  #("id", CapturedString(fulfillment_order_line_item_id)),
+                  #("totalQuantity", CapturedInt(quantity)),
+                  #("remainingQuantity", CapturedInt(quantity)),
+                  #(
+                    "lineItem",
+                    CapturedObject([
+                      #("id", CapturedString(line_item_id)),
+                      #("quantity", CapturedInt(quantity)),
+                      #("fulfillableQuantity", CapturedInt(quantity)),
+                    ]),
+                  ),
+                ])
+              }),
+            ),
+          ),
+        ]),
+      ),
+      #("fulfillmentHolds", CapturedArray([])),
+    ]),
+  )
+}
+
+fn split_input(
+  fulfillment_order_id: String,
+  line_items: List(#(String, Int)),
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #("fulfillmentOrderId", root_field.StringVal(fulfillment_order_id)),
+      #(
+        "fulfillmentOrderLineItems",
+        root_field.ListVal(
+          list.map(line_items, fn(item) {
+            let #(line_item_id, quantity) = item
+            root_field.ObjectVal(
+              dict.from_list([
+                #("id", root_field.StringVal(line_item_id)),
+                #("quantity", root_field.IntVal(quantity)),
+              ]),
+            )
+          }),
+        ),
+      ),
+    ]),
+  )
+}
+
+fn split_mutation() -> String {
+  "
+    mutation Split($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {
+      fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {
+        fulfillmentOrderSplits {
+          fulfillmentOrder {
+            id
+            lineItems(first: 10) {
+              nodes {
+                id
+                totalQuantity
+                remainingQuantity
+              }
+            }
+          }
+          remainingFulfillmentOrder {
+            id
+            lineItems(first: 10) {
+              nodes {
+                id
+                totalQuantity
+                remainingQuantity
+              }
+            }
+          }
+          replacementFulfillmentOrder {
+            id
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+}
+
+pub fn fulfillment_order_split_processes_all_inputs_and_line_items_test() {
+  let order_a_id = "gid://shopify/FulfillmentOrder/har-559-a"
+  let order_b_id = "gid://shopify/FulfillmentOrder/har-559-b"
+  let order_a_line_1 = "gid://shopify/FulfillmentOrderLineItem/har-559-a-1"
+  let order_a_line_2 = "gid://shopify/FulfillmentOrderLineItem/har-559-a-2"
+  let order_b_line = "gid://shopify/FulfillmentOrderLineItem/har-559-b-1"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(order_a_id, [
+        #(order_a_line_1, "gid://shopify/LineItem/har-559-a-1", 2),
+        #(order_a_line_2, "gid://shopify/LineItem/har-559-a-2", 3),
+      ]),
+      split_fulfillment_order_record(order_b_id, [
+        #(order_b_line, "gid://shopify/LineItem/har-559-b-1", 3),
+      ]),
+    ])
+
+  let outcome =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      split_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderSplits",
+          root_field.ListVal([
+            split_input(order_a_id, [#(order_a_line_1, 1), #(order_a_line_2, 1)]),
+            split_input(order_b_id, [#(order_b_line, 2)]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":[{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/har-559-a\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/har-559-a-1\",\"totalQuantity\":1,\"remainingQuantity\":1},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/har-559-a-2\",\"totalQuantity\":2,\"remainingQuantity\":2}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/1\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/har-559-a-1\",\"totalQuantity\":1,\"remainingQuantity\":1},{\"id\":\"gid://shopify/FulfillmentOrderLineItem/har-559-a-2\",\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"replacementFulfillmentOrder\":null},{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/har-559-b\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/har-559-b-1\",\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/har-559-b-1\",\"totalQuantity\":2,\"remainingQuantity\":2}]}},\"replacementFulfillmentOrder\":null}],\"userErrors\":[]}}}"
+}
+
+pub fn fulfillment_order_split_validates_indexed_inputs_test() {
+  let order_id = "gid://shopify/FulfillmentOrder/har-559-validation"
+  let line_item_id = "gid://shopify/FulfillmentOrderLineItem/har-559-validation"
+  let base_store =
+    store.new()
+    |> store.upsert_base_fulfillment_orders([
+      split_fulfillment_order_record(order_id, [
+        #(line_item_id, "gid://shopify/LineItem/har-559-validation", 2),
+      ]),
+    ])
+
+  let empty_line_items =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      split_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderSplits",
+          root_field.ListVal([split_input(order_id, [])]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(empty_line_items.data)
+    == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":null,\"userErrors\":[{\"field\":[\"fulfillmentOrderSplits\",\"0\",\"fulfillmentOrderLineItems\"],\"message\":\"There must be at least one item selected in this fulfillment to split it.\",\"code\":\"NO_LINE_ITEMS_PROVIDED_TO_SPLIT\"}]}}}"
+
+  let zero_quantity =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      split_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderSplits",
+          root_field.ListVal([split_input(order_id, [#(line_item_id, 0)])]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(zero_quantity.data)
+    == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":null,\"userErrors\":[{\"field\":[\"fulfillmentOrderSplits\",\"0\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"You must select at least one item to split into a new fulfillment order.\",\"code\":\"GREATER_THAN\"}]}}}"
+
+  let invalid_line_item =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      split_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderSplits",
+          root_field.ListVal([
+            split_input(order_id, [
+              #("gid://shopify/FulfillmentOrderLineItem/har-559-missing", 1),
+            ]),
+          ]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_line_item.data)
+    == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":null,\"userErrors\":[{\"field\":[\"fulfillmentOrderSplits\",\"0\",\"fulfillmentOrderLineItems\",\"0\",\"id\"],\"message\":\"Line item quantity is invalid.\",\"code\":\"INVALID_LINE_ITEM_QUANTITY\"}]}}}"
+
+  let unknown_id = "gid://shopify/FulfillmentOrder/har-559-missing"
+  let unknown_order =
+    shipping_fulfillments.process_mutation(
+      base_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      split_mutation(),
+      dict.from_list([
+        #(
+          "fulfillmentOrderSplits",
+          root_field.ListVal([split_input(unknown_id, [#(line_item_id, 1)])]),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(unknown_order.data)
+    == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order does not exist.\",\"code\":\"FULFILLMENT_ORDER_NOT_FOUND\"}]}}}"
 }
 
 pub fn reverse_delivery_lifecycle_and_detail_reads_stage_locally_test() {
