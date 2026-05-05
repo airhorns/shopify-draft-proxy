@@ -1494,9 +1494,15 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-  _upstream: UpstreamContext,
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
-  process_mutation_with_shop_origin(store, identity, "", document, variables)
+  process_mutation_with_shop_origin(
+    store,
+    identity,
+    upstream.origin,
+    document,
+    variables,
+  )
 }
 
 pub fn process_mutation_with_shop_origin(
