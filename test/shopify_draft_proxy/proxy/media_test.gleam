@@ -104,6 +104,93 @@ pub fn file_create_image_is_readable_while_uploaded_test() {
   )
 }
 
+pub fn file_create_rejects_shopify_validation_branches_test() {
+  let #(Response(status: references_status, body: references_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", referencesToAdd: [\"gid://shopify/Product/1\", \"gid://shopify/Product/2\"] }]) { files { id } userErrors { field message code } } }",
+    )
+  assert references_status == 200
+  assert json.to_string(references_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"referencesToAdd\"],\"message\":\"Too many product ids specified.\",\"code\":\"TOO_MANY_PRODUCT_IDS_SPECIFIED\"}]}}}"
+
+  let #(Response(status: data_status, body: data_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"data:image/png;base64,iVBORw0KGgo=\" }]) { files { id } userErrors { field message code } } }",
+    )
+  assert data_status == 200
+  assert json.to_string(data_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"File URL is invalid\",\"code\":\"INVALID_IMAGE_SOURCE_URL\"}]}}}"
+
+  let #(Response(status: extension_status, body: extension_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", filename: \"bar.jpg\" }]) { files { id } userErrors { field message code } } }",
+    )
+  assert extension_status == 200
+  assert json.to_string(extension_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Provided filename extension must match original source.\",\"code\":\"MISMATCHED_FILENAME_AND_ORIGINAL_SOURCE\"}]}}}"
+}
+
+pub fn file_create_validates_length_and_duplicate_modes_test() {
+  let #(Response(status: empty_status, body: empty_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"\" }]) { files { id } userErrors { field message code } } }",
+    )
+  assert empty_status == 200
+  assert json.to_string(empty_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"originalSource is too short (minimum is 1)\",\"code\":\"INVALID\"}]}}}"
+
+  let long_source =
+    "https://cdn.example.com/" <> string.repeat("a", times: 2050) <> ".png"
+  let #(Response(status: long_status, body: long_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \""
+        <> long_source
+        <> "\" }]) { files { id } userErrors { field message code } } }",
+    )
+  assert long_status == 200
+  assert json.to_string(long_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"originalSource\"],\"message\":\"originalSource is too long (maximum is 2048)\",\"code\":\"INVALID\"}]}}}"
+
+  let #(Response(status: mode_status, body: mode_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", duplicateResolutionMode: REPLACE }]) { files { id } userErrors { field message code } } }",
+    )
+  assert mode_status == 200
+  assert json.to_string(mode_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"duplicateResolutionMode\"],\"message\":\"Duplicate resolution mode 'REPLACE' is not supported for 'MISSING' media type.\",\"code\":\"INVALID_DUPLICATE_MODE_FOR_TYPE\"}]}}}"
+
+  let #(Response(status: replace_status, body: replace_body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", contentType: IMAGE, duplicateResolutionMode: REPLACE }]) { files { id } userErrors { field message code } } }",
+    )
+  assert replace_status == 200
+  assert json.to_string(replace_body)
+    == "{\"data\":{\"fileCreate\":{\"files\":[],\"userErrors\":[{\"field\":[\"files\",\"0\",\"filename\"],\"message\":\"Missing filename argument when attempting to use REPLACE duplicate mode.\",\"code\":\"MISSING_FILENAME_FOR_DUPLICATE_MODE_REPLACE\"}]}}}"
+}
+
+pub fn file_create_accepts_long_alt_and_valid_duplicate_mode_test() {
+  let long_alt = string.repeat("a", times: 513)
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      registry_proxy(),
+      "mutation { fileCreate(files: [{ originalSource: \"https://cdn.example.com/foo.png\", filename: \"foo.png\", contentType: IMAGE, duplicateResolutionMode: RAISE_ERROR, alt: \""
+        <> long_alt
+        <> "\" }]) { files { id alt } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"userErrors\":[]")
+  assert string.contains(body_json, "\"alt\":\"" <> long_alt <> "\"")
+}
+
 pub fn file_delete_re_resolves_wrong_typed_gid_to_actual_file_type_test() {
   let #(_, proxy) =
     graphql(
