@@ -4,14 +4,14 @@
 
 ### Metafield definition reads
 
-The product-owner definition slice supports the Admin GraphQL read roots:
+The metafield definition slice supports the Admin GraphQL read roots:
 
 - `metafieldDefinition(identifier:)`
 - `metafieldDefinitions(ownerType:, first:, after:, reverse:, sortKey:, query:, namespace:, key:, pinnedStatus:, constraintStatus:, constraintSubtype:)`
 
 In LiveHybrid, cold definition detail/catalog reads use passthrough when the local definition model has no staged or deleted definition state to overlay. Once a scenario stages, hydrates, or deletes metafield definitions, downstream reads stay local so read-after-write and read-after-delete behavior does not leak back to Shopify. In snapshot mode, missing singular definitions return `null`, and catalog misses return a non-null empty connection with empty `nodes` / `edges` and falsey `pageInfo`.
 
-Normalized state stores definition records separately from product metafields. The supported owner type is `PRODUCT`; definition-scoped `metafields` and `metafieldsCount` are derived from the effective product-owned metafield set by matching `namespace` and `key`. Staged definition lifecycle mutations update this same normalized catalog, so downstream definition reads and definition-backed `metafieldsSet` validation use the effective staged definition state.
+Normalized state stores definition records separately from metafield values. Definition records are owner-type scoped and can be staged for non-product owner types. Definition-scoped `metafields` and `metafieldsCount` read staged `metafieldsSet` values whose owner type, namespace, and key match the effective definition. Staged definition lifecycle mutations update this same normalized catalog, so downstream definition reads use the effective staged definition state.
 
 The serializer currently covers these selected definition fields:
 
@@ -27,11 +27,11 @@ The serializer currently covers these selected definition fields:
 - `metafieldsCount`
 - `metafields`
 
-Catalog filters are intentionally limited to the fixture-backed product-owner slice: owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `owner_type`, and `type`. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions.
+Catalog filters cover owner type, namespace, key, pinned status, constraint status/subtype, and search query terms for `id`, `namespace`, `key`, `owner_type`, and `type`. `sortKey: PINNED_POSITION` follows the captured Shopify ordering where higher pinned positions sort before lower pinned positions.
 
 ### Metafield definition lifecycle mutations
 
-The product-owner lifecycle slice stages these roots locally without runtime Shopify writes:
+The definition lifecycle slice stages these roots locally without runtime Shopify writes:
 
 - `metafieldDefinitionCreate(definition:)`
 - `metafieldDefinitionUpdate(definition:)`
@@ -41,15 +41,15 @@ Create supports the normalized fields represented by `MetafieldDefinitionRecord`
 
 Update resolves the existing definition by immutable identity (`ownerType`, `namespace`, `key`). It preserves `type`, `ownerType`, `namespace`, and `key`, and locally updates `name`, `description`, `validations`, selected `access`, and selected `capabilities`. The local `validationJob` payload is currently `null`.
 
-Delete resolves by Shopify's preferred `identifier` input or by global `id`, hides the definition from singular and catalog reads with a staged tombstone, and compacts owner-type pin positions when deleting a pinned definition. When `deleteAllAssociatedMetafields: true`, the local effect conservatively removes matching product-owned metafields from the in-memory graph; it does not invent broad async job state.
+Delete resolves by Shopify's preferred `identifier` input or by global `id`, hides the definition from singular and catalog reads with a staged tombstone, and compacts owner-type pin positions when deleting a pinned definition. When `deleteAllAssociatedMetafields: true`, the local effect conservatively removes matching product-owned metafields from the in-memory graph for `PRODUCT` definitions only; it does not invent broad async job state for other owner families.
 
-Definition-backed `metafieldsSet` support now consults effective staged definitions for product, product variant, and collection owners. When the input omits `type`, the matching definition supplies it. When the input supplies a mismatched type, local validation rejects the write. Fixture-backed basic validations currently cover `max` string length and `regex`.
+Definition-backed `metafieldsSet` support now consults effective staged definitions for product, product variant, collection, customer, order, and company owners. When the input omits `type`, the matching definition supplies it. When the input supplies a mismatched type, local validation rejects the write. Fixture-backed basic validations currently cover `max` string length and `regex` for product-owned values; CUSTOMER, ORDER, and COMPANY value success paths are covered for definition create, `metafieldsSet`, and owner read-after-set.
 
 Live evidence: `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-lifecycle-mutations.json`, captured with `corepack pnpm conformance:capture-metafield-definition-lifecycle`, covers product-owner create, downstream definition/metafield reads, update, delete with `deleteAllAssociatedMetafields: true`, and immediate downstream no-data reads after delete. The Gleam port preserves a minimal product shell when deleting associated product metafields through a definition delete, so a downstream `product(id:) { metafield(...) }` read returns the product object with `metafield: null` rather than collapsing the product root to `null`.
 
 HAR-351 promotes that fixture from runtime-test-backed fixture evidence into `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json` as a strict generic proxy-vs-recording parity scenario. The parity runner seeds the recorded setup product, replays create, definition-backed `metafieldsSet`, downstream definition/product reads, update, delete, and post-delete no-data reads against the local proxy harness. Accepted differences are limited to local synthetic GIDs and the pinned-position offset caused by unrelated pinned definitions already present in the live capture shop.
 
-HAR-450 review note: product-owner definition support is intentionally not broad `HasMetafields` definition support. `metafieldDefinitionCreate` returns a local unsupported-owner `userError` for non-`PRODUCT` owner types instead of proxying or staging a partial definition. `deleteAllAssociatedMetafields: true` is scoped to product-owned metafields matching the deleted product definition's namespace/key and must not remove same-key product-variant, collection, customer, or other owner metafields without separate conformance evidence for those owner families.
+HAR-691 expands definition create/update/delete beyond `PRODUCT` because definitions are owner-type scoped records. Its required parity scenario covers CUSTOMER, ORDER, and COMPANY definition create plus CUSTOMER update, read-by-id, and delete. Rework evidence also covers creating definitions for CUSTOMER, ORDER, and COMPANY, setting matching metafield values with `metafieldsSet`, and reading those values back through the owner roots. `deleteAllAssociatedMetafields: true` remains scoped to product-owned metafields matching a deleted product definition's namespace/key and must not remove same-key product-variant, collection, customer, or other owner metafields without separate conformance evidence for those owner families.
 
 ### Metafield value type matrix
 
@@ -100,15 +100,19 @@ Validation entry points:
 
 - `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
 - `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`
+- `config/parity-specs/metafields/metafield-definition-non-product-owner-types.json`
+- `config/parity-specs/metafields/metafield-definition-non-product-metafields.json`
 - `config/parity-specs/products/metafieldsSet-*.json`
 - `config/parity-specs/products/metafieldDelete-parity-plan.json`
 - `config/parity-specs/products/metafieldsDelete-parity-plan.json`
-- `corepack pnpm conformance:capture-metafield-definition-pinning`
-- `corepack pnpm conformance:capture-metafield-definition-lifecycle`
+- `corepack pnpm conformance:capture -- --run metafield-definition-pinning`
+- `corepack pnpm conformance:capture -- --run metafield-definition-lifecycle`
+- `corepack pnpm conformance:capture -- --run metafield-definition-non-product-owner-types`
+- `corepack pnpm conformance:capture -- --run metafield-definition-non-product-metafields`
 
 ### HAR-450 coverage review gaps
 
 - `standardMetafieldDefinitionTemplates` remains registry-only declaration coverage; enabling a bounded template slice is modeled, but the catalog root itself should not be treated as locally supported until it has executable behavior and fixture-backed shape evidence.
-- Product, product variant, and collection metafield writes are the current shared `metafieldsSet` / delete owner surface. Customer-owned metafields are modeled through customer-domain update behavior, not by broadening the shared product metafield handler.
-- Definition lifecycle parity is product-owner evidence. Non-product owner definition create/update/delete, app-owned definitions, owner-specific access/capability quirks, and delete cascade behavior need fresh conformance before support expands.
+- Product, product variant, collection, customer, order, and company are the current fixture-backed shared `metafieldsSet` owner surface for definition-backed success paths. Additional owner families still need capture-backed set/read evidence before being claimed beyond definition lifecycle staging.
+- Definition lifecycle parity covers product-owner behavior plus HAR-691 non-product owner create/update/delete/read evidence. App-owned definitions, owner-specific access/capability quirks, non-product delete cascade behavior, and non-product owner families outside CUSTOMER/ORDER/COMPANY still need fresh conformance before support expands beyond normalized definition records.
 - CAS/userError coverage for `metafieldsSet` is product-owned fixture evidence. Reuse the atomic validation and downstream-read expectations, but do not assume other owner families have identical validation branches without capture.

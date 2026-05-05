@@ -1,0 +1,15 @@
+mutation MetafieldDefinitionNonProductDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {
+  metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {
+    deletedDefinitionId
+    deletedDefinition {
+      ownerType
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
