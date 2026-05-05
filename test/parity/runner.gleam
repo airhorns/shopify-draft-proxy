@@ -646,6 +646,7 @@ fn parity_customer(id: String, email: String) -> CustomerRecord {
     email_marketing_consent: None,
     sms_marketing_consent: None,
     default_address: None,
+    account_activation_token: None,
     created_at: Some("2024-01-01T00:00:00.000Z"),
     updated_at: Some("2024-01-01T00:00:00.000Z"),
   )
