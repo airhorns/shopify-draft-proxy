@@ -571,6 +571,112 @@ pub fn backup_region_update_stages_and_reads_back_test() {
     == ["gid://shopify/MarketRegionCountry/4062110417202"]
 }
 
+pub fn backup_region_update_omitted_region_returns_current_without_log_test() {
+  let outcome =
+    admin_platform.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation { backupRegionUpdate { backupRegion { id name code } userErrors { field message code } } }",
+      empty_vars(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/4062110417202\",\"name\":\"Canada\",\"code\":\"CA\"}",
+  )
+  assert string.contains(body, "\"userErrors\":[]")
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn backup_region_update_null_region_returns_staged_current_test() {
+  let source = store.new() |> store.upsert_base_shop(make_shop())
+  let identity = synthetic_identity.new()
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let staged =
+    admin_platform.process_mutation(
+      source,
+      identity,
+      request_path,
+      "mutation { backupRegionUpdate(region: { countryCode: US }) { backupRegion { id name code } userErrors { field message code } } }",
+      empty_vars(),
+    )
+  let outcome =
+    admin_platform.process_mutation(
+      staged.store,
+      staged.identity,
+      request_path,
+      "mutation { backupRegionUpdate(region: null) { backupRegion { id name code } userErrors { field message code } } }",
+      empty_vars(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/454910378217\",\"name\":\"United States\",\"code\":\"US\"}",
+  )
+  assert string.contains(body, "\"userErrors\":[]")
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+pub fn backup_region_update_uses_captured_shop_country_evidence_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let source = store.new() |> store.upsert_base_shop(make_shop())
+  let outcome =
+    admin_platform.process_mutation(
+      source,
+      synthetic_identity.new(),
+      request_path,
+      backup_region_update_document("US"),
+      empty_vars(),
+    )
+
+  let body = json.to_string(outcome.data)
+  assert string.contains(
+    body,
+    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/454910378217\",\"name\":\"United States\",\"code\":\"US\"}",
+  )
+  assert string.contains(body, "\"userErrors\":[]")
+
+  let read_body = run_query(outcome.store, "{ backupRegion { id name code } }")
+  assert string.contains(
+    read_body,
+    "\"backupRegion\":{\"id\":\"gid://shopify/MarketRegionCountry/454910378217\",\"name\":\"United States\",\"code\":\"US\"}",
+  )
+  assert outcome.staged_resource_ids
+    == ["gid://shopify/MarketRegionCountry/454910378217"]
+
+  let harry_store =
+    store.new()
+    |> store.upsert_base_shop(shop_for_domain("harry-test-heelo.myshopify.com"))
+  list.each(harry_test_backed_regions(), fn(region) {
+    let #(code, id, name) = region
+    let outcome =
+      admin_platform.process_mutation(
+        harry_store,
+        synthetic_identity.new(),
+        request_path,
+        backup_region_update_document(code),
+        empty_vars(),
+      )
+    let body = json.to_string(outcome.data)
+    assert string.contains(
+      body,
+      "\"backupRegion\":{\"id\":\""
+        <> id
+        <> "\",\"name\":\""
+        <> name
+        <> "\",\"code\":\""
+        <> code
+        <> "\"}",
+    )
+    assert string.contains(body, "\"userErrors\":[]")
+  })
+}
+
 pub fn backup_region_update_validation_does_not_log_test() {
   let outcome =
     admin_platform.process_mutation(
@@ -802,4 +908,45 @@ pub fn draft_proxy_routes_admin_platform_reads_and_mutations_test() {
     "\"backupRegionUpdate\":{\"backupRegion\":{\"code\":\"CA\"},\"userErrors\":[]}",
   )
   assert list.length(store.get_log(proxy.store)) == 1
+}
+
+fn backup_region_update_document(code: String) -> String {
+  "mutation { backupRegionUpdate(region: { countryCode: "
+  <> code
+  <> " }) { backupRegion { id name code } userErrors { field message code } } }"
+}
+
+fn harry_test_backed_regions() -> List(#(String, String, String)) {
+  [
+    #(
+      "AE",
+      "gid://shopify/MarketRegionCountry/4062110482738",
+      "United Arab Emirates",
+    ),
+    #("AT", "gid://shopify/MarketRegionCountry/4062110515506", "Austria"),
+    #("AU", "gid://shopify/MarketRegionCountry/4062110548274", "Australia"),
+    #("BE", "gid://shopify/MarketRegionCountry/4062110581042", "Belgium"),
+    #("CH", "gid://shopify/MarketRegionCountry/4062110613810", "Switzerland"),
+    #("CZ", "gid://shopify/MarketRegionCountry/4062110646578", "Czechia"),
+    #("DE", "gid://shopify/MarketRegionCountry/4062110679346", "Germany"),
+    #("DK", "gid://shopify/MarketRegionCountry/4062110712114", "Denmark"),
+    #("ES", "gid://shopify/MarketRegionCountry/4062110744882", "Spain"),
+    #("FI", "gid://shopify/MarketRegionCountry/4062110777650", "Finland"),
+    #("MX", "gid://shopify/MarketRegionCountry/4062111334706", "Mexico"),
+  ]
+}
+
+fn shop_for_domain(domain: String) -> ShopRecord {
+  let shop = make_shop()
+  ShopRecord(
+    ..shop,
+    name: "harry-test-heelo",
+    myshopify_domain: domain,
+    url: "https://" <> domain,
+    primary_domain: ShopDomainRecord(
+      ..shop.primary_domain,
+      host: domain,
+      url: "https://" <> domain,
+    ),
+  )
 }

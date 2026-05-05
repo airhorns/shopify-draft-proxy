@@ -1,0 +1,21 @@
+mutation MoneyBagPresentmentOrderEditCommit($id: ID!) {
+  orderEditCommit(id: $id, notifyCustomer: false) {
+    order {
+      currentTotalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+        presentmentMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    successMessages
+    userErrors {
+      field
+      message
+    }
+  }
+}

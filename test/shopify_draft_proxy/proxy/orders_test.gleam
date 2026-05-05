@@ -272,6 +272,7 @@ pub fn orders_abandonment_delivery_status_unknown_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -286,7 +287,7 @@ pub fn orders_abandonment_delivery_status_unknown_test() {
       empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":null,\"userErrors\":[{\"field\":[\"abandonmentId\"],\"message\":\"abandonment_not_found\"}]}}}"
+    == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":null,\"userErrors\":[{\"field\":[\"abandonmentId\"],\"message\":\"abandonment_not_found\",\"code\":\"NOT_FOUND\"}]}}}"
   assert outcome.staged_resource_ids == []
   assert list.length(outcome.log_drafts) == 1
 }
@@ -443,6 +444,7 @@ pub fn orders_order_edit_begin_existing_order_payload_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -550,6 +552,10 @@ pub fn orders_order_edit_add_variant_payload_test() {
               amount
               currencyCode
             }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
           }
         }
         orderEditSession {
@@ -558,6 +564,7 @@ pub fn orders_order_edit_add_variant_payload_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -583,7 +590,7 @@ pub fn orders_order_edit_add_variant_payload_test() {
       empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedLineItem\":{\"id\":\"gid://shopify/CalculatedLineItem/1\",\"title\":\"VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE\",\"quantity\":1,\"currentQuantity\":1,\"sku\":\"VN-01-burgandy-4\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/46789254021353\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"29.0\",\"currencyCode\":\"CAD\"}}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/10\"},\"userErrors\":[]}}}"
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedLineItem\":{\"id\":\"gid://shopify/CalculatedLineItem/1\",\"title\":\"VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE\",\"quantity\":1,\"currentQuantity\":1,\"sku\":\"VN-01-burgandy-4\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/46789254021353\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"29.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"29.0\",\"currencyCode\":\"CAD\"}}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/10\"},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == []
   assert outcome.log_drafts == []
 }
@@ -1249,6 +1256,33 @@ pub fn orders_draft_order_create_payload_validation_matrix_test() {
     == "{\"data\":{\"noLineItems\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\"}]},\"unknownVariant\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Product with ID 999999999999999999 is no longer available.\"}]},\"customMissingTitle\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Merchandise title is empty.\"}]},\"zeroQuantity\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"lineItems\",\"0\",\"quantity\"],\"message\":\"Quantity must be greater than or equal to 1\"}]},\"paymentTerms\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Payment terms template id can not be empty.\"}]},\"negativePrice\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Cannot send negative price for line_item\"}]},\"pastReserve\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Reserve until can't be in the past\"}]},\"badEmail\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is invalid\"}]}}}"
   assert list.length(outcome.log_drafts) == 8
   assert store.list_effective_draft_orders(outcome.store) == []
+}
+
+pub fn orders_draft_order_create_user_error_code_test() {
+  let mutation =
+    "
+    mutation {
+      draftOrderCreate(input: { lineItems: [] }) {
+        draftOrder { id }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"draftOrderCreate\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\",\"code\":\"INVALID\"}]}}}"
 }
 
 pub fn orders_draft_order_complete_validation_guardrails_test() {
@@ -2198,6 +2232,259 @@ pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
     orders.process(release_outcome.store, held_read_query, held_read_variables)
   assert json.to_string(released_read)
     == "{\"data\":{\"order\":{\"fulfillmentOrders\":{\"nodes\":[{\"status\":\"OPEN\",\"fulfillmentHolds\":[]},{\"status\":\"CLOSED\",\"fulfillmentHolds\":[]}]}},\"manualHoldsFulfillmentOrders\":{\"nodes\":[]}}}"
+}
+
+pub fn orders_fulfillment_order_hold_validation_branches_test() {
+  let order_id = "gid://shopify/Order/fulfillment-order-hold-validation"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/hold-validation"
+  let fulfillment_order_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/hold-validation"
+  let line_item_id = "gid://shopify/LineItem/fulfillment-order-hold-validation"
+  let seeded =
+    fulfillment_order_lifecycle_store(
+      order_id,
+      fulfillment_order_id,
+      fulfillment_order_line_item_id,
+      line_item_id,
+    )
+  let hold_mutation =
+    "
+    mutation Hold($id: ID!, $fulfillmentHold: FulfillmentOrderHoldInput!) {
+      fulfillmentOrderHold(id: $id, fulfillmentHold: $fulfillmentHold) {
+        fulfillmentHold {
+          handle
+        }
+        fulfillmentOrder {
+          status
+          fulfillmentHolds {
+            handle
+          }
+        }
+        remainingFulfillmentOrder {
+          status
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let first_outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-1"), [
+        #(fulfillment_order_line_item_id, 1),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(first_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"appA-1\"},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"appA-1\"}]},\"remainingFulfillmentOrder\":{\"status\":\"OPEN\"},\"userErrors\":[]}}}"
+
+  let second_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-1"), []),
+      empty_upstream_context(),
+    )
+  assert json.to_string(second_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"handle\"],\"message\":\"The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.\",\"code\":\"DUPLICATE_FULFILLMENT_HOLD_HANDLE\"}]}}}"
+
+  let split_held_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-2"), [
+        #(fulfillment_order_line_item_id, 1),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(split_held_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"fulfillmentOrderLineItems\"],\"message\":\"The fulfillment order is not in a splittable state.\",\"code\":\"FULFILLMENT_ORDER_NOT_SPLITTABLE\"}]}}}"
+
+  let append_outcome =
+    orders.process_mutation(
+      first_outcome.store,
+      first_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-2"), []),
+      empty_upstream_context(),
+    )
+  assert json.to_string(append_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"appA-2\"},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"appA-1\"},{\"handle\":\"appA-2\"}]},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
+
+  let #(limit_ready_store, limit_ready_identity) =
+    [
+      "appA-4",
+      "appA-5",
+      "appA-6",
+      "appA-7",
+      "appA-8",
+      "appA-9",
+      "appA-10",
+      "appA-11",
+    ]
+    |> list.fold(
+      #(append_outcome.store, append_outcome.identity),
+      fn(acc, handle) {
+        let #(current_store, current_identity) = acc
+        let outcome =
+          orders.process_mutation(
+            current_store,
+            current_identity,
+            "/admin/api/2026-04/graphql.json",
+            hold_mutation,
+            fulfillment_order_hold_variables(
+              fulfillment_order_id,
+              Some(handle),
+              [],
+            ),
+            empty_upstream_context(),
+          )
+        #(outcome.store, outcome.identity)
+      },
+    )
+
+  let limit_outcome =
+    orders.process_mutation(
+      limit_ready_store,
+      limit_ready_identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(
+        fulfillment_order_id,
+        Some("appA-12"),
+        [],
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(limit_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.\",\"code\":\"FULFILLMENT_ORDER_HOLD_LIMIT_REACHED\"}]}}}"
+
+  let zero_quantity_outcome =
+    orders.process_mutation(
+      append_outcome.store,
+      append_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-4"), [
+        #(fulfillment_order_line_item_id, 0),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(zero_quantity_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"fulfillmentOrderLineItems\",\"0\",\"quantity\"],\"message\":\"You must select at least one item to place on partial hold.\",\"code\":\"GREATER_THAN_ZERO\"}]}}}"
+
+  let duplicate_line_item_outcome =
+    orders.process_mutation(
+      append_outcome.store,
+      append_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(fulfillment_order_id, Some("appA-4"), [
+        #(fulfillment_order_line_item_id, 1),
+        #(fulfillment_order_line_item_id, 1),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(duplicate_line_item_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"fulfillmentOrderLineItems\"],\"message\":\"must contain unique line item ids\",\"code\":\"DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS\"}]}}}"
+
+  let default_handle_order_id =
+    "gid://shopify/Order/fulfillment-order-hold-default-handle"
+  let default_handle_fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/hold-default-handle"
+  let default_handle_line_item_id =
+    "gid://shopify/FulfillmentOrderLineItem/hold-default-handle"
+  let default_seeded =
+    fulfillment_order_lifecycle_store(
+      default_handle_order_id,
+      default_handle_fulfillment_order_id,
+      default_handle_line_item_id,
+      "gid://shopify/LineItem/fulfillment-order-hold-default-handle",
+    )
+  let default_handle_outcome =
+    orders.process_mutation(
+      default_seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(
+        default_handle_fulfillment_order_id,
+        None,
+        [],
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(default_handle_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"\"},\"fulfillmentOrder\":{\"status\":\"ON_HOLD\",\"fulfillmentHolds\":[{\"handle\":\"\"}]},\"remainingFulfillmentOrder\":null,\"userErrors\":[]}}}"
+
+  let too_long_handle_outcome =
+    orders.process_mutation(
+      default_seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      hold_mutation,
+      fulfillment_order_hold_variables(
+        default_handle_fulfillment_order_id,
+        Some(
+          "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+        ),
+        [],
+      ),
+      empty_upstream_context(),
+    )
+  assert json.to_string(too_long_handle_outcome.data)
+    == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":null,\"fulfillmentOrder\":null,\"remainingFulfillmentOrder\":null,\"userErrors\":[{\"field\":[\"fulfillmentHold\",\"handle\"],\"message\":\"Handle is too long (maximum is 64 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+}
+
+fn fulfillment_order_hold_variables(
+  fulfillment_order_id: String,
+  handle: Option(String),
+  line_items: List(#(String, Int)),
+) -> Dict(String, root_field.ResolvedValue) {
+  let hold_fields = [
+    #("reason", root_field.StringVal("OTHER")),
+    #("notifyMerchant", root_field.BoolVal(False)),
+  ]
+  let hold_fields = case handle {
+    Some(handle) ->
+      list.append(hold_fields, [#("handle", root_field.StringVal(handle))])
+    None -> hold_fields
+  }
+  let hold_fields = case line_items {
+    [] -> hold_fields
+    [_, ..] ->
+      list.append(hold_fields, [
+        #(
+          "fulfillmentOrderLineItems",
+          root_field.ListVal(
+            list.map(line_items, fn(line_item) {
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("id", root_field.StringVal(line_item.0)),
+                  #("quantity", root_field.IntVal(line_item.1)),
+                ]),
+              )
+            }),
+          ),
+        ),
+      ])
+  }
+  dict.from_list([
+    #("id", root_field.StringVal(fulfillment_order_id)),
+    #("fulfillmentHold", root_field.ObjectVal(dict.from_list(hold_fields))),
+  ])
 }
 
 pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
@@ -3895,12 +4182,20 @@ pub fn orders_refund_create_allow_over_refunding_stages_amount_over_refund_test(
               amount
               currencyCode
             }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
           }
         }
         order {
           id
           totalRefundedSet {
             shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
               amount
               currencyCode
             }
@@ -3950,7 +4245,7 @@ pub fn orders_refund_create_allow_over_refunding_stages_amount_over_refund_test(
       empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"refundCreate\":{\"refund\":{\"id\":\"gid://shopify/Refund/1\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}},\"order\":{\"id\":\"gid://shopify/Order/6830465417660\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"refundCreate\":{\"refund\":{\"id\":\"gid://shopify/Refund/1\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}},\"order\":{\"id\":\"gid://shopify/Order/6830465417660\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == [order_id]
 }
 
@@ -5008,6 +5303,427 @@ pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/1\",\"displayFinancialStatus\":\"PAID\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"42.5\",\"currencyCode\":\"USD\"}},\"lineItems\":{\"nodes\":[{\"title\":\"Inventory-backed line\",\"quantity\":2}]}}}}"
 }
 
+pub fn orders_order_create_money_bags_default_presentment_money_test() {
+  let mutation =
+    "
+    mutation Create($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        order {
+          currentTotalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalTaxSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalReceivedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          transactions {
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+              presentmentMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+          lineItems(first: 5) {
+            nodes {
+              originalUnitPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+                presentmentMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "order",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("currency", root_field.StringVal("USD")),
+            #(
+              "lineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("title", root_field.StringVal("MoneyBag line")),
+                    #("quantity", root_field.IntVal(1)),
+                    #(
+                      "priceSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("12.00")),
+                                #("currencyCode", root_field.StringVal("USD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                    #(
+                      "taxLines",
+                      root_field.ListVal([
+                        root_field.ObjectVal(
+                          dict.from_list([
+                            #("title", root_field.StringVal("Line tax")),
+                            #("rate", root_field.FloatVal(0.125)),
+                            #(
+                              "priceSet",
+                              root_field.ObjectVal(
+                                dict.from_list([
+                                  #(
+                                    "shopMoney",
+                                    root_field.ObjectVal(
+                                      dict.from_list([
+                                        #(
+                                          "amount",
+                                          root_field.StringVal("1.50"),
+                                        ),
+                                        #(
+                                          "currencyCode",
+                                          root_field.StringVal("USD"),
+                                        ),
+                                      ]),
+                                    ),
+                                  ),
+                                ]),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            #(
+              "transactions",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("kind", root_field.StringVal("SALE")),
+                    #("status", root_field.StringVal("SUCCESS")),
+                    #("gateway", root_field.StringVal("manual")),
+                    #(
+                      "amountSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("13.50")),
+                                #("currencyCode", root_field.StringVal("USD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCreate\":{\"order\":{\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"13.5\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"13.5\",\"currencyCode\":\"USD\"}},\"totalTaxSet\":{\"shopMoney\":{\"amount\":\"1.5\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"1.5\",\"currencyCode\":\"USD\"}},\"totalReceivedSet\":{\"shopMoney\":{\"amount\":\"13.5\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"13.5\",\"currencyCode\":\"USD\"}},\"transactions\":[{\"amountSet\":{\"shopMoney\":{\"amount\":\"13.5\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"13.5\",\"currencyCode\":\"USD\"}}}],\"lineItems\":{\"nodes\":[{\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"12.0\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"12.0\",\"currencyCode\":\"USD\"}}}]}},\"userErrors\":[]}}}"
+}
+
+pub fn orders_order_create_money_bags_preserve_supplied_presentment_money_test() {
+  let mutation =
+    "
+    mutation Create($order: OrderCreateOrderInput!) {
+      orderCreate(order: $order) {
+        order {
+          id
+          totalPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          lineItems(first: 5) {
+            nodes {
+              originalUnitPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+                presentmentMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "order",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("currency", root_field.StringVal("CAD")),
+            #(
+              "lineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("title", root_field.StringVal("FX line")),
+                    #("quantity", root_field.IntVal(1)),
+                    #(
+                      "priceSet",
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #(
+                            "shopMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("10.00")),
+                                #("currencyCode", root_field.StringVal("CAD")),
+                              ]),
+                            ),
+                          ),
+                          #(
+                            "presentmentMoney",
+                            root_field.ObjectVal(
+                              dict.from_list([
+                                #("amount", root_field.StringVal("7.00")),
+                                #("currencyCode", root_field.StringVal("USD")),
+                              ]),
+                            ),
+                          ),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCreate\":{\"order\":{\"id\":\"gid://shopify/Order/1\",\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"10.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"7.0\",\"currencyCode\":\"USD\"}},\"lineItems\":{\"nodes\":[{\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"10.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"7.0\",\"currencyCode\":\"USD\"}}}]}},\"userErrors\":[]}}}"
+
+  let mark_as_paid_mutation =
+    "
+    mutation MarkPaid($input: OrderMarkAsPaidInput!) {
+      orderMarkAsPaid(input: $input) {
+        order {
+          totalOutstandingSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          totalReceivedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+          transactions {
+            amountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+              presentmentMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let order_id = "gid://shopify/Order/1"
+  let mark_as_paid_outcome =
+    orders.process_mutation(
+      outcome.store,
+      outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      mark_as_paid_mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("id", root_field.StringVal(order_id)),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(mark_as_paid_outcome.data)
+    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"USD\"}},\"totalReceivedSet\":{\"shopMoney\":{\"amount\":\"10.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"7.0\",\"currencyCode\":\"USD\"}},\"transactions\":[{\"amountSet\":{\"shopMoney\":{\"amount\":\"10.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"7.0\",\"currencyCode\":\"USD\"}}}]},\"userErrors\":[]}}}"
+
+  let refund_mutation =
+    "
+    mutation Refund($input: RefundInput!) {
+      refundCreate(input: $input) {
+        refund {
+          totalRefundedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        order {
+          totalRefundedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let refund_outcome =
+    orders.process_mutation(
+      mark_as_paid_outcome.store,
+      mark_as_paid_outcome.identity,
+      "/admin/api/2025-01/graphql.json",
+      refund_mutation,
+      dict.from_list([
+        #(
+          "input",
+          root_field.ObjectVal(
+            dict.from_list([
+              #("orderId", root_field.StringVal(order_id)),
+              #(
+                "transactions",
+                root_field.ListVal([
+                  root_field.ObjectVal(
+                    dict.from_list([
+                      #("amount", root_field.StringVal("5.00")),
+                      #("gateway", root_field.StringVal("manual")),
+                      #("kind", root_field.StringVal("REFUND")),
+                      #("orderId", root_field.StringVal(order_id)),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(refund_outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":{\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"3.5\",\"currencyCode\":\"USD\"}}},\"order\":{\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"3.5\",\"currencyCode\":\"USD\"}}},\"userErrors\":[]}}}"
+}
+
 pub fn orders_order_update_validation_guardrails_test() {
   let missing_inline_id =
     "
@@ -5146,6 +5862,7 @@ pub fn orders_order_update_validation_guardrails_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -5179,7 +5896,7 @@ pub fn orders_order_update_validation_guardrails_test() {
       empty_upstream_context(),
     )
   assert json.to_string(unknown_outcome.data)
-    == "{\"data\":{\"orderUpdate\":{\"order\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Order does not exist\"}]}}}"
+    == "{\"data\":{\"orderUpdate\":{\"order\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
   assert unknown_outcome.staged_resource_ids == []
   assert unknown_outcome.log_drafts == []
   assert store.list_effective_orders(unknown_outcome.store) == []
@@ -5636,6 +6353,162 @@ pub fn orders_order_cancel_read_after_write_test() {
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"closed\":true,\"closedAt\":\"2024-01-01T00:00:00.000Z\",\"cancelledAt\":\"2024-01-01T00:00:00.000Z\",\"cancelReason\":\"OTHER\"}}}"
 }
 
+pub fn orders_order_cancel_rejects_uncancellable_states_test() {
+  let cancelled_id = "gid://shopify/Order/6830646329578"
+  let refunded_id = "gid://shopify/Order/6830646329579"
+  let open_return_id = "gid://shopify/Order/6830646329580"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_cancel_test_order(
+        cancelled_id,
+        "PAID",
+        Some("2024-02-01T00:00:00.000Z"),
+        [],
+      ),
+      order_cancel_test_order(refunded_id, "REFUNDED", None, []),
+      order_cancel_test_order(open_return_id, "PAID", None, [
+        types.CapturedObject([
+          #("id", types.CapturedString("gid://shopify/Return/1")),
+          #("status", types.CapturedString("OPEN")),
+        ]),
+      ]),
+    ])
+
+  let cancelled_outcome = run_order_cancel(seed: seeded, order_id: cancelled_id)
+  assert json.to_string(cancelled_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order has already been cancelled\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order has already been cancelled\",\"code\":\"INVALID\"}]}}}"
+  assert cancelled_outcome.staged_resource_ids == []
+  assert cancelled_outcome.log_drafts == []
+
+  let refunded_outcome = run_order_cancel(seed: seeded, order_id: refunded_id)
+  assert json.to_string(refunded_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel a refunded order\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel a refunded order\",\"code\":\"INVALID\"}]}}}"
+  assert refunded_outcome.staged_resource_ids == []
+  assert refunded_outcome.log_drafts == []
+
+  let open_return_outcome =
+    run_order_cancel(seed: seeded, order_id: open_return_id)
+  assert json.to_string(open_return_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel an order with open returns\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Cannot cancel an order with open returns\",\"code\":\"INVALID\"}]}}}"
+  assert open_return_outcome.staged_resource_ids == []
+  assert open_return_outcome.log_drafts == []
+}
+
+pub fn orders_order_cancel_rejects_invalid_arguments_test() {
+  let order_id = "gid://shopify/Order/6830646329581"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      order_cancel_test_order(order_id, "PENDING", None, []),
+    ])
+
+  let refund_method_outcome =
+    run_order_cancel_with_extra_args(
+      seed: seeded,
+      order_id: order_id,
+      extra_args: ", refund: true, refundMethod: { originalPaymentMethodsRefund: true }",
+    )
+  assert json.to_string(refund_method_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"refund\"],\"message\":\"Refund and refundMethod cannot both be present.\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"refund\"],\"message\":\"Refund and refundMethod cannot both be present.\",\"code\":\"INVALID\"}]}}}"
+  assert refund_method_outcome.staged_resource_ids == []
+  assert refund_method_outcome.log_drafts == []
+
+  let staff_note_outcome =
+    run_order_cancel_with_extra_args(
+      seed: seeded,
+      order_id: order_id,
+      extra_args: ", staffNote: \"" <> string.repeat("x", times: 300) <> "\"",
+    )
+  assert json.to_string(staff_note_outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"staffNote\"],\"message\":\"Staff note is too long (maximum is 255 characters)\",\"code\":\"INVALID\"}],\"userErrors\":[{\"field\":[\"staffNote\"],\"message\":\"Staff note is too long (maximum is 255 characters)\",\"code\":\"INVALID\"}]}}}"
+  assert staff_note_outcome.staged_resource_ids == []
+  assert staff_note_outcome.log_drafts == []
+}
+
+pub fn orders_order_cancel_unknown_order_uses_not_found_code_test() {
+  let outcome =
+    run_order_cancel(seed: store.new(), order_id: "gid://shopify/Order/404")
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderCancel\":{\"order\":null,\"job\":null,\"orderCancelUserErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}],\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert outcome.log_drafts == []
+}
+
+fn order_cancel_test_order(
+  id: String,
+  display_financial_status: String,
+  cancelled_at: Option(String),
+  returns: List(types.CapturedJsonValue),
+) -> types.OrderRecord {
+  types.OrderRecord(
+    id: id,
+    cursor: None,
+    data: types.CapturedObject([
+      #("id", types.CapturedString(id)),
+      #("name", types.CapturedString("#1328")),
+      #("closed", types.CapturedBool(False)),
+      #("closedAt", types.CapturedNull),
+      #("cancelledAt", case cancelled_at {
+        Some(timestamp) -> types.CapturedString(timestamp)
+        None -> types.CapturedNull
+      }),
+      #("cancelReason", types.CapturedNull),
+      #(
+        "displayFinancialStatus",
+        types.CapturedString(display_financial_status),
+      ),
+      #("returns", types.CapturedArray(returns)),
+    ]),
+  )
+}
+
+fn run_order_cancel(seed seed: store.Store, order_id order_id: String) {
+  run_order_cancel_with_extra_args(
+    seed: seed,
+    order_id: order_id,
+    extra_args: "",
+  )
+}
+
+fn run_order_cancel_with_extra_args(
+  seed seed: store.Store,
+  order_id order_id: String,
+  extra_args extra_args: String,
+) {
+  let mutation = "
+    mutation {
+      orderCancel(orderId: \"" <> order_id <> "\", restock: true, reason: OTHER" <> extra_args <> ") {
+        order {
+          id
+        }
+        job {
+          id
+          done
+        }
+        orderCancelUserErrors {
+          field
+          message
+          code
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  orders.process_mutation(
+    seed,
+    synthetic_identity.new(),
+    "/admin/api/2026-04/graphql.json",
+    mutation,
+    dict.new(),
+    empty_upstream_context(),
+  )
+}
+
 pub fn orders_order_invoice_send_payload_test() {
   let order_id = "gid://shopify/Order/6830646329577"
   let seeded =
@@ -5745,6 +6618,10 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
               amount
               currencyCode
             }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
           }
           transactions {
             kind
@@ -5752,6 +6629,10 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
             gateway
             amountSet {
               shopMoney {
+                amount
+                currencyCode
+              }
+              presentmentMoney {
                 amount
                 currencyCode
               }
@@ -5786,7 +6667,7 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
       empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
+    == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == [order_id]
   assert list.length(outcome.log_drafts) == 1
 
@@ -5802,6 +6683,10 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
             amount
             currencyCode
           }
+          presentmentMoney {
+            amount
+            currencyCode
+          }
         }
         transactions {
           kind
@@ -5812,6 +6697,10 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
               amount
               currencyCode
             }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
           }
         }
       }
@@ -5819,7 +6708,7 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
   "
   let assert Ok(read) = orders.process(outcome.store, read_query, dict.new())
   assert json.to_string(read)
-    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]}}}"
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]}}}"
 }
 
 pub fn orders_order_edit_missing_id_validation_guardrails_test() {
@@ -6126,6 +7015,10 @@ pub fn orders_draft_order_update_read_after_write_test() {
               amount
               currencyCode
             }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
           }
           totalQuantityOfLineItems
           lineItems {
@@ -6222,7 +7115,7 @@ pub fn orders_draft_order_update_read_after_write_test() {
     )
 
   assert json.to_string(update_outcome.data)
-    == "{\"data\":{\"draftOrderUpdate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"OPEN\",\"email\":\"updated-draft@example.test\",\"note\":\"Updated note\",\"tags\":[\"draft\",\"updated\"],\"customAttributes\":[{\"key\":\"source\",\"value\":\"har-492-update\"}],\"shippingLine\":{\"title\":\"Standard\",\"code\":\"custom\",\"originalPriceSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"}}},\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"totalShippingPriceSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"}},\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"30.0\",\"currencyCode\":\"CAD\"}},\"totalQuantityOfLineItems\":2,\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/3\",\"title\":\"Updated custom item\",\"quantity\":2,\"sku\":\"HAR-492-UPDATED\",\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"draftOrderUpdate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"OPEN\",\"email\":\"updated-draft@example.test\",\"note\":\"Updated note\",\"tags\":[\"draft\",\"updated\"],\"customAttributes\":[{\"key\":\"source\",\"value\":\"har-492-update\"}],\"shippingLine\":{\"title\":\"Standard\",\"code\":\"custom\",\"originalPriceSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"}}},\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"totalShippingPriceSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"CAD\"}},\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"30.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"30.0\",\"currencyCode\":\"CAD\"}},\"totalQuantityOfLineItems\":2,\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/3\",\"title\":\"Updated custom item\",\"quantity\":2,\"sku\":\"HAR-492-UPDATED\",\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]}},\"userErrors\":[]}}}"
   assert update_outcome.staged_resource_ids == ["gid://shopify/DraftOrder/1"]
   assert list.length(update_outcome.log_drafts) == 1
 
@@ -6472,6 +7365,10 @@ pub fn orders_draft_order_complete_read_after_write_test() {
               amount
               currencyCode
             }
+            presentmentMoney {
+              amount
+              currencyCode
+            }
           }
           lineItems {
             nodes {
@@ -6508,6 +7405,10 @@ pub fn orders_draft_order_complete_read_after_write_test() {
                 amount
                 currencyCode
               }
+              presentmentMoney {
+                amount
+                currencyCode
+              }
             }
             lineItems {
               nodes {
@@ -6518,6 +7419,10 @@ pub fn orders_draft_order_complete_read_after_write_test() {
                 variantTitle
                 originalUnitPriceSet {
                   shopMoney {
+                    amount
+                    currencyCode
+                  }
+                  presentmentMoney {
                     amount
                     currencyCode
                   }
@@ -6548,7 +7453,7 @@ pub fn orders_draft_order_complete_read_after_write_test() {
     )
 
   assert json.to_string(complete_outcome.data)
-    == "{\"data\":{\"draftOrderComplete\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"COMPLETED\",\"ready\":true,\"completedAt\":\"2024-01-01T00:00:01.000Z\",\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/2\",\"title\":\"Completion service\",\"quantity\":2,\"sku\":\"COMPLETE\"}]},\"order\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"paymentGatewayNames\":[\"manual\"],\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"note\":\"complete this staged draft locally\",\"tags\":[\"draft-complete\",\"gleam\"],\"customAttributes\":[{\"key\":\"source\",\"value\":\"direct-test\"}],\"billingAddress\":{\"firstName\":\"Hermes\",\"lastName\":\"Closer\",\"address1\":\"123 Queen St W\",\"city\":\"Toronto\",\"provinceCode\":\"ON\",\"countryCodeV2\":\"CA\",\"zip\":\"M5H 2M9\"},\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/LineItem/4\",\"title\":\"Completion service\",\"quantity\":2,\"sku\":\"COMPLETE\",\"variantTitle\":null,\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]}}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"draftOrderComplete\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"COMPLETED\",\"ready\":true,\"completedAt\":\"2024-01-01T00:00:01.000Z\",\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/2\",\"title\":\"Completion service\",\"quantity\":2,\"sku\":\"COMPLETE\"}]},\"order\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"paymentGatewayNames\":[\"manual\"],\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"note\":\"complete this staged draft locally\",\"tags\":[\"draft-complete\",\"gleam\"],\"customAttributes\":[{\"key\":\"source\",\"value\":\"direct-test\"}],\"billingAddress\":{\"firstName\":\"Hermes\",\"lastName\":\"Closer\",\"address1\":\"123 Queen St W\",\"city\":\"Toronto\",\"provinceCode\":\"ON\",\"countryCodeV2\":\"CA\",\"zip\":\"M5H 2M9\"},\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/LineItem/4\",\"title\":\"Completion service\",\"quantity\":2,\"sku\":\"COMPLETE\",\"variantTitle\":null,\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"},\"presentmentMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}]}}},\"userErrors\":[]}}}"
   assert complete_outcome.staged_resource_ids == ["gid://shopify/DraftOrder/1"]
   assert list.length(complete_outcome.log_drafts) == 1
 

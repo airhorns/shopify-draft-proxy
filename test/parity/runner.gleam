@@ -142,6 +142,7 @@ pub fn run_with_config(
     spec_path,
     parsed,
     capture_source,
+    capture,
     config.debug,
   ))
   use primary_doc <- result.try(
@@ -193,6 +194,7 @@ fn build_proxy(
   spec_path: String,
   parsed: Spec,
   capture_source: String,
+  capture: JsonValue,
   debug: Bool,
 ) -> Result(DraftProxy, RunError) {
   case cassette.parse_calls_from_capture(capture_source) {
@@ -222,13 +224,20 @@ fn build_proxy(
         draft_proxy.with_config(Config(
           read_mode: LiveHybrid,
           port: 4000,
-          shopify_admin_origin: "https://shopify.com",
+          shopify_admin_origin: capture_shopify_admin_origin(capture),
           snapshot_path: None,
         ))
         |> draft_proxy.with_default_registry()
         |> draft_proxy.with_upstream_transport(transport)
       Ok(proxy)
     }
+  }
+}
+
+fn capture_shopify_admin_origin(capture: JsonValue) -> String {
+  case jsonpath.lookup(capture, "$.storeDomain") {
+    Some(JString(domain)) -> "https://" <> domain
+    _ -> "https://shopify.com"
   }
 }
 
