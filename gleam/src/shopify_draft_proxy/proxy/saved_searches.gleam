@@ -13,6 +13,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, ConnectionPageInfoOptions, ConnectionWindow,
@@ -23,7 +24,11 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_empty_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, read_optional_string, single_root_log_draft,
+  type MutationOutcome, MutationOutcome, read_optional_string, respond_to_query,
+  single_root_log_draft,
+}
+import shopify_draft_proxy/proxy/proxy_state.{
+  type DraftProxy, type Request, type Response,
 }
 import shopify_draft_proxy/search_query_parser.{
   parse_search_query_term, search_query_term_value,
@@ -401,6 +406,22 @@ pub fn process(
   Ok(graphql_helpers.wrap_data(data))
 }
 
+/// Uniform query entrypoint matching the dispatcher's signature.
+pub fn handle_query_request(
+  proxy: DraftProxy,
+  _request: Request,
+  _parsed: parse_operation.ParsedOperation,
+  _primary_root_field: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> #(Response, DraftProxy) {
+  respond_to_query(
+    proxy,
+    process(proxy.store, document, variables),
+    "Failed to handle saved searches query",
+  )
+}
+
 /// Predicate matching the TS `isSavedSearchQueryRoot`. Useful for the
 /// dispatcher when checking whether to delegate.
 pub fn is_saved_search_query_root(name: String) -> Bool {
@@ -423,16 +444,6 @@ pub fn saved_search_cursor(record: SavedSearchRecord) -> String {
 /// Outcome of a saved-search mutation: a JSON `data` envelope plus the
 /// updated store and synthetic identity registry. Callers thread these
 /// forward.
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
-}
-
 /// User-error payload emitted on validation failure. Mirrors the
 /// `UserError` shape in TS (`field` may be `null`).
 pub type UserError {
@@ -455,9 +466,9 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, SavedSearchesError) {
+) -> MutationOutcome {
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
       handle_mutation_fields(
@@ -481,7 +492,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, SavedSearchesError) {
+) -> MutationOutcome {
   let initial =
     MutationOutcome(
       data: json.object([]),
@@ -556,11 +567,9 @@ fn handle_mutation_fields(
         _ -> #(pairs, current)
       }
     })
-  Ok(
-    MutationOutcome(
-      ..outcome,
-      data: graphql_helpers.wrap_data(json.object(entries)),
-    ),
+  MutationOutcome(
+    ..outcome,
+    data: graphql_helpers.wrap_data(json.object(entries)),
   )
 }
 

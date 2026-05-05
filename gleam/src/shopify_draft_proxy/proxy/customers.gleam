@@ -26,6 +26,9 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   get_document_fragments, get_field_response_key, paginate_connection_items,
   project_graphql_value, serialize_connection, src_object,
 }
+import shopify_draft_proxy/proxy/mutation_helpers.{
+  type MutationOutcome, MutationOutcome,
+}
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/payments
 import shopify_draft_proxy/proxy/proxy_state.{
@@ -60,15 +63,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type CustomersError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-  )
 }
 
 type UserError {
@@ -1942,30 +1936,20 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, CustomersError) {
-  process_mutation_with_upstream(
-    proxy,
-    request_path,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
-
-pub fn process_mutation_with_upstream(
-  proxy: DraftProxy,
-  request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, CustomersError) {
+) -> MutationOutcome {
   let store = proxy.store
   let identity = proxy.synthetic_identity
   case root_field.get_root_fields(document) {
-    Error(err) -> Error(ParseFailed(err))
+    Error(err) ->
+      mutation_helpers.parse_failed_outcome(
+        proxy.store,
+        proxy.synthetic_identity,
+        err,
+      )
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      Ok(handle_mutation_fields(
+      handle_mutation_fields(
         store,
         identity,
         request_path,
@@ -1974,7 +1958,7 @@ pub fn process_mutation_with_upstream(
         fragments,
         variables,
         upstream,
-      ))
+      )
     }
   }
 }
@@ -1996,6 +1980,7 @@ fn handle_mutation_fields(
         store: store,
         identity: identity,
         staged_resource_ids: [],
+        log_drafts: [],
       )
     None ->
       case first_invalid_tax_exemption_error(fields, variables) {
@@ -2007,6 +1992,7 @@ fn handle_mutation_fields(
             store: store,
             identity: identity,
             staged_resource_ids: [],
+            log_drafts: [],
           )
         None ->
           handle_validated_mutation_fields(
@@ -2161,6 +2147,7 @@ fn handle_validated_mutation_fields(
     store: logged_store,
     identity: logged_identity,
     staged_resource_ids: staged_ids,
+    log_drafts: [],
   )
 }
 
