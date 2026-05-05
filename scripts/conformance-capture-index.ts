@@ -757,6 +757,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'online-store',
+    captureId: 'online-store-article-create-validation',
+    scriptPath: 'scripts/capture-online-store-article-create-validation-conformance.ts',
+    purpose:
+      'articleCreate blog-reference and author validation branches plus valid blogId and author.name success behavior.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}online-store-article-create-validation.json`,
+      'config/parity-specs/online-store/online-store-article-create-validation.json',
+      'config/parity-requests/online-store/online-store-article-create-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable blog for blogId-backed branches, deletes the success-path article, then deletes the blog.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'collections',
     captureId: 'collections',
     scriptPath: 'scripts/capture-collection-conformance.mts',
