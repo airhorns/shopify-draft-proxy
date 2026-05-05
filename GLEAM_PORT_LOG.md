@@ -9,6 +9,61 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-05 - Pass 207: HAR-557 articleCreate validation fidelity
+
+Aligns Online Store `articleCreate` with Shopify validation behavior for blog
+reference and author input errors before local staging. The handler now rejects
+missing or ambiguous blog references and missing or ambiguous authors with
+Shopify-captured `ArticleCreateUserErrorCode` values, records failed mutation
+log entries, and leaves local article/blog state unchanged on validation
+failure.
+
+| Module / fixture                                                                                                                 | Change                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `src/shopify_draft_proxy/proxy/online_store.gleam`                                                                               | Adds pre-staging articleCreate validation and failed mutation-log outcomes for rejected validation branches.                      |
+| `test/shopify_draft_proxy/proxy/online_store_test.gleam`                                                                         | Covers missing blog reference, ambiguous blog, missing author, ambiguous author, no-staging behavior, and the valid success path. |
+| `scripts/capture-online-store-article-create-validation-conformance.ts` / `scripts/conformance-capture-index.ts`                 | Adds an aggregate-indexed live capture for the validation branches and valid blogId plus author.name success path.                |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-article-create-validation.json`           | Records live Shopify validation payloads and disposable blog/article cleanup.                                                     |
+| `config/parity-specs/online-store/online-store-article-create-validation.json` / `config/parity-requests/online-store/*.graphql` | Adds executable parity evidence for the captured validation and success payloads.                                                 |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- one-off live Admin GraphQL 2025-01 probes for `BLOG_REFERENCE_REQUIRED`,
+  `AMBIGUOUS_BLOG`, `AUTHOR_FIELD_REQUIRED`, and `AMBIGUOUS_AUTHOR`
+- `corepack pnpm conformance:capture -- --run online-store-article-create-validation`
+- `gleam test --target javascript -- online_store_test`
+- `gleam test --target javascript -- parity_test`
+- `gleam test --target javascript` (857 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 848 passed)
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2300 passed)
+- `git diff --check`
+
+### Findings
+
+- Shopify returns service-level `AUTHOR_FIELD_REQUIRED` for `author: {}`.
+  Omitting the non-null `author` field from variables instead fails earlier as
+  a top-level `INVALID_VARIABLE` GraphQL error, so the local runtime and parity
+  scenario target the service validation branch.
+- Validation failures return `field: ["article"]`, `article: null`, and no
+  staged records; failed local mutation-log entries keep the rejected write
+  visible without claiming a staged resource.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
+
+---
+
 ## 2026-05-05 - Pass 206: HAR-486 root format check hardening
 
 Hardens the promoted root layout against stale CI cache artifacts from the old
