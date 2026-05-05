@@ -1,0 +1,15 @@
+query DataSaleOptOutDnsTagSearch($query: String!, $first: Int!) {
+  customers(query: $query, first: $first) {
+    nodes {
+      id
+      email
+      tags
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}
