@@ -396,12 +396,46 @@ pub fn run_query_accumulates_multiple_admin_query_errors_test() {
     == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'products'.\",\"code\":\"INVALID\"},{\"field\":[\"query\"],\"message\":\"The parent 'node' field for a nested connection must select the 'id' field without an alias and must be of 'ID' return type. Connection fields without 'id': products.\",\"code\":\"INVALID\"}]}}}"
 }
 
-pub fn run_mutation_missing_upload_stages_failed_job_test() {
+pub fn run_mutation_missing_args_use_valid_base_user_error_codes_test() {
+  let request_path = "/admin/api/2026-04/graphql.json"
+  let missing_mutation =
+    "mutation { bulkOperationRunMutation(stagedUploadPath: \"/bulk/missing.jsonl\") { bulkOperation { id status } userErrors { field message code } } }"
+  let missing_path =
+    "mutation { bulkOperationRunMutation(mutation: \"mutation { productCreate(product: $product) { product { id } } }\") { bulkOperation { id status } userErrors { field message code } } }"
+
+  let missing_mutation_outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      missing_mutation,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  let missing_path_outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      request_path,
+      missing_path,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+
+  assert json.to_string(missing_mutation_outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Bulk mutation is required.\",\"code\":\"INVALID_MUTATION\"}]}}}"
+  assert missing_mutation_outcome.staged_resource_ids == []
+  assert json.to_string(missing_path_outcome.data)
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Staged upload path is required.\",\"code\":\"INVALID_STAGED_UPLOAD_FILE\"}]}}}"
+  assert missing_path_outcome.staged_resource_ids == []
+}
+
+pub fn run_mutation_missing_upload_returns_no_such_file_user_error_test() {
   let request_path = "/admin/api/2026-04/graphql.json"
   let inner =
     "mutation($product: ProductCreateInput!) { productCreate(product: $product) { product { id title } userErrors { field message } } }"
   let document =
-    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message } } }"
+    "mutation BulkImport($mutation: String!, $path: String!) { bulkOperationRunMutation(mutation: $mutation, stagedUploadPath: $path) { bulkOperation { id status type objectCount rootObjectCount fileSize url query } userErrors { field message code } } }"
   let variables =
     dict.from_list([
       #("mutation", root_field.StringVal(inner)),
@@ -417,15 +451,9 @@ pub fn run_mutation_missing_upload_stages_failed_job_test() {
       empty_upstream_context(),
     )
   let response = json.to_string(outcome.data)
-  assert string.contains(response, "\"status\":\"FAILED\"")
-  assert string.contains(
-    response,
-    "\"message\":\"Staged upload content was not found for the provided stagedUploadPath.\"",
-  )
-  let assert [operation_id] = outcome.staged_resource_ids
-  let assert Some(jsonl) =
-    store.get_effective_bulk_operation_result_jsonl(outcome.store, operation_id)
-  assert jsonl == ""
+  assert response
+    == "{\"data\":{\"bulkOperationRunMutation\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"The JSONL file could not be found. Try uploading the file again, and check that you've entered the URL correctly for the stagedUploadPath mutation argument.\",\"code\":\"NO_SUCH_FILE\"}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 pub fn run_mutation_inner_parse_error_matches_shopify_validator_test() {
