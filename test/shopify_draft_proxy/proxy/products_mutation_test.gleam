@@ -509,6 +509,48 @@ pub fn product_create_stages_product_default_variant_and_inventory_test() {
     == 1
 }
 
+pub fn product_variant_mutations_recompute_product_derived_fields_test() {
+  let proxy = draft_proxy.new()
+  let create_query =
+    "mutation { productCreate(product: { title: \\\"Hat\\\", productOptions: [{ name: \\\"Color\\\", values: [{ name: \\\"Red\\\" }] }] }) { product { id priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } } totalVariants hasOnlyDefaultVariant hasOutOfStockVariants tracksInventory totalInventory variants(first: 10) { nodes { id title price selectedOptions { name value } } } } userErrors { field message } } }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(create_query))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"productCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"priceRangeV2\":{\"minVariantPrice\":{\"amount\":\"0.00\",\"currencyCode\":\"USD\"},\"maxVariantPrice\":{\"amount\":\"0.00\",\"currencyCode\":\"USD\"}},\"totalVariants\":1,\"hasOnlyDefaultVariant\":false,\"hasOutOfStockVariants\":false,\"tracksInventory\":false,\"totalInventory\":0,\"variants\":{\"nodes\":[{\"id\":\"gid://shopify/ProductVariant/4\",\"title\":\"Red\",\"price\":\"0.00\",\"selectedOptions\":[{\"name\":\"Color\",\"value\":\"Red\"}]}]}},\"userErrors\":[]}}}"
+
+  let product_id = "gid://shopify/Product/1?shopify-draft-proxy=synthetic"
+  let price_update_query =
+    "mutation { productVariantsBulkUpdate(productId: \\\""
+    <> product_id
+    <> "\\\", variants: [{ id: \\\"gid://shopify/ProductVariant/4\\\", price: \\\"10.00\\\" }]) { product { priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } } totalVariants hasOnlyDefaultVariant hasOutOfStockVariants tracksInventory totalInventory } productVariants { id price } userErrors { field message code } } }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(price_update_query))
+  assert update_status == 200
+  assert json.to_string(update_body)
+    == "{\"data\":{\"productVariantsBulkUpdate\":{\"product\":{\"priceRangeV2\":{\"minVariantPrice\":{\"amount\":\"10.00\",\"currencyCode\":\"USD\"},\"maxVariantPrice\":{\"amount\":\"10.00\",\"currencyCode\":\"USD\"}},\"totalVariants\":1,\"hasOnlyDefaultVariant\":false,\"hasOutOfStockVariants\":false,\"tracksInventory\":false,\"totalInventory\":0},\"productVariants\":[{\"id\":\"gid://shopify/ProductVariant/4\",\"price\":\"10.00\"}],\"userErrors\":[]}}}"
+
+  let bulk_query =
+    "mutation { productVariantsBulkCreate(productId: \\\""
+    <> product_id
+    <> "\\\", variants: [{ optionValues: [{ optionName: \\\"Color\\\", name: \\\"Blue\\\" }], price: \\\"5.00\\\" }, { optionValues: [{ optionName: \\\"Color\\\", name: \\\"Green\\\" }], price: \\\"20.00\\\" }]) { product { id priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } } priceRange { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } } totalVariants hasOnlyDefaultVariant hasOutOfStockVariants tracksInventory totalInventory variants(first: 10) { nodes { title price selectedOptions { name value } } } } productVariants { title price } userErrors { field message code } } }"
+  let #(Response(status: bulk_status, body: bulk_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(bulk_query))
+  assert bulk_status == 200
+  assert json.to_string(bulk_body)
+    == "{\"data\":{\"productVariantsBulkCreate\":{\"product\":{\"id\":\"gid://shopify/Product/1?shopify-draft-proxy=synthetic\",\"priceRangeV2\":{\"minVariantPrice\":{\"amount\":\"5.00\",\"currencyCode\":\"USD\"},\"maxVariantPrice\":{\"amount\":\"20.00\",\"currencyCode\":\"USD\"}},\"priceRange\":{\"minVariantPrice\":{\"amount\":\"5.00\",\"currencyCode\":\"USD\"},\"maxVariantPrice\":{\"amount\":\"20.00\",\"currencyCode\":\"USD\"}},\"totalVariants\":3,\"hasOnlyDefaultVariant\":false,\"hasOutOfStockVariants\":true,\"tracksInventory\":true,\"totalInventory\":0,\"variants\":{\"nodes\":[{\"title\":\"Red\",\"price\":\"10.00\",\"selectedOptions\":[{\"name\":\"Color\",\"value\":\"Red\"}]},{\"title\":\"Blue\",\"price\":\"5.00\",\"selectedOptions\":[{\"name\":\"Color\",\"value\":\"Blue\"}]},{\"title\":\"Green\",\"price\":\"20.00\",\"selectedOptions\":[{\"name\":\"Color\",\"value\":\"Green\"}]}]}},\"productVariants\":[{\"title\":\"Blue\",\"price\":\"5.00\"},{\"title\":\"Green\",\"price\":\"20.00\"}],\"userErrors\":[]}}}"
+
+  let read_query =
+    "query { product(id: \\\""
+    <> product_id
+    <> "\\\") { priceRangeV2 { minVariantPrice { amount currencyCode } maxVariantPrice { amount currencyCode } } totalVariants hasOnlyDefaultVariant hasOutOfStockVariants tracksInventory totalInventory } }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_query))
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"priceRangeV2\":{\"minVariantPrice\":{\"amount\":\"5.00\",\"currencyCode\":\"USD\"},\"maxVariantPrice\":{\"amount\":\"20.00\",\"currencyCode\":\"USD\"}},\"totalVariants\":3,\"hasOnlyDefaultVariant\":false,\"hasOutOfStockVariants\":true,\"tracksInventory\":true,\"totalInventory\":0}}}"
+}
+
 pub fn product_create_validation_branches_return_user_errors_test() {
   let blank_query =
     "mutation { productCreate(product: { title: \\\"\\\" }) { product { id title handle } userErrors { field message } } }"
@@ -782,7 +824,7 @@ pub fn product_variant_create_update_delete_stages_lifecycle_test() {
     draft_proxy.process_request(proxy, graphql_request(update_query))
   assert update_status == 200
   assert json.to_string(update_body)
-    == "{\"data\":{\"productVariantUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"totalInventory\":7,\"tracksInventory\":false},\"productVariant\":{\"id\":\"gid://shopify/ProductVariant/1\",\"title\":\"Blue Deluxe\",\"sku\":\"BLUE-2\",\"inventoryQuantity\":7,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/2\",\"tracked\":false,\"requiresShipping\":true}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"productVariantUpdate\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"totalInventory\":0,\"tracksInventory\":false},\"productVariant\":{\"id\":\"gid://shopify/ProductVariant/1\",\"title\":\"Blue Deluxe\",\"sku\":\"BLUE-2\",\"inventoryQuantity\":7,\"inventoryItem\":{\"id\":\"gid://shopify/InventoryItem/2\",\"tracked\":false,\"requiresShipping\":true}},\"userErrors\":[]}}}"
 
   let delete_query =
     "mutation { productVariantDelete(id: \\\"gid://shopify/ProductVariant/1\\\") { deletedProductVariantId userErrors { field message } } }"
@@ -1092,6 +1134,29 @@ pub fn inventory_set_and_adjust_quantities_accept_on_hand_test() {
     == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"on_hand\",\"delta\":2,\"ledgerDocumentUri\":\"ledger://har-568/on-hand\",\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\",\"name\":\"Shop location\"}}]},\"userErrors\":[]}}}"
 }
 
+pub fn inventory_quantity_mutations_recompute_product_stock_fields_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
+  let adjust_query =
+    "mutation { inventoryAdjustQuantities(input: { name: \\\"available\\\", reason: \\\"correction\\\", changes: [{ inventoryItemId: \\\"gid://shopify/InventoryItem/tracked\\\", locationId: \\\"gid://shopify/Location/1\\\", delta: -1 }] }) { inventoryAdjustmentGroup { changes { name delta item { id } location { id } } } userErrors { field message code } } }"
+  let #(Response(status: adjust_status, body: adjust_body, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(adjust_query))
+  assert adjust_status == 200
+  assert json.to_string(adjust_body)
+    == "{\"data\":{\"inventoryAdjustQuantities\":{\"inventoryAdjustmentGroup\":{\"changes\":[{\"name\":\"available\",\"delta\":-1,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\"}},{\"name\":\"on_hand\",\"delta\":-1,\"item\":{\"id\":\"gid://shopify/InventoryItem/tracked\"},\"location\":{\"id\":\"gid://shopify/Location/1\"}}]},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { product(id: \\\"gid://shopify/Product/tracked\\\") { totalVariants hasOnlyDefaultVariant hasOutOfStockVariants tracksInventory totalInventory variants(first: 5) { nodes { inventoryQuantity inventoryItem { tracked } } } } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"product\":{\"totalVariants\":1,\"hasOnlyDefaultVariant\":true,\"hasOutOfStockVariants\":true,\"tracksInventory\":true,\"totalInventory\":0,\"variants\":{\"nodes\":[{\"inventoryQuantity\":0,\"inventoryItem\":{\"tracked\":true}}]}}}}"
+}
+
 pub fn inventory_transfer_edit_and_duplicate_stage_locally_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: tracked_inventory_store())
@@ -1386,6 +1451,11 @@ fn default_product() -> ProductRecord {
     vendor: None,
     product_type: None,
     tags: ["existing"],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: None,
+    has_only_default_variant: None,
+    has_out_of_stock_variants: None,
     total_inventory: Some(0),
     tracks_inventory: Some(False),
     created_at: None,

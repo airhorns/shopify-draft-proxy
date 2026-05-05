@@ -1,0 +1,24 @@
+mutation InventoryAdjustDerivedFieldsAdjust($input: InventoryAdjustQuantitiesInput!) {
+  inventoryAdjustQuantities(input: $input) {
+    inventoryAdjustmentGroup {
+      reason
+      referenceDocumentUri
+      changes {
+        name
+        delta
+        item {
+          id
+        }
+        location {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

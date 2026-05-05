@@ -1,0 +1,22 @@
+mutation ProductDerivedFieldsCreate($product: ProductCreateInput!) {
+  productCreate(product: $product) {
+    product {
+      id
+      variants(first: 10) {
+        nodes {
+          id
+          title
+          price
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

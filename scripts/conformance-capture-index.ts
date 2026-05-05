@@ -347,6 +347,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'product-derived-fields',
+    scriptPath: 'scripts/capture-product-derived-fields-conformance.mts',
+    purpose: 'Product derived aggregate fields after variant price creation and inventory quantity adjustments.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_inventory', 'write_inventory', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-create-then-bulk-create-price-range-parity.json`,
+      `${CAPTURE_ROOT}inventory-adjust-then-has-out-of-stock-variants-parity.json`,
+      'config/parity-specs/products/productCreate-then-bulkCreate-priceRange-parity.json',
+      'config/parity-specs/products/inventoryAdjust-then-hasOutOfStockVariants-parity.json',
+      'config/parity-requests/products/productCreate-then-bulkCreate-derived-*.graphql',
+      'config/parity-requests/products/inventoryAdjust-then-hasOutOfStockVariants-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable products for price-range and inventory aggregate captures, then deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     captureId: 'inventory-item-mutations',
     scriptPath: 'scripts/capture-inventory-item-mutation-conformance.mts',

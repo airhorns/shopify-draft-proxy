@@ -114,7 +114,19 @@
             }
           },
           "apiVersion": "2026-04"
-        }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.totalInventory",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities; this older capture recorded Shopify's immediately stale product aggregate."
+          },
+          {
+            "path": "$.product.totalInventory",
+            "matcher": "any-number",
+            "reason": "HAR-592 recomputes local product totalInventory from tracked available quantities; this older capture recorded Shopify's immediately stale product aggregate."
+          }
+        ]
       }
     ]
   },
