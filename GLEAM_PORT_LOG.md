@@ -9,7 +9,7 @@ Newer entries go at the top.
 
 ---
 
-## 2026-05-04 - Pass 201: HAR-625 B2B string validation guardrails
+## 2026-05-04 - Pass 202: HAR-625 B2B string validation guardrails
 
 Adds source-driven local validation for B2B free-text fields so supported
 company/contact/location mutations fail before staging values Shopify's B2B
@@ -46,6 +46,74 @@ Validation:
 - HTML sanitization is covered by runtime tests rather than a checked-in parity
   fixture until the live conformance target exhibits the ticketed
   `CONTAINS_HTML_TAGS` behavior.
+
+---
+
+## 2026-05-04 - Pass 201: HAR-601 productSet validator and async operation fidelity
+
+Aligns `productSet` with captured Shopify guardrails for shape validation,
+existing-product references, and asynchronous `ProductSetOperation` polling.
+The mutation now rejects over-large variant and inventory-quantity arrays with
+Shopify's top-level `MAX_INPUT_SIZE_EXCEEDED` error shape, returns structured
+user errors for missing or suspended existing products, shares existing product
+field validation before staging, and records async productSet operations so
+`productOperation(id:)` can read the completed local result.
+
+| Module / fixture                                                                                                                         | Change                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                                                                                     | Adds productSet shape guardrails, existing-product lookup errors, suspended-product errors, shared product field validation, and async operation state. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                                                                                        | Persists product operation user-error codes for `productOperation` reads.                                                                               |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`                                                                      | Covers variant, option, option-value, file, inventory-quantity, missing-product, suspended-product, and async operation behavior.                       |
+| `scripts/capture-product-set-validator-conformance.ts` / `scripts/conformance-capture-index.ts`                                          | Adds the aggregate-indexed live capture for productSet validator and async operation evidence.                                                          |
+| `config/parity-specs/products/productSet-*` / `config/parity-requests/products/productSet-*` / `fixtures/conformance/**/products/*.json` | Adds executable parity specs and cassettes for shape guardrails, unknown-product validation, and async operation polling.                               |
+| `docs/endpoints/products.md`                                                                                                             | Documents the productSet validator limits, reference errors, suspended-product branch, and async operation semantics.                                   |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run product-set-validator`
+- `corepack pnpm parity:record productSet-shape-validator-parity`
+- `corepack pnpm parity:record productSet-async-operation-parity`
+- `cd gleam && gleam test --target javascript -- products_mutation_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+- `corepack pnpm conformance:check` (1436 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm typecheck`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm gleam:test` ran the JavaScript target successfully (854
+  passed) before the host Erlang target failed on the known local OTP 25
+  runtime issue
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 845 passed)
+- `cd gleam && gleam test --target javascript` (854 passed)
+- `cd gleam && gleam test --target javascript -- parity_test` after
+  `parity:record` (854 passed)
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2300 passed)
+- `git diff --check`
+
+### Findings
+
+- Shopify returns top-level `MAX_INPUT_SIZE_EXCEEDED` errors with no `data`
+  envelope for `productSet` arrays above 2048 variants and 250
+  `inventoryQuantities`; source `locations` are parser-specific and ignored in
+  the parity contract.
+- Missing existing-product references return payload user errors on the
+  referenced input field, while suspended effective local products are modeled
+  as `INVALID_PRODUCT` on `["input"]`.
+- `productSet(synchronous: false)` returns a `CREATED` operation with no
+  product immediately, then `productOperation(id:)` observes the completed
+  staged product in the same proxy session.
+
+### Risks / open items
+
+- Public Admin API setup cannot create suspended products, and the parity runner
+  intentionally has no base-state seed hook. Suspended-product behavior is
+  covered by focused Gleam runtime tests instead of a live parity cassette.
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
 
 ---
 
