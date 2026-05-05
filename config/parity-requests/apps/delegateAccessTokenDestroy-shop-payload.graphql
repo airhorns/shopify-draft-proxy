@@ -1,0 +1,13 @@
+mutation DelegateAccessTokenDestroyShopPayload($token: String!) {
+  delegateAccessTokenDestroy(accessToken: $token) {
+    shop {
+      id
+    }
+    status
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

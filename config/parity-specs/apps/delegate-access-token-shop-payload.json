@@ -1,0 +1,82 @@
+{
+  "scenarioId": "delegate-access-token-shop-payload",
+  "operationNames": ["delegateAccessTokenCreate", "delegateAccessTokenDestroy"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/apps/delegate-access-token-shop-payload.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-shop-payload.graphql"
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "delegate-create-payload",
+        "capturePath": "$.evidence.parity.expected.delegateCreate.payload.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "selectedPaths": ["$.shop", "$.userErrors"],
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The proxy returns a stable synthetic shop id when no hydrated shop is present."
+          },
+          {
+            "path": "$.myshopifyDomain",
+            "matcher": "non-empty-string",
+            "reason": "The proxy returns a stable synthetic shop domain when no hydrated shop is present."
+          },
+          {
+            "path": "$.currencyCode",
+            "matcher": "non-empty-string",
+            "reason": "The conformance shop currency is CAD while the unhydrated proxy fallback uses its stable synthetic billing currency."
+          }
+        ]
+      },
+      {
+        "name": "delegate-destroy-payload",
+        "capturePath": "$.evidence.parity.expected.delegateDestroy.payload.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "selectedPaths": ["$.shop", "$.status", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-shop-payload.graphql",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "delegate-create-payload",
+              "path": "$.data.delegateAccessTokenCreate.delegateAccessToken.accessToken"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The proxy returns a stable synthetic shop id when no hydrated shop is present."
+          }
+        ]
+      },
+      {
+        "name": "delegate-destroy-unknown-user-error",
+        "capturePath": "$.evidence.parity.expected.delegateDestroyUnknown.payload.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "selectedPaths": ["$.shop", "$.status", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-shop-payload-unknown.graphql"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Shop",
+            "reason": "The proxy returns a stable synthetic shop id when no hydrated shop is present."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured live 2026-04 delegate access token create/destroy shop payload nullability on harry-test-heelo.myshopify.com. The proxy uses the hydrated store shop when available and otherwise falls back to a stable synthetic Shop, so identity/domain/currency are accepted as synthetic differences while userErrors, status, and non-null shop shape stay strict."
+}
