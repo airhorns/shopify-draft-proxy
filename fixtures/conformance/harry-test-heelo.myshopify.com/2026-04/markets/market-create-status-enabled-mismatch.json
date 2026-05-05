@@ -26,9 +26,7 @@
               "market": null,
               "userErrors": [
                 {
-                  "field": [
-                    "input"
-                  ],
+                  "field": ["input"],
                   "message": "Invalid status and enabled combination.",
                   "code": "INVALID_STATUS_AND_ENABLED_COMBINATION"
                 }
