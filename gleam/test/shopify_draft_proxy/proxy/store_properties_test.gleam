@@ -19,9 +19,16 @@ import shopify_draft_proxy/state/types.{
 }
 
 fn graphql_request(body: String) -> draft_proxy.Request {
+  graphql_request_for_version("2026-04", body)
+}
+
+fn graphql_request_for_version(
+  api_version: String,
+  body: String,
+) -> draft_proxy.Request {
   proxy_state.Request(
     method: "POST",
-    path: "/admin/api/2026-04/graphql.json",
+    path: "/admin/api/" <> api_version <> "/graphql.json",
     headers: dict.new(),
     body: body,
   )
@@ -151,6 +158,26 @@ fn make_raw_record(
       ..fields
     ]),
   )
+}
+
+fn make_location(
+  id: String,
+  name: String,
+  is_active: Bool,
+  activatable: Bool,
+  deactivatable: Bool,
+  fulfills_online_orders: Bool,
+) -> StorePropertyRecord {
+  make_raw_record(id, "Location", [
+    #("name", StorePropertyString(name)),
+    #("isActive", StorePropertyBool(is_active)),
+    #("activatable", StorePropertyBool(activatable)),
+    #("deactivatable", StorePropertyBool(deactivatable)),
+    #("deletable", StorePropertyBool(!is_active)),
+    #("fulfillsOnlineOrders", StorePropertyBool(fulfills_online_orders)),
+    #("hasActiveInventory", StorePropertyBool(False)),
+    #("shipsInventory", StorePropertyBool(is_active)),
+  ])
 }
 
 pub fn empty_shop_read_returns_null_test() {
@@ -348,6 +375,201 @@ pub fn location_reads_and_local_mutations_use_store_state_test() {
   assert string.contains(serialized_state, "\"stagedState\":{")
   assert string.contains(serialized_state, "\"locations\":{")
   assert string.contains(serialized_state, "\"name\":\"Annex\"")
+}
+
+pub fn location_activate_deactivate_stage_and_read_back_test() {
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_store_property_location(make_location(
+      "gid://shopify/Location/1",
+      "Alpha Warehouse",
+      True,
+      False,
+      True,
+      True,
+    ))
+    |> store.upsert_base_store_property_location(make_location(
+      "gid://shopify/Location/2",
+      "Beta Warehouse",
+      True,
+      False,
+      True,
+      False,
+    ))
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+
+  let deactivate_body =
+    "{\"query\":\"mutation { locationDeactivate(locationId: \\\"gid://shopify/Location/2\\\") @idempotent(key: \\\"deactivate-beta\\\") { location { id isActive activatable deactivatable deactivatedAt deletable fulfillsOnlineOrders hasActiveInventory shipsInventory } locationDeactivateUserErrors { field code message } } }\"}"
+  let #(
+    proxy_state.Response(status: deactivate_status, body: deactivate_json, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(deactivate_body))
+  let deactivate_serialized = json.to_string(deactivate_json)
+  assert deactivate_status == 200
+  assert string.contains(deactivate_serialized, "\"isActive\":false")
+  assert string.contains(deactivate_serialized, "\"activatable\":true")
+  assert string.contains(deactivate_serialized, "\"deactivatable\":true")
+  assert string.contains(deactivate_serialized, "\"deletable\":true")
+  assert string.contains(
+    deactivate_serialized,
+    "\"fulfillsOnlineOrders\":false",
+  )
+  assert string.contains(deactivate_serialized, "\"hasActiveInventory\":false")
+  assert string.contains(deactivate_serialized, "\"shipsInventory\":false")
+  assert string.contains(
+    deactivate_serialized,
+    "\"locationDeactivateUserErrors\":[]",
+  )
+
+  let read_deactivated_body =
+    "{\"query\":\"query($id: ID!) { location(id: $id) { id isActive activatable deactivatable } locations(first: 5) { nodes { id isActive activatable deactivatable } } }\",\"variables\":{\"id\":\"gid://shopify/Location/2\"}}"
+  let #(proxy_state.Response(status: read_status, body: read_json, ..), proxy) =
+    draft_proxy.process_request(proxy, graphql_request(read_deactivated_body))
+  let read_serialized = json.to_string(read_json)
+  assert read_status == 200
+  assert string.contains(
+    read_serialized,
+    "\"location\":{\"id\":\"gid://shopify/Location/2\",\"isActive\":false,\"activatable\":true,\"deactivatable\":true}",
+  )
+  assert string.contains(read_serialized, "\"locations\":{\"nodes\":[")
+
+  let activate_body =
+    "{\"query\":\"mutation { locationActivate(locationId: \\\"gid://shopify/Location/2\\\") @idempotent(key: \\\"activate-beta\\\") { location { id isActive activatable deactivatable deactivatedAt deletable shipsInventory } locationActivateUserErrors { field code message } } }\"}"
+  let #(
+    proxy_state.Response(status: activate_status, body: activate_json, ..),
+    proxy,
+  ) = draft_proxy.process_request(proxy, graphql_request(activate_body))
+  let activate_serialized = json.to_string(activate_json)
+  assert activate_status == 200
+  assert string.contains(activate_serialized, "\"isActive\":true")
+  assert string.contains(activate_serialized, "\"activatable\":true")
+  assert string.contains(activate_serialized, "\"deactivatable\":true")
+  assert string.contains(activate_serialized, "\"deactivatedAt\":null")
+  assert string.contains(activate_serialized, "\"deletable\":false")
+  assert string.contains(activate_serialized, "\"shipsInventory\":false")
+  assert string.contains(
+    activate_serialized,
+    "\"locationActivateUserErrors\":[]",
+  )
+
+  let #(proxy_state.Response(status: final_status, body: final_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(read_deactivated_body))
+  assert final_status == 200
+  assert string.contains(
+    json.to_string(final_json),
+    "\"location\":{\"id\":\"gid://shopify/Location/2\",\"isActive\":true,\"activatable\":true,\"deactivatable\":true}",
+  )
+}
+
+pub fn location_lifecycle_missing_idempotency_is_version_gated_test() {
+  let location =
+    make_location(
+      "gid://shopify/Location/1",
+      "Alpha Warehouse",
+      False,
+      True,
+      False,
+      False,
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.upsert_base_store_property_location(proxy.store, location),
+    )
+  let body =
+    "{\"query\":\"mutation { locationActivate(locationId: \\\"gid://shopify/Location/1\\\") { location { id isActive } locationActivateUserErrors { field code message } } }\"}"
+
+  let #(proxy_state.Response(body: required_json, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version("2026-04", body),
+    )
+  let required_serialized = json.to_string(required_json)
+  assert string.contains(required_serialized, "\"code\":\"BAD_REQUEST\"")
+  assert string.contains(required_serialized, "\"locationActivate\":null")
+
+  let #(proxy_state.Response(body: optional_json, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_for_version("2026-01", body),
+    )
+  let optional_serialized = json.to_string(optional_json)
+  assert !string.contains(optional_serialized, "\"code\":\"BAD_REQUEST\"")
+  assert string.contains(optional_serialized, "\"isActive\":true")
+  assert string.contains(
+    optional_serialized,
+    "\"locationActivateUserErrors\":[]",
+  )
+}
+
+pub fn location_activate_non_activatable_returns_user_error_test() {
+  let location =
+    make_location(
+      "gid://shopify/Location/1",
+      "Alpha Warehouse",
+      False,
+      False,
+      False,
+      False,
+    )
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store.upsert_base_store_property_location(proxy.store, location),
+    )
+  let body =
+    "{\"query\":\"mutation { locationActivate(locationId: \\\"gid://shopify/Location/1\\\") @idempotent(key: \\\"activate-alpha\\\") { location { id isActive } locationActivateUserErrors { field code message } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_json)
+
+  assert status == 200
+  assert string.contains(serialized, "\"isActive\":false")
+  assert string.contains(serialized, "\"field\":[\"locationId\"]")
+  assert string.contains(serialized, "\"code\":\"GENERIC_ERROR\"")
+  assert string.contains(
+    serialized,
+    "\"message\":\"Location cannot be activated.\"",
+  )
+}
+
+pub fn location_deactivate_only_online_fulfilling_location_returns_user_error_test() {
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_store_property_location(make_location(
+      "gid://shopify/Location/1",
+      "Alpha Warehouse",
+      True,
+      False,
+      True,
+      True,
+    ))
+    |> store.upsert_base_store_property_location(make_location(
+      "gid://shopify/Location/2",
+      "Beta Warehouse",
+      True,
+      False,
+      True,
+      False,
+    ))
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+  let body =
+    "{\"query\":\"mutation { locationDeactivate(locationId: \\\"gid://shopify/Location/1\\\") @idempotent(key: \\\"deactivate-alpha\\\") { location { id isActive } locationDeactivateUserErrors { field code message } } }\"}"
+  let #(proxy_state.Response(status: status, body: response_json, ..), _) =
+    draft_proxy.process_request(proxy, graphql_request(body))
+  let serialized = json.to_string(response_json)
+
+  assert status == 200
+  assert string.contains(serialized, "\"isActive\":true")
+  assert string.contains(serialized, "\"field\":[\"locationId\"]")
+  assert string.contains(
+    serialized,
+    "\"code\":\"CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT\"",
+  )
 }
 
 pub fn business_entity_reads_use_primary_and_known_ids_test() {
