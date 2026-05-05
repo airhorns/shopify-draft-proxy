@@ -64,6 +64,24 @@ That early subset is not the current product coverage contract. Use `docs/endpoi
 
 So snapshot-mode fidelity cannot be implemented as a single generic fallback rule. It has to be modeled per field family.
 
+## Current: Customer address Atlas validation normalizes some apparent conflicts
+
+HAR-776 captured Admin GraphQL 2025-01 customer address validation against
+`harry-test-heelo.myshopify.com`. Two branches contradicted the original ticket
+expectation:
+
+- `countryCode` / `countryCodeV2` wins over a conflicting display `country`.
+  `countryCode: US` plus `country: "Canada"` is accepted and returns
+  `country: "United States"`.
+- countries without Atlas zones, such as `SG`, ignore submitted province values
+  instead of returning a userError; Shopify returns `province: null` and
+  `provinceCode: null`.
+
+Unknown countries and country-specific province mismatches still return payload
+`userErrors` (`Country is invalid` / `Province is invalid`) and do not stage a
+local address. The executable evidence is
+`config/parity-specs/customers/customer_address_country_province_validation.json`.
+
 ## Current: Online-store body HTML is not scrubbed by Admin GraphQL
 
 HAR-741 resolves the HAR-561 source-of-truth mismatch: on `harry-test-heelo.myshopify.com`, both Admin API `2025-01` and `2026-04` returned page/article bodies containing script blocks and event-handler attributes verbatim in create payloads and immediate detail reads.

@@ -1,0 +1,16 @@
+query B2BStaffAssignmentValidationReadAfterUnknown($companyLocationId: ID!) {
+  companyLocation(id: $companyLocationId) {
+    id
+    staffMemberAssignments(first: 5) {
+      nodes {
+        id
+        staffMember {
+          id
+        }
+        companyLocation {
+          id
+        }
+      }
+    }
+  }
+}

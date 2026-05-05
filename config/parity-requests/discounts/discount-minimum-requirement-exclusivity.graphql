@@ -1,0 +1,51 @@
+mutation DiscountMinimumRequirementExclusivity(
+  $bothCode: DiscountCodeBasicInput!
+  $quantityLimit: DiscountCodeBasicInput!
+  $subtotalLimit: DiscountCodeBasicInput!
+  $bothAutomatic: DiscountAutomaticBasicInput!
+) {
+  bothCode: discountCodeBasicCreate(basicCodeDiscount: $bothCode) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  quantityLimit: discountCodeBasicCreate(basicCodeDiscount: $quantityLimit) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  subtotalLimit: discountCodeBasicCreate(basicCodeDiscount: $subtotalLimit) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  bothAutomatic: discountAutomaticBasicCreate(automaticBasicDiscount: $bothAutomatic) {
+    automaticDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

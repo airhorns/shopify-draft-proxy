@@ -52,9 +52,9 @@ import shopify_draft_proxy/state/types.{
   type DraftOrderVariantCatalogRecord, type OrderRecord,
   type ProductMetafieldRecord, type ProductRecord, type ProductVariantRecord,
   AbandonmentDeliveryActivityRecord, CapturedArray, CapturedBool, CapturedFloat,
-  CapturedInt, CapturedNull, CapturedObject, CapturedString, CustomerRecord,
-  DraftOrderRecord, DraftOrderVariantCatalogRecord, OrderRecord,
-  ProductVariantRecord,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString,
+  CustomerOrderSummaryRecord, CustomerRecord, DraftOrderRecord,
+  DraftOrderVariantCatalogRecord, OrderRecord, ProductVariantRecord,
 }
 
 pub type OrdersError {
@@ -16207,7 +16207,9 @@ fn handle_order_create_mutation(
             [] -> {
               let #(order, next_identity) =
                 build_order_from_create_input(store, identity, input)
-              let next_store = store.stage_order(store, order)
+              let next_store =
+                store.stage_order(store, order)
+                |> stage_order_create_customer_summary(order, input)
               let payload =
                 serialize_order_mutation_payload(
                   field,
@@ -16706,7 +16708,7 @@ fn build_order_from_create_input(
         CapturedArray(build_order_create_tax_lines(input, currency_code)),
       ),
       #("taxesIncluded", CapturedBool(read_bool(input, "taxesIncluded", False))),
-      #("customer", CapturedNull),
+      #("customer", build_order_create_customer(store, input)),
       #(
         "shippingLines",
         CapturedObject([#("nodes", CapturedArray(shipping_lines))]),
@@ -16720,6 +16722,48 @@ fn build_order_from_create_input(
       #("returns", CapturedArray([])),
     ])
   #(OrderRecord(id: order_id, cursor: None, data: data), next_identity)
+}
+
+fn build_order_create_customer(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> CapturedJsonValue {
+  case read_string(input, "customerId") {
+    Some(customer_id) ->
+      case store.get_effective_customer_by_id(store, customer_id) {
+        Some(customer) ->
+          CapturedObject([
+            #("id", CapturedString(customer.id)),
+            #("email", optional_captured_string(customer.email)),
+            #("displayName", optional_captured_string(customer.display_name)),
+          ])
+        None -> CapturedObject([#("id", CapturedString(customer_id))])
+      }
+    None -> CapturedNull
+  }
+}
+
+fn stage_order_create_customer_summary(
+  store: Store,
+  order: OrderRecord,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Store {
+  case read_string(input, "customerId") {
+    Some(customer_id) ->
+      store.stage_customer_order_summary(
+        store,
+        CustomerOrderSummaryRecord(
+          id: order.id,
+          customer_id: Some(customer_id),
+          cursor: None,
+          name: captured_string_field(order.data, "name"),
+          email: captured_string_field(order.data, "email"),
+          created_at: captured_string_field(order.data, "createdAt"),
+          current_total_price: None,
+        ),
+      )
+    None -> store
+  }
 }
 
 type OrderCreateDiscount {

@@ -1,0 +1,6 @@
+query CustomerInviteEmailValidationRead($id: ID!) {
+  customer(id: $id) {
+    id
+    state
+  }
+}

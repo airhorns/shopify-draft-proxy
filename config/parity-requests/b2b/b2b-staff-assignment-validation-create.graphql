@@ -1,0 +1,19 @@
+mutation B2BStaffAssignmentValidationCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      locations(first: 1) {
+        nodes {
+          id
+          name
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
