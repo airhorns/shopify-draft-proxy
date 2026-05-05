@@ -495,6 +495,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'saved-searches',
+    captureId: 'saved-search-name-uniqueness',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-name-uniqueness-conformance.ts',
+    purpose: 'savedSearchCreate and savedSearchUpdate reject duplicate case-sensitive names per resource type.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-name-uniqueness.json`,
+      'config/parity-specs/saved-searches/saved-search-name-uniqueness.json',
+      'config/parity-requests/saved-searches/saved-search-name-uniqueness-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable product saved searches, captures duplicate create/update validation, then deletes both records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-relationship-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
