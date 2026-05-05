@@ -1,0 +1,371 @@
+{
+  "scenarioId": "marketing-activity-upsert-immutable-fields",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "capturedAt": "2026-05-05T06:18:01.600Z",
+  "setup": {
+    "remoteIds": {
+      "child": "har-681-child-1777961880566-26fuzz"
+    }
+  },
+  "cases": [
+    {
+      "name": "child-create",
+      "variables": {
+        "input": {
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/har-681-child",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "urlParameterValue": "har681-child-1777961880566-26fuzz",
+          "utm": {
+            "campaign": "har-681-campaign-child-1777961880566-26fuzz",
+            "source": "email",
+            "medium": "newsletter"
+          },
+          "title": "HAR-681 Child 1777961880566-26fuzz",
+          "remoteId": "har-681-child-1777961880566-26fuzz"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityCreateExternal": {
+              "marketingActivity": {
+                "title": "HAR-681 Child 1777961880566-26fuzz",
+                "urlParameterValue": "har681-child-1777961880566-26fuzz",
+                "parentRemoteId": null,
+                "hierarchyLevel": null,
+                "utmParameters": {
+                  "campaign": "har-681-campaign-child-1777961880566-26fuzz",
+                  "source": "email",
+                  "medium": "newsletter"
+                },
+                "marketingEvent": {
+                  "remoteId": "har-681-child-1777961880566-26fuzz",
+                  "channelHandle": null
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "update-success-by-remote-id",
+      "variables": {
+        "remoteId": "har-681-child-1777961880566-26fuzz",
+        "utm": {
+          "campaign": "har-681-campaign-child-1777961880566-26fuzz",
+          "source": "email",
+          "medium": "newsletter"
+        },
+        "input": {
+          "title": "HAR-681 Child Updated 1777961880566-26fuzz",
+          "status": "PAUSED",
+          "remoteUrl": "https://example.com/har-681-updated"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityUpdateExternal": {
+              "marketingActivity": {
+                "title": "HAR-681 Child Updated 1777961880566-26fuzz"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "upsert-immutable-channel-handle",
+      "variables": {
+        "input": {
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/har-681-child",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "urlParameterValue": "har681-child-1777961880566-26fuzz",
+          "utm": {
+            "campaign": "har-681-campaign-child-1777961880566-26fuzz",
+            "source": "email",
+            "medium": "newsletter"
+          },
+          "title": "HAR-681 Channel Changed 1777961880566-26fuzz",
+          "remoteId": "har-681-child-1777961880566-26fuzz",
+          "channelHandle": "har-681-channel-1777961880566-26fuzz-changed"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityUpsertExternal": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Channel handle cannot be modified.",
+                  "code": "IMMUTABLE_CHANNEL_HANDLE"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "upsert-immutable-url-parameter",
+      "variables": {
+        "input": {
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/har-681-child",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "urlParameterValue": "har681-child-1777961880566-26fuzz-changed",
+          "utm": {
+            "campaign": "har-681-campaign-child-1777961880566-26fuzz",
+            "source": "email",
+            "medium": "newsletter"
+          },
+          "title": "HAR-681 URL Changed 1777961880566-26fuzz",
+          "remoteId": "har-681-child-1777961880566-26fuzz"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityUpsertExternal": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "URL parameter value cannot be modified.",
+                  "code": "IMMUTABLE_URL_PARAMETER"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "upsert-immutable-utm",
+      "variables": {
+        "input": {
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/har-681-child",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "urlParameterValue": "har681-child-1777961880566-26fuzz",
+          "utm": {
+            "campaign": "har-681-campaign-child-1777961880566-26fuzz-changed",
+            "source": "email",
+            "medium": "newsletter"
+          },
+          "title": "HAR-681 UTM Changed 1777961880566-26fuzz",
+          "remoteId": "har-681-child-1777961880566-26fuzz"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityUpsertExternal": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "UTM parameters cannot be modified.",
+                  "code": "IMMUTABLE_UTM_PARAMETERS"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "upsert-invalid-parent-remote-id",
+      "variables": {
+        "input": {
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/har-681-child",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "urlParameterValue": "har681-child-1777961880566-26fuzz",
+          "utm": {
+            "campaign": "har-681-campaign-child-1777961880566-26fuzz",
+            "source": "email",
+            "medium": "newsletter"
+          },
+          "title": "HAR-681 Missing Parent 1777961880566-26fuzz",
+          "remoteId": "har-681-child-1777961880566-26fuzz",
+          "parentRemoteId": "har-681-missing-parent-1777961880566-26fuzz"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityUpsertExternal": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Remote ID does not correspond to an activity.",
+                  "code": "INVALID_REMOTE_ID"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "upsert-immutable-hierarchy-level",
+      "variables": {
+        "input": {
+          "status": "ACTIVE",
+          "remoteUrl": "https://example.com/har-681-child",
+          "tactic": "NEWSLETTER",
+          "marketingChannelType": "EMAIL",
+          "urlParameterValue": "har681-child-1777961880566-26fuzz",
+          "utm": {
+            "campaign": "har-681-campaign-child-1777961880566-26fuzz",
+            "source": "email",
+            "medium": "newsletter"
+          },
+          "title": "HAR-681 Hierarchy Changed 1777961880566-26fuzz",
+          "remoteId": "har-681-child-1777961880566-26fuzz",
+          "hierarchyLevel": "AD_GROUP"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketingActivityUpsertExternal": {
+              "marketingActivity": null,
+              "userErrors": [
+                {
+                  "field": ["input"],
+                  "message": "Hierarchy level cannot be modified.",
+                  "code": "IMMUTABLE_HIERARCHY_LEVEL"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "har-681-child-1777961880566-26fuzz": {
+      "status": 200,
+      "payload": {
+        "data": {
+          "marketingActivityDeleteExternal": {
+            "deletedMarketingActivityId": "gid://shopify/MarketingActivity/197020614962",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}
