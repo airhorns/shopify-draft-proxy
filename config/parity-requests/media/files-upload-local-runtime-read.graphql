@@ -12,6 +12,11 @@ query FilesUploadLocalRuntimeRead {
           width
           height
         }
+        preview {
+          image {
+            url
+          }
+        }
       }
     }
     pageInfo {

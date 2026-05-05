@@ -22,7 +22,7 @@ import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
-import gleam/order.{type Order, Eq}
+import gleam/order.{type Order, Eq, Lt}
 import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
@@ -46,15 +46,18 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser.{type SearchQueryTerm}
 import shopify_draft_proxy/shopify/resource_ids
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
 }
 import shopify_draft_proxy/state/types.{
-  type GiftCardConfigurationRecord, type GiftCardRecipientAttributesRecord,
-  type GiftCardRecord, type GiftCardTransactionRecord, type Money,
-  GiftCardConfigurationRecord, GiftCardRecipientAttributesRecord, GiftCardRecord,
-  GiftCardTransactionRecord, Money,
+  type CustomerRecord, type GiftCardConfigurationRecord,
+  type GiftCardRecipientAttributesRecord, type GiftCardRecord,
+  type GiftCardTransactionRecord, type Money, CustomerDefaultEmailAddressRecord,
+  CustomerDefaultPhoneNumberRecord, CustomerRecord, GiftCardConfigurationRecord,
+  GiftCardRecipientAttributesRecord, GiftCardRecord, GiftCardTransactionRecord,
+  Money,
 }
 
 // ---------------------------------------------------------------------------
@@ -1127,11 +1130,10 @@ fn compare_gift_cards(
 // Mutation path
 // ===========================================================================
 
-/// Outcome of a gift-cards mutation.
-/// User-error payload. Mirrors `GiftCardUserErrorRecord` (no `code`
-/// field — gift-card user errors are field+message only).
+/// User-error payload. Notification roots expose Shopify's typed user-error
+/// codes when the selection asks for them; older local guardrails keep `None`.
 pub type UserError {
-  UserError(field: List(String), message: String)
+  UserError(field: List(String), code: Option(String), message: String)
 }
 
 type MutationFieldResult {
@@ -1268,6 +1270,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                "customer",
                 "GiftCardSendNotificationToCustomerPayload",
               ))
             "giftCardSendNotificationToRecipient" ->
@@ -1277,6 +1280,7 @@ fn handle_mutation_fields(
                 field,
                 fragments,
                 variables,
+                "recipient",
                 "GiftCardSendNotificationToRecipientPayload",
               ))
             _ -> None
@@ -1416,12 +1420,22 @@ fn maybe_hydrate_gift_card(
     updatedAt
     initialValue { amount currencyCode }
     balance { amount currencyCode }
-    customer { id }
+    customer {
+      id
+      email
+      defaultEmailAddress { emailAddress }
+      defaultPhoneNumber { phoneNumber }
+    }
     recipientAttributes {
       message
       preferredName
       sendNotificationAt
-      recipient { id }
+      recipient {
+        id
+        email
+        defaultEmailAddress { emailAddress }
+        defaultPhoneNumber { phoneNumber }
+      }
     }
     transactions(first: 250) {
       nodes {
@@ -1471,6 +1485,10 @@ fn hydrate_gift_card_from_upstream_response(
         Some(record) -> store.upsert_base_gift_cards(store, [record])
         None -> store
       }
+      let store = case json_get(data, "giftCard") |> non_null_json_node {
+        Some(node) -> hydrate_gift_card_customers(store, node)
+        None -> store
+      }
       case
         json_get(data, "giftCardConfiguration")
         |> non_null_json_node
@@ -1482,6 +1500,86 @@ fn hydrate_gift_card_from_upstream_response(
       }
     }
     None -> store
+  }
+}
+
+fn hydrate_gift_card_customers(store: Store, node: commit.JsonValue) -> Store {
+  let customer_nodes = [
+    json_get(node, "customer") |> non_null_json_node,
+    json_get(node, "recipientAttributes")
+      |> non_null_json_node
+      |> option.then(fn(attributes) {
+        json_get(attributes, "recipient") |> non_null_json_node
+      }),
+  ]
+  let customers =
+    customer_nodes
+    |> list.filter_map(fn(customer) {
+      case customer {
+        Some(value) -> customer_record_from_json(value)
+        None -> Error(Nil)
+      }
+    })
+  case customers {
+    [] -> store
+    records -> store.upsert_base_customers(store, records)
+  }
+}
+
+fn customer_record_from_json(
+  node: commit.JsonValue,
+) -> Result(CustomerRecord, Nil) {
+  case json_get_string(node, "id") {
+    Some(id) -> {
+      let email = json_get_string(node, "email")
+      let default_email =
+        json_get(node, "defaultEmailAddress")
+        |> non_null_json_node
+        |> option.then(fn(value) { json_get_string(value, "emailAddress") })
+        |> option.or(email)
+      let default_phone =
+        json_get(node, "defaultPhoneNumber")
+        |> non_null_json_node
+        |> option.then(fn(value) { json_get_string(value, "phoneNumber") })
+      Ok(CustomerRecord(
+        id: id,
+        first_name: None,
+        last_name: None,
+        display_name: None,
+        email: email,
+        legacy_resource_id: None,
+        locale: None,
+        note: None,
+        can_delete: None,
+        verified_email: None,
+        data_sale_opt_out: False,
+        tax_exempt: None,
+        tax_exemptions: [],
+        state: None,
+        tags: [],
+        number_of_orders: None,
+        amount_spent: None,
+        default_email_address: Some(CustomerDefaultEmailAddressRecord(
+          email_address: default_email,
+          marketing_state: None,
+          marketing_opt_in_level: None,
+          marketing_updated_at: None,
+        )),
+        default_phone_number: Some(CustomerDefaultPhoneNumberRecord(
+          phone_number: default_phone,
+          marketing_state: None,
+          marketing_opt_in_level: None,
+          marketing_updated_at: None,
+          marketing_collected_from: None,
+        )),
+        email_marketing_consent: None,
+        sms_marketing_consent: None,
+        default_address: None,
+        created_at: None,
+        updated_at: None,
+      ))
+    }
+    None -> Error(Nil)
   }
 }
 
@@ -1512,6 +1610,7 @@ fn gift_card_record_from_json(
         last_characters: last_characters,
         masked_code: masked_code,
         enabled: option.unwrap(json_get_bool(node, "enabled"), True),
+        notify: option.unwrap(json_get_bool(node, "notify"), True),
         deactivated_at: json_get_string(node, "deactivatedAt"),
         expires_on: json_get_string(node, "expiresOn"),
         note: json_get_string(node, "note"),
@@ -1697,6 +1796,7 @@ fn handle_gift_card_create(
         empty_payload([
           UserError(
             field: ["input", "initialValue"],
+            code: None,
             message: "Initial value must be greater than zero",
           ),
         ])
@@ -1747,6 +1847,7 @@ fn handle_gift_card_create(
           last_characters: last_chars,
           masked_code: masked,
           enabled: True,
+          notify: True,
           deactivated_at: None,
           expires_on: graphql_helpers.read_arg_string_nonempty(
             input,
@@ -1869,6 +1970,7 @@ fn handle_gift_card_update(
           template_suffix: new_template,
           expires_on: new_expires,
           customer_id: new_customer,
+          notify: current.notify,
           recipient_id: new_recipient_id,
           recipient_attributes: new_recipient_attributes,
           updated_at: now,
@@ -1952,6 +2054,7 @@ fn handle_gift_card_transaction(
             empty_payload([
               UserError(
                 field: [preferred_amount_key],
+                code: None,
                 message: "Amount must be greater than zero",
               ),
             ])
@@ -1982,6 +2085,7 @@ fn handle_gift_card_transaction(
                 empty_payload([
                   UserError(
                     field: [preferred_amount_key],
+                    code: None,
                     message: "Insufficient balance",
                   ),
                 ])
@@ -2190,6 +2294,7 @@ fn handle_gift_card_notification(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  notification_target: String,
   payload_typename: String,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
@@ -2199,9 +2304,15 @@ fn handle_gift_card_notification(
     Some(value) -> store.get_effective_gift_card_by_id(store, value)
     None -> None
   }
-  case existing {
-    None -> {
-      let payload = empty_payload([not_found_user_error()])
+  let validation_error = case shop_is_trial(store), existing {
+    True, _ -> Some(notification_trial_user_error())
+    False, None -> Some(not_found_user_error())
+    False, Some(current) ->
+      gift_card_notification_user_error(store, current, notification_target)
+  }
+  case validation_error {
+    Some(error) -> {
+      let payload = empty_payload([error])
       let json_payload =
         gift_card_payload_json(
           payload,
@@ -2220,7 +2331,8 @@ fn handle_gift_card_notification(
         identity,
       )
     }
-    Some(current) -> {
+    None -> {
+      let assert Some(current) = existing
       let payload =
         GiftCardPayload(
           gift_card: Some(current),
@@ -2254,7 +2366,168 @@ fn handle_gift_card_notification(
 // ---------------------------------------------------------------------------
 
 fn not_found_user_error() -> UserError {
-  UserError(field: ["id"], message: "Gift card does not exist")
+  UserError(
+    field: ["id"],
+    code: Some("GIFT_CARD_NOT_FOUND"),
+    message: "The gift card could not be found.",
+  )
+}
+
+fn invalid_user_error(field: List(String), message: String) -> UserError {
+  UserError(field: field, code: Some("INVALID"), message: message)
+}
+
+fn notification_trial_user_error() -> UserError {
+  invalid_user_error(
+    ["base"],
+    "Gift card notifications are not available for trial shops.",
+  )
+}
+
+fn gift_card_notification_user_error(
+  store: Store,
+  current: GiftCardRecord,
+  notification_target: String,
+) -> Option(UserError) {
+  case current.notify {
+    False ->
+      Some(invalid_user_error(["id"], "Gift card notifications are disabled."))
+    True ->
+      gift_card_notification_lifecycle_user_error(
+        store,
+        current,
+        notification_target,
+      )
+  }
+}
+
+fn gift_card_notification_lifecycle_user_error(
+  store: Store,
+  current: GiftCardRecord,
+  notification_target: String,
+) -> Option(UserError) {
+  case gift_card_is_expired(current) {
+    True -> Some(invalid_user_error(["id"], "The gift card has expired."))
+    False ->
+      case current.enabled {
+        False ->
+          Some(invalid_user_error(["id"], "The gift card is deactivated."))
+        True ->
+          gift_card_notification_owner_user_error(
+            store,
+            current,
+            notification_target,
+          )
+      }
+  }
+}
+
+fn gift_card_notification_owner_user_error(
+  store: Store,
+  current: GiftCardRecord,
+  notification_target: String,
+) -> Option(UserError) {
+  let owner_id = case notification_target {
+    "recipient" -> current.recipient_id
+    _ -> current.customer_id
+  }
+  case owner_id {
+    None -> Some(missing_notification_owner_user_error(notification_target))
+    Some(id) ->
+      case store.get_effective_customer_by_id(store, id) {
+        None ->
+          Some(notification_owner_not_found_user_error(notification_target))
+        Some(customer) ->
+          case customer_has_contact_information(customer) {
+            True -> None
+            False ->
+              Some(notification_owner_no_contact_user_error(notification_target))
+          }
+      }
+  }
+}
+
+fn missing_notification_owner_user_error(
+  notification_target: String,
+) -> UserError {
+  case notification_target {
+    "recipient" ->
+      invalid_user_error(["base"], "The gift card has no recipient.")
+    _ -> invalid_user_error(["base"], "The gift card has no customer.")
+  }
+}
+
+fn notification_owner_not_found_user_error(
+  notification_target: String,
+) -> UserError {
+  case notification_target {
+    "recipient" ->
+      UserError(
+        field: ["base"],
+        code: Some("RECIPIENT_NOT_FOUND"),
+        message: "The recipient could not be found.",
+      )
+    _ ->
+      UserError(
+        field: ["base"],
+        code: Some("CUSTOMER_NOT_FOUND"),
+        message: "The customer could not be found.",
+      )
+  }
+}
+
+fn notification_owner_no_contact_user_error(
+  notification_target: String,
+) -> UserError {
+  case notification_target {
+    "recipient" ->
+      invalid_user_error(
+        ["base"],
+        "The recipient has no contact information (e.g. email address or phone number).",
+      )
+    _ ->
+      invalid_user_error(
+        ["base"],
+        "The customer has no contact information (e.g. email address or phone number).",
+      )
+  }
+}
+
+fn gift_card_is_expired(record: GiftCardRecord) -> Bool {
+  case record.expires_on {
+    Some(expires_on) -> {
+      let today = string.slice(iso_timestamp.now_iso(), 0, 10)
+      string.compare(expires_on, today) == Lt
+    }
+    None -> False
+  }
+}
+
+fn shop_is_trial(store: Store) -> Bool {
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      string.contains(string.lowercase(shop.plan.public_display_name), "trial")
+    None -> False
+  }
+}
+
+fn customer_has_contact_information(customer: CustomerRecord) -> Bool {
+  option_string_has_value(customer.email)
+  || case customer.default_email_address {
+    Some(email) -> option_string_has_value(email.email_address)
+    None -> False
+  }
+  || case customer.default_phone_number {
+    Some(phone) -> option_string_has_value(phone.phone_number)
+    None -> False
+  }
+}
+
+fn option_string_has_value(value: Option(String)) -> Bool {
+  case value {
+    Some(raw) -> string.trim(raw) != ""
+    None -> False
+  }
 }
 
 fn dict_has_key(
@@ -2619,6 +2892,7 @@ fn user_error_to_source(error: UserError) -> SourceValue {
   src_object([
     #("__typename", SrcString("UserError")),
     #("field", SrcList(list.map(error.field, fn(part) { SrcString(part) }))),
+    #("code", graphql_helpers.option_string_source(error.code)),
     #("message", SrcString(error.message)),
   ])
 }

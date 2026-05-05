@@ -1,0 +1,58 @@
+{
+  "scenarioId": "online-store/theme-publish-demotes-previous-main",
+  "operationNames": ["themeCreate", "themePublish"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "downstream-read-parity", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/theme-publish-demotes-previous-main.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/theme-publish-create-main.graphql",
+    "variablesCapturePath": "$.main.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-current-main",
+        "capturePath": "$.main.response.payload.data.themeCreate",
+        "proxyPath": "$.data.themeCreate"
+      },
+      {
+        "name": "create-next-unpublished",
+        "capturePath": "$.next.response.payload.data.themeCreate",
+        "proxyPath": "$.data.themeCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/theme-publish-create-unpublished.graphql",
+          "variablesCapturePath": "$.next.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "publish-next-theme",
+        "capturePath": "$.publish.response.payload.data.themePublish",
+        "proxyPath": "$.data.themePublish",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/theme-publish-publish.graphql",
+          "variablesCapturePath": "$.publish.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "downstream-main-read",
+        "capturePath": "$.downstreamRead.response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/theme-publish-read.graphql",
+          "variablesCapturePath": "$.downstreamRead.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-553 proves the local themePublish lifecycle demotes the previous MAIN theme and keeps downstream theme/theme connection reads consistent without runtime Shopify writes."
+}

@@ -1,0 +1,50 @@
+fragment FulfillmentOrderSplitMultiFields on FulfillmentOrder {
+  id
+  status
+  requestStatus
+  updatedAt
+  supportedActions {
+    action
+  }
+  assignedLocation {
+    name
+    location {
+      id
+      name
+    }
+  }
+  lineItems(first: 5) {
+    nodes {
+      id
+      totalQuantity
+      remainingQuantity
+      lineItem {
+        id
+        title
+        quantity
+        fulfillableQuantity
+      }
+    }
+  }
+}
+
+mutation FulfillmentOrderSplitMulti($fulfillmentOrderSplits: [FulfillmentOrderSplitInput!]!) {
+  fulfillmentOrderSplit(fulfillmentOrderSplits: $fulfillmentOrderSplits) {
+    fulfillmentOrderSplits {
+      fulfillmentOrder {
+        ...FulfillmentOrderSplitMultiFields
+      }
+      remainingFulfillmentOrder {
+        ...FulfillmentOrderSplitMultiFields
+      }
+      replacementFulfillmentOrder {
+        ...FulfillmentOrderSplitMultiFields
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
