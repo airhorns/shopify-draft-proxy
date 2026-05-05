@@ -2037,6 +2037,55 @@ pub fn fulfillment_event_create_rejects_unknown_status_test() {
   assert outcome.staged_resource_ids == []
 }
 
+pub fn fulfillment_event_create_invalid_status_variable_is_graphql_error_test() {
+  let body =
+    json.object([
+      #(
+        "query",
+        json.string(
+          "mutation Event($fulfillmentEvent: FulfillmentEventInput!) { fulfillmentEventCreate(fulfillmentEvent: $fulfillmentEvent) { fulfillmentEvent { id } userErrors { field message } } }",
+        ),
+      ),
+      #(
+        "variables",
+        json.object([
+          #(
+            "fulfillmentEvent",
+            json.object([
+              #(
+                "fulfillmentId",
+                json.string("gid://shopify/Fulfillment/status-validation"),
+              ),
+              #("status", json.string("NOT_A_FULFILLMENT_EVENT_STATUS")),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+    |> json.to_string
+
+  let #(response, proxy) =
+    draft_proxy.process_request(
+      draft_proxy.new(),
+      proxy_state.Request(
+        method: "POST",
+        path: "/admin/api/2026-04/graphql.json",
+        headers: dict.new(),
+        body: body,
+      ),
+    )
+
+  assert response.status == 200
+  let serialized = json.to_string(response.body)
+  assert string.contains(serialized, "\"errors\"")
+  assert string.contains(serialized, "\"code\":\"INVALID_VARIABLE\"")
+  assert string.contains(
+    serialized,
+    "Expected \\\"NOT_A_FULFILLMENT_EVENT_STATUS\\\" to be one of:",
+  )
+  assert store.get_log(proxy.store) == []
+}
+
 pub fn fulfillment_event_create_appends_requested_order_timeline_event_test() {
   let order_id = "gid://shopify/Order/event-timeline"
   let fulfillment_id = "gid://shopify/Fulfillment/event-timeline"

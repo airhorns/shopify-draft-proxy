@@ -1866,7 +1866,8 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'fulfillment-event-create-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-fulfillment-event-create-validation-conformance.ts',
-    purpose: 'fulfillmentEventCreate unknown-id validation and valid event read-after-write behavior.',
+    purpose:
+      'fulfillmentEventCreate unknown-id validation, public GraphQL code/enum validation branches, cancelled-fulfillment probe, and valid event read-after-write behavior.',
     requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}fulfillment-event-create-validation.json`,
@@ -1875,7 +1876,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-requests/shipping-fulfillments/fulfillment-event-create-detail-read.graphql',
     ],
     cleanupBehavior:
-      'Creates a disposable test order and fulfillment, probes validation/event behavior, cancels the fulfillment, records the public cancelled-event probe, and cancels the order in cleanup.',
+      'Creates a disposable test order and fulfillment, probes public GraphQL validation/event behavior, cancels the fulfillment, records the public cancelled-event probe, and cancels the order in cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
