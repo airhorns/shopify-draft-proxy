@@ -1524,15 +1524,15 @@ fn markets_mutation_handler(
 
 fn admin_platform_mutation_handler(
   proxy: DraftProxy,
-  request_path: String,
+  _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   _upstream: upstream_query.UpstreamContext,
 ) -> mutation_helpers.MutationOutcome {
-  admin_platform.process_mutation(
+  admin_platform.process_mutation_with_shop_origin(
     proxy.store,
     proxy.synthetic_identity,
-    request_path,
+    proxy.config.shopify_admin_origin,
     document,
     variables,
   )
