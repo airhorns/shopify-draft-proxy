@@ -1,0 +1,16 @@
+mutation MarketCreateStatusEnabledMismatch($input: MarketCreateInput!) {
+  marketCreate(input: $input) {
+    market {
+      id
+      name
+      handle
+      status
+      enabled
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

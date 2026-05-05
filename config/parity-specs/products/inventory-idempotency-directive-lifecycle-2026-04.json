@@ -1,0 +1,53 @@
+{
+  "scenarioId": "inventory-idempotency-directive-lifecycle-2026-04",
+  "operationNames": ["inventoryDeactivate", "inventoryActivate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["idempotency-parity", "runtime-staging", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/inventory-inactive-level-lifecycle-2026-04.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/inventory-inactive-lifecycle-deactivate.graphql",
+    "variablesCapturePath": "$.inventoryInactiveLifecycleDeactivate.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [
+      {
+        "path": "$.inventoryActivate.inventoryLevel.quantities[0].updatedAt",
+        "matcher": "iso-timestamp",
+        "reason": "Reactivation updates Shopify's available quantity timestamp; the proxy synthesizes a deterministic local timestamp."
+      }
+    ],
+    "targets": [
+      {
+        "name": "deactivate-with-field-idempotency-directive",
+        "capturePath": "$.inventoryInactiveLifecycleDeactivate.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "read-after-idempotent-deactivate",
+        "capturePath": "$.inventoryInactiveLifecycleReadAfterDeactivate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-inactive-lifecycle-read.graphql",
+          "variablesCapturePath": "$.inventoryInactiveLifecycleReadAfterDeactivate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "reactivate-with-field-idempotency-directive",
+        "capturePath": "$.inventoryInactiveLifecycleReactivate.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/inventory-inactive-lifecycle-reactivate.graphql",
+          "variablesCapturePath": "$.inventoryInactiveLifecycleReactivate.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-649 review-requested idempotency smoke coverage. This spec replays the HAR-468 disposable inventory lifecycle using the captured field-level @idempotent(key:) documents for inventoryDeactivate and inventoryActivate, proving the parser and local product inventory handlers tolerate Shopify's documented directive syntax while preserving downstream inactive-level reads."
+}

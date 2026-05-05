@@ -1,0 +1,26 @@
+{
+  "scenarioId": "market-create-status-enabled-mismatch",
+  "operationNames": ["marketCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-create-status-enabled-mismatch.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/market-create-status-enabled-mismatch.graphql",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Safe live Shopify Markets validation capture for Admin GraphQL 2026-04. The schema-current resolver-level mismatch branch is status DRAFT with enabled true; status INACTIVE is rejected earlier by Shopify enum validation in 2026-04.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "status-enabled-mismatch-market-create-data",
+        "capturePath": "$.cases[0].response.payload.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}
