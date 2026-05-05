@@ -9,6 +9,7 @@ defmodule ShopifyDraftProxy.InteropTest do
     config = ShopifyDraftProxy.config(proxy)
     assert %ShopifyDraftProxy.Response{status: 200, body: config_body} = config
     assert config_body =~ ~s("readMode":"snapshot")
+    assert config_body =~ ~s("unsupportedMutationMode":"passthrough")
 
     create =
       ShopifyDraftProxy.graphql(proxy, ~s|
@@ -122,11 +123,13 @@ defmodule ShopifyDraftProxy.InteropTest do
     proxy =
       ShopifyDraftProxy.with_config(
         read_mode: :live_hybrid,
+        unsupported_mutation_mode: :reject,
         shopify_admin_origin: "https://my-shop.myshopify.com"
       )
 
     config = ShopifyDraftProxy.config(proxy)
     assert config.body =~ ~s("readMode":"live-hybrid")
+    assert config.body =~ ~s("unsupportedMutationMode":"reject")
     assert config.body =~ ~s("shopifyAdminOrigin":"https://my-shop.myshopify.com")
   end
 
