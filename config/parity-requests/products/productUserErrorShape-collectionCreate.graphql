@@ -1,0 +1,11 @@
+mutation ProductUserErrorShapeCollectionCreate($input: CollectionInput!) {
+  collectionCreate(input: $input) {
+    collection {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

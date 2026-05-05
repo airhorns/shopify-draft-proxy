@@ -232,6 +232,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-user-error-shapes',
+    scriptPath: 'scripts/capture-product-user-error-shape-conformance.ts',
+    purpose:
+      'Product-domain userError field/message/code validation branches for blank titles, unknown product ids, and unknown inventory item ids.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-user-error-shape-parity.json`,
+      'config/parity-specs/products/userError-shape-parity.json',
+      'config/parity-requests/products/productUserErrorShape-*.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify objects should be created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-create-with-options',
     scriptPath: 'scripts/capture-product-create-with-options-conformance.mts',
     purpose:
