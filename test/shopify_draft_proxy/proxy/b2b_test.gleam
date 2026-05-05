@@ -453,6 +453,183 @@ pub fn b2b_company_update_rejects_note_html_and_too_long_test() {
   assert string.contains(update_json, "\"code\":\"TOO_LONG\"")
 }
 
+pub fn b2b_update_roots_reject_empty_and_null_only_input_test() {
+  let company_id = "gid://shopify/Company/1?shopify-draft-proxy=synthetic"
+  let contact_id =
+    "gid://shopify/CompanyContact/5?shopify-draft-proxy=synthetic"
+  let location_id =
+    "gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic"
+  let create =
+    "mutation { companyCreate(input: { company: { name: \"B2B No Input\" }, companyContact: { email: \"noinput@example.com\" }, companyLocation: { name: \"HQ\" } }) { company { id } companyContact { id } companyLocation { id } userErrors { field message code } } }"
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(draft_proxy.new(), create)
+  assert create_status == 200
+  assert list.length(store.get_log(proxy.store)) == 1
+
+  let read =
+    "query { company(id: \""
+    <> company_id
+    <> "\") { id updatedAt contactsCount { count } contacts(first: 5) { nodes { id updatedAt email } } locations(first: 5) { nodes { id updatedAt name } } } }"
+  let #(Response(status: before_status, body: before_body, ..), proxy) =
+    graphql(proxy, read)
+  assert before_status == 200
+  let before_json = json.to_string(before_body)
+
+  let #(
+    Response(status: empty_create_status, body: empty_create_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyContactCreate(companyId: \""
+        <> company_id
+        <> "\", input: {}) { companyContact { id } userErrors { field message code } } }",
+    )
+  assert empty_create_status == 200
+  assert_error_payload(
+    json.to_string(empty_create_body),
+    "companyContact",
+    "\"field\":null",
+    "Company contact create input is empty.",
+    "NO_INPUT",
+  )
+
+  let #(
+    Response(status: empty_company_status, body: empty_company_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyUpdate(companyId: \""
+        <> company_id
+        <> "\", input: {}) { company { id updatedAt } userErrors { field message code } } }",
+    )
+  assert empty_company_status == 200
+  assert_error_payload(
+    json.to_string(empty_company_body),
+    "company",
+    "\"field\":[\"input\"]",
+    "At least one attribute to change must be present",
+    "INVALID",
+  )
+
+  let #(
+    Response(status: empty_contact_status, body: empty_contact_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyContactUpdate(companyContactId: \""
+        <> contact_id
+        <> "\", input: {}) { companyContact { id updatedAt } userErrors { field message code } } }",
+    )
+  assert empty_contact_status == 200
+  assert_error_payload(
+    json.to_string(empty_contact_body),
+    "companyContact",
+    "\"field\":null",
+    "Company contact update input is empty.",
+    "NO_INPUT",
+  )
+
+  let #(
+    Response(status: empty_location_status, body: empty_location_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \""
+        <> location_id
+        <> "\", input: {}) { companyLocation { id updatedAt } userErrors { field message code } } }",
+    )
+  assert empty_location_status == 200
+  assert_error_payload(
+    json.to_string(empty_location_body),
+    "companyLocation",
+    "\"field\":null",
+    "Company location update input is empty.",
+    "NO_INPUT",
+  )
+
+  let #(Response(status: null_create_status, body: null_create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyContactCreate(companyId: \""
+        <> company_id
+        <> "\", input: { email: null, phone: null, note: null }) { companyContact { id } userErrors { field message code } } }",
+    )
+  assert null_create_status == 200
+  assert_no_input_payload(json.to_string(null_create_body), "companyContact")
+
+  let #(
+    Response(status: null_company_status, body: null_company_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyUpdate(companyId: \""
+        <> company_id
+        <> "\", input: { name: null, note: null, externalId: null }) { company { id updatedAt } userErrors { field message code } } }",
+    )
+  assert null_company_status == 200
+  assert_no_input_payload(json.to_string(null_company_body), "company")
+
+  let #(
+    Response(status: null_contact_status, body: null_contact_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyContactUpdate(companyContactId: \""
+        <> contact_id
+        <> "\", input: { email: null, phone: null, note: null }) { companyContact { id updatedAt } userErrors { field message code } } }",
+    )
+  assert null_contact_status == 200
+  assert_no_input_payload(json.to_string(null_contact_body), "companyContact")
+
+  let #(
+    Response(status: null_location_status, body: null_location_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \""
+        <> location_id
+        <> "\", input: { name: null, externalId: null, taxExempt: null }) { companyLocation { id updatedAt } userErrors { field message code } } }",
+    )
+  assert null_location_status == 200
+  assert_no_input_payload(json.to_string(null_location_body), "companyLocation")
+
+  let #(Response(status: after_status, body: after_body, ..), proxy) =
+    graphql(proxy, read)
+  assert after_status == 200
+  assert json.to_string(after_body) == before_json
+  assert list.length(store.get_log(proxy.store)) == 1
+}
+
+fn assert_no_input_payload(body_json: String, payload_field: String) {
+  assert_error_payload(
+    body_json,
+    payload_field,
+    "\"field\":[\"input\"]",
+    "No input provided.",
+    "NO_INPUT",
+  )
+}
+
+fn assert_error_payload(
+  body_json: String,
+  payload_field: String,
+  field_json: String,
+  message: String,
+  code: String,
+) {
+  assert string.contains(body_json, "\"" <> payload_field <> "\":null")
+  assert string.contains(body_json, field_json)
+  assert string.contains(body_json, "\"message\":\"" <> message <> "\"")
+  assert string.contains(body_json, "\"code\":\"" <> code <> "\"")
+}
+
 pub fn b2b_contact_create_rejects_title_and_notes_validation_test() {
   let #(Response(status: create_status, ..), proxy) =
     graphql(

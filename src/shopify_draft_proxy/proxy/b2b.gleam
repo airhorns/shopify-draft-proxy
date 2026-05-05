@@ -378,6 +378,10 @@ pub fn process_mutation(
                     "Staged locally in the in-memory B2B company draft store.",
                   ),
                 )
+              let all_drafts = case should_log_result(result) {
+                True -> list.append(all_drafts, [draft])
+                False -> all_drafts
+              }
               #(
                 list.append(data_entries, [
                   #(get_field_response_key(field), payload_json),
@@ -385,7 +389,7 @@ pub fn process_mutation(
                 result.store,
                 result.identity,
                 list.append(all_ids, result.staged_ids),
-                list.append(all_drafts, [draft]),
+                all_drafts,
               )
             }
             _ -> acc
@@ -431,6 +435,19 @@ fn status_for(result: RootResult) -> store.EntryStatus {
     [], [_, ..] -> store.Staged
     [], [] -> store.Staged
     _, _ -> store.Failed
+  }
+}
+
+fn should_log_result(result: RootResult) -> Bool {
+  !is_empty_input_result(result)
+}
+
+fn is_empty_input_result(result: RootResult) -> Bool {
+  case result.staged_ids, result.payload.user_errors {
+    [], [error] ->
+      error.code == user_error_code.no_input
+      || error == company_update_empty_input_error()
+    _, _ -> False
   }
 }
 
@@ -1698,6 +1715,55 @@ fn has_explicit_null_field(
   }
 }
 
+fn has_any_non_null_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  input
+  |> dict.to_list
+  |> list.any(fn(entry) {
+    case entry.1 {
+      root_field.NullVal -> False
+      _ -> True
+    }
+  })
+}
+
+fn no_input_error() -> UserError {
+  user_error(Some(["input"]), "No input provided.", user_error_code.no_input)
+}
+
+fn contact_create_empty_input_error() -> UserError {
+  user_error(
+    None,
+    "Company contact create input is empty.",
+    user_error_code.no_input,
+  )
+}
+
+fn company_update_empty_input_error() -> UserError {
+  user_error(
+    Some(["input"]),
+    "At least one attribute to change must be present",
+    user_error_code.invalid,
+  )
+}
+
+fn contact_update_empty_input_error() -> UserError {
+  user_error(
+    None,
+    "Company contact update input is empty.",
+    user_error_code.no_input,
+  )
+}
+
+fn location_update_empty_input_error() -> UserError {
+  user_error(
+    None,
+    "Company location update input is empty.",
+    user_error_code.no_input,
+  )
+}
+
 fn validate_billing_same_as_shipping(
   input: Dict(String, root_field.ResolvedValue),
   prefix: List(String),
@@ -2920,57 +2986,79 @@ fn handle_company_update(
             [_, ..] as errors ->
               RootResult(empty_payload(errors), store, identity, [])
             [] -> {
-              let #(input, validation_errors) =
-                validate_company_input(raw_input, ["input"])
-              let validation_errors =
-                validation_errors
-                |> list.append(
-                  validate_duplicate_company_external_id(
-                    store,
-                    input,
-                    Some(company_id),
-                    ["input"],
-                  ),
-                )
-              let name = case dict.get(input, "name") {
-                Ok(root_field.StringVal(value)) -> value
-                _ -> source_string(data_get(company.data, "name"))
-              }
-              case validation_errors, string.trim(name) {
-                [_, ..], _ ->
+              case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
+                True, _ ->
                   RootResult(
-                    empty_payload(validation_errors),
+                    empty_payload([company_update_empty_input_error()]),
                     store,
                     identity,
                     [],
                   )
-                [], "" ->
+                _, False ->
                   RootResult(
-                    empty_payload([
-                      user_error(
-                        Some(["input", "name"]),
-                        "Name can't be blank",
-                        user_error_code.blank,
+                    empty_payload([no_input_error()]),
+                    store,
+                    identity,
+                    [],
+                  )
+                _, True -> {
+                  let #(input, validation_errors) =
+                    validate_company_input(raw_input, ["input"])
+                  let validation_errors =
+                    validation_errors
+                    |> list.append(
+                      validate_duplicate_company_external_id(
+                        store,
+                        input,
+                        Some(company_id),
+                        ["input"],
                       ),
-                    ]),
-                    store,
-                    identity,
-                    [],
-                  )
-                _, _ -> {
-                  let #(now, identity) = timestamp(identity)
-                  let updated =
-                    B2BCompanyRecord(
-                      ..company,
-                      data: company_data_from_input(input, now, company.data),
                     )
-                  let #(updated, store) = stage_company(store, updated)
-                  RootResult(
-                    Payload(..empty_payload([]), company: Some(updated)),
-                    store,
-                    identity,
-                    [updated.id],
-                  )
+                  let name = case dict.get(input, "name") {
+                    Ok(root_field.StringVal(value)) -> value
+                    _ -> source_string(data_get(company.data, "name"))
+                  }
+                  case validation_errors, string.trim(name) {
+                    [_, ..], _ ->
+                      RootResult(
+                        empty_payload(validation_errors),
+                        store,
+                        identity,
+                        [],
+                      )
+                    [], "" ->
+                      RootResult(
+                        empty_payload([
+                          user_error(
+                            Some(["input", "name"]),
+                            "Name can't be blank",
+                            user_error_code.blank,
+                          ),
+                        ]),
+                        store,
+                        identity,
+                        [],
+                      )
+                    _, _ -> {
+                      let #(now, identity) = timestamp(identity)
+                      let updated =
+                        B2BCompanyRecord(
+                          ..company,
+                          data: company_data_from_input(
+                            input,
+                            now,
+                            company.data,
+                          ),
+                        )
+                      let #(updated, store) = stage_company(store, updated)
+                      RootResult(
+                        Payload(..empty_payload([]), company: Some(updated)),
+                        store,
+                        identity,
+                        [updated.id],
+                      )
+                    }
+                  }
                 }
               }
             }
@@ -3159,39 +3247,73 @@ fn handle_contact_create(
                 [],
               )
             False -> {
-              let #(prepared, prepare_errors) =
-                prepare_contact_create_input(store, read_object(args, "input"))
-              let #(input, validation_errors) =
-                validate_contact_input(prepared, ["input"])
-              let errors = list.append(prepare_errors, validation_errors)
-              case errors {
-                [_, ..] ->
+              let raw_input = read_object(args, "input")
+              case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
+                True, _ ->
                   RootResult(
-                    Payload(..empty_payload(errors), company_contact: None),
+                    Payload(
+                      ..empty_payload([contact_create_empty_input_error()]),
+                      company_contact: None,
+                    ),
                     store,
                     identity,
                     [],
                   )
-                [] -> {
-                  let #(contact, store, identity) =
-                    create_contact(store, identity, company_id, input, False)
-                  let #(company, store) =
-                    stage_company(
-                      store,
-                      B2BCompanyRecord(
-                        ..company,
-                        contact_ids: append_unique(
-                          company.contact_ids,
-                          contact.id,
-                        ),
-                      ),
-                    )
+                _, False ->
                   RootResult(
-                    Payload(..empty_payload([]), company_contact: Some(contact)),
+                    Payload(
+                      ..empty_payload([no_input_error()]),
+                      company_contact: None,
+                    ),
                     store,
                     identity,
-                    [contact.id, company.id],
+                    [],
                   )
+                _, True -> {
+                  let #(prepared, prepare_errors) =
+                    prepare_contact_create_input(store, raw_input)
+                  let #(input, validation_errors) =
+                    validate_contact_input(prepared, ["input"])
+                  let errors = list.append(prepare_errors, validation_errors)
+                  case errors {
+                    [_, ..] ->
+                      RootResult(
+                        Payload(..empty_payload(errors), company_contact: None),
+                        store,
+                        identity,
+                        [],
+                      )
+                    [] -> {
+                      let #(contact, store, identity) =
+                        create_contact(
+                          store,
+                          identity,
+                          company_id,
+                          input,
+                          False,
+                        )
+                      let #(company, store) =
+                        stage_company(
+                          store,
+                          B2BCompanyRecord(
+                            ..company,
+                            contact_ids: append_unique(
+                              company.contact_ids,
+                              contact.id,
+                            ),
+                          ),
+                        )
+                      RootResult(
+                        Payload(
+                          ..empty_payload([]),
+                          company_contact: Some(contact),
+                        ),
+                        store,
+                        identity,
+                        [contact.id, company.id],
+                      )
+                    }
+                  }
                 }
               }
             }
@@ -3213,38 +3335,59 @@ fn handle_contact_update(
     Some(contact_id) ->
       case store.get_effective_b2b_company_contact_by_id(store, contact_id) {
         Some(contact) -> {
-          let #(prepared, prepare_errors) =
-            prepare_contact_update_input(
-              store,
-              read_object(args, "input"),
-              contact_id,
-            )
-          let #(input, validation_errors) =
-            validate_contact_input(prepared, ["input"])
-          let errors = list.append(prepare_errors, validation_errors)
-          case errors {
-            [_, ..] ->
+          let raw_input = read_object(args, "input")
+          case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
+            True, _ ->
               RootResult(
-                Payload(..empty_payload(errors), company_contact: None),
+                Payload(
+                  ..empty_payload([contact_update_empty_input_error()]),
+                  company_contact: None,
+                ),
                 store,
                 identity,
                 [],
               )
-            [] -> {
-              let #(now, identity) = timestamp(identity)
-              let updated =
-                B2BCompanyContactRecord(
-                  ..contact,
-                  data: contact_data_from_input(input, now, contact.data),
-                )
-              let #(updated, store) =
-                store.upsert_staged_b2b_company_contact(store, updated)
+            _, False ->
               RootResult(
-                Payload(..empty_payload([]), company_contact: Some(updated)),
+                Payload(
+                  ..empty_payload([no_input_error()]),
+                  company_contact: None,
+                ),
                 store,
                 identity,
-                [updated.id],
+                [],
               )
+            _, True -> {
+              let #(prepared, prepare_errors) =
+                prepare_contact_update_input(store, raw_input, contact_id)
+              let #(input, validation_errors) =
+                validate_contact_input(prepared, ["input"])
+              let errors = list.append(prepare_errors, validation_errors)
+              case errors {
+                [_, ..] ->
+                  RootResult(
+                    Payload(..empty_payload(errors), company_contact: None),
+                    store,
+                    identity,
+                    [],
+                  )
+                [] -> {
+                  let #(now, identity) = timestamp(identity)
+                  let updated =
+                    B2BCompanyContactRecord(
+                      ..contact,
+                      data: contact_data_from_input(input, now, contact.data),
+                    )
+                  let #(updated, store) =
+                    store.upsert_staged_b2b_company_contact(store, updated)
+                  RootResult(
+                    Payload(..empty_payload([]), company_contact: Some(updated)),
+                    store,
+                    identity,
+                    [updated.id],
+                  )
+                }
+              }
             }
           }
         }
@@ -3849,31 +3992,61 @@ fn handle_location_update(
     Some(id) ->
       case store.get_effective_b2b_company_location_by_id(store, id) {
         Some(location) -> {
-          let #(input, validation_errors) =
-            validate_location_input(read_object(args, "input"), ["input"])
-          let validation_errors =
-            validation_errors
-            |> list.append(
-              validate_duplicate_location_external_id(store, input, Some(id), [
-                "input",
-              ]),
-            )
-          case validation_errors {
-            [_, ..] ->
-              RootResult(empty_payload(validation_errors), store, identity, [])
-            [] -> {
-              let #(now, identity) = timestamp(identity)
-              let #(data, identity) =
-                location_data_from_input(identity, input, now, location.data)
-              let updated = B2BCompanyLocationRecord(..location, data: data)
-              let #(updated, store) =
-                store.upsert_staged_b2b_company_location(store, updated)
+          let raw_input = read_object(args, "input")
+          case dict.is_empty(raw_input), has_any_non_null_input(raw_input) {
+            True, _ ->
               RootResult(
-                Payload(..empty_payload([]), company_location: Some(updated)),
+                empty_payload([location_update_empty_input_error()]),
                 store,
                 identity,
-                [updated.id],
+                [],
               )
+            _, False ->
+              RootResult(empty_payload([no_input_error()]), store, identity, [])
+            _, True -> {
+              let #(input, validation_errors) =
+                validate_location_input(raw_input, ["input"])
+              let validation_errors =
+                validation_errors
+                |> list.append(
+                  validate_duplicate_location_external_id(
+                    store,
+                    input,
+                    Some(id),
+                    ["input"],
+                  ),
+                )
+              case validation_errors {
+                [_, ..] ->
+                  RootResult(
+                    empty_payload(validation_errors),
+                    store,
+                    identity,
+                    [],
+                  )
+                [] -> {
+                  let #(now, identity) = timestamp(identity)
+                  let #(data, identity) =
+                    location_data_from_input(
+                      identity,
+                      input,
+                      now,
+                      location.data,
+                    )
+                  let updated = B2BCompanyLocationRecord(..location, data: data)
+                  let #(updated, store) =
+                    store.upsert_staged_b2b_company_location(store, updated)
+                  RootResult(
+                    Payload(
+                      ..empty_payload([]),
+                      company_location: Some(updated),
+                    ),
+                    store,
+                    identity,
+                    [updated.id],
+                  )
+                }
+              }
             }
           }
         }
