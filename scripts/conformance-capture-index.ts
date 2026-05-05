@@ -2688,6 +2688,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'gift-cards',
+    captureId: 'gift-card-create-initial-value-limit',
+    scriptPath: 'scripts/capture-gift-card-create-initial-value-limit-conformance.ts',
+    purpose:
+      'Gift-card create initialValue validation at the configured issue limit, one cent over the issue limit, and a well-over-limit value.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-create-initial-value-limit.json`,
+      'config/parity-specs/gift-cards/gift-card-create-initial-value-limit.json',
+      'config/parity-requests/gift-cards/gift-card-create-initial-value-limit.graphql',
+    ],
+    cleanupBehavior:
+      'Reads giftCardConfiguration.issueLimit, creates one boundary-success disposable gift card, deactivates any created gift cards during cleanup, and expects over-limit branches to create no gift cards.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'gift-cards',
     captureId: 'gift-card-update-validation',
     scriptPath: 'scripts/capture-gift-card-update-validation-conformance.ts',
     purpose:
