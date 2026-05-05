@@ -3300,6 +3300,7 @@ fn customer_record_from_node(
     )),
     default_address: json_get(node, "defaultAddress")
       |> option.then(default_address_from_node),
+    account_activation_token: None,
     created_at: json_get_string(node, "createdAt"),
     updated_at: json_get_string(node, "updatedAt"),
   ))
@@ -3839,6 +3840,7 @@ fn build_created_customer(
       email_marketing_consent: make_email_consent(input),
       sms_marketing_consent: make_sms_consent(input),
       default_address: default_address,
+      account_activation_token: None,
       created_at: Some(timestamp),
       updated_at: Some(timestamp),
     ),
@@ -5494,31 +5496,39 @@ fn handle_data_erasure(store, identity, field, variables, cancel) {
 fn handle_activation_url(store, identity, field, variables) {
   let args = graphql_helpers.field_args(field, variables)
   let customer_id = graphql_helpers.read_arg_string_nonempty(args, "customerId")
-  let errors = case customer_id {
+  let #(url, errors, next_store) = case customer_id {
     Some(id) ->
       case store.get_effective_customer_by_id(store, id) {
-        Some(_) -> []
-        None -> [
-          UserError(
-            ["customerId"],
-            "The customer can't be found.",
-            Some("CUSTOMER_DOES_NOT_EXIST"),
-          ),
-        ]
+        Some(customer) ->
+          case customer.state {
+            Some("DISABLED") | Some("INVITED") -> {
+              let token =
+                customer.account_activation_token
+                |> option.unwrap(activation_token_for_customer(id))
+              let updated =
+                CustomerRecord(
+                  ..customer,
+                  account_activation_token: Some(token),
+                )
+              let #(_, staged_store) =
+                store.stage_update_customer(store, updated)
+              #(Some(activation_url_for_customer(id, token)), [], staged_store)
+            }
+            _ -> #(
+              None,
+              [
+                UserError(
+                  ["customerId"],
+                  "Account already enabled.",
+                  Some("account_already_enabled"),
+                ),
+              ],
+              store,
+            )
+          }
+        None -> #(None, [missing_customer_activation_error()], store)
       }
-    None -> [
-      UserError(
-        ["customerId"],
-        "The customer can't be found.",
-        Some("CUSTOMER_DOES_NOT_EXIST"),
-      ),
-    ]
-  }
-  let url = case errors, customer_id {
-    [], Some(id) ->
-      "https://shopify-draft-proxy.local/customer-account/activate?customer_id="
-      <> id
-    _, _ -> ""
+    None -> #(None, [missing_customer_activation_error()], store)
   }
   let payload = case field {
     Field(selection_set: Some(SelectionSet(selections: selections, ..)), ..) ->
@@ -5529,7 +5539,7 @@ fn handle_activation_url(store, identity, field, variables) {
             SrcString("CustomerGenerateAccountActivationUrlPayload"),
           ),
           #("accountActivationUrl", case errors {
-            [] -> SrcString(url)
+            [] -> option.unwrap(option.map(url, SrcString), SrcNull)
             _ -> SrcNull
           }),
           #("userErrors", SrcList(list.map(errors, user_error_source))),
@@ -5549,9 +5559,38 @@ fn handle_activation_url(store, identity, field, variables) {
       },
       "customerGenerateAccountActivationUrl",
     ),
-    store,
+    next_store,
     identity,
   )
+}
+
+fn missing_customer_activation_error() -> UserError {
+  UserError(
+    ["customerId"],
+    "The customer can't be found.",
+    Some("customer_does_not_exist"),
+  )
+}
+
+fn activation_url_for_customer(customer_id: String, token: String) -> String {
+  "https://shopify-draft-proxy.local/customer-account/activate?customer_id="
+  <> customer_id
+  <> "&account_activation_token="
+  <> token
+}
+
+fn activation_token_for_customer(customer_id: String) -> String {
+  "draft-proxy-activation-"
+  <> option.unwrap(gid_tail(customer_id), token_safe_customer_id(customer_id))
+}
+
+fn token_safe_customer_id(customer_id: String) -> String {
+  customer_id
+  |> string.replace(":", "-")
+  |> string.replace("/", "-")
+  |> string.replace("?", "-")
+  |> string.replace("&", "-")
+  |> string.replace("=", "-")
 }
 
 fn handle_account_invite(store, identity, field, fragments, variables) {
@@ -7108,6 +7147,7 @@ fn build_merged_customer(
     email_marketing_consent: email_source.email_marketing_consent,
     sms_marketing_consent: phone_source.sms_marketing_consent,
     default_address: default_address,
+    account_activation_token: None,
     created_at: one.created_at,
     updated_at: Some(timestamp),
   )

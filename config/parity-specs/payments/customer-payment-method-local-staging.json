@@ -47,7 +47,11 @@
           "variables": {
             "customerId": "gid://shopify/Customer/8802",
             "billingAddress": {
-              "countryCode": "US"
+              "address1": "1 Secret St",
+              "city": "New York",
+              "zip": "10001",
+              "countryCode": "US",
+              "provinceCode": "NY"
             },
             "encryptedDuplicationData": {
               "fromPrimaryProxyPath": "$.data.duplication.encryptedDuplicationData"

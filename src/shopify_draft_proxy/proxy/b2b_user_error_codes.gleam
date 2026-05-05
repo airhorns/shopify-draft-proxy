@@ -56,6 +56,8 @@ pub const role_assignments_max_cap_reached: Code = Code(
   "ROLE_ASSIGNMENTS_MAX_CAP_REACHED",
 )
 
+pub const failed_to_delete: Code = Code("FAILED_TO_DELETE")
+
 pub const one_role_already_assigned: Code = Code("ONE_ROLE_ALREADY_ASSIGNED")
 
 pub const contact_does_not_match_company: Code = Code(
@@ -90,6 +92,7 @@ pub fn all() -> List(Code) {
     customer_email_must_exist,
     company_contact_max_cap_reached,
     role_assignments_max_cap_reached,
+    failed_to_delete,
     one_role_already_assigned,
     contact_does_not_match_company,
     existing_orders,
