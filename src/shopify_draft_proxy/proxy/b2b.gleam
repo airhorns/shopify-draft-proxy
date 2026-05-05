@@ -63,6 +63,32 @@ const external_id_invalid_chars_message = "External Id can only contain numbers,
 
 const company_contact_maximum_cap = 10_000
 
+const contains_html_tags_detail = "contains_html_tags"
+
+const invalid_locale_format_detail = "invalid_locale_format"
+
+const duplicate_external_id_detail = "duplicate_external_id"
+
+const duplicate_location_external_id_detail = "duplicate_location_external_id"
+
+const duplicate_email_address_detail = "duplicate_email_address"
+
+const duplicate_phone_number_detail = "duplicate_phone_number"
+
+const customer_not_found_detail = "customer_not_found"
+
+const customer_already_a_contact_detail = "customer_already_a_contact"
+
+const customer_email_must_exist_detail = "customer_email_must_exist"
+
+const company_contact_max_cap_reached_detail = "company_contact_max_cap_reached"
+
+const one_role_already_assigned_detail = "one_role_already_assigned"
+
+const contact_does_not_match_company_detail = "contact_does_not_match_company"
+
+const existing_orders_detail = "existing_orders"
+
 pub type B2BError {
   ParseFailed(root_field.RootFieldError)
 }
@@ -1392,10 +1418,11 @@ fn company_contact_cap_reached(company: B2BCompanyRecord) -> Bool {
 }
 
 fn company_contact_cap_error() -> UserError {
-  user_error(
+  detailed_user_error(
     Some(["companyId"]),
     "Company contact maximum cap reached.",
-    user_error_code.company_contact_max_cap_reached,
+    user_error_code.limit_reached,
+    company_contact_max_cap_reached_detail,
   )
 }
 
@@ -1405,14 +1432,14 @@ fn company_contact_mutation_error(
   field: List(String),
   message: String,
   code: user_error_code.Code,
+  detail: Option(String),
 ) -> RootResult {
+  let error = case detail {
+    Some(detail) -> detailed_user_error(Some(field), message, code, detail)
+    None -> user_error(Some(field), message, code)
+  }
   RootResult(
-    Payload(
-      ..empty_payload([
-        user_error(Some(field), message, code),
-      ]),
-      company_contact: None,
-    ),
+    Payload(..empty_payload([error]), company_contact: None),
     store,
     identity,
     [],
@@ -1563,10 +1590,11 @@ fn validate_html(
 ) -> List(UserError) {
   case contains_html_tags(value) {
     True -> [
-      user_error(
+      detailed_user_error(
         Some(field_path(prefix, field)),
         label <> " contains HTML tags",
-        user_error_code.contains_html_tags,
+        user_error_code.invalid,
+        contains_html_tags_detail,
       ),
     ]
     False -> []
@@ -1920,18 +1948,20 @@ fn company_location_not_found() {
 }
 
 fn one_role_already_assigned() {
-  user_error(
+  detailed_user_error(
     None,
     "Company contact has already been assigned a role in that company location.",
     user_error_code.limit_reached,
+    one_role_already_assigned_detail,
   )
 }
 
 fn existing_orders_error() {
-  user_error(
+  detailed_user_error(
     Some(["companyContactId"]),
     "Cannot delete a company contact with existing orders or draft orders.",
     user_error_code.failed_to_delete,
+    existing_orders_detail,
   )
 }
 
@@ -2140,10 +2170,11 @@ fn validate_contact_locale_input(
       case valid_locale_format(value) {
         True -> []
         False -> [
-          user_error(
+          detailed_user_error(
             Some(["input", "locale"]),
             "Invalid locale format.",
             user_error_code.invalid,
+            invalid_locale_format_detail,
           ),
         ]
       }
@@ -2158,10 +2189,11 @@ fn validate_contact_notes_input(
     Ok(root_field.StringVal(value)) ->
       case contains_html_tag(value) {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(["input", "note"]),
             "Notes cannot contain HTML tags",
-            user_error_code.contains_html_tags,
+            user_error_code.invalid,
+            contains_html_tags_detail,
           ),
         ]
         False -> []
@@ -2179,10 +2211,11 @@ fn validate_contact_duplicate_email(
     Some(email) ->
       case contact_email_exists(store, email, exclude_contact_id) {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(["input", "email"]),
             "Email address has already been taken.",
             user_error_code.taken,
+            duplicate_email_address_detail,
           ),
         ]
         False -> []
@@ -2200,10 +2233,11 @@ fn validate_contact_duplicate_phone(
     Some(phone) ->
       case contact_phone_exists(store, phone, exclude_contact_id) {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(["input", "phone"]),
             "Phone number has already been taken.",
             user_error_code.taken,
+            duplicate_phone_number_detail,
           ),
         ]
         False -> []
@@ -2222,10 +2256,11 @@ fn validate_duplicate_company_external_id(
     Some(external_id) ->
       case company_external_id_exists(store, external_id, exclude_company_id) {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(field_path(prefix, "externalId")),
             "External id has already been taken.",
             user_error_code.taken,
+            duplicate_external_id_detail,
           ),
         ]
         False -> []
@@ -2246,10 +2281,11 @@ fn validate_duplicate_location_external_id(
         location_external_id_exists(store, external_id, exclude_location_id)
       {
         True -> [
-          user_error(
+          detailed_user_error(
             Some(field_path(prefix, "externalId")),
             "External id has already been taken.",
             user_error_code.taken,
+            duplicate_location_external_id_detail,
           ),
         ]
         False -> []
@@ -3486,7 +3522,8 @@ fn handle_assign_customer_as_contact(
                 identity,
                 ["customerId"],
                 "Customer does not exist.",
-                user_error_code.customer_not_found,
+                user_error_code.resource_not_found,
+                Some(customer_not_found_detail),
               )
             Some(customer) ->
               case find_company_contact_by_customer_id(contacts, customer_id) {
@@ -3496,7 +3533,8 @@ fn handle_assign_customer_as_contact(
                     identity,
                     ["companyId"],
                     "Customer is already associated with a company contact.",
-                    user_error_code.customer_already_a_contact,
+                    user_error_code.invalid_input,
+                    Some(customer_already_a_contact_detail),
                   )
                 None ->
                   case customer_email(customer) {
@@ -3506,7 +3544,8 @@ fn handle_assign_customer_as_contact(
                         identity,
                         ["companyId"],
                         "Customer must have an email address.",
-                        user_error_code.customer_email_must_exist,
+                        user_error_code.resource_not_found,
+                        Some(customer_email_must_exist_detail),
                       )
                     Some(email) ->
                       case company_contact_cap_reached(company) {
@@ -3678,10 +3717,11 @@ fn handle_assign_main_contact(
           RootResult(
             Payload(
               ..empty_payload([
-                user_error(
+                detailed_user_error(
                   Some(["companyContactId"]),
                   "The company contact does not belong to the company.",
                   user_error_code.invalid_input,
+                  contact_does_not_match_company_detail,
                 ),
               ]),
               company: None,
