@@ -9,6 +9,108 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-04 - Pass 200: HAR-574 product variant scalar validation
+
+Adds shared Shopify-like scalar validation for product variant mutation inputs
+and backs the bulk-create validation branches with a new live capture and
+strict parity scenario.
+
+| Module / fixture                                                                                                                                           | Change                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                                                                                                       | Adds shared variant validators for explicit-null/negative/too-large prices, too-large compare-at price, weight bounds/unit, inventory quantity bounds, SKU/barcode/option value length, and 2048 caps.           |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`                                                                                        | Covers bulk create/update, legacy single-variant create/update, productCreate/productSet rejection, oversized `variants:` input, cumulative product cap, failed logs, and no local variant staging on rejection. |
+| `scripts/capture-product-variant-scalar-validation-conformance.ts` / `scripts/conformance-capture-index.ts`                                                | Adds an aggregate-indexed live capture for `productVariantsBulkCreate` scalar validation against a disposable optioned product, with before/after product-state atomicity checks.                                |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-validation.json`                                           | Records explicit `price: null`, negative/too-large price, too-large compare-at price, invalid weight/quantity, text length, option length, and max input-size Shopify responses.                                 |
+| `config/parity-specs/products/productVariantsBulkCreate-validation.json` / `config/parity-requests/products/productVariantsBulkCreate-validation*.graphql` | Adds executable strict JSON parity for captured `userErrors.field`, `message`, and `code`, plus Shopify's top-level max-input-size error.                                                                        |
+| `docs/endpoints/products.md`                                                                                                                               | Documents the scalar validation boundary, captured omitted-price behavior, no-write rejection behavior, and new validation anchors.                                                                              |
+
+Validation:
+
+- `corepack pnpm conformance:capture -- --run product-variant-scalar-validations`
+- `cd gleam && gleam test --target javascript -- products_mutation_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+
+### Findings
+
+- Shopify 2025-01 accepts omitted `price` for `productVariantsBulkCreate` on
+  the conformance store, while explicit `price: null` returns `Price can't be
+blank` with code `INVALID`.
+- The max-input-size branch is a top-level GraphQL error. Its location depends
+  on the request document formatting, so the parity request mirrors the capture
+  document layout for strict comparison.
+
+### Risks / open items
+
+- Direct live evidence for legacy `productVariantCreate` and
+  `productVariantUpdate` remains unavailable on the captured 2025-01 schema, so
+  their scalar validation is covered by shared runtime tests plus the
+  bulk-create conformance oracle.
+
+---
+
+## 2026-05-04 - Pass 203: HAR-556 orderCreate validation matrix
+
+Extends direct `orderCreate` validation beyond the no-line-items branch. The
+Gleam Orders handler now rejects future `processedAt`, simultaneous
+`customerId` plus `customer`, and missing/empty tax-line rates on both line
+items and shipping lines before staging any order or appending mutation-log
+entries. The touched validation payloads now project Shopify-style `code`
+values and preserve indexed `field` segments for tax-line paths.
+
+| Module / fixture                                                                                              | Change                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                                                            | Adds order-create validation helpers and typed user-error serialization for string and integer field segments plus optional `code`.            |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`                                                      | Covers the extended validation matrix and asserts no staged orders or log drafts are created for rejected inputs.                              |
+| `config/parity-specs/orders/orderCreate-validation-matrix-extended.json` / matching request and fixture files | Adds strict parity coverage for future `processedAt`, redundant customer fields, and line-item/shipping-line tax-line missing-rate userErrors. |
+| `config/parity-requests/orders/orderCreate-validation-matrix.graphql` / existing no-line-items fixture        | Selects and records `userErrors.code: "INVALID"` for the existing empty-line-items branch.                                                     |
+| `docs/endpoints/orders.md`                                                                                    | Documents the expanded create-time validation boundary and the current live tax-line coercion caveat.                                          |
+
+Validation:
+
+- Reproduction before the fix: `corepack pnpm gleam:build:js` then a JS
+  `orderCreate` request with `processedAt: "2099-01-01T00:00:00Z"` returned a
+  staged synthetic order and empty `userErrors`.
+- Fixed JS proof: rebuilt JS wrapper returned
+  `userErrors[{ field: ["order", "processedAt"], code: "PROCESSED_AT_INVALID" }]`
+  and `order: null` for the same future timestamp request.
+- `cd gleam && gleam test --target javascript -- orders_order_create_validation_guardrails_test parity_test`
+  (851 passed)
+- `cd gleam && gleam test --target javascript` (851 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 842 passed)
+- `corepack pnpm parity:record order-create-validation-matrix` (0 upstream
+  calls)
+- `corepack pnpm parity:record orderCreate-validation-matrix-extended` (0
+  upstream calls)
+- `corepack pnpm conformance:check` (1433 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2297 passed)
+- `git diff --check`
+
+### Findings
+
+- Current live probing against the 2025-01 conformance store rejects omitted or
+  empty inline `OrderCreateTaxLineInput.rate` through GraphQL coercion before
+  the mutation resolver. HAR-556 still requires local handler protection for
+  resolved inputs that reach the proxy with a missing/empty tax-line rate, so
+  the parity fixture preserves the ticket's cited mutation-level
+  `TAX_LINE_RATE_MISSING` payload contract and the endpoint notes call out the
+  probe caveat explicitly.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
+
+---
+
 ## 2026-05-04 - Pass 202: HAR-599 BXGY disallowed value validation
 
 Aligns local BXGY validation with live Shopify for `customerGets.value` branch
