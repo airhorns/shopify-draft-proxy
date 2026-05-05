@@ -2520,6 +2520,7 @@ Captured validation behavior:
 - self-merge mutation returns payload `userErrors` with `field: null`, message `Customers IDs should not match`, and code `INVALID_CUSTOMER_ID`
 - an unknown second customer id returns payload `userErrors` at `['customerTwoId']` with code `INVALID_CUSTOMER_ID`
 - omitting the required second id returns a top-level `missingRequiredArguments` GraphQL error before mutation execution
+- blank literal `customerOneId` / `customerTwoId` strings return top-level `argumentLiteralsIncompatible` coercion errors with `typeName: CoercionError` and message `Invalid global id ''` for each blank ID before mutation execution
 
 Captured safe happy path for two synthetic customers:
 
