@@ -1116,15 +1116,13 @@ fn handle_revoke_access_scopes(
   store: Store,
   identity: SyntheticIdentityRegistry,
   _request_path: String,
-  origin: String,
+  _origin: String,
   _document: String,
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
-  let #(installation, store_after_ensure, identity_after_ensure) =
-    ensure_current_installation(store, identity, origin)
   let args = graphql_helpers.field_args(field, variables)
   let requested_scopes = case dict.get(args, "scopes") {
     Ok(root_field.ListVal(items)) ->
@@ -1136,47 +1134,323 @@ fn handle_revoke_access_scopes(
       })
     _ -> []
   }
-  let current_handles = list.map(installation.access_scopes, fn(s) { s.handle })
-  let revoked =
-    list.filter(installation.access_scopes, fn(scope) {
-      list.contains(requested_scopes, scope.handle)
-    })
-  let errors =
-    list.filter(requested_scopes, fn(scope) {
-      !list.contains(current_handles, scope)
-    })
-    |> list.map(fn(scope) {
-      UserError(
-        field: ["scopes"],
-        message: "Access scope '" <> scope <> "' is not granted.",
-        code: Some("UNKNOWN_SCOPES"),
+
+  case current_revoke_context(store) {
+    Error(errors) ->
+      failed_revoke_access_scopes_result(
+        key,
+        store,
+        identity,
+        field,
+        fragments,
+        errors,
+        [],
       )
-    })
-  let updated =
-    AppInstallationRecord(
-      ..installation,
-      access_scopes: list.filter(installation.access_scopes, fn(scope) {
-        !list.contains(requested_scopes, scope.handle)
-      }),
-    )
-  let #(_, store_staged) =
-    store.stage_app_installation(store_after_ensure, updated)
-  let payload = project_revoke_payload(revoked, errors, field, fragments)
-  let status = case errors {
-    [] -> store.Staged
-    _ -> store.Failed
+    Ok(#(installation, app)) -> {
+      let current_handles =
+        list.map(installation.access_scopes, fn(s) { s.handle })
+      let required_handles =
+        list.map(app.requested_access_scopes, fn(s) { s.handle })
+      let errors =
+        revoke_access_scope_errors(
+          requested_scopes,
+          current_handles,
+          required_handles,
+        )
+
+      case errors {
+        [] -> {
+          let revoked =
+            list.filter(installation.access_scopes, fn(scope) {
+              list.contains(requested_scopes, scope.handle)
+            })
+          let updated =
+            AppInstallationRecord(
+              ..installation,
+              access_scopes: list.filter(installation.access_scopes, fn(scope) {
+                !list.contains(requested_scopes, scope.handle)
+              }),
+            )
+          let #(_, store_staged) = store.stage_app_installation(store, updated)
+          let payload = project_revoke_payload(revoked, [], field, fragments)
+          let draft =
+            make_log_draft(
+              "appRevokeAccessScopes",
+              [installation.id],
+              store.Staged,
+            )
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [installation.id],
+              log_drafts: [draft],
+            ),
+            store_staged,
+            identity,
+          )
+        }
+        _ ->
+          failed_revoke_access_scopes_result(
+            key,
+            store,
+            identity,
+            field,
+            fragments,
+            errors,
+            [installation.id],
+          )
+      }
+    }
   }
-  let draft = make_log_draft("appRevokeAccessScopes", [installation.id], status)
+}
+
+fn current_revoke_context(
+  store: Store,
+) -> Result(#(AppInstallationRecord, AppRecord), List(UserError)) {
+  case store.get_current_app_installation(store) {
+    Some(installation) ->
+      case store.get_effective_app_by_id(store, installation.app_id) {
+        Some(app) -> Ok(#(installation, app))
+        None ->
+          Error([
+            UserError(
+              field: ["base"],
+              message: "Application cannot be found.",
+              code: Some("APPLICATION_CANNOT_BE_FOUND"),
+            ),
+          ])
+      }
+    None ->
+      case store.list_effective_apps(store) {
+        [] ->
+          Error([
+            UserError(
+              field: ["base"],
+              message: "Source app is missing.",
+              code: Some("MISSING_SOURCE_APP"),
+            ),
+          ])
+        _ ->
+          Error([
+            UserError(
+              field: ["base"],
+              message: "App is not installed on this shop.",
+              code: Some("APP_NOT_INSTALLED"),
+            ),
+          ])
+      }
+  }
+}
+
+fn failed_revoke_access_scopes_result(
+  key: String,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(UserError),
+  staged_resource_ids: List(String),
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let payload = project_revoke_payload([], errors, field, fragments)
+  let draft =
+    make_log_draft("appRevokeAccessScopes", staged_resource_ids, store.Failed)
   #(
     MutationFieldResult(
       key: key,
       payload: payload,
-      staged_resource_ids: [installation.id],
+      staged_resource_ids: staged_resource_ids,
       log_drafts: [draft],
     ),
-    store_staged,
-    identity_after_ensure,
+    store,
+    identity,
   )
+}
+
+fn revoke_access_scope_errors(
+  requested_scopes: List(String),
+  current_handles: List(String),
+  required_handles: List(String),
+) -> List(UserError) {
+  requested_scopes
+  |> list.filter_map(fn(scope) {
+    case is_known_shopify_access_scope(scope) {
+      False ->
+        Ok(UserError(
+          field: ["scopes"],
+          message: "The requested list of scopes to revoke includes invalid handles.",
+          code: Some("UNKNOWN_SCOPES"),
+        ))
+      True ->
+        case list.contains(required_handles, scope) {
+          True ->
+            Ok(UserError(
+              field: ["scopes"],
+              message: "Scopes that are declared as required cannot be revoked.",
+              code: Some("CANNOT_REVOKE_REQUIRED_SCOPES"),
+            ))
+          False ->
+            case scope_implied_by_granted_scope(scope, current_handles) {
+              True ->
+                Ok(UserError(
+                  field: ["scopes"],
+                  message: "Scopes that are implied by other granted scopes cannot be revoked.",
+                  code: Some("CANNOT_REVOKE_IMPLIED_SCOPES"),
+                ))
+              False ->
+                case list.contains(current_handles, scope) {
+                  True -> Error(Nil)
+                  False ->
+                    Ok(UserError(
+                      field: ["scopes"],
+                      message: "Scopes that are not declared cannot be revoked.",
+                      code: Some("CANNOT_REVOKE_UNDECLARED_SCOPES"),
+                    ))
+                }
+            }
+        }
+    }
+  })
+}
+
+fn scope_implied_by_granted_scope(
+  scope: String,
+  current_handles: List(String),
+) -> Bool {
+  case string.starts_with(scope, "read_") {
+    False -> False
+    True -> {
+      let write_scope = "write_" <> string.drop_start(scope, 5)
+      list.contains(current_handles, write_scope)
+    }
+  }
+}
+
+fn is_known_shopify_access_scope(scope: String) -> Bool {
+  list.contains(shopify_access_scope_catalog(), scope)
+}
+
+fn shopify_access_scope_catalog() -> List(String) {
+  [
+    "read_all_orders",
+    "write_all_orders",
+    "read_analytics",
+    "read_apps",
+    "write_apps",
+    "read_assigned_fulfillment_orders",
+    "write_assigned_fulfillment_orders",
+    "read_cart_transforms",
+    "write_cart_transforms",
+    "read_cash_tracking",
+    "write_cash_tracking",
+    "read_checkouts",
+    "write_checkouts",
+    "read_companies",
+    "write_companies",
+    "read_content",
+    "write_content",
+    "read_custom_pixels",
+    "write_custom_pixels",
+    "read_customer_data_erasure",
+    "write_customer_data_erasure",
+    "read_customer_events",
+    "read_customer_merge",
+    "write_customer_merge",
+    "read_customers",
+    "write_customers",
+    "read_delivery_customizations",
+    "write_delivery_customizations",
+    "read_delivery_promises",
+    "write_delivery_promises",
+    "read_discounts",
+    "write_discounts",
+    "read_discovery",
+    "read_domains",
+    "write_domains",
+    "read_draft_orders",
+    "write_draft_orders",
+    "read_files",
+    "write_files",
+    "read_fulfillment_constraint_rules",
+    "write_fulfillment_constraint_rules",
+    "read_fulfillments",
+    "write_fulfillments",
+    "read_gift_card_transactions",
+    "write_gift_card_transactions",
+    "read_gift_cards",
+    "write_gift_cards",
+    "read_inventory",
+    "write_inventory",
+    "read_inventory_shipments",
+    "write_inventory_shipments",
+    "read_inventory_transfers",
+    "write_inventory_transfers",
+    "read_legal_policies",
+    "write_legal_policies",
+    "read_locales",
+    "write_locales",
+    "read_locations",
+    "write_locations",
+    "read_marketing_events",
+    "write_marketing_events",
+    "read_markets",
+    "write_markets",
+    "read_merchant_managed_fulfillment_orders",
+    "write_merchant_managed_fulfillment_orders",
+    "read_metaobject_definitions",
+    "write_metaobject_definitions",
+    "read_metaobjects",
+    "write_metaobjects",
+    "read_online_store_navigation",
+    "write_online_store_navigation",
+    "read_order_edits",
+    "write_order_edits",
+    "read_orders",
+    "write_orders",
+    "read_own_subscription_contracts",
+    "write_own_subscription_contracts",
+    "read_payment_customizations",
+    "write_payment_customizations",
+    "read_payment_terms",
+    "write_payment_terms",
+    "read_privacy_settings",
+    "write_privacy_settings",
+    "read_product_listings",
+    "read_products",
+    "write_products",
+    "read_publications",
+    "write_publications",
+    "read_purchase_options",
+    "write_purchase_options",
+    "read_resource_feedbacks",
+    "write_resource_feedbacks",
+    "read_returns",
+    "write_returns",
+    "read_shipping",
+    "write_shipping",
+    "read_shopify_payments",
+    "read_shopify_payments_accounts",
+    "read_shopify_payments_dispute_evidences",
+    "write_shopify_payments_dispute_evidences",
+    "read_shopify_payments_disputes",
+    "write_shopify_payments_disputes",
+    "read_shopify_payments_payouts",
+    "read_store_credit_account_transactions",
+    "write_store_credit_account_transactions",
+    "read_store_credit_accounts",
+    "read_taxes",
+    "write_taxes",
+    "read_themes",
+    "write_themes",
+    "read_third_party_fulfillment_orders",
+    "write_third_party_fulfillment_orders",
+    "read_translations",
+    "write_translations",
+    "read_users",
+    "read_validations",
+    "write_validations",
+    "unauthenticated_read_product_listings",
+  ]
 }
 
 fn handle_delegate_create(
@@ -2049,7 +2323,9 @@ fn ensure_current_installation(
             <> option.unwrap(app.handle, "shopify-draft-proxy"),
           ),
           uninstall_url: None,
-          access_scopes: app.requested_access_scopes,
+          access_scopes: list.append(app.requested_access_scopes, [
+            AccessScopeRecord(handle: "write_products", description: None),
+          ]),
           active_subscription_ids: [],
           all_subscription_ids: [],
           one_time_purchase_ids: [],
@@ -2078,7 +2354,6 @@ fn default_app(
       previously_installed: Some(False),
       requested_access_scopes: [
         AccessScopeRecord(handle: "read_products", description: None),
-        AccessScopeRecord(handle: "write_products", description: None),
       ],
     )
   #(app, identity_after)
