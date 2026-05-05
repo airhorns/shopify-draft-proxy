@@ -16,6 +16,31 @@ import gleam/option.{type Option, None, Some}
 import gleam/order.{type Order, Eq, Gt, Lt}
 import gleam/string
 
+const shopify_gid_prefix: String = "gid://shopify/"
+
+/// Build the canonical Shopify GID for a resource type from either a
+/// fully-qualified GID, a numeric tail, or a non-numeric opaque tail.
+pub fn canonical_shopify_resource_gid(
+  resource_type: String,
+  id: String,
+) -> String {
+  let tail = option.unwrap(shopify_gid_tail(id), id)
+  shopify_gid_prefix <> resource_type <> "/" <> tail
+}
+
+/// Return the final path segment of a Shopify GID or bare ID. Query-string
+/// suffixes are ignored because Shopify GIDs sometimes carry opaque metadata.
+pub fn shopify_gid_tail(id: String) -> Option(String) {
+  let without_query = case string.split_once(id, "?") {
+    Ok(#(prefix, _)) -> prefix
+    Error(_) -> id
+  }
+  case list.last(string.split(without_query, "/")) {
+    Ok(tail) if tail != "" -> Some(tail)
+    _ -> None
+  }
+}
+
 /// Compare two Shopify GID strings. Tries to extract the trailing
 /// integer (`gid://shopify/Foo/123` → `123`); when both sides parse,
 /// compares numerically. Falls back to lexicographic compare.
@@ -27,13 +52,9 @@ pub fn compare_shopify_resource_ids(left: String, right: String) -> Order {
 }
 
 fn extract_tail_int(id: String) -> Option(Int) {
-  let segments = string.split(id, "/")
-  case list.last(segments) {
-    Ok(tail) ->
-      case int.parse(tail) {
-        Ok(n) -> Some(n)
-        Error(_) -> None
-      }
+  use tail <- option.then(shopify_gid_tail(id))
+  case int.parse(tail) {
+    Ok(n) -> Some(n)
     Error(_) -> None
   }
 }

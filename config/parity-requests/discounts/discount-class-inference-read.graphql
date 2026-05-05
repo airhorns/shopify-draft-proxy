@@ -1,0 +1,6 @@
+query DiscountClassInferenceRead($productQuery: String!) {
+  discountNodesCount(query: $productQuery) {
+    count
+    precision
+  }
+}

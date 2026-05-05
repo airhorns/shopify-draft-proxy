@@ -3,6 +3,7 @@
   "operationNames": [
     "companyCreate",
     "companyUpdate",
+    "customerCreate",
     "companyContactCreate",
     "companyAssignCustomerAsContact",
     "companyAssignMainContact",
@@ -120,6 +121,24 @@
         ]
       },
       {
+        "name": "customer-create-payload",
+        "capturePath": "$.customerCreate.response.data.customerCreate",
+        "proxyPath": "$.data.customerCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-customer-create.graphql",
+          "variables": {
+            "input": { "fromCapturePath": "$.customerCreate.request.variables.input" }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "Live Shopify and local staging allocate different stable customer IDs."
+          }
+        ]
+      },
+      {
         "name": "assign-customer-contact-payload",
         "capturePath": "$.assignCustomer.response.data.companyAssignCustomerAsContact",
         "proxyPath": "$.data.companyAssignCustomerAsContact",
@@ -127,7 +146,10 @@
           "documentPath": "config/parity-requests/b2b/b2b-company-contact-main-delete-assign-customer.graphql",
           "variables": {
             "companyId": { "fromPrimaryProxyPath": "$.data.companyCreate.company.id" },
-            "customerId": { "fromCapturePath": "$.assignCustomer.request.variables.customerId" }
+            "customerId": {
+              "fromProxyResponse": "customer-create-payload",
+              "path": "$.data.customerCreate.customer.id"
+            }
           }
         },
         "expectedDifferences": [
@@ -140,6 +162,11 @@
             "path": "$.companyContact.company.id",
             "matcher": "shopify-gid:Company",
             "reason": "The proxy contact is attached to the locally staged company ID."
+          },
+          {
+            "path": "$.companyContact.customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy contact references the locally staged customer ID."
           }
         ]
       },
@@ -258,6 +285,11 @@
             "path": "$.contacts.nodes[1].customer.id",
             "matcher": "shopify-gid:Customer",
             "reason": "Live Shopify and local staging allocate different customer IDs for contacts created from email input."
+          },
+          {
+            "path": "$.contacts.nodes[2].customer.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy read uses the locally staged customer ID for the assigned customer contact."
           },
           {
             "path": "$.locations.nodes[0].id",

@@ -1,0 +1,85 @@
+{
+  "capturedAt": "2026-05-05T04:46:50.000Z",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "scenario": "app-subscription-trial-extend-validation",
+  "notes": [
+    "Runtime fixture enforced by test/shopify_draft_proxy/proxy/apps_mutation_test.gleam.",
+    "The generic parity runner covers days bounds, unknown id, and PENDING subscription validation by threading state from an explicit non-test local appSubscriptionCreate request.",
+    "Test-charge ACTIVE success and ACTIVE expired-trial branches are covered by the runtime test file because HAR-653 auto-activates test subscriptions locally."
+  ],
+  "operationNames": ["appSubscriptionCreate", "appSubscriptionTrialExtend"],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "subscriptionCreate": {
+          "data": {
+            "appSubscriptionCreate": {
+              "appSubscription": {
+                "status": "PENDING"
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "daysZero": {
+          "data": {
+            "appSubscriptionTrialExtend": {
+              "appSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["days"],
+                  "message": "Days must be greater than 0",
+                  "code": null
+                }
+              ]
+            }
+          }
+        },
+        "daysTooLarge": {
+          "data": {
+            "appSubscriptionTrialExtend": {
+              "appSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["days"],
+                  "message": "Days must be less than or equal to 1000",
+                  "code": null
+                }
+              ]
+            }
+          }
+        },
+        "unknownId": {
+          "data": {
+            "appSubscriptionTrialExtend": {
+              "appSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The app subscription wasn't found.",
+                  "code": "SUBSCRIPTION_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        },
+        "pendingSubscription": {
+          "data": {
+            "appSubscriptionTrialExtend": {
+              "appSubscription": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The trial can't be extended on inactive app subscriptions.",
+                  "code": "SUBSCRIPTION_NOT_ACTIVE"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

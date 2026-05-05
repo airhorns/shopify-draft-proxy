@@ -6,11 +6,14 @@
 //// and the `resolveUniqueSegmentName` " (N)" suffix collision logic.
 
 import gleam/dict
+import gleam/int
 import gleam/json
+import gleam/list
 import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/mutation_helpers
 import shopify_draft_proxy/proxy/segments
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
@@ -32,6 +35,7 @@ fn run_mutation_outcome(
       "/admin/api/2025-01/graphql.json",
       document,
       dict.new(),
+      empty_upstream_context(),
     )
   outcome
 }
@@ -53,6 +57,29 @@ fn segment_record(id: String, name: String, query: String) -> SegmentRecord {
     creation_date: Some("2024-01-01T00:00:00.000Z"),
     last_edit_date: Some("2024-01-01T00:00:00.000Z"),
   )
+}
+
+fn seed_segment_count(
+  store_in: store.Store,
+  next: Int,
+  remaining: Int,
+) -> store.Store {
+  case remaining <= 0 {
+    True -> store_in
+    False -> {
+      let suffix = int.to_string(next)
+      let seeded =
+        seed(
+          store_in,
+          segment_record(
+            "gid://shopify/Segment/" <> suffix,
+            "Seed " <> suffix,
+            "number_of_orders >= 1",
+          ),
+        )
+      seed_segment_count(seeded, next + 1, remaining - 1)
+    }
+  }
 }
 
 fn customer(
@@ -117,20 +144,30 @@ pub fn member_query_create_rejects_both_query_and_segment_id_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { customerSegmentMembersQueryCreate(input: { segmentId: \"gid://shopify/Segment/1\", query: \"number_of_orders > 0\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+      "mutation { customerSegmentMembersQueryCreate(input: { segmentId: \"gid://shopify/Segment/1\", query: \"number_of_orders > 0\" }) { customerSegmentMembersQuery { id status currentCount done } userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"Providing both segment_id and query is not supported.\"}]}}}"
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"__typename\":\"CustomerSegmentMembersQueryUserError\",\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"Providing both segment_id and query is not supported.\"}]}}}"
 }
 
 pub fn member_query_create_rejects_neither_query_nor_segment_id_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { customerSegmentMembersQueryCreate(input: {}) { customerSegmentMembersQuery { id status currentCount done } userErrors { field code message } } }",
+      "mutation { customerSegmentMembersQueryCreate(input: {}) { customerSegmentMembersQuery { id status currentCount done } userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"You must provide one of segment_id or query.\"}]}}}"
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"__typename\":\"CustomerSegmentMembersQueryUserError\",\"field\":[\"input\"],\"code\":\"INVALID\",\"message\":\"You must provide one of segment_id or query.\"}]}}}"
+}
+
+pub fn member_query_create_invalid_query_uses_member_error_type_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { customerSegmentMembersQueryCreate(input: { query: \"not a valid segment query ???\" }) { customerSegmentMembersQuery { id } userErrors { __typename field code message } } }",
+    )
+  assert body
+    == "{\"data\":{\"customerSegmentMembersQueryCreate\":{\"customerSegmentMembersQuery\":null,\"userErrors\":[{\"__typename\":\"CustomerSegmentMembersQueryUserError\",\"field\":null,\"code\":\"INVALID\",\"message\":\"Line 1 Column 6: 'valid' is unexpected.\"}]}}}"
 }
 
 pub fn member_query_create_stages_initialized_query_job_test() {
@@ -197,6 +234,16 @@ pub fn segment_create_mints_record_test() {
     store.get_effective_segment_by_id(outcome.store, "gid://shopify/Segment/1")
 }
 
+pub fn segment_create_returns_payload_defaults_test() {
+  let body =
+    run_mutation(
+      store.new(),
+      "mutation { segmentCreate(name: \"VIPs\", query: \"number_of_orders >= 5\") { segment { id tagMigrated valid percentageSnapshot percentageSnapshotUpdatedAt translation author { name } } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":{\"id\":\"gid://shopify/Segment/1\",\"tagMigrated\":false,\"valid\":true,\"percentageSnapshot\":null,\"percentageSnapshotUpdatedAt\":null,\"translation\":null,\"author\":null},\"userErrors\":[]}}}"
+}
+
 pub fn segment_create_customer_tags_contains_test() {
   let body =
     run_mutation(
@@ -211,10 +258,10 @@ pub fn segment_create_blank_name_emits_user_error_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { segmentCreate(name: \"\", query: \"number_of_orders >= 5\") { segment { id } userErrors { field message } } }",
+      "mutation { segmentCreate(name: \"\", query: \"number_of_orders >= 5\") { segment { id } userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name can't be blank\"}]}}}"
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"name\"],\"code\":null,\"message\":\"Name can't be blank\"}]}}}"
 }
 
 pub fn segment_create_missing_query_emits_user_error_test() {
@@ -247,6 +294,52 @@ pub fn segment_create_customer_tags_equals_emits_operator_error_test() {
     == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query Line 1 Column 14: customer_tags does not support operator '='\"}]}}}"
 }
 
+pub fn segment_create_overlong_name_emits_user_error_test() {
+  let long_name = string.repeat("N", times: 256)
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { segmentCreate(name: \""
+        <> long_name
+        <> "\", query: \"number_of_orders >= 5\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name is too long (maximum is 255 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_segments(outcome.store) == []
+}
+
+pub fn segment_create_overlong_query_emits_length_error_before_grammar_test() {
+  let long_query = "number_of_orders >= 5 " <> string.repeat("x", times: 5000)
+  let outcome =
+    run_mutation_outcome(
+      store.new(),
+      "mutation { segmentCreate(name: \"Big\", query: \""
+        <> long_query
+        <> "\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query is too long (maximum is 5000 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert store.list_effective_segments(outcome.store) == []
+}
+
+pub fn segment_create_at_shop_segment_limit_emits_user_error_test() {
+  let full_store = seed_segment_count(store.new(), 1, 6000)
+  let outcome =
+    run_mutation_outcome(
+      full_store,
+      "mutation { segmentCreate(name: \"extra\", query: \"number_of_orders >= 1\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentCreate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Segment limit reached\"}]}}}"
+  assert outcome.staged_resource_ids == []
+  assert list.length(store.list_effective_segments(outcome.store)) == 6000
+}
+
 // ----------- segmentUpdate -----------
 
 pub fn segment_update_happy_path_test() {
@@ -263,6 +356,19 @@ pub fn segment_update_happy_path_test() {
   assert body
     == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"id\":\"gid://shopify/Segment/100\",\"name\":\"Top VIPs\",\"query\":\"number_of_orders >= 10\",\"lastEditDate\":\"2024-01-01T00:00:00.000Z\"},\"userErrors\":[]}}}"
   assert outcome.staged_resource_ids == ["gid://shopify/Segment/100"]
+}
+
+pub fn segment_update_returns_payload_defaults_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/100", "VIPs", "number_of_orders >= 5")
+  let s = seed(store.new(), existing)
+  let body =
+    run_mutation(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/100\", name: \"Top VIPs\") { segment { id tagMigrated valid percentageSnapshot percentageSnapshotUpdatedAt translation author { name } } userErrors { field message } } }",
+    )
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":{\"id\":\"gid://shopify/Segment/100\",\"tagMigrated\":false,\"valid\":true,\"percentageSnapshot\":null,\"percentageSnapshotUpdatedAt\":null,\"translation\":null,\"author\":null},\"userErrors\":[]}}}"
 }
 
 pub fn segment_update_name_only_preserves_query_test() {
@@ -282,10 +388,25 @@ pub fn segment_update_missing_id_emits_user_error_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { segmentUpdate(id: \"gid://shopify/Segment/missing\", name: \"X\") { segment { id } userErrors { field message } } }",
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/missing\", name: \"X\") { segment { id } userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Segment does not exist\"}]}}}"
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"id\"],\"code\":null,\"message\":\"Segment does not exist\"}]}}}"
+}
+
+pub fn segment_update_without_changes_emits_user_error_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/105", "Keep", "number_of_orders >= 2")
+  let s = seed(store.new(), existing)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/105\") { segment { id } userErrors { __typename field code message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":null,\"code\":null,\"message\":\"At least one attribute to change must be present\"}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 pub fn segment_update_blank_name_emits_user_error_test() {
@@ -299,6 +420,42 @@ pub fn segment_update_blank_name_emits_user_error_test() {
     )
   assert body
     == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name can't be blank\"}]}}}"
+}
+
+pub fn segment_update_overlong_name_emits_user_error_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/103", "Keep", "number_of_orders >= 2")
+  let s = seed(store.new(), existing)
+  let long_name = string.repeat("N", times: 256)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/103\", name: \""
+        <> long_name
+        <> "\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"name\"],\"message\":\"Name is too long (maximum is 255 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn segment_update_overlong_query_emits_length_error_before_grammar_test() {
+  let existing =
+    segment_record("gid://shopify/Segment/104", "Keep", "number_of_orders >= 2")
+  let s = seed(store.new(), existing)
+  let long_query = "number_of_orders >= 5 " <> string.repeat("x", times: 5000)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { segmentUpdate(id: \"gid://shopify/Segment/104\", query: \""
+        <> long_query
+        <> "\") { segment { id } userErrors { field message } } }",
+    )
+  let body = json.to_string(outcome.data)
+  assert body
+    == "{\"data\":{\"segmentUpdate\":{\"segment\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Query is too long (maximum is 5000 characters)\"}]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 // ----------- segmentDelete -----------
@@ -331,10 +488,10 @@ pub fn segment_delete_missing_id_emits_user_error_test() {
   let body =
     run_mutation(
       store.new(),
-      "mutation { segmentDelete(id: \"gid://shopify/Segment/missing\") { deletedSegmentId userErrors { field message } } }",
+      "mutation { segmentDelete(id: \"gid://shopify/Segment/missing\") { deletedSegmentId userErrors { __typename field code message } } }",
     )
   assert body
-    == "{\"data\":{\"segmentDelete\":{\"deletedSegmentId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Segment does not exist\"}]}}}"
+    == "{\"data\":{\"segmentDelete\":{\"deletedSegmentId\":null,\"userErrors\":[{\"__typename\":\"UserError\",\"field\":[\"id\"],\"code\":null,\"message\":\"Segment does not exist\"}]}}}"
 }
 
 // ----------- unique-name resolution -----------

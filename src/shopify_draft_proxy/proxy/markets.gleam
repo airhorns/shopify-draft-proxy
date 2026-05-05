@@ -36,13 +36,15 @@ import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
 }
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type CatalogRecord, type MarketRecord,
-  type PriceListRecord, type ProductMetafieldRecord, type ProductRecord,
-  type ProductVariantRecord, type ShopDomainRecord, type WebPresenceRecord,
-  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
-  CapturedObject, CapturedString, CatalogRecord, MarketRecord, PriceListRecord,
-  ProductMetafieldRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, WebPresenceRecord,
+  type CapturedJsonValue, type CatalogRecord,
+  type MarketLocalizableContentRecord, type MarketLocalizationRecord,
+  type MarketRecord, type PriceListRecord, type ProductMetafieldRecord,
+  type ProductRecord, type ProductVariantRecord, type ShopDomainRecord,
+  type WebPresenceRecord, CapturedArray, CapturedBool, CapturedFloat,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CatalogRecord,
+  MarketLocalizableContentRecord, MarketLocalizationRecord, MarketRecord,
+  PriceListRecord, ProductMetafieldRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord, WebPresenceRecord,
 }
 
 pub type MarketsError {
@@ -707,6 +709,11 @@ fn product_record_from_json(
     vendor: None,
     product_type: None,
     tags: [],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: None,
+    has_only_default_variant: None,
+    has_out_of_stock_variants: None,
     total_inventory: Some(0),
     tracks_inventory: Some(False),
     created_at: None,
@@ -770,7 +777,29 @@ fn product_metafield_record_from_json(
     created_at: json_get_string(value, "createdAt"),
     updated_at: json_get_string(value, "updatedAt"),
     owner_type: json_get_string(value, "ownerType"),
+    market_localizable_content: market_localizable_content_from_json(value),
   ))
+}
+
+fn market_localizable_content_from_json(
+  value: commit.JsonValue,
+) -> List(MarketLocalizableContentRecord) {
+  case json_get(value, "marketLocalizableContent") {
+    Some(commit.JsonArray(items)) ->
+      items |> list.filter_map(market_localizable_content_record_from_json)
+    _ -> []
+  }
+}
+
+fn market_localizable_content_record_from_json(
+  value: commit.JsonValue,
+) -> Result(MarketLocalizableContentRecord, Nil) {
+  use key <- result.try(json_get_string(value, "key") |> option_to_result)
+  use content_value <- result.try(
+    json_get_string(value, "value") |> option_to_result,
+  )
+  use digest <- result.try(json_get_string(value, "digest") |> option_to_result)
+  Ok(MarketLocalizableContentRecord(key, content_value, digest))
 }
 
 fn collect_objects(value: commit.JsonValue) -> List(commit.JsonValue) {
@@ -850,6 +879,7 @@ fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
@@ -1385,20 +1415,7 @@ fn handle_catalog_create(
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let title = read_arg_string_allow_empty(input, "title") |> option.unwrap("")
-  let errors = case string.trim(title) {
-    "" -> [user_error(["input", "title"], "Title can't be blank", "BLANK")]
-    trimmed ->
-      case string.length(trimmed) < 2 {
-        True -> [
-          user_error(
-            ["input", "title"],
-            "Title is too short (minimum is 2 characters)",
-            "TOO_SHORT",
-          ),
-        ]
-        False -> []
-      }
-  }
+  let errors = catalog_create_input_errors(store, input, title)
   case errors {
     [] -> {
       let #(id, next_identity) =
@@ -2140,20 +2157,117 @@ fn handle_market_localizations_register(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let resource_id = graphql_helpers.read_arg_string_nonempty(args, "resourceId")
-  let errors = case resource_id {
-    Some(id) ->
-      case store.find_effective_metafield_by_id(store, id) {
-        Some(_) -> [
-          user_error(
-            ["marketLocalizations", "0", "key"],
-            "Key value is not a valid market localizable field",
-            "INVALID_KEY_FOR_MODEL",
+  let inputs = read_arg_object_array(args, "marketLocalizations")
+  case list.length(inputs) > 100 {
+    True ->
+      mutation_payload_result(
+        key,
+        field,
+        fragments,
+        "marketLocalizationsRegister",
+        CapturedObject([
+          #("marketLocalizations", CapturedNull),
+          #(
+            "userErrors",
+            CapturedArray([
+              translation_user_error(
+                ["resourceId"],
+                "Too many keys for resource - maximum 100 per mutation",
+                "TOO_MANY_KEYS_FOR_RESOURCE",
+              ),
+            ]),
           ),
-        ]
-        None -> [resource_not_found_error(id)]
+        ]),
+        store,
+        identity,
+        [],
+      )
+    False ->
+      case resource_id {
+        Some(id) ->
+          case store.find_effective_metafield_by_id(store, id) {
+            Some(metafield) -> {
+              let errors =
+                market_localizations_register_errors(store, metafield, inputs)
+              case errors {
+                [] -> {
+                  let #(timestamp, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let records =
+                    inputs
+                    |> list.filter_map(fn(input) {
+                      register_input_to_record(input, id, timestamp)
+                    })
+                  let next_store =
+                    store.upsert_staged_market_localizations(store, records)
+                  mutation_payload_result(
+                    key,
+                    field,
+                    fragments,
+                    "marketLocalizationsRegister",
+                    CapturedObject([
+                      #(
+                        "marketLocalizations",
+                        CapturedArray(
+                          list.map(records, fn(record) {
+                            market_localization_payload(store, record)
+                          }),
+                        ),
+                      ),
+                      #("userErrors", CapturedArray([])),
+                    ]),
+                    next_store,
+                    next_identity,
+                    [id],
+                  )
+                }
+                _ ->
+                  mutation_payload_result(
+                    key,
+                    field,
+                    fragments,
+                    "marketLocalizationsRegister",
+                    CapturedObject([
+                      #("marketLocalizations", CapturedNull),
+                      #("userErrors", CapturedArray(errors)),
+                    ]),
+                    store,
+                    identity,
+                    [],
+                  )
+              }
+            }
+            None ->
+              market_localizations_register_error_result(
+                key,
+                field,
+                fragments,
+                [translation_resource_not_found_error(id)],
+                store,
+                identity,
+              )
+          }
+        None ->
+          market_localizations_register_error_result(
+            key,
+            field,
+            fragments,
+            [translation_resource_not_found_error("")],
+            store,
+            identity,
+          )
       }
-    None -> [resource_not_found_error("")]
   }
+}
+
+fn market_localizations_register_error_result(
+  key: String,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(CapturedJsonValue),
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+) -> MutationFieldResult {
   mutation_payload_result(
     key,
     field,
@@ -2167,6 +2281,181 @@ fn handle_market_localizations_register(
     identity,
     [],
   )
+}
+
+fn market_localizations_register_errors(
+  store: Store,
+  metafield: ProductMetafieldRecord,
+  inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(CapturedJsonValue) {
+  inputs
+  |> enumerate_dicts
+  |> list.flat_map(fn(pair) {
+    let #(input, index) = pair
+    market_localization_register_input_errors(store, metafield, input, index)
+  })
+}
+
+fn market_localization_register_input_errors(
+  store: Store,
+  metafield: ProductMetafieldRecord,
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(CapturedJsonValue) {
+  let prefix = ["marketLocalizations", int.to_string(index)]
+  let market_errors = market_localization_market_errors(store, input, prefix)
+  let key =
+    graphql_helpers.read_arg_string_nonempty(input, "key") |> option.unwrap("")
+  let content = market_localizable_content_for_key(metafield, key)
+  let key_errors = case content {
+    Some(_) -> []
+    None -> [
+      translation_user_error(
+        list.append(prefix, ["key"]),
+        "Key " <> key <> " is not a valid market localizable field",
+        "INVALID_KEY_FOR_MODEL",
+      ),
+    ]
+  }
+  let digest_errors = case content, key_errors {
+    Some(item), [] -> market_localization_digest_errors(input, prefix, item)
+    _, _ -> []
+  }
+  let value_errors = case content, key_errors, digest_errors {
+    Some(_), [], [] -> market_localization_value_errors(input, prefix)
+    _, _, _ -> []
+  }
+  market_errors
+  |> list.append(key_errors)
+  |> list.append(digest_errors)
+  |> list.append(value_errors)
+}
+
+fn market_localization_market_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(input, "marketId") {
+    Some(id) ->
+      case store.list_effective_markets(store) {
+        [] -> []
+        _ ->
+          case store.get_effective_market_by_id(store, id) {
+            Some(_) -> []
+            None -> [
+              translation_user_error(
+                list.append(prefix, ["marketId"]),
+                "Market does not exist",
+                "MARKET_DOES_NOT_EXIST",
+              ),
+            ]
+          }
+      }
+    None -> [
+      translation_user_error(
+        list.append(prefix, ["marketId"]),
+        "Market does not exist",
+        "MARKET_DOES_NOT_EXIST",
+      ),
+    ]
+  }
+}
+
+fn market_localizable_content_for_key(
+  metafield: ProductMetafieldRecord,
+  key: String,
+) -> Option(MarketLocalizableContentRecord) {
+  list.find(metafield.market_localizable_content, fn(content) {
+    content.key == key
+  })
+  |> result_to_option
+}
+
+fn market_localization_digest_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+  content: MarketLocalizableContentRecord,
+) -> List(CapturedJsonValue) {
+  case read_market_localizable_content_digest(input) {
+    Some(digest) if digest == content.digest -> []
+    _ -> [
+      translation_user_error(
+        list.append(prefix, ["marketLocalizableContentDigest"]),
+        "Market localizable content is invalid",
+        "INVALID_MARKET_LOCALIZABLE_CONTENT",
+      ),
+    ]
+  }
+}
+
+fn read_market_localizable_content_digest(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case
+    graphql_helpers.read_arg_string_nonempty(
+      input,
+      "marketLocalizableContentDigest",
+    )
+  {
+    Some(digest) -> Some(digest)
+    None ->
+      graphql_helpers.read_arg_string_nonempty(
+        input,
+        "translatableContentDigest",
+      )
+  }
+}
+
+fn market_localization_value_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  prefix: List(String),
+) -> List(CapturedJsonValue) {
+  case read_arg_string_allow_empty(input, "value") {
+    Some(value) ->
+      case string.trim(value) {
+        "" -> [
+          translation_user_error(
+            list.append(prefix, ["value"]),
+            "Value is invalid",
+            "FAILS_RESOURCE_VALIDATION",
+          ),
+        ]
+        _ -> []
+      }
+    _ -> [
+      translation_user_error(
+        list.append(prefix, ["value"]),
+        "Value is invalid",
+        "FAILS_RESOURCE_VALIDATION",
+      ),
+    ]
+  }
+}
+
+fn register_input_to_record(
+  input: Dict(String, root_field.ResolvedValue),
+  resource_id: String,
+  updated_at: String,
+) -> Result(MarketLocalizationRecord, Nil) {
+  use market_id <- result.try(
+    graphql_helpers.read_arg_string_nonempty(input, "marketId")
+    |> option_to_result,
+  )
+  use key <- result.try(
+    graphql_helpers.read_arg_string_nonempty(input, "key") |> option_to_result,
+  )
+  use value <- result.try(
+    read_arg_string_allow_empty(input, "value") |> option_to_result,
+  )
+  Ok(MarketLocalizationRecord(
+    resource_id: resource_id,
+    market_id: market_id,
+    key: key,
+    value: value,
+    updated_at: updated_at,
+    outdated: False,
+  ))
 }
 
 fn handle_market_localizations_remove(
@@ -2204,6 +2493,16 @@ fn handle_market_localizations_remove(
 
 fn resource_not_found_error(resource_id: String) -> CapturedJsonValue {
   user_error(
+    ["resourceId"],
+    "Resource " <> resource_id <> " does not exist",
+    "RESOURCE_NOT_FOUND",
+  )
+}
+
+fn translation_resource_not_found_error(
+  resource_id: String,
+) -> CapturedJsonValue {
+  translation_user_error(
     ["resourceId"],
     "Resource " <> resource_id <> " does not exist",
     "RESOURCE_NOT_FOUND",
@@ -2274,7 +2573,7 @@ fn handle_web_presence_update(
     Some(id_value) ->
       case store.get_effective_web_presence_by_id(store, id_value) {
         Some(_) -> {
-          let errors = web_presence_create_errors(store, input)
+          let errors = web_presence_update_errors(store, input)
           case errors {
             [] -> {
               let data = web_presence_data(store, id_value, input)
@@ -2575,6 +2874,21 @@ fn web_presence_create_errors(
   store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
+  web_presence_input_errors(store, input, True)
+}
+
+fn web_presence_update_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  web_presence_input_errors(store, input, False)
+}
+
+fn web_presence_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  require_route: Bool,
+) -> List(CapturedJsonValue) {
   let domain_errors = case
     graphql_helpers.read_arg_string_nonempty(input, "domainId")
   {
@@ -2591,11 +2905,67 @@ fn web_presence_create_errors(
       }
     None -> []
   }
-  let locale_errors = case
-    graphql_helpers.read_arg_string_nonempty(input, "defaultLocale")
-  {
+  let default_locale_errors = web_presence_default_locale_errors(input)
+  let route_and_suffix_errors = case domain_errors, default_locale_errors {
+    [], [] ->
+      list.append(
+        web_presence_route_errors(input, require_route),
+        web_presence_subfolder_suffix_errors(input),
+      )
+    _, _ -> []
+  }
+  [
+    domain_errors,
+    default_locale_errors,
+    web_presence_alternate_locale_errors(input),
+    route_and_suffix_errors,
+  ]
+  |> list.flatten
+}
+
+fn web_presence_route_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  require_route: Bool,
+) -> List(CapturedJsonValue) {
+  let domain_id = graphql_helpers.read_arg_string_nonempty(input, "domainId")
+  let suffix =
+    graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
+  case domain_id, suffix {
+    Some(_), Some(_) -> [
+      user_error(
+        ["input"],
+        "Cannot have both subfolder suffix and domain",
+        "CANNOT_HAVE_SUBFOLDER_AND_DOMAIN",
+      ),
+    ]
+    None, None ->
+      case require_route {
+        True -> [
+          user_error(
+            ["input"],
+            "Requires domain or subfolder",
+            "REQUIRES_DOMAIN_OR_SUBFOLDER",
+          ),
+        ]
+        False -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn web_presence_default_locale_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string(input, "defaultLocale") {
+    Some("") -> [
+      user_error(
+        ["input", "defaultLocale"],
+        "Default locale can't be blank",
+        "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
+      ),
+    ]
     Some(locale) ->
-      case locale == "en" {
+      case valid_web_presence_locale(locale) {
         True -> []
         False -> [
           user_error(
@@ -2605,9 +2975,112 @@ fn web_presence_create_errors(
           ),
         ]
       }
+    None -> [
+      user_error(
+        ["input", "defaultLocale"],
+        "Default locale can't be blank",
+        "CANNOT_SET_DEFAULT_LOCALE_TO_NULL",
+      ),
+    ]
+  }
+}
+
+fn web_presence_alternate_locale_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  read_arg_string_array(input, "alternateLocales")
+  |> option.unwrap([])
+  |> list.index_fold([], fn(errors, locale, index) {
+    case valid_web_presence_locale(locale) {
+      True -> errors
+      False ->
+        list.append(errors, [
+          user_error(
+            ["input", "alternateLocales", int.to_string(index)],
+            "Invalid locale codes: " <> locale,
+            "INVALID",
+          ),
+        ])
+    }
+  })
+}
+
+fn web_presence_subfolder_suffix_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix") {
+    Some(suffix) -> {
+      let length_errors = case subfolder_suffix_letter_count(suffix) < 2 {
+        True -> [
+          user_error(
+            ["input", "subfolderSuffix"],
+            "Subfolder suffix must be at least 2 letters",
+            "SUBFOLDER_SUFFIX_MUST_BE_AT_LEAST_2_LETTERS",
+          ),
+        ]
+        False -> []
+      }
+      let script_errors = case is_web_presence_script_code(suffix) {
+        True -> [
+          user_error(
+            ["input", "subfolderSuffix"],
+            "Subfolder suffix cannot be script code",
+            "SUBFOLDER_SUFFIX_CANNOT_BE_SCRIPT_CODE",
+          ),
+        ]
+        False -> []
+      }
+      list.append(length_errors, script_errors)
+    }
     None -> []
   }
-  list.append(domain_errors, locale_errors)
+}
+
+fn valid_web_presence_locale(locale: String) -> Bool {
+  list.contains(shopify_i18n_language_codes(), locale)
+}
+
+fn shopify_i18n_language_codes() -> List(String) {
+  [
+    "af", "ak", "sq", "am", "ar", "hy", "as", "az", "bm", "bn", "eu", "be", "bs",
+    "br", "bg", "my", "ca", "ckb", "ce", "zh-CN", "zh-TW", "kw", "hr", "cs",
+    "da", "nl", "dz", "en", "eo", "et", "ee", "fo", "fil", "fi", "fr", "fr-CA",
+    "ff", "gl", "lg", "ka", "de", "el", "gu", "ha", "he", "hi", "hu", "is", "ig",
+    "id", "ia", "ga", "it", "ja", "jv", "kl", "kn", "ks", "kk", "km", "ki", "rw",
+    "ko", "ku", "ky", "lo", "lv", "ln", "lt", "lu", "lb", "mk", "mg", "ms", "ml",
+    "mt", "gv", "mr", "mn", "mi", "ne", "nd", "se", "no", "nb", "nn", "or", "om",
+    "os", "ps", "fa", "pl", "pt-BR", "pt-PT", "pa", "qu", "ro", "rm", "rn", "ru",
+    "sg", "sa", "sc", "gd", "sr", "sn", "ii", "sd", "si", "sk", "sl", "so", "es",
+    "su", "sw", "sv", "tg", "ta", "tt", "te", "th", "bo", "ti", "to", "tr", "tk",
+    "uk", "ur", "ug", "uz", "vi", "cy", "fy", "wo", "xh", "yi", "yo", "zu",
+  ]
+}
+
+fn subfolder_suffix_letter_count(value: String) -> Int {
+  value
+  |> string.to_graphemes
+  |> list.filter(is_ascii_alpha)
+  |> list.length
+}
+
+fn is_ascii_alpha(grapheme: String) -> Bool {
+  string.contains(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    grapheme,
+  )
+}
+
+fn is_web_presence_script_code(value: String) -> Bool {
+  list.contains(
+    [
+      "Arab", "Armn", "Beng", "Bopo", "Brai", "Cyrl", "Deva", "Ethi", "Geor",
+      "Grek", "Gujr", "Guru", "Hang", "Hani", "Hans", "Hant", "Hebr", "Hira",
+      "Jpan", "Kana", "Khmr", "Knda", "Kore", "Laoo", "Latn", "Mlym", "Mong",
+      "Mymr", "Orya", "Sinh", "Taml", "Telu", "Tfng", "Thaa", "Thai", "Tibt",
+      "Yiii",
+    ],
+    value,
+  )
 }
 
 fn web_presence_data(
@@ -2861,11 +3334,34 @@ fn user_error(
   message: String,
   code: String,
 ) -> CapturedJsonValue {
-  CapturedObject([
-    #("field", CapturedArray(list.map(field, CapturedString))),
-    #("message", CapturedString(message)),
-    #("code", CapturedString(code)),
-  ])
+  user_error_with_typename(field, message, code, None)
+}
+
+fn translation_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  user_error_with_typename(field, message, code, Some("TranslationUserError"))
+}
+
+fn user_error_with_typename(
+  field: List(String),
+  message: String,
+  code: String,
+  typename: Option(String),
+) -> CapturedJsonValue {
+  let typename_fields = case typename {
+    Some(value) -> [#("__typename", CapturedString(value))]
+    None -> []
+  }
+  CapturedObject(
+    list.append(typename_fields, [
+      #("field", CapturedArray(list.map(field, CapturedString))),
+      #("message", CapturedString(message)),
+      #("code", CapturedString(code)),
+    ]),
+  )
 }
 
 fn markets_log_draft(root_name: String, staged_ids: List(String)) -> LogDraft {
@@ -3237,6 +3733,211 @@ fn currency_name(currency: String) -> String {
     "USD" -> "United States Dollar"
     _ -> currency
   }
+}
+
+fn catalog_create_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  title: String,
+) -> List(CapturedJsonValue) {
+  let title_errors = catalog_title_errors(title)
+  case title_errors {
+    [] -> {
+      let status_errors = catalog_status_errors(input)
+      case status_errors {
+        [] -> catalog_context_errors(store, input)
+        _ -> status_errors
+      }
+    }
+    _ -> title_errors
+  }
+}
+
+fn catalog_title_errors(title: String) -> List(CapturedJsonValue) {
+  case string.trim(title) {
+    "" -> [user_error(["input", "title"], "Title can't be blank", "BLANK")]
+    trimmed ->
+      case string.length(trimmed) < 2 {
+        True -> [
+          user_error(
+            ["input", "title"],
+            "Title is too short (minimum is 2 characters)",
+            "TOO_SHORT",
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn catalog_status_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case read_arg_string_allow_empty(input, "status") {
+    None -> [
+      user_error(["input", "status"], "Status is required", "REQUIRED"),
+    ]
+    Some(status) ->
+      case list.contains(["ACTIVE", "ARCHIVED", "DRAFT"], status) {
+        True -> []
+        False -> [
+          user_error(["input", "status"], "Status is invalid", "INVALID"),
+        ]
+      }
+  }
+}
+
+fn catalog_context_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_object(input, "context") {
+    None -> [
+      user_error(["input", "context"], "Context is required", "INVALID"),
+    ]
+    Some(context) -> catalog_context_object_errors(store, context)
+  }
+}
+
+fn catalog_context_object_errors(
+  store: Store,
+  context: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_string_nonempty(context, "driverType") {
+    None -> [
+      user_error(
+        ["input", "context", "driverType"],
+        "Driver type is required",
+        "INVALID",
+      ),
+    ]
+    Some(driver_type) ->
+      case driver_type {
+        "MARKET" -> {
+          case
+            require_catalog_context_ids(
+              context,
+              "marketIds",
+              "Market ids can't be blank",
+            )
+          {
+            Ok(ids) -> missing_market_context_errors(store, ids)
+            Error(errors) -> errors
+          }
+        }
+        "COMPANY_LOCATION" -> {
+          case
+            require_catalog_context_ids(
+              context,
+              "companyLocationIds",
+              "Company location ids can't be blank",
+            )
+          {
+            Ok(ids) -> {
+              case missing_company_location_context_errors(store, ids) {
+                [] -> unsupported_catalog_context_errors("COMPANY_LOCATION")
+                errors -> errors
+              }
+            }
+            Error(errors) -> errors
+          }
+        }
+        "COUNTRY" -> {
+          case
+            require_catalog_context_ids(
+              context,
+              "countryCodes",
+              "Country codes can't be blank",
+            )
+          {
+            Ok(_) -> unsupported_catalog_context_errors("COUNTRY")
+            Error(errors) -> errors
+          }
+        }
+        _ -> [
+          user_error(
+            ["input", "context", "driverType"],
+            "Driver type is invalid",
+            "INVALID",
+          ),
+        ]
+      }
+  }
+}
+
+fn unsupported_catalog_context_errors(
+  driver_type: String,
+) -> List(CapturedJsonValue) {
+  [
+    user_error(
+      ["input", "context", "driverType"],
+      "Catalog context driverType "
+        <> driver_type
+        <> " is not supported by the local MarketCatalog model",
+      "INVALID",
+    ),
+  ]
+}
+
+fn require_catalog_context_ids(
+  context: Dict(String, root_field.ResolvedValue),
+  field_name: String,
+  message: String,
+) -> Result(List(String), List(CapturedJsonValue)) {
+  case read_arg_string_array(context, field_name) {
+    Some(ids) ->
+      case ids {
+        [] ->
+          Error([
+            user_error(["input", "context", field_name], message, "INVALID"),
+          ])
+        [_, ..] -> Ok(ids)
+      }
+    None ->
+      Error([
+        user_error(["input", "context", field_name], message, "INVALID"),
+      ])
+  }
+}
+
+fn missing_market_context_errors(
+  store: Store,
+  market_ids: List(String),
+) -> List(CapturedJsonValue) {
+  market_ids
+  |> list.index_map(fn(id, index) { #(id, index) })
+  |> list.filter_map(fn(entry) {
+    let #(id, index) = entry
+    case store.get_effective_market_by_id(store, id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          ["input", "context", "marketIds", int.to_string(index)],
+          "Market does not exist",
+          "INVALID",
+        ))
+    }
+  })
+}
+
+fn missing_company_location_context_errors(
+  store: Store,
+  location_ids: List(String),
+) -> List(CapturedJsonValue) {
+  location_ids
+  |> list.index_map(fn(id, index) { #(id, index) })
+  |> list.filter_map(fn(entry) {
+    let #(id, index) = entry
+    case store.get_effective_b2b_company_location_by_id(store, id) {
+      Some(_) -> Error(Nil)
+      None ->
+        Ok(user_error(
+          ["input", "context", "companyLocationIds", int.to_string(index)],
+          "Company location does not exist",
+          "INVALID",
+        ))
+    }
+  })
 }
 
 fn catalog_data(
@@ -4210,12 +4911,59 @@ fn market_localizable_resource_payload(
   resource_id: String,
 ) -> CapturedJsonValue {
   case store.find_effective_metafield_by_id(store, resource_id) {
-    Some(_) ->
+    Some(metafield) ->
       CapturedObject([
         #("resourceId", CapturedString(resource_id)),
-        #("marketLocalizableContent", CapturedArray([])),
-        #("marketLocalizations", CapturedArray([])),
+        #(
+          "marketLocalizableContent",
+          CapturedArray(list.map(
+            metafield.market_localizable_content,
+            market_localizable_content_payload,
+          )),
+        ),
+        #(
+          "marketLocalizations",
+          CapturedArray(
+            store.list_effective_market_localizations(store, resource_id)
+            |> list.map(fn(record) {
+              market_localization_payload(store, record)
+            }),
+          ),
+        ),
       ])
+    None -> CapturedNull
+  }
+}
+
+fn market_localizable_content_payload(
+  content: MarketLocalizableContentRecord,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("key", CapturedString(content.key)),
+    #("value", CapturedString(content.value)),
+    #("digest", CapturedString(content.digest)),
+  ])
+}
+
+fn market_localization_payload(
+  store: Store,
+  record: MarketLocalizationRecord,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("key", CapturedString(record.key)),
+    #("value", CapturedString(record.value)),
+    #("updatedAt", CapturedString(record.updated_at)),
+    #("outdated", CapturedBool(record.outdated)),
+    #("market", market_localization_market_payload(store, record.market_id)),
+  ])
+}
+
+fn market_localization_market_payload(
+  store: Store,
+  market_id: String,
+) -> CapturedJsonValue {
+  case store.get_effective_market_by_id(store, market_id) {
+    Some(record) -> record.data
     None -> CapturedNull
   }
 }

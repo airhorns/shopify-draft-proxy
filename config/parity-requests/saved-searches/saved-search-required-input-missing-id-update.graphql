@@ -1,0 +1,12 @@
+mutation SavedSearchUpdateMissingId {
+  savedSearchUpdate(input: { name: "Missing id" }) {
+    savedSearch {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

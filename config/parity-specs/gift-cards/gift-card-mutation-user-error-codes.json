@@ -1,0 +1,42 @@
+{
+  "scenarioId": "gift-card-mutation-user-error-codes",
+  "operationNames": ["giftCardCreate", "giftCardUpdate", "giftCardCredit", "giftCardDebit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "input-validation", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2025-01/gift-cards/gift-card-mutation-user-error-codes.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-mutation-user-error-codes.graphql",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "giftCardCreate zero initial value uses GREATER_THAN",
+        "capturePath": "$.expected.data.zeroInitialValue.userErrors",
+        "proxyPath": "$.data.zeroInitialValue.userErrors"
+      },
+      {
+        "name": "giftCardUpdate unknown id uses GIFT_CARD_NOT_FOUND",
+        "capturePath": "$.expected.data.missingUpdate.userErrors",
+        "proxyPath": "$.data.missingUpdate.userErrors"
+      },
+      {
+        "name": "giftCardCredit non-positive amount uses NEGATIVE_OR_ZERO_AMOUNT",
+        "capturePath": "$.expected.data.negativeCredit.userErrors",
+        "proxyPath": "$.data.negativeCredit.userErrors"
+      },
+      {
+        "name": "giftCardDebit overdraft uses INSUFFICIENT_FUNDS",
+        "capturePath": "$.expected.data.insufficientDebit.userErrors",
+        "proxyPath": "$.data.insufficientDebit.userErrors"
+      }
+    ]
+  },
+  "notes": "HAR-686 executable local-runtime parity for gift-card mutation userError enum codes and Shopify input-nested field paths. A live probe with valid conformance credentials on Admin API 2025-01 and 2026-04 rejected `code` selection on `giftCardUpdate.userErrors` because that public schema path is typed as generic `UserError`; this runtime-backed scenario therefore encodes the ticket's typed enum-code contract directly. The request first stages a deterministic $5 CAD gift card locally, then strictly compares the create/update/credit/debit error paths without runtime Shopify writes."
+}

@@ -1,0 +1,1782 @@
+{
+  "metadata": {
+    "issue": "HAR-555",
+    "scenarioId": "fulfillment-order-move-validation",
+    "capturedAt": "2026-05-05T02:45:37.220Z",
+    "startedAt": "2026-05-05T02:45:13.861Z",
+    "storeDomain": "harry-test-heelo.myshopify.com",
+    "apiVersion": "2026-04",
+    "destinationLocationId": "gid://shopify/Location/106318430514",
+    "invalidLocationId": "gid://shopify/Location/999999999",
+    "scopedRoots": [
+      "fulfillmentOrderReportProgress",
+      "fulfillmentOrderSubmitFulfillmentRequest",
+      "fulfillmentOrderMove"
+    ],
+    "createdOrders": [
+      {
+        "id": "gid://shopify/Order/8728620040498",
+        "name": "#1116",
+        "fulfillmentOrder": {
+          "id": "gid://shopify/FulfillmentOrder/9652945912114",
+          "status": "OPEN",
+          "requestStatus": "UNSUBMITTED",
+          "updatedAt": "2026-05-05T02:45:29Z",
+          "assignedLocation": {
+            "name": "My Custom Location",
+            "location": {
+              "id": "gid://shopify/Location/106318463282",
+              "name": "My Custom Location"
+            }
+          },
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19451020443954",
+                "totalQuantity": 1,
+                "remainingQuantity": 1,
+                "lineItem": {
+                  "id": "gid://shopify/LineItem/19301874237746",
+                  "title": "HAR-555 fulfillment item closed 20260505024513",
+                  "quantity": 1,
+                  "fulfillableQuantity": 1
+                }
+              }
+            ]
+          }
+        },
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652945912114",
+        "assignedLocationId": "gid://shopify/Location/106318463282"
+      },
+      {
+        "id": "gid://shopify/Order/8728620073266",
+        "name": "#1117",
+        "fulfillmentOrder": {
+          "id": "gid://shopify/FulfillmentOrder/9652945944882",
+          "status": "OPEN",
+          "requestStatus": "UNSUBMITTED",
+          "updatedAt": "2026-05-05T02:45:30Z",
+          "assignedLocation": {
+            "name": "My Custom Location",
+            "location": {
+              "id": "gid://shopify/Location/106318463282",
+              "name": "My Custom Location"
+            }
+          },
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19451020476722",
+                "totalQuantity": 1,
+                "remainingQuantity": 1,
+                "lineItem": {
+                  "id": "gid://shopify/LineItem/19301874270514",
+                  "title": "HAR-555 fulfillment item progress 20260505024530",
+                  "quantity": 1,
+                  "fulfillableQuantity": 1
+                }
+              }
+            ]
+          }
+        },
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652945944882",
+        "assignedLocationId": "gid://shopify/Location/106318463282"
+      },
+      {
+        "id": "gid://shopify/Order/8728620106034",
+        "name": "#1118",
+        "fulfillmentOrder": {
+          "id": "gid://shopify/FulfillmentOrder/9652945977650",
+          "status": "OPEN",
+          "requestStatus": "UNSUBMITTED",
+          "updatedAt": "2026-05-05T02:45:31Z",
+          "assignedLocation": {
+            "name": "My Custom Location",
+            "location": {
+              "id": "gid://shopify/Location/106318463282",
+              "name": "My Custom Location"
+            }
+          },
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19451020509490",
+                "totalQuantity": 1,
+                "remainingQuantity": 1,
+                "lineItem": {
+                  "id": "gid://shopify/LineItem/19301874303282",
+                  "title": "HAR-555 fulfillment item request-status 20260505024531",
+                  "quantity": 1,
+                  "fulfillableQuantity": 1
+                }
+              }
+            ]
+          }
+        },
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652945977650",
+        "assignedLocationId": "gid://shopify/Location/106318463282"
+      },
+      {
+        "id": "gid://shopify/Order/8728620138802",
+        "name": "#1119",
+        "fulfillmentOrder": {
+          "id": "gid://shopify/FulfillmentOrder/9652946010418",
+          "status": "OPEN",
+          "requestStatus": "UNSUBMITTED",
+          "updatedAt": "2026-05-05T02:45:32Z",
+          "assignedLocation": {
+            "name": "My Custom Location",
+            "location": {
+              "id": "gid://shopify/Location/106318463282",
+              "name": "My Custom Location"
+            }
+          },
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19451020542258",
+                "totalQuantity": 1,
+                "remainingQuantity": 1,
+                "lineItem": {
+                  "id": "gid://shopify/LineItem/19301874336050",
+                  "title": "HAR-555 fulfillment item happy-path 20260505024531",
+                  "quantity": 1,
+                  "fulfillableQuantity": 1
+                }
+              }
+            ]
+          }
+        },
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652946010418",
+        "assignedLocationId": "gid://shopify/Location/106318463282"
+      },
+      {
+        "id": "gid://shopify/Order/8728620204338",
+        "name": "#1120",
+        "fulfillmentOrder": {
+          "id": "gid://shopify/FulfillmentOrder/9652946043186",
+          "status": "OPEN",
+          "requestStatus": "UNSUBMITTED",
+          "updatedAt": "2026-05-05T02:45:33Z",
+          "assignedLocation": {
+            "name": "My Custom Location",
+            "location": {
+              "id": "gid://shopify/Location/106318463282",
+              "name": "My Custom Location"
+            }
+          },
+          "lineItems": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrderLineItem/19451020575026",
+                "totalQuantity": 1,
+                "remainingQuantity": 1,
+                "lineItem": {
+                  "id": "gid://shopify/LineItem/19301874368818",
+                  "title": "HAR-555 fulfillment item unknown-location 20260505024532",
+                  "quantity": 1,
+                  "fulfillableQuantity": 1
+                }
+              }
+            ]
+          }
+        },
+        "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9652946043186",
+        "assignedLocationId": "gid://shopify/Location/106318463282"
+      }
+    ]
+  },
+  "setup": {
+    "hydrate": {
+      "query": "query FulfillmentOrderMoveValidationHydrate($first: Int!) {\n    locationsAvailableForDeliveryProfilesConnection(first: $first) {\n      nodes {\n        id\n        name\n        localPickupSettingsV2 {\n          pickupTime\n          instructions\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }",
+      "variables": {
+        "first": 10
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318496050",
+                  "name": "Snow City Warehouse",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/112829858098",
+                  "name": "HAR-571 transfer FS 20260505000731",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "localPickupSettingsV2": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "serviceCreate": {
+      "query": "mutation FulfillmentOrderMoveValidationServiceCreate($name: String!) {\n    fulfillmentServiceCreate(\n      name: $name\n      trackingSupport: true\n      inventoryManagement: true\n      requiresShippingMethod: true\n    ) {\n      fulfillmentService {\n        id\n        handle\n        serviceName\n        location {\n          id\n          name\n          isFulfillmentService\n          fulfillsOnlineOrders\n          shipsInventory\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "name": "HAR555 Move Validation 1777949133638"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceCreate": {
+              "fulfillmentService": {
+                "id": "gid://shopify/FulfillmentService/71918715186?id=true",
+                "handle": "har555-move-validation-1777949133638",
+                "serviceName": "HAR555 Move Validation 1777949133638",
+                "location": {
+                  "id": "gid://shopify/Location/112831922482",
+                  "name": "HAR555 Move Validation 1777949133638",
+                  "isFulfillmentService": true,
+                  "fulfillsOnlineOrders": true,
+                  "shipsInventory": false
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "moveRequestOrderToService": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationMove(\n    $id: ID!\n    $newLocationId: ID!\n    $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]\n  ) {\n    fulfillmentOrderMove(\n      id: $id\n      newLocationId: $newLocationId\n      fulfillmentOrderLineItems: $fulfillmentOrderLineItems\n    ) {\n      movedFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      originalFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945977650",
+        "newLocationId": "gid://shopify/Location/112831922482",
+        "fulfillmentOrderLineItems": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderMove": {
+              "movedFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652945977650",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "updatedAt": "2026-05-05T02:45:34Z",
+                "assignedLocation": {
+                  "name": "HAR555 Move Validation 1777949133638",
+                  "location": {
+                    "id": "gid://shopify/Location/112831922482",
+                    "name": "HAR555 Move Validation 1777949133638"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19451020509490",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19301874303282",
+                        "title": "HAR-555 fulfillment item request-status 20260505024531",
+                        "quantity": 1,
+                        "fulfillableQuantity": 1
+                      }
+                    }
+                  ]
+                }
+              },
+              "originalFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652945977650",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "updatedAt": "2026-05-05T02:45:34Z",
+                "assignedLocation": {
+                  "name": "HAR555 Move Validation 1777949133638",
+                  "location": {
+                    "id": "gid://shopify/Location/112831922482",
+                    "name": "HAR555 Move Validation 1777949133638"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19451020509490",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19301874303282",
+                        "title": "HAR-555 fulfillment item request-status 20260505024531",
+                        "quantity": 1,
+                        "fulfillableQuantity": 1
+                      }
+                    }
+                  ]
+                }
+              },
+              "remainingFulfillmentOrder": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 40,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "closed": {
+    "create": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderMoveValidationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-555-closed-20260505024513@example.com",
+          "note": "HAR-555 fulfillment-order move validation closed 20260505024513",
+          "tags": ["har-555", "fulfillment-order-move-validation", "closed"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "HAR",
+            "lastName": "MoveValidation",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "HAR-555 fulfillment item closed 20260505024513",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8728620040498",
+                "name": "#1116",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652945912114",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-05T02:45:29Z",
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19451020443954",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301874237746",
+                              "title": "HAR-555 fulfillment item closed 20260505024513",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 45,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "serviceFulfillmentOrder": {
+      "id": "gid://shopify/FulfillmentOrder/9652945912114",
+      "status": "CLOSED",
+      "requestStatus": "UNSUBMITTED",
+      "updatedAt": "2026-05-05T02:45:34Z",
+      "assignedLocation": {
+        "name": "My Custom Location",
+        "location": {
+          "id": "gid://shopify/Location/106318463282",
+          "name": "My Custom Location"
+        }
+      },
+      "lineItems": {
+        "nodes": []
+      }
+    },
+    "cancel": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationCancel($id: ID!) {\n    fulfillmentOrderCancel(id: $id) {\n      fulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      replacementFulfillmentOrder {\n        id\n        status\n        requestStatus\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945912114"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderCancel": {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652945912114",
+                "status": "CLOSED",
+                "requestStatus": "UNSUBMITTED",
+                "updatedAt": "2026-05-05T02:45:34Z",
+                "assignedLocation": {
+                  "name": "My Custom Location",
+                  "location": {
+                    "id": "gid://shopify/Location/106318463282",
+                    "name": "My Custom Location"
+                  }
+                },
+                "lineItems": {
+                  "nodes": []
+                }
+              },
+              "replacementFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652946108722",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 20,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "moveAfterClose": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationMove(\n    $id: ID!\n    $newLocationId: ID!\n    $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]\n  ) {\n    fulfillmentOrderMove(\n      id: $id\n      newLocationId: $newLocationId\n      fulfillmentOrderLineItems: $fulfillmentOrderLineItems\n    ) {\n      movedFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      originalFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945912114",
+        "newLocationId": "gid://shopify/Location/106318430514",
+        "fulfillmentOrderLineItems": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderMove": {
+              "movedFulfillmentOrder": null,
+              "originalFulfillmentOrder": null,
+              "remainingFulfillmentOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Cannot change location.",
+                  "code": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 40,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "progress": {
+    "create": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderMoveValidationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-555-progress-20260505024530@example.com",
+          "note": "HAR-555 fulfillment-order move validation progress 20260505024530",
+          "tags": ["har-555", "fulfillment-order-move-validation", "progress"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "HAR",
+            "lastName": "MoveValidation",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "HAR-555 fulfillment item progress 20260505024530",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8728620073266",
+                "name": "#1117",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652945944882",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-05T02:45:30Z",
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19451020476722",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301874270514",
+                              "title": "HAR-555 fulfillment item progress 20260505024530",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 45,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "reportProgress": {
+      "query": "mutation FulfillmentOrderMoveValidationReportProgress(\n    $id: ID!\n    $progressReport: FulfillmentOrderReportProgressInput\n  ) {\n    fulfillmentOrderReportProgress(id: $id, progressReport: $progressReport) {\n      fulfillmentOrder {\n        id\n        status\n        requestStatus\n        assignedLocation {\n          name\n          location {\n            id\n            name\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945944882",
+        "progressReport": {
+          "reasonNotes": "HAR-555 report progress before move validation"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderReportProgress": {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652945944882",
+                "status": "IN_PROGRESS",
+                "requestStatus": "UNSUBMITTED",
+                "assignedLocation": {
+                  "name": "My Custom Location",
+                  "location": {
+                    "id": "gid://shopify/Location/106318463282",
+                    "name": "My Custom Location"
+                  }
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 12,
+              "actualQueryCost": 12,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1988,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "moveAfterProgress": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationMove(\n    $id: ID!\n    $newLocationId: ID!\n    $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]\n  ) {\n    fulfillmentOrderMove(\n      id: $id\n      newLocationId: $newLocationId\n      fulfillmentOrderLineItems: $fulfillmentOrderLineItems\n    ) {\n      movedFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      originalFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945944882",
+        "newLocationId": "gid://shopify/Location/106318430514",
+        "fulfillmentOrderLineItems": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderMove": {
+              "movedFulfillmentOrder": null,
+              "originalFulfillmentOrder": null,
+              "remainingFulfillmentOrder": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Cannot move a fulfillment order that has had progress reported. To move a fulfillment order that has had progress reported, the fulfillment order must first be marked as open resolving the ongoing progress state.",
+                  "code": "CANNOT_MOVE_FULFILLMENT_ORDER_WITH_REPORTED_PROGRESS"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 40,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "requestStatus": {
+    "create": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderMoveValidationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-555-request-status-20260505024531@example.com",
+          "note": "HAR-555 fulfillment-order move validation request-status 20260505024531",
+          "tags": ["har-555", "fulfillment-order-move-validation", "request-status"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "HAR",
+            "lastName": "MoveValidation",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "HAR-555 fulfillment item request-status 20260505024531",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8728620106034",
+                "name": "#1118",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652945977650",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-05T02:45:31Z",
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19451020509490",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301874303282",
+                              "title": "HAR-555 fulfillment item request-status 20260505024531",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 45,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "serviceFulfillmentOrder": {
+      "id": "gid://shopify/FulfillmentOrder/9652945977650",
+      "status": "OPEN",
+      "requestStatus": "UNSUBMITTED",
+      "updatedAt": "2026-05-05T02:45:34Z",
+      "assignedLocation": {
+        "name": "HAR555 Move Validation 1777949133638",
+        "location": {
+          "id": "gid://shopify/Location/112831922482",
+          "name": "HAR555 Move Validation 1777949133638"
+        }
+      },
+      "lineItems": {
+        "nodes": [
+          {
+            "id": "gid://shopify/FulfillmentOrderLineItem/19451020509490",
+            "totalQuantity": 1,
+            "remainingQuantity": 1,
+            "lineItem": {
+              "id": "gid://shopify/LineItem/19301874303282",
+              "title": "HAR-555 fulfillment item request-status 20260505024531",
+              "quantity": 1,
+              "fulfillableQuantity": 1
+            }
+          }
+        ]
+      }
+    },
+    "submitRequest": {
+      "query": "mutation FulfillmentOrderMoveValidationSubmitRequest(\n    $id: ID!\n    $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]\n    $message: String\n    $notifyCustomer: Boolean\n  ) {\n    fulfillmentOrderSubmitFulfillmentRequest(\n      id: $id\n      fulfillmentOrderLineItems: $fulfillmentOrderLineItems\n      message: $message\n      notifyCustomer: $notifyCustomer\n    ) {\n      originalFulfillmentOrder {\n        id\n        status\n        requestStatus\n      }\n      submittedFulfillmentOrder {\n        id\n        status\n        requestStatus\n      }\n      unsubmittedFulfillmentOrder {\n        id\n        status\n        requestStatus\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945977650",
+        "fulfillmentOrderLineItems": null,
+        "message": "HAR-555 submit request before move validation",
+        "notifyCustomer": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderSubmitFulfillmentRequest": {
+              "originalFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652945977650",
+                "status": "OPEN",
+                "requestStatus": "SUBMITTED"
+              },
+              "submittedFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652945977650",
+                "status": "OPEN",
+                "requestStatus": "SUBMITTED"
+              },
+              "unsubmittedFulfillmentOrder": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "moveAfterSubmit": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationMove(\n    $id: ID!\n    $newLocationId: ID!\n    $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]\n  ) {\n    fulfillmentOrderMove(\n      id: $id\n      newLocationId: $newLocationId\n      fulfillmentOrderLineItems: $fulfillmentOrderLineItems\n    ) {\n      movedFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      originalFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945977650",
+        "newLocationId": "gid://shopify/Location/106318430514",
+        "fulfillmentOrderLineItems": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderMove": {
+              "movedFulfillmentOrder": null,
+              "originalFulfillmentOrder": null,
+              "remainingFulfillmentOrder": null,
+              "userErrors": [
+                {
+                  "field": null,
+                  "message": "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                  "code": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 40,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "happyPath": {
+    "create": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderMoveValidationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-555-happy-path-20260505024531@example.com",
+          "note": "HAR-555 fulfillment-order move validation happy-path 20260505024531",
+          "tags": ["har-555", "fulfillment-order-move-validation", "happy-path"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "HAR",
+            "lastName": "MoveValidation",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "HAR-555 fulfillment item happy-path 20260505024531",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8728620138802",
+                "name": "#1119",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652946010418",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-05T02:45:32Z",
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19451020542258",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301874336050",
+                              "title": "HAR-555 fulfillment item happy-path 20260505024531",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 45,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "move": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationMove(\n    $id: ID!\n    $newLocationId: ID!\n    $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]\n  ) {\n    fulfillmentOrderMove(\n      id: $id\n      newLocationId: $newLocationId\n      fulfillmentOrderLineItems: $fulfillmentOrderLineItems\n    ) {\n      movedFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      originalFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652946010418",
+        "newLocationId": "gid://shopify/Location/106318430514",
+        "fulfillmentOrderLineItems": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderMove": {
+              "movedFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652946010418",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "updatedAt": "2026-05-05T02:45:35Z",
+                "assignedLocation": {
+                  "name": "Shop location",
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19451020542258",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19301874336050",
+                        "title": "HAR-555 fulfillment item happy-path 20260505024531",
+                        "quantity": 1,
+                        "fulfillableQuantity": 1
+                      }
+                    }
+                  ]
+                }
+              },
+              "originalFulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652946010418",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "updatedAt": "2026-05-05T02:45:35Z",
+                "assignedLocation": {
+                  "name": "Shop location",
+                  "location": {
+                    "id": "gid://shopify/Location/106318430514",
+                    "name": "Shop location"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19451020542258",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19301874336050",
+                        "title": "HAR-555 fulfillment item happy-path 20260505024531",
+                        "quantity": 1,
+                        "fulfillableQuantity": 1
+                      }
+                    }
+                  ]
+                }
+              },
+              "remainingFulfillmentOrder": null,
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 40,
+              "actualQueryCost": 22,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1978,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "unknownLocation": {
+    "create": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        fulfillmentOrders(first: 5) {\n          nodes {\n            ...FulfillmentOrderMoveValidationFields\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "har-555-unknown-location-20260505024532@example.com",
+          "note": "HAR-555 fulfillment-order move validation unknown-location 20260505024532",
+          "tags": ["har-555", "fulfillment-order-move-validation", "unknown-location"],
+          "test": true,
+          "currency": "USD",
+          "shippingAddress": {
+            "firstName": "HAR",
+            "lastName": "MoveValidation",
+            "address1": "123 Queen St W",
+            "city": "Toronto",
+            "provinceCode": "ON",
+            "countryCode": "CA",
+            "zip": "M5H 2M9"
+          },
+          "lineItems": [
+            {
+              "variantId": "gid://shopify/ProductVariant/48540157378793",
+              "title": "HAR-555 fulfillment item unknown-location 20260505024532",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "20.00",
+                  "currencyCode": "USD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": true
+            }
+          ]
+        },
+        "options": {
+          "inventoryBehaviour": "BYPASS",
+          "sendReceipt": false,
+          "sendFulfillmentReceipt": false
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCreate": {
+              "order": {
+                "id": "gid://shopify/Order/8728620204338",
+                "name": "#1120",
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9652946043186",
+                      "status": "OPEN",
+                      "requestStatus": "UNSUBMITTED",
+                      "updatedAt": "2026-05-05T02:45:33Z",
+                      "assignedLocation": {
+                        "name": "My Custom Location",
+                        "location": {
+                          "id": "gid://shopify/Location/106318463282",
+                          "name": "My Custom Location"
+                        }
+                      },
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19451020575026",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 1,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19301874368818",
+                              "title": "HAR-555 fulfillment item unknown-location 20260505024532",
+                              "quantity": 1,
+                              "fulfillableQuantity": 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 45,
+              "actualQueryCost": 17,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1983,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "move": {
+      "query": "#graphql\n  fragment FulfillmentOrderMoveValidationFields on FulfillmentOrder {\n    id\n    status\n    requestStatus\n    updatedAt\n    assignedLocation {\n      name\n      location {\n        id\n        name\n      }\n    }\n    lineItems(first: 5) {\n      nodes {\n        id\n        totalQuantity\n        remainingQuantity\n        lineItem {\n          id\n          title\n          quantity\n          fulfillableQuantity\n        }\n      }\n    }\n  }\n\n  mutation FulfillmentOrderMoveValidationMove(\n    $id: ID!\n    $newLocationId: ID!\n    $fulfillmentOrderLineItems: [FulfillmentOrderLineItemInput!]\n  ) {\n    fulfillmentOrderMove(\n      id: $id\n      newLocationId: $newLocationId\n      fulfillmentOrderLineItems: $fulfillmentOrderLineItems\n    ) {\n      movedFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      originalFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      remainingFulfillmentOrder {\n        ...FulfillmentOrderMoveValidationFields\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652946043186",
+        "newLocationId": "gid://shopify/Location/999999999",
+        "fulfillmentOrderLineItems": null
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderMove": {
+              "movedFulfillmentOrder": null,
+              "originalFulfillmentOrder": null,
+              "remainingFulfillmentOrder": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "Location not found.",
+                  "code": null
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 40,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "rejectSubmittedRequest": {
+      "query": "mutation FulfillmentOrderMoveValidationRejectRequest($id: ID!, $message: String) {\n    fulfillmentOrderRejectFulfillmentRequest(id: $id, message: $message) {\n      fulfillmentOrder {\n        id\n        status\n        requestStatus\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945977650",
+        "message": "HAR-555 cleanup reject submitted request"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentOrderRejectFulfillmentRequest": {
+              "fulfillmentOrder": {
+                "id": "gid://shopify/FulfillmentOrder/9652945977650",
+                "status": "OPEN",
+                "requestStatus": "REJECTED"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancelOrder:gid://shopify/Order/8728620040498": {
+      "query": "mutation FulfillmentOrderMoveValidationOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8728620040498",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/16acd073-d8cd-4c36-ae53-6527f7bdf1ef"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancelOrder:gid://shopify/Order/8728620073266": {
+      "query": "mutation FulfillmentOrderMoveValidationOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8728620073266",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/16acd073-d8cd-4c36-ae53-6527f7bdf1ef"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancelOrder:gid://shopify/Order/8728620106034": {
+      "query": "mutation FulfillmentOrderMoveValidationOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8728620106034",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/16acd073-d8cd-4c36-ae53-6527f7bdf1ef"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancelOrder:gid://shopify/Order/8728620138802": {
+      "query": "mutation FulfillmentOrderMoveValidationOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8728620138802",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/16acd073-d8cd-4c36-ae53-6527f7bdf1ef"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "cancelOrder:gid://shopify/Order/8728620204338": {
+      "query": "mutation FulfillmentOrderMoveValidationOrderCancel(\n    $orderId: ID!\n    $reason: OrderCancelReason!\n    $notifyCustomer: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(orderId: $orderId, reason: $reason, notifyCustomer: $notifyCustomer, restock: $restock) {\n      job {\n        id\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "orderId": "gid://shopify/Order/8728620204338",
+        "reason": "OTHER",
+        "notifyCustomer": false,
+        "restock": false
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "orderCancel": {
+              "job": {
+                "id": "gid://shopify/Job/16acd073-d8cd-4c36-ae53-6527f7bdf1ef"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "deleteFulfillmentService": {
+      "query": "mutation FulfillmentOrderMoveValidationServiceDelete($id: ID!) {\n    fulfillmentServiceDelete(id: $id) {\n      deletedId\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/FulfillmentService/71918715186?id=true"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "fulfillmentServiceDelete": {
+              "deletedId": "gid://shopify/FulfillmentService/71918715186",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "FulfillmentOrderMoveValidationHydrate",
+      "variables": {
+        "first": 10
+      },
+      "query": "query FulfillmentOrderMoveValidationHydrate($first: Int!) {\n    locationsAvailableForDeliveryProfilesConnection(first: $first) {\n      nodes {\n        id\n        name\n        localPickupSettingsV2 {\n          pickupTime\n          instructions\n        }\n      }\n      pageInfo {\n        hasNextPage\n        hasPreviousPage\n      }\n    }\n  }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "locationsAvailableForDeliveryProfilesConnection": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Location/106318430514",
+                  "name": "Shop location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/106318496050",
+                  "name": "Snow City Warehouse",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/112829759794",
+                  "name": "HAR-571 transfer destination 20260505000619",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/112829858098",
+                  "name": "HAR-571 transfer FS 20260505000731",
+                  "localPickupSettingsV2": null
+                },
+                {
+                  "id": "gid://shopify/Location/112829956402",
+                  "name": "HAR-571 transfer destination 20260505000856",
+                  "localPickupSettingsV2": null
+                }
+              ],
+              "pageInfo": {
+                "hasNextPage": false,
+                "hasPreviousPage": false
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945912114"
+      },
+      "query": "sha:hand-synthesized-from-har-555-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652945912114",
+              "status": "CLOSED",
+              "requestStatus": "UNSUBMITTED",
+              "updatedAt": "2026-05-05T02:45:34Z",
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "lineItems": {
+                "nodes": []
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945944882"
+      },
+      "query": "sha:hand-synthesized-from-har-555-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652945944882",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "updatedAt": "2026-05-05T02:45:30Z",
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19451020476722",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301874270514",
+                      "title": "HAR-555 fulfillment item progress 20260505024530",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652945977650"
+      },
+      "query": "sha:hand-synthesized-from-har-555-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652945977650",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "updatedAt": "2026-05-05T02:45:34Z",
+              "assignedLocation": {
+                "name": "HAR555 Move Validation 1777949133638",
+                "location": {
+                  "id": "gid://shopify/Location/112831922482",
+                  "name": "HAR555 Move Validation 1777949133638"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19451020509490",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301874303282",
+                      "title": "HAR-555 fulfillment item request-status 20260505024531",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652946010418"
+      },
+      "query": "sha:hand-synthesized-from-har-555-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652946010418",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "updatedAt": "2026-05-05T02:45:32Z",
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19451020542258",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301874336050",
+                      "title": "HAR-555 fulfillment item happy-path 20260505024531",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "ShippingFulfillmentOrderHydrate",
+      "variables": {
+        "id": "gid://shopify/FulfillmentOrder/9652946043186"
+      },
+      "query": "sha:hand-synthesized-from-har-555-capture",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillmentOrder": {
+              "id": "gid://shopify/FulfillmentOrder/9652946043186",
+              "status": "OPEN",
+              "requestStatus": "UNSUBMITTED",
+              "updatedAt": "2026-05-05T02:45:33Z",
+              "assignedLocation": {
+                "name": "My Custom Location",
+                "location": {
+                  "id": "gid://shopify/Location/106318463282",
+                  "name": "My Custom Location"
+                }
+              },
+              "lineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrderLineItem/19451020575026",
+                    "totalQuantity": 1,
+                    "remainingQuantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19301874368818",
+                      "title": "HAR-555 fulfillment item unknown-location 20260505024532",
+                      "quantity": 1,
+                      "fulfillableQuantity": 1
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

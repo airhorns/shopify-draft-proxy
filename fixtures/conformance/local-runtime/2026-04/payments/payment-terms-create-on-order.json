@@ -1,0 +1,192 @@
+{
+  "capturedAt": "2026-05-05T04:45:00.000Z",
+  "source": "local-runtime-parity-harness",
+  "apiVersion": "2026-04",
+  "notes": "Deterministic local-runtime evidence for HAR-637. The flow creates an in-memory order with CAD presentment money, then exercises paymentTermsCreate on that Order owner plus multiple-schedule and missing-id payment terms error branches.",
+  "paymentTermsCreateOnOrder": {
+    "orderCreate": {
+      "variables": {
+        "order": {
+          "email": "har637-payment-terms-order@example.com",
+          "currency": "USD",
+          "presentmentCurrency": "CAD",
+          "lineItems": [
+            {
+              "title": "HAR-637 payment terms order",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "42.50",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "paymentTermsCreate": {
+      "variables": {
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    "multipleSchedules": {
+      "variables": {
+        "attrs": {
+          "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+          "paymentSchedules": [
+            {
+              "issuedAt": "2026-05-05T00:00:00Z"
+            },
+            {
+              "issuedAt": "2026-05-06T00:00:00Z"
+            }
+          ]
+        }
+      }
+    },
+    "missingUpdate": {
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/999999",
+          "paymentTermsAttributes": {
+            "paymentTermsTemplateId": "gid://shopify/PaymentTermsTemplate/4",
+            "paymentSchedules": [
+              {
+                "issuedAt": "2026-05-05T00:00:00Z"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "missingDelete": {
+      "variables": {
+        "input": {
+          "paymentTermsId": "gid://shopify/PaymentTerms/999999"
+        }
+      }
+    },
+    "expected": {
+      "orderCreate": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/1",
+              "currentTotalPriceSet": {
+                "shopMoney": {
+                  "amount": "42.5",
+                  "currencyCode": "USD"
+                },
+                "presentmentMoney": {
+                  "amount": "57.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "create": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": {
+              "id": "gid://shopify/PaymentTerms/4",
+              "due": false,
+              "overdue": false,
+              "dueInDays": 30,
+              "paymentTermsName": "Net 30",
+              "paymentTermsType": "NET",
+              "translatedName": "Net 30",
+              "paymentSchedules": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/PaymentSchedule/5",
+                    "issuedAt": "2026-05-05T00:00:00Z",
+                    "dueAt": "2026-06-04T00:00:00Z",
+                    "completedAt": null,
+                    "due": false,
+                    "amount": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    },
+                    "balanceDue": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    },
+                    "totalBalance": {
+                      "amount": "57.0",
+                      "currencyCode": "CAD"
+                    }
+                  }
+                ],
+                "pageInfo": {
+                  "hasNextPage": false,
+                  "hasPreviousPage": false,
+                  "startCursor": "cursor:gid://shopify/PaymentSchedule/5",
+                  "endCursor": "cursor:gid://shopify/PaymentSchedule/5"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "multiple": {
+        "data": {
+          "paymentTermsCreate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": ["base"],
+                "message": "Cannot create payment terms with multiple schedules.",
+                "code": "PAYMENT_TERMS_CREATION_UNSUCCESSFUL"
+              }
+            ]
+          }
+        }
+      },
+      "update": {
+        "data": {
+          "paymentTermsUpdate": {
+            "paymentTerms": null,
+            "userErrors": [
+              {
+                "field": ["input", "paymentTermsId"],
+                "message": "Payment terms do not exist",
+                "code": "PAYMENT_TERMS_UPDATE_UNSUCCESSFUL"
+              }
+            ]
+          }
+        }
+      },
+      "delete": {
+        "data": {
+          "paymentTermsDelete": {
+            "deletedId": null,
+            "userErrors": [
+              {
+                "field": ["input", "paymentTermsId"],
+                "message": "Payment terms do not exist",
+                "code": "PAYMENT_TERMS_DELETE_UNSUCCESSFUL"
+              }
+            ]
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

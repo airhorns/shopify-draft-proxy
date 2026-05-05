@@ -1,11 +1,13 @@
 import gleam/dict
 import gleam/json
-import gleam/option.{None}
+import gleam/option.{None, Some}
 import gleam/string
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/state/store as store_mod
-import shopify_draft_proxy/state/types.{Money, StoreCreditAccountRecord}
+import shopify_draft_proxy/state/types.{
+  CustomerRecord, Money, StoreCreditAccountRecord,
+}
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
   let request =
@@ -73,6 +75,93 @@ fn assert_missing_customer_error(body: json.Json) {
   )
 }
 
+pub fn customer_merge_required_argument_validation_test() {
+  let proxy = draft_proxy.new()
+
+  let #(Response(status: missing_status, body: missing_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation CustomerMergeMissingArgument { customerMerge(customerOneId: \"gid://shopify/Customer/1\") { resultingCustomerId job { id done } userErrors { field message code } } }",
+    )
+  assert missing_status == 200
+  let missing_json = json.to_string(missing_body)
+  assert string.contains(
+    missing_json,
+    "\"message\":\"Field 'customerMerge' is missing required arguments: customerTwoId\"",
+  )
+  assert string.contains(
+    missing_json,
+    "\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"customerMerge\",\"arguments\":\"customerTwoId\"}",
+  )
+
+  let #(Response(status: blank_status, body: blank_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation CustomerMergeBlankIds { customerMerge(customerOneId: \"\", customerTwoId: \"\") { resultingCustomerId job { id done } userErrors { field message code } } }",
+    )
+  assert blank_status == 200
+  let blank_json = json.to_string(blank_body)
+  assert string.contains(blank_json, "\"message\":\"Invalid global id ''\"")
+  assert string.contains(
+    blank_json,
+    "\"path\":[\"mutation CustomerMergeBlankIds\",\"customerMerge\",\"customerOneId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"CoercionError\"}",
+  )
+  assert string.contains(
+    blank_json,
+    "\"path\":[\"mutation CustomerMergeBlankIds\",\"customerMerge\",\"customerTwoId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"CoercionError\"}",
+  )
+}
+
+pub fn customer_merge_job_and_result_nodes_readback_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: first_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"merge-one@example.com\", firstName: \"One\", lastName: \"Source\", tags: [\"source\"] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert first_status == 200
+
+  let #(Response(status: second_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"merge-two@example.com\", firstName: \"Two\", lastName: \"Result\", tags: [\"result\"] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert second_status == 200
+
+  let #(Response(status: merge_status, body: merge_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerMerge(customerOneId: \"gid://shopify/Customer/1\", customerTwoId: \"gid://shopify/Customer/3\") { resultingCustomerId job { id done } userErrors { field message code } } }",
+    )
+  assert merge_status == 200
+  let merge_json = json.to_string(merge_body)
+  assert string.contains(
+    merge_json,
+    "\"customerMerge\":{\"resultingCustomerId\":\"gid://shopify/Customer/3\",\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":false},\"userErrors\":[]}",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { job(id: \"gid://shopify/Job/5\") { __typename id done query { __typename } } jobNode: node(id: \"gid://shopify/Job/5\") { __typename id ... on Job { done query { __typename } } } resultNode: node(id: \"gid://shopify/Customer/3\") { __typename id ... on Customer { email tags displayName } } sourceNode: node(id: \"gid://shopify/Customer/1\") { __typename id } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(
+    read_json,
+    "\"job\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":true,\"query\":{\"__typename\":\"QueryRoot\"}}",
+  )
+  assert string.contains(
+    read_json,
+    "\"jobNode\":{\"__typename\":\"Job\",\"id\":\"gid://shopify/Job/5\",\"done\":true,\"query\":{\"__typename\":\"QueryRoot\"}}",
+  )
+  assert string.contains(
+    read_json,
+    "\"resultNode\":{\"__typename\":\"Customer\",\"id\":\"gid://shopify/Customer/3\",\"email\":\"merge-two@example.com\",\"tags\":[\"result\",\"source\"],\"displayName\":\"Two Result\"}",
+  )
+  assert string.contains(read_json, "\"sourceNode\":null")
+}
+
 pub fn customer_create_readback_and_log_test() {
   let proxy = draft_proxy.new()
   let create_query =
@@ -114,6 +203,80 @@ pub fn customer_create_readback_and_log_test() {
   assert string.contains(
     log_json,
     "\"query\":\"" <> escape(create_query) <> "\"",
+  )
+}
+
+pub fn customer_account_invite_stages_only_invitable_customers_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"invite@example.com\" }) { customer { id state } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: invite_status, body: invite_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\") { customer { id state } userErrors { field message code } } }",
+    )
+  assert invite_status == 200
+  let invite_json = json.to_string(invite_body)
+  assert string.contains(invite_json, "\"state\":\"INVITED\"")
+  assert string.contains(invite_json, "\"userErrors\":[]")
+
+  let enabled_proxy =
+    proxy
+    |> set_customer_state("gid://shopify/Customer/1", "ENABLED")
+  let #(Response(status: enabled_status, body: enabled_body, ..), next_proxy) =
+    graphql(
+      enabled_proxy,
+      "mutation { customerSendAccountInviteEmail(customerId: \"gid://shopify/Customer/1\") { customer { id state } userErrors { field message code } } }",
+    )
+  assert enabled_status == 200
+  let enabled_json = json.to_string(enabled_body)
+  assert string.contains(
+    enabled_json,
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"ENABLED\"}",
+  )
+  assert string.contains(
+    enabled_json,
+    "\"userErrors\":[{\"field\":[\"customerId\"],\"message\":\"Account already enabled\",\"code\":\"ACCOUNT_ALREADY_ENABLED\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      next_proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id state } }",
+    )
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\",\"state\":\"ENABLED\"}",
+  )
+}
+
+pub fn customer_create_rejects_client_supplied_id_test() {
+  let proxy = draft_proxy.new()
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { id: \"gid://shopify/Customer/999\", email: \"client-id@example.com\" }) { customer { id email } userErrors { field message } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"customer\":null")
+  assert string.contains(
+    create_json,
+    "\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Cannot specify ID on creation\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { customersCount { count precision } }")
+  assert read_status == 200
+  assert string.contains(
+    json.to_string(read_body),
+    "\"customersCount\":{\"count\":0,\"precision\":\"EXACT\"}",
   )
 }
 
@@ -384,6 +547,80 @@ pub fn marketing_consent_update_allowed_states_still_stage_test() {
   assert_sms_consent_state_stages("PENDING")
 }
 
+pub fn customer_create_requires_email_for_inline_email_consent_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation { customerCreate(input: { phone: \"+14155550123\", emailMarketingConsent: { marketingState: SUBSCRIBED } }) { customer { id email } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"customer\":null")
+  assert string.contains(
+    body_json,
+    "\"userErrors\":[{\"field\":[\"emailMarketingConsent\"],\"message\":\"An email address is required to set the email marketing consent state.\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_create_requires_phone_for_inline_sms_consent_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation { customerCreate(input: { email: \"missing-phone@example.com\", smsMarketingConsent: { marketingState: SUBSCRIBED } }) { customer { id phone } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"customer\":null")
+  assert string.contains(
+    body_json,
+    "\"userErrors\":[{\"field\":[\"smsMarketingConsent\"],\"message\":\"A phone number is required to set the SMS consent state.\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_create_rejects_disallowed_inline_consent_state_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation { customerCreate(input: { email: \"redacted-create@example.com\", emailMarketingConsent: { marketingState: REDACTED } }) { customer { id email } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"errors\":[")
+  assert string.contains(
+    body_json,
+    "\"message\":\"Cannot specify REDACTED as a marketing state input\"",
+  )
+  assert string.contains(body_json, "\"extensions\":{\"code\":\"INVALID\"}")
+  assert string.contains(body_json, "\"path\":[\"customerCreate\"]")
+  assert string.contains(body_json, "\"data\":{\"customerCreate\":null}")
+  assert_log_omits_root(proxy, "customerCreate")
+  assert_next_customer_create_uses_first_customer_id(proxy)
+}
+
+pub fn customer_create_allows_not_subscribed_inline_consent_test() {
+  let proxy = draft_proxy.new()
+  let mutation =
+    "mutation { customerCreate(input: { email: \"not-subscribed@example.com\", phone: \"+13127004572\", emailMarketingConsent: { marketingState: NOT_SUBSCRIBED }, smsMarketingConsent: { marketingState: NOT_SUBSCRIBED } }) { customer { id emailMarketingConsent { marketingState } smsMarketingConsent { marketingState } } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(proxy, mutation)
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"userErrors\":[]")
+  assert string.contains(
+    body_json,
+    "\"emailMarketingConsent\":{\"marketingState\":\"NOT_SUBSCRIBED\"}",
+  )
+  assert string.contains(
+    body_json,
+    "\"smsMarketingConsent\":{\"marketingState\":\"NOT_SUBSCRIBED\"}",
+  )
+  assert_log_contains_root(proxy, "customerCreate")
+}
+
 fn assert_email_consent_state_rejected(state: String) {
   let proxy = consent_customer_proxy()
   let mutation =
@@ -546,6 +783,46 @@ fn assert_log_omits_root(proxy: draft_proxy.DraftProxy, root_name: String) {
     draft_proxy.process_request(proxy, log_request)
   assert log_status == 200
   assert !string.contains(json.to_string(log_body), root_name)
+}
+
+fn assert_log_contains_root(proxy: draft_proxy.DraftProxy, root_name: String) {
+  let log_request =
+    Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, log_request)
+  assert log_status == 200
+  assert string.contains(json.to_string(log_body), root_name)
+}
+
+fn assert_next_customer_create_uses_first_customer_id(
+  proxy: draft_proxy.DraftProxy,
+) {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"after-validation@example.com\" }) { customer { id } userErrors { field message } } }",
+    )
+  assert status == 200
+  assert string.contains(
+    json.to_string(body),
+    "\"customer\":{\"id\":\"gid://shopify/Customer/1\"}",
+  )
+}
+
+fn set_customer_state(
+  proxy: draft_proxy.DraftProxy,
+  customer_id: String,
+  state: String,
+) -> draft_proxy.DraftProxy {
+  let customer = case
+    store_mod.get_effective_customer_by_id(proxy.store, customer_id)
+  {
+    Some(record) -> record
+    None -> panic as "expected seeded customer"
+  }
+  let updated = CustomerRecord(..customer, state: Some(state))
+  let #(_, next_store) = store_mod.stage_update_customer(proxy.store, updated)
+  proxy_state.DraftProxy(..proxy, store: next_store)
 }
 
 fn opt_in_level_for_state(state: String) -> String {

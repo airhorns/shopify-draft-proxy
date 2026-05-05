@@ -1,0 +1,86 @@
+{
+  "notes": "Local-runtime fixture for HAR-706. It covers the parent non-READY validation branch and downstream Files API no-data shape for mediaErrors/mediaWarnings. The proxy intentionally does not model Shopify's internal MediaError rows, mediaWarnings rows, mediaable.status, or preview_image.status, so this fixture does not claim real failed-inner-state clearing parity.",
+  "create": {
+    "variables": {
+      "files": [
+        {
+          "alt": "Local acknowledgement semantics source",
+          "contentType": "IMAGE",
+          "filename": "ack-semantics-source.jpg",
+          "originalSource": "https://cdn.example.com/ack-semantics-source.jpg"
+        }
+      ]
+    },
+    "response": {
+      "data": {
+        "fileCreate": {
+          "files": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Local acknowledgement semantics source",
+              "createdAt": "2024-01-01T00:00:01.000Z",
+              "fileStatus": "UPLOADED",
+              "image": {
+                "url": "https://cdn.example.com/ack-semantics-source.jpg",
+                "width": null,
+                "height": null
+              }
+            }
+          ],
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "acknowledgeNonReady": {
+    "variables": {
+      "fileIds": ["gid://shopify/MediaImage/2"]
+    },
+    "response": {
+      "data": {
+        "fileAcknowledgeUpdateFailed": {
+          "files": null,
+          "userErrors": [
+            {
+              "field": ["fileIds"],
+              "message": "File with id gid://shopify/MediaImage/2 is not in the READY state.",
+              "code": "NON_READY_STATE"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "readAfterNonReady": {
+    "response": {
+      "data": {
+        "files": {
+          "nodes": [
+            {
+              "id": "gid://shopify/MediaImage/2",
+              "alt": "Local acknowledgement semantics source",
+              "createdAt": "2024-01-01T00:00:01.000Z",
+              "fileStatus": "UPLOADED",
+              "filename": "ack-semantics-source.jpg",
+              "__typename": "MediaImage",
+              "mediaErrors": [],
+              "mediaWarnings": [],
+              "image": {
+                "url": "https://cdn.example.com/ack-semantics-source.jpg",
+                "width": null,
+                "height": null
+              }
+            }
+          ],
+          "pageInfo": {
+            "hasNextPage": false,
+            "hasPreviousPage": false,
+            "startCursor": "cursor:gid://shopify/MediaImage/2",
+            "endCursor": "cursor:gid://shopify/MediaImage/2"
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

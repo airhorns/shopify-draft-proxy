@@ -1,0 +1,123 @@
+mutation GiftCardTransactionValidation(
+  $activeId: ID!
+  $expiredId: ID!
+  $deactivatedId: ID!
+  $validCreditInput: GiftCardCreditInput!
+  $mismatchCreditInput: GiftCardCreditInput!
+  $futureCreditInput: GiftCardCreditInput!
+  $preEpochCreditInput: GiftCardCreditInput!
+  $validDebitInput: GiftCardDebitInput!
+) {
+  expiredCredit: giftCardCredit(id: $expiredId, creditInput: $validCreditInput) {
+    giftCardCreditTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  deactivatedCredit: giftCardCredit(id: $deactivatedId, creditInput: $validCreditInput) {
+    giftCardCreditTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  mismatchCredit: giftCardCredit(id: $activeId, creditInput: $mismatchCreditInput) {
+    giftCardCreditTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  futureCredit: giftCardCredit(id: $activeId, creditInput: $futureCreditInput) {
+    giftCardCreditTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  preEpochCredit: giftCardCredit(id: $activeId, creditInput: $preEpochCreditInput) {
+    giftCardCreditTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  deactivatedDebit: giftCardDebit(id: $deactivatedId, debitInput: $validDebitInput) {
+    giftCardDebitTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+  successCredit: giftCardCredit(id: $activeId, creditInput: $validCreditInput) {
+    giftCardCreditTransaction {
+      id
+      __typename
+      processedAt
+      amount {
+        amount
+        currencyCode
+      }
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

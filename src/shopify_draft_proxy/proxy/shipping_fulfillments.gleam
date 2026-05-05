@@ -75,7 +75,11 @@ type QueryFieldResult {
 }
 
 type CarrierServiceUserError {
-  CarrierServiceUserError(field: Option(List(String)), message: String)
+  CarrierServiceUserError(
+    field: Option(List(String)),
+    message: String,
+    code: String,
+  )
 }
 
 type LocalPickupUserError {
@@ -99,6 +103,13 @@ type DeliveryProfileUserError {
     field: Option(List(String)),
     message: String,
     code: Option(String),
+  )
+}
+
+type FulfillmentOrderMoveDestination {
+  FulfillmentOrderMoveDestination(
+    id: String,
+    assigned_location: CapturedJsonValue,
   )
 }
 
@@ -734,6 +745,11 @@ fn product_record_from_variant_node(
     vendor: None,
     product_type: None,
     tags: [],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: None,
+    has_only_default_variant: None,
+    has_out_of_stock_variants: None,
     total_inventory: None,
     tracks_inventory: None,
     created_at: None,
@@ -4292,101 +4308,156 @@ fn handle_fulfillment_order_move(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = resolved_args(field, variables)
-  let quantity =
-    first_fulfillment_order_line_item_quantity(read_object_array(
-      args,
-      "fulfillmentOrderLineItems",
-    ))
+  let line_item_inputs = read_object_array(args, "fulfillmentOrderLineItems")
   case read_string(args, "id") {
     Some(id) ->
       case store.get_effective_fulfillment_order_by_id(draft_store, id) {
         Some(order) -> {
-          let remaining_quantity =
-            max_int(
-              first_fulfillment_order_line_item_total(order.data) - quantity,
-              0,
-            )
-          let original =
-            update_fulfillment_order_fields(order, [
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-              #(
-                "supportedActions",
-                captured_action_list([
-                  "CREATE_FULFILLMENT",
-                  "REPORT_PROGRESS",
-                  "MOVE",
-                  "HOLD",
-                ]),
-              ),
-              #(
-                "lineItems",
-                fulfillment_order_line_items_with_quantity(
-                  order.data,
-                  remaining_quantity,
-                  False,
-                ),
-              ),
-            ])
-          let #(moved_id, identity) =
-            synthetic_identity.make_synthetic_gid(identity, "FulfillmentOrder")
-          let moved =
-            update_fulfillment_order_fields(order, [
-              #("id", CapturedString(moved_id)),
-              #("updatedAt", CapturedString(synthetic_timestamp_string())),
-              #(
-                "assignedLocation",
-                assigned_location_value(read_string(args, "newLocationId")),
-              ),
-              #(
-                "supportedActions",
-                captured_action_list([
-                  "CREATE_FULFILLMENT",
-                  "REPORT_PROGRESS",
-                  "MOVE",
-                  "HOLD",
-                ]),
-              ),
-              #(
-                "lineItems",
-                fulfillment_order_line_items_with_quantity(
-                  order.data,
-                  quantity,
-                  False,
-                ),
-              ),
-            ])
-          let moved =
-            FulfillmentOrderRecord(
-              ..moved,
-              id: moved_id,
-              assigned_location_id: read_string(args, "newLocationId"),
-            )
-          let #(original, next_store) =
-            store.stage_upsert_fulfillment_order(draft_store, original)
-          let #(moved, next_store) =
-            store.stage_upsert_fulfillment_order(next_store, moved)
-          #(
-            MutationFieldResult(
-              key: key,
-              payload: fulfillment_order_payload_json(field, fragments, [
-                #("__typename", SrcString("FulfillmentOrderMovePayload")),
-                #("movedFulfillmentOrder", fulfillment_order_source(moved)),
-                #(
-                  "originalFulfillmentOrder",
-                  fulfillment_order_source(original),
-                ),
-                #(
-                  "remainingFulfillmentOrder",
-                  fulfillment_order_source(original),
-                ),
-                #("userErrors", SrcList([])),
-              ]),
-              errors: [],
-              staged_resource_ids: [original.id, moved.id],
-            ),
-            next_store,
-            identity,
-          )
+          case fulfillment_order_move_block_user_error(order) {
+            Some(user_error) ->
+              fulfillment_order_move_user_error_payload(
+                draft_store,
+                identity,
+                field,
+                fragments,
+                user_error,
+              )
+            None ->
+              case
+                find_fulfillment_order_move_destination(
+                  draft_store,
+                  read_string(args, "newLocationId"),
+                )
+              {
+                Some(destination) -> {
+                  let total_quantity =
+                    first_fulfillment_order_line_item_total(order.data)
+                  let quantity = case line_item_inputs {
+                    [] -> total_quantity
+                    _ ->
+                      first_fulfillment_order_line_item_quantity(
+                        line_item_inputs,
+                      )
+                  }
+                  let remaining_quantity = max_int(total_quantity - quantity, 0)
+                  let original_updates = [
+                    #("updatedAt", CapturedString(synthetic_timestamp_string())),
+                    #(
+                      "supportedActions",
+                      captured_action_list([
+                        "CREATE_FULFILLMENT",
+                        "REPORT_PROGRESS",
+                        "MOVE",
+                        "HOLD",
+                      ]),
+                    ),
+                    #(
+                      "lineItems",
+                      fulfillment_order_line_items_with_quantity(
+                        order.data,
+                        remaining_quantity,
+                        False,
+                      ),
+                    ),
+                  ]
+                  let original_updates = case remaining_quantity > 0 {
+                    True -> original_updates
+                    False -> [
+                      #("assignedLocation", destination.assigned_location),
+                      ..original_updates
+                    ]
+                  }
+                  let original =
+                    update_fulfillment_order_fields(order, original_updates)
+                  let original = case remaining_quantity > 0 {
+                    True -> original
+                    False ->
+                      FulfillmentOrderRecord(
+                        ..original,
+                        assigned_location_id: Some(destination.id),
+                      )
+                  }
+                  let #(moved_id, identity) =
+                    synthetic_identity.make_synthetic_gid(
+                      identity,
+                      "FulfillmentOrder",
+                    )
+                  let moved =
+                    update_fulfillment_order_fields(order, [
+                      #("id", CapturedString(moved_id)),
+                      #(
+                        "updatedAt",
+                        CapturedString(synthetic_timestamp_string()),
+                      ),
+                      #("assignedLocation", destination.assigned_location),
+                      #(
+                        "supportedActions",
+                        captured_action_list([
+                          "CREATE_FULFILLMENT",
+                          "REPORT_PROGRESS",
+                          "MOVE",
+                          "HOLD",
+                        ]),
+                      ),
+                      #(
+                        "lineItems",
+                        fulfillment_order_line_items_with_quantity(
+                          order.data,
+                          quantity,
+                          False,
+                        ),
+                      ),
+                    ])
+                  let moved =
+                    FulfillmentOrderRecord(
+                      ..moved,
+                      id: moved_id,
+                      assigned_location_id: Some(destination.id),
+                    )
+                  let #(original, next_store) =
+                    store.stage_upsert_fulfillment_order(draft_store, original)
+                  let #(moved, next_store) =
+                    store.stage_upsert_fulfillment_order(next_store, moved)
+                  let remaining = case remaining_quantity > 0 {
+                    True -> fulfillment_order_source(original)
+                    False -> SrcNull
+                  }
+                  #(
+                    MutationFieldResult(
+                      key: key,
+                      payload: fulfillment_order_payload_json(field, fragments, [
+                        #(
+                          "__typename",
+                          SrcString("FulfillmentOrderMovePayload"),
+                        ),
+                        #(
+                          "movedFulfillmentOrder",
+                          fulfillment_order_source(moved),
+                        ),
+                        #(
+                          "originalFulfillmentOrder",
+                          fulfillment_order_source(original),
+                        ),
+                        #("remainingFulfillmentOrder", remaining),
+                        #("userErrors", SrcList([])),
+                      ]),
+                      errors: [],
+                      staged_resource_ids: [original.id, moved.id],
+                    ),
+                    next_store,
+                    identity,
+                  )
+                }
+                None ->
+                  fulfillment_order_move_user_error_payload(
+                    draft_store,
+                    identity,
+                    field,
+                    fragments,
+                    fulfillment_order_move_location_not_found_user_error(),
+                  )
+              }
+          }
         }
         None ->
           fulfillment_order_missing_mutation_result(
@@ -4406,6 +4477,198 @@ fn handle_fulfillment_order_move(
         "FulfillmentOrderMovePayload",
       )
   }
+}
+
+fn find_fulfillment_order_move_destination(
+  draft_store: Store,
+  location_id: Option(String),
+) -> Option(FulfillmentOrderMoveDestination) {
+  case location_id {
+    Some(id) ->
+      case store.get_effective_store_property_location_by_id(draft_store, id) {
+        Some(location) ->
+          case is_active_location(location) {
+            True ->
+              Some(FulfillmentOrderMoveDestination(
+                id: location.id,
+                assigned_location: fulfillment_order_assigned_location_value(
+                  location,
+                ),
+              ))
+            False -> None
+          }
+        None ->
+          case store.list_effective_store_property_locations(draft_store) {
+            [] ->
+              Some(FulfillmentOrderMoveDestination(
+                id: id,
+                assigned_location: fallback_fulfillment_order_assigned_location(
+                  id,
+                ),
+              ))
+            _ -> find_fulfillment_order_assigned_location(draft_store, id)
+          }
+      }
+    None -> None
+  }
+}
+
+fn find_fulfillment_order_assigned_location(
+  draft_store: Store,
+  location_id: String,
+) -> Option(FulfillmentOrderMoveDestination) {
+  store.list_effective_fulfillment_orders(draft_store)
+  |> list.find(fn(order) { order.assigned_location_id == Some(location_id) })
+  |> option.from_result
+  |> option.map(fn(order) {
+    FulfillmentOrderMoveDestination(
+      id: location_id,
+      assigned_location: captured_field(order.data, "assignedLocation")
+        |> option.unwrap(fulfillment_order_assigned_location_from_id(
+          location_id,
+        )),
+    )
+  })
+}
+
+fn fulfillment_order_assigned_location_from_id(
+  location_id: String,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #("name", CapturedString("")),
+    #(
+      "location",
+      CapturedObject([
+        #("id", CapturedString(location_id)),
+        #("name", CapturedString("")),
+      ]),
+    ),
+  ])
+}
+
+fn fallback_fulfillment_order_assigned_location(
+  location_id: String,
+) -> CapturedJsonValue {
+  let name = case location_id {
+    "gid://shopify/Location/106318430514" -> "Shop location"
+    "" -> ""
+    _ -> "My Custom Location"
+  }
+  CapturedObject([
+    #("name", CapturedString(name)),
+    #(
+      "location",
+      CapturedObject([
+        #("id", CapturedString(location_id)),
+        #("name", CapturedString(name)),
+      ]),
+    ),
+  ])
+}
+
+fn fulfillment_order_move_block_user_error(
+  order: FulfillmentOrderRecord,
+) -> Option(SourceValue) {
+  case fulfillment_order_has_manually_reported_progress(order) {
+    True ->
+      Some(fulfillment_order_move_user_error(
+        SrcList([SrcString("id")]),
+        "Cannot move a fulfillment order that has had progress reported. To move a fulfillment order that has had progress reported, the fulfillment order must first be marked as open resolving the ongoing progress state.",
+        SrcString("CANNOT_MOVE_FULFILLMENT_ORDER_WITH_REPORTED_PROGRESS"),
+      ))
+    False ->
+      case order.status == "CLOSED" {
+        True ->
+          Some(fulfillment_order_move_user_error(
+            SrcNull,
+            "Cannot change location.",
+            SrcNull,
+          ))
+        False ->
+          case order.request_status == "SUBMITTED" {
+            True ->
+              Some(fulfillment_order_move_user_error(
+                SrcNull,
+                "Cannot move submitted fulfillment order that is at a 3PL fulfillment service.",
+                SrcNull,
+              ))
+            False ->
+              case fulfillment_order_move_blocked_request_status(order) {
+                True ->
+                  Some(fulfillment_order_move_user_error(
+                    SrcNull,
+                    "Fulfillment order is not actionable.",
+                    SrcNull,
+                  ))
+                False -> None
+              }
+          }
+      }
+  }
+}
+
+fn fulfillment_order_move_blocked_request_status(
+  order: FulfillmentOrderRecord,
+) -> Bool {
+  list.contains(
+    [
+      "SUBMITTED",
+      "ACCEPTED",
+      "CANCELLATION_REQUESTED",
+      "CANCELLATION_REJECTED",
+    ],
+    order.request_status,
+  )
+  || list.contains(
+    ["CANCELLATION_REQUESTED", "CANCELLATION_REJECTED"],
+    order.assignment_status |> option.unwrap(""),
+  )
+}
+
+fn fulfillment_order_move_location_not_found_user_error() -> SourceValue {
+  fulfillment_order_move_user_error(
+    SrcList([SrcString("id")]),
+    "Location not found.",
+    SrcNull,
+  )
+}
+
+fn fulfillment_order_move_user_error(
+  field: SourceValue,
+  message: String,
+  code: SourceValue,
+) -> SourceValue {
+  src_object([
+    #("field", field),
+    #("message", SrcString(message)),
+    #("code", code),
+  ])
+}
+
+fn fulfillment_order_move_user_error_payload(
+  draft_store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  user_error: SourceValue,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  let key = get_field_response_key(field)
+  #(
+    MutationFieldResult(
+      key: key,
+      payload: fulfillment_order_payload_json(field, fragments, [
+        #("__typename", SrcString("FulfillmentOrderMovePayload")),
+        #("movedFulfillmentOrder", SrcNull),
+        #("originalFulfillmentOrder", SrcNull),
+        #("remainingFulfillmentOrder", SrcNull),
+        #("userErrors", SrcList([user_error])),
+      ]),
+      errors: [],
+      staged_resource_ids: [],
+    ),
+    draft_store,
+    identity,
+  )
 }
 
 fn handle_fulfillment_order_simple_status(
@@ -7550,9 +7813,10 @@ fn carrier_service_user_error_source(
   error: CarrierServiceUserError,
 ) -> SourceValue {
   src_object([
-    #("__typename", SrcString("UserError")),
+    #("__typename", SrcString("CarrierServiceUserError")),
     #("field", optional_string_list_source(error.field)),
     #("message", SrcString(error.message)),
+    #("code", SrcString(error.code)),
   ])
 }
 
@@ -7631,6 +7895,7 @@ fn blank_carrier_service_name_errors() -> List(CarrierServiceUserError) {
     CarrierServiceUserError(
       field: None,
       message: "Shipping rate provider name can't be blank",
+      code: "CARRIER_SERVICE_CREATE_FAILED",
     ),
   ]
 }
@@ -7639,6 +7904,7 @@ fn carrier_service_not_found_for_update() -> CarrierServiceUserError {
   CarrierServiceUserError(
     field: None,
     message: "The carrier or app could not be found.",
+    code: "CARRIER_SERVICE_UPDATE_FAILED",
   )
 }
 
@@ -7646,6 +7912,7 @@ fn carrier_service_not_found_for_delete() -> CarrierServiceUserError {
   CarrierServiceUserError(
     field: Some(["id"]),
     message: "The carrier or app could not be found.",
+    code: "CARRIER_SERVICE_DELETE_FAILED",
   )
 }
 
@@ -8807,25 +9074,6 @@ fn captured_action_list(actions: List(String)) -> CapturedJsonValue {
     CapturedObject([#("action", CapturedString(action))])
   })
   |> CapturedArray
-}
-
-fn assigned_location_value(location_id: Option(String)) -> CapturedJsonValue {
-  let id = location_id |> option.unwrap("")
-  let name = case id {
-    "gid://shopify/Location/106318430514" -> "Shop location"
-    "" -> ""
-    _ -> "My Custom Location"
-  }
-  CapturedObject([
-    #("name", CapturedString(name)),
-    #(
-      "location",
-      CapturedObject([
-        #("id", CapturedString(id)),
-        #("name", CapturedString(name)),
-      ]),
-    ),
-  ])
 }
 
 fn sibling_fulfillment_order_quantity(

@@ -1,0 +1,124 @@
+{
+  "scenarioId": "payment-terms-create-template-and-schedule-validation",
+  "operationNames": ["orderCreate", "paymentTermsCreate", "paymentTermsTemplates"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "template-catalog-parity", "no-invalid-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/payments/payment-terms-create-template-and-schedule-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/payments_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/payments/payment-terms-create-on-order-create.graphql",
+    "variables": {
+      "order": {
+        "email": "har674-payment-terms-validation@example.com",
+        "currency": "USD",
+        "presentmentCurrency": "CAD",
+        "lineItems": [
+          {
+            "title": "HAR-674 payment terms validation",
+            "quantity": 1,
+            "priceSet": {
+              "shopMoney": {
+                "amount": "18.50",
+                "currencyCode": "USD"
+              },
+              "presentmentMoney": {
+                "amount": "18.50",
+                "currencyCode": "CAD"
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "templates-lookup",
+        "capturePath": "$.templates.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-templates-read.graphql",
+          "variablesCapturePath": "$.templates.variables"
+        }
+      },
+      {
+        "name": "unknown-template-error",
+        "capturePath": "$.cases.unknownTemplate.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.cases.unknownTemplate.variables.attrs"
+            }
+          }
+        }
+      },
+      {
+        "name": "fixed-missing-due-at-error",
+        "capturePath": "$.cases.fixedMissingDueAt.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.cases.fixedMissingDueAt.variables.attrs"
+            }
+          }
+        }
+      },
+      {
+        "name": "receipt-extra-due-at-error",
+        "capturePath": "$.cases.receiptExtraDueAt.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.cases.receiptExtraDueAt.variables.attrs"
+            }
+          }
+        }
+      },
+      {
+        "name": "receipt-issued-at-success-empty-schedule",
+        "capturePath": "$.cases.receiptExtraIssuedAt.response.data.paymentTermsCreate",
+        "proxyPath": "$.data.paymentTermsCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/payments/payment-terms-lifecycle-create.graphql",
+          "variables": {
+            "referenceId": {
+              "fromPrimaryProxyPath": "$.data.orderCreate.order.id"
+            },
+            "attrs": {
+              "fromCapturePath": "$.cases.receiptExtraIssuedAt.variables.attrs"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.paymentTerms.id",
+            "matcher": "shopify-gid:PaymentTerms",
+            "reason": "Shopify and the local proxy generate independent payment terms IDs."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Executable parity for HAR-674. Live 2026-04 capture shows paymentTermsCreate returns null-field PAYMENT_TERMS_CREATION_UNSUCCESSFUL userErrors for unknown templates, missing FIXED dueAt, and RECEIPT dueAt, while RECEIPT issuedAt is accepted and produces an empty paymentSchedules connection. The omitted-template branch is rejected by Shopify variable coercion before paymentTermsCreate executes, so focused runtime coverage ensures the proxy no longer defaults it locally. Happy-path paymentTermsCreate remains covered by payment-terms-lifecycle-local-staging."
+}

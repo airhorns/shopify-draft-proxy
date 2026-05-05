@@ -1674,6 +1674,7 @@ fn shop_policy_json(record: types.ShopPolicyRecord) -> Json {
     #("url", json.string(record.url)),
     #("createdAt", json.string(record.created_at)),
     #("updatedAt", json.string(record.updated_at)),
+    #("migratedToHtml", json.bool(record.migrated_to_html)),
   ])
 }
 
@@ -1764,6 +1765,11 @@ fn product_json(record: types.ProductRecord) -> Json {
     #("vendor", optional_string(record.vendor)),
     #("productType", optional_string(record.product_type)),
     #("tags", json.array(record.tags, json.string)),
+    #("priceRangeMin", optional_string(record.price_range_min)),
+    #("priceRangeMax", optional_string(record.price_range_max)),
+    #("totalVariants", optional_int(record.total_variants)),
+    #("hasOnlyDefaultVariant", optional_bool(record.has_only_default_variant)),
+    #("hasOutOfStockVariants", optional_bool(record.has_out_of_stock_variants)),
     #("totalInventory", optional_int(record.total_inventory)),
     #("tracksInventory", optional_bool(record.tracks_inventory)),
     #("createdAt", optional_string(record.created_at)),
@@ -1886,6 +1892,16 @@ fn market_localization_json(record: types.MarketLocalizationRecord) -> Json {
     #("value", json.string(record.value)),
     #("updatedAt", json.string(record.updated_at)),
     #("outdated", json.bool(record.outdated)),
+  ])
+}
+
+fn market_localizable_content_json(
+  record: types.MarketLocalizableContentRecord,
+) -> Json {
+  json.object([
+    #("key", json.string(record.key)),
+    #("value", json.string(record.value)),
+    #("digest", json.string(record.digest)),
   ])
 }
 
@@ -2380,6 +2396,13 @@ fn product_metafield_json(record: types.ProductMetafieldRecord) -> Json {
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
     #("ownerType", optional_string(record.owner_type)),
+    #(
+      "marketLocalizableContent",
+      json.array(
+        record.market_localizable_content,
+        market_localizable_content_json,
+      ),
+    ),
   ])
 }
 
@@ -2715,8 +2738,24 @@ fn validation_json(record: types.ValidationRecord) -> Json {
     #("functionId", optional_string(record.function_id)),
     #("functionHandle", optional_string(record.function_handle)),
     #("shopifyFunctionId", optional_string(record.shopify_function_id)),
+    #("metafields", json.array(record.metafields, validation_metafield_json)),
     #("createdAt", optional_string(record.created_at)),
     #("updatedAt", optional_string(record.updated_at)),
+  ])
+}
+
+fn validation_metafield_json(record: types.ValidationMetafieldRecord) -> Json {
+  json.object([
+    #("id", json.string(record.id)),
+    #("validationId", json.string(record.validation_id)),
+    #("namespace", json.string(record.namespace)),
+    #("key", json.string(record.key)),
+    #("type", optional_string(record.type_)),
+    #("value", optional_string(record.value)),
+    #("compareDigest", optional_string(record.compare_digest)),
+    #("createdAt", optional_string(record.created_at)),
+    #("updatedAt", optional_string(record.updated_at)),
+    #("ownerType", optional_string(record.owner_type)),
   ])
 }
 
@@ -2887,6 +2926,7 @@ fn gift_card_json(record: types.GiftCardRecord) -> Json {
     #("legacyResourceId", json.string(record.legacy_resource_id)),
     #("lastCharacters", json.string(record.last_characters)),
     #("maskedCode", json.string(record.masked_code)),
+    #("code", optional_string(record.code)),
     #("enabled", json.bool(record.enabled)),
     #("notify", json.bool(record.notify)),
     #("deactivatedAt", optional_string(record.deactivated_at)),
@@ -4840,6 +4880,7 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
   use url <- decode.field("url", decode.string)
   use created_at <- decode.field("createdAt", decode.string)
   use updated_at <- decode.field("updatedAt", decode.string)
+  use migrated_to_html <- optional_field("migratedToHtml", True, decode.bool)
   decode.success(types.ShopPolicyRecord(
     id: id,
     title: title,
@@ -4848,6 +4889,7 @@ fn shop_policy_decoder() -> Decoder(types.ShopPolicyRecord) {
     url: url,
     created_at: created_at,
     updated_at: updated_at,
+    migrated_to_html: migrated_to_html,
   ))
 }
 
@@ -5289,6 +5331,19 @@ fn bulk_operation_decoder() -> Decoder(types.BulkOperationRecord) {
   ))
 }
 
+fn market_localizable_content_decoder() -> Decoder(
+  types.MarketLocalizableContentRecord,
+) {
+  use key <- decode.field("key", decode.string)
+  use value <- decode.field("value", decode.string)
+  use digest <- decode.field("digest", decode.string)
+  decode.success(types.MarketLocalizableContentRecord(
+    key: key,
+    value: value,
+    digest: digest,
+  ))
+}
+
 fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
   use id <- decode.field("id", decode.string)
   use owner_id <- decode.field("ownerId", decode.string)
@@ -5305,6 +5360,11 @@ fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
   use created_at <- optional_string_field("createdAt")
   use updated_at <- optional_string_field("updatedAt")
   use owner_type <- optional_string_field("ownerType")
+  use market_localizable_content <- optional_field(
+    "marketLocalizableContent",
+    [],
+    decode.list(of: market_localizable_content_decoder()),
+  )
   decode.success(types.ProductMetafieldRecord(
     id: id,
     owner_id: owner_id,
@@ -5317,6 +5377,7 @@ fn product_metafield_decoder() -> Decoder(types.ProductMetafieldRecord) {
     created_at: created_at,
     updated_at: updated_at,
     owner_type: owner_type,
+    market_localizable_content: market_localizable_content,
   ))
 }
 
@@ -5763,6 +5824,11 @@ fn validation_decoder() -> Decoder(types.ValidationRecord) {
   use function_id <- optional_string_field("functionId")
   use function_handle <- optional_string_field("functionHandle")
   use shopify_function_id <- optional_string_field("shopifyFunctionId")
+  use metafields <- optional_field(
+    "metafields",
+    [],
+    decode.list(of: validation_metafield_decoder()),
+  )
   use created_at <- optional_string_field("createdAt")
   use updated_at <- optional_string_field("updatedAt")
   decode.success(types.ValidationRecord(
@@ -5773,8 +5839,34 @@ fn validation_decoder() -> Decoder(types.ValidationRecord) {
     function_id: function_id,
     function_handle: function_handle,
     shopify_function_id: shopify_function_id,
+    metafields: metafields,
     created_at: created_at,
     updated_at: updated_at,
+  ))
+}
+
+fn validation_metafield_decoder() -> Decoder(types.ValidationMetafieldRecord) {
+  use id <- decode.field("id", decode.string)
+  use validation_id <- decode.field("validationId", decode.string)
+  use namespace <- decode.field("namespace", decode.string)
+  use key <- decode.field("key", decode.string)
+  use type_ <- optional_string_field("type")
+  use value <- optional_string_field("value")
+  use compare_digest <- optional_string_field("compareDigest")
+  use created_at <- optional_string_field("createdAt")
+  use updated_at <- optional_string_field("updatedAt")
+  use owner_type <- optional_string_field("ownerType")
+  decode.success(types.ValidationMetafieldRecord(
+    id: id,
+    validation_id: validation_id,
+    namespace: namespace,
+    key: key,
+    type_: type_,
+    value: value,
+    compare_digest: compare_digest,
+    created_at: created_at,
+    updated_at: updated_at,
+    owner_type: owner_type,
   ))
 }
 
@@ -5851,6 +5943,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
   use legacy_resource_id <- decode.field("legacyResourceId", decode.string)
   use last_characters <- decode.field("lastCharacters", decode.string)
   use masked_code <- decode.field("maskedCode", decode.string)
+  use code <- optional_string_field("code")
   use enabled <- decode.field("enabled", decode.bool)
   use notify <- optional_field("notify", True, decode.bool)
   use deactivated_at <- optional_string_field("deactivatedAt")
@@ -5879,6 +5972,7 @@ fn gift_card_decoder() -> Decoder(types.GiftCardRecord) {
     legacy_resource_id: legacy_resource_id,
     last_characters: last_characters,
     masked_code: masked_code,
+    code: code,
     enabled: enabled,
     notify: notify,
     deactivated_at: deactivated_at,

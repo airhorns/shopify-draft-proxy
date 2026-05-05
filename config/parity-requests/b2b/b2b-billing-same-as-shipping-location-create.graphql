@@ -1,0 +1,13 @@
+mutation B2BBillingSameAsShippingLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+  companyLocationCreate(companyId: $companyId, input: $input) {
+    companyLocation {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

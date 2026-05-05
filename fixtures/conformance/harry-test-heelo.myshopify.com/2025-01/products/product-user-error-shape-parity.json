@@ -1,0 +1,231 @@
+{
+  "scenarioId": "product-user-error-shape-parity",
+  "apiVersion": "2025-01",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "notes": [
+    "HAR-586 live validation capture for product-domain userError field/message/code shape.",
+    "Current Admin GraphQL exposes code on typed product option and bulk reorder userError objects, but productCreate, productUpdate, collectionCreate, and inventoryActivate still expose the generic UserError type without code in public introspection."
+  ],
+  "captures": {
+    "productCreateBlank": {
+      "document": "#graphql\n  mutation ProductUserErrorShapeProductCreate($product: ProductCreateInput!) {\n    productCreate(product: $product) {\n      product { id }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": ""
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["title"],
+                  "message": "Title can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productOptionsCreateUnknown": {
+      "document": "#graphql\n  mutation ProductUserErrorShapeProductOptionsCreate($productId: ID!, $options: [OptionCreateInput!]!) {\n    productOptionsCreate(productId: $productId, options: $options) {\n      product { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999999",
+        "options": [
+          {
+            "name": "Color",
+            "values": [
+              {
+                "name": "Red"
+              }
+            ]
+          }
+        ]
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productOptionsCreate": {
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productOptionsDeleteUnknown": {
+      "document": "#graphql\n  mutation ProductUserErrorShapeProductOptionsDelete($productId: ID!, $options: [ID!]!) {\n    productOptionsDelete(productId: $productId, options: $options) {\n      deletedOptionsIds\n      product { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999999",
+        "options": ["gid://shopify/ProductOption/999999999999999"]
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productOptionsDelete": {
+              "deletedOptionsIds": [],
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productVariantsBulkReorderUnknown": {
+      "document": "#graphql\n  mutation ProductUserErrorShapeProductVariantsBulkReorder(\n    $productId: ID!\n    $positions: [ProductVariantPositionInput!]!\n  ) {\n    productVariantsBulkReorder(productId: $productId, positions: $positions) {\n      product { id }\n      userErrors { field message code }\n    }\n  }\n",
+      "variables": {
+        "productId": "gid://shopify/Product/999999999999999",
+        "positions": []
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productVariantsBulkReorder": {
+              "product": null,
+              "userErrors": [
+                {
+                  "field": ["productId"],
+                  "message": "Product does not exist",
+                  "code": "PRODUCT_DOES_NOT_EXIST"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "collectionCreateBlank": {
+      "document": "#graphql\n  mutation ProductUserErrorShapeCollectionCreate($input: CollectionInput!) {\n    collectionCreate(input: $input) {\n      collection { id }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "title": ""
+        }
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "collectionCreate": {
+              "collection": null,
+              "userErrors": [
+                {
+                  "field": ["title"],
+                  "message": "Title can't be blank"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "inventoryActivateUnknownItem": {
+      "document": "#graphql\n  mutation ProductUserErrorShapeInventoryActivate($inventoryItemId: ID!, $locationId: ID!) {\n    inventoryActivate(inventoryItemId: $inventoryItemId, locationId: $locationId) {\n      inventoryLevel { id }\n      userErrors { field message }\n    }\n  }\n",
+      "variables": {
+        "inventoryItemId": "gid://shopify/InventoryItem/999999999999999",
+        "locationId": "gid://shopify/Location/112829759794"
+      },
+      "result": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "inventoryActivate": {
+              "inventoryLevel": null,
+              "userErrors": [
+                {
+                  "field": ["inventoryItemId"],
+                  "message": "The product couldn't be stocked at HAR-571 transfer destination 20260505000619 because the product was deleted."
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

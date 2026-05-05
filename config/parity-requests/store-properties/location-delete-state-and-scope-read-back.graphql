@@ -1,0 +1,15 @@
+query LocationDeleteReadBack($first: Int!) {
+  locations(first: $first) {
+    edges {
+      node {
+        id
+      }
+    }
+    pageInfo {
+      hasNextPage
+      hasPreviousPage
+      startCursor
+      endCursor
+    }
+  }
+}

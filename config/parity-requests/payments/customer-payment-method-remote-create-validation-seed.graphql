@@ -1,0 +1,12 @@
+mutation CustomerPaymentMethodRemoteCreateValidationSeed {
+  customerCreate(input: { email: "remote-validation@example.test" }) {
+    customer {
+      id
+    }
+    userErrors {
+      field
+      code
+      message
+    }
+  }
+}

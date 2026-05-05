@@ -1,0 +1,173 @@
+{
+  "scenarioId": "productOptionsCreate-limits-and-duplicates-parity",
+  "operationNames": ["productCreate", "productOptionsCreate", "productVariantsBulkCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-atomicity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/product-options-create-limits-and-duplicates-parity.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/productCreate-parity-plan.graphql",
+    "variablesCapturePath": "$.captures.productCreate.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-590 validation parity for productOptionsCreate limit and duplicate branches. The primary request creates a disposable local product; targets replay captured validation branches and setup mutations. The large-variant branch creates 1500 local variants before asserting Shopify's `TOO_MANY_VARIANTS_CREATED` response for `variantStrategy: CREATE`.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "product-create-user-errors",
+        "capturePath": "$.captures.productCreate.result.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors"
+      },
+      {
+        "name": "duplicated-option-name-user-errors",
+        "capturePath": "$.captures.duplicateOptionName.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variantStrategy": { "fromCapturePath": "$.captures.duplicateOptionName.variables.variantStrategy" },
+            "options": { "fromCapturePath": "$.captures.duplicateOptionName.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "option-values-missing-user-errors",
+        "capturePath": "$.captures.emptyValues.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variantStrategy": { "fromCapturePath": "$.captures.emptyValues.variables.variantStrategy" },
+            "options": { "fromCapturePath": "$.captures.emptyValues.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "option-name-too-long-user-errors",
+        "capturePath": "$.captures.optionNameTooLong.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variantStrategy": { "fromCapturePath": "$.captures.optionNameTooLong.variables.variantStrategy" },
+            "options": { "fromCapturePath": "$.captures.optionNameTooLong.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "setup-color-option-user-errors",
+        "capturePath": "$.captures.setupColorOption.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variantStrategy": { "fromCapturePath": "$.captures.setupColorOption.variables.variantStrategy" },
+            "options": { "fromCapturePath": "$.captures.setupColorOption.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "option-already-exists-user-errors",
+        "capturePath": "$.captures.optionAlreadyExists.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variantStrategy": { "fromCapturePath": "$.captures.optionAlreadyExists.variables.variantStrategy" },
+            "options": { "fromCapturePath": "$.captures.optionAlreadyExists.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "setup-remaining-options-user-errors",
+        "capturePath": "$.captures.setupRemainingOptions.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variantStrategy": { "fromCapturePath": "$.captures.setupRemainingOptions.variables.variantStrategy" },
+            "options": { "fromCapturePath": "$.captures.setupRemainingOptions.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "options-over-limit-user-errors",
+        "capturePath": "$.captures.optionsOverLimit.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": { "fromPrimaryProxyPath": "$.data.productCreate.product.id" },
+            "variantStrategy": { "fromCapturePath": "$.captures.optionsOverLimit.variables.variantStrategy" },
+            "options": { "fromCapturePath": "$.captures.optionsOverLimit.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "large-product-create",
+        "capturePath": "$.captures.largeProductCreate.result.data.productCreate.userErrors",
+        "proxyPath": "$.data.productCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productCreate-parity-plan.graphql",
+          "variables": { "fromCapturePath": "$.captures.largeProductCreate.variables" }
+        }
+      },
+      {
+        "name": "setup-large-options-user-errors",
+        "capturePath": "$.captures.setupLargeOptions.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "large-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variantStrategy": { "fromCapturePath": "$.captures.setupLargeOptions.variables.variantStrategy" },
+            "options": { "fromCapturePath": "$.captures.setupLargeOptions.variables.options" }
+          }
+        }
+      },
+      {
+        "name": "setup-large-variants-user-errors",
+        "capturePath": "$.captures.setupLargeVariants.result.data.productVariantsBulkCreate.userErrors",
+        "proxyPath": "$.data.productVariantsBulkCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productVariantsBulkCreate-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "large-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variants": { "fromCapturePath": "$.captures.setupLargeVariants.variables.variants" }
+          }
+        }
+      },
+      {
+        "name": "too-many-variants-created-user-errors",
+        "capturePath": "$.captures.tooManyVariantsCreated.result.data.productOptionsCreate.userErrors",
+        "proxyPath": "$.data.productOptionsCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/productOptionsCreate-validation.graphql",
+          "variables": {
+            "productId": {
+              "fromProxyResponse": "large-product-create",
+              "path": "$.data.productCreate.product.id"
+            },
+            "variantStrategy": { "fromCapturePath": "$.captures.tooManyVariantsCreated.variables.variantStrategy" },
+            "options": { "fromCapturePath": "$.captures.tooManyVariantsCreated.variables.options" }
+          }
+        }
+      }
+    ]
+  }
+}

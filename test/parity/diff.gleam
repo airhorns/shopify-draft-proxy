@@ -11,6 +11,8 @@
 ////                             `?shopify-draft-proxy=synthetic` marker.
 ////   * "non-empty-string"    – any non-empty string.
 ////   * "any-string"          – any string.
+////   * "storefront-access-token" – `shpat_` followed by 16+ lowercase
+////                             alphanumeric characters.
 ////   * "any-number"          – any int or float.
 ////
 //// Anything else is treated as an exact-string match against the actual
@@ -547,6 +549,11 @@ fn value_matches(value: JsonValue, matcher: String) -> Bool {
         JInt(_) | JFloat(_) -> True
         _ -> False
       }
+    "storefront-access-token" ->
+      case value {
+        JString(s) -> is_storefront_access_token(s)
+        _ -> False
+      }
     "iso-timestamp" ->
       case value {
         JString(s) -> looks_like_iso_timestamp(s)
@@ -557,11 +564,68 @@ fn value_matches(value: JsonValue, matcher: String) -> Bool {
         JString(s) -> is_shopify_gid(s, ty)
         _ -> False
       }
+    "regex:^" <> prefix ->
+      case value {
+        JString(s) -> string.starts_with(s, prefix)
+        _ -> False
+      }
+    "shop-policy-url-base:" <> base ->
+      case value {
+        JString(s) -> is_shop_policy_url(s, base)
+        _ -> False
+      }
+    "exact-string:" <> expected ->
+      case value {
+        JString(s) -> s == expected
+        _ -> False
+      }
     _ ->
       case value {
         JString(s) -> s == matcher
         _ -> False
       }
+  }
+}
+
+fn is_storefront_access_token(s: String) -> Bool {
+  string.starts_with(s, "shpat_")
+  && string.length(s) >= 22
+  && {
+    string.drop_start(s, 6)
+    |> string.to_graphemes
+    |> list.all(is_lower_alphanumeric)
+  }
+}
+
+fn is_lower_alphanumeric(g: String) -> Bool {
+  case g {
+    "a"
+    | "b"
+    | "c"
+    | "d"
+    | "e"
+    | "f"
+    | "g"
+    | "h"
+    | "i"
+    | "j"
+    | "k"
+    | "l"
+    | "m"
+    | "n"
+    | "o"
+    | "p"
+    | "q"
+    | "r"
+    | "s"
+    | "t"
+    | "u"
+    | "v"
+    | "w"
+    | "x"
+    | "y"
+    | "z" -> True
+    _ -> is_digit(g)
   }
 }
 
@@ -619,6 +683,30 @@ fn is_shopify_gid(s: String, ty: String) -> Bool {
         Error(_) -> rest
       }
       string.length(id_part) > 0
+    }
+  }
+}
+
+fn is_shop_policy_url(s: String, base: String) -> Bool {
+  let normalized_base = case string.ends_with(base, "/") {
+    True -> string.drop_end(base, 1)
+    False -> base
+  }
+  let prefix = normalized_base <> "/"
+  case string.starts_with(s, prefix) {
+    False -> False
+    True -> {
+      let rest = string.drop_start(s, string.length(prefix))
+      let #(shop_tail, after_shop_tail) = take_digits(rest, "")
+      case shop_tail, string.starts_with(after_shop_tail, "/policies/") {
+        "", _ -> False
+        _, False -> False
+        _, True -> {
+          let policy_part = string.drop_start(after_shop_tail, 10)
+          let #(policy_tail, suffix) = take_digits(policy_part, "")
+          policy_tail != "" && suffix == ".html?locale=en"
+        }
+      }
     }
   }
 }
