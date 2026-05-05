@@ -1,0 +1,23 @@
+mutation CustomerAddressCountryProvinceSet($identifier: CustomerSetIdentifiers, $input: CustomerSetInput!) {
+  customerSet(identifier: $identifier, input: $input) {
+    customer {
+      id
+      email
+      defaultAddress {
+        id
+        address1
+        city
+        country
+        countryCodeV2
+        province
+        provinceCode
+        zip
+        formattedArea
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

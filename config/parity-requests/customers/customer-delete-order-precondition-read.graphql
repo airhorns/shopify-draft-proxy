@@ -1,0 +1,23 @@
+query CustomerDeleteOrderPreconditionRead($id: ID!) {
+  customer(id: $id) {
+    id
+    email
+    displayName
+    orders(first: 5) {
+      nodes {
+        id
+        customer {
+          id
+          email
+          displayName
+        }
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+}

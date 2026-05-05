@@ -1,0 +1,70 @@
+{
+  "setup": {
+    "customerCreate": {
+      "variables": {
+        "input": {
+          "email": "har-773-blocked@example.test",
+          "firstName": "Blocked",
+          "lastName": "Delete"
+        }
+      }
+    }
+  },
+  "expected": {
+    "customerCreate": {
+      "data": {
+        "customerCreate": {
+          "userErrors": []
+        }
+      }
+    },
+    "orderCreate": {
+      "data": {
+        "orderCreate": {
+          "userErrors": []
+        }
+      }
+    },
+    "customerDelete": {
+      "data": {
+        "customerDelete": {
+          "deletedCustomerId": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Customer can’t be deleted because they have associated orders"
+            }
+          ]
+        }
+      }
+    },
+    "readAfterBlockedDelete": {
+      "data": {
+        "customer": {
+          "id": "gid://shopify/Customer/1",
+          "email": "har-773-blocked@example.test",
+          "displayName": "Blocked Delete",
+          "orders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Order/1",
+                "customer": {
+                  "id": "gid://shopify/Customer/1",
+                  "email": "har-773-blocked@example.test",
+                  "displayName": "Blocked Delete"
+                }
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "gid://shopify/Order/1",
+              "endCursor": "gid://shopify/Order/1"
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

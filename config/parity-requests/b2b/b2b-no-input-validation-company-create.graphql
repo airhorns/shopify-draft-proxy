@@ -1,0 +1,30 @@
+mutation B2BNoInputCompanyCreate($input: CompanyCreateInput!) {
+  companyCreate(input: $input) {
+    company {
+      id
+      name
+      note
+      externalId
+      contacts(first: 5) {
+        nodes {
+          id
+          title
+          locale
+          isMainContact
+        }
+      }
+      locations(first: 5) {
+        nodes {
+          id
+          name
+          externalId
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

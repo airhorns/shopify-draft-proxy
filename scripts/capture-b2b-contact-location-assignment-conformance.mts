@@ -19,6 +19,9 @@ type RecordedOperation = {
 const scenarioId = 'b2b-contact-location-assignments-tax';
 const timestamp = Date.now();
 const companyName = `HAR-446 B2B assignment ${timestamp}`;
+const missingCompanyContactId = 'gid://shopify/CompanyContact/999999999999999';
+const missingCompanyLocationId = 'gid://shopify/CompanyLocation/999999999999999';
+const missingRoleAssignmentId = 'gid://shopify/CompanyContactRoleAssignment/999999999999999';
 
 const { storeDomain, adminOrigin, apiVersion } = readConformanceScriptConfig({ exitOnMissing: true });
 const adminAccessToken = await getValidConformanceAccessToken({ adminOrigin, apiVersion });
@@ -650,6 +653,87 @@ try {
     'downstream read after assignment/address/tax updates',
   );
 
+  const contactPartialLocationCreate = await runRequired(
+    locationCreateDocument,
+    {
+      companyId,
+      input: {
+        name: `${companyName} Contact partial`,
+        phone: '+16135550105',
+      },
+    },
+    'companyLocationCreate',
+    'companyLocationCreate setup for contact partial assignment',
+  );
+  const contactPartialLocationId = readStringAtPath(
+    contactPartialLocationCreate.response,
+    ['data', 'companyLocationCreate', 'companyLocation', 'id'],
+    'companyLocationCreate setup for contact partial assignment',
+  );
+  const locationPartialLocationCreate = await runRequired(
+    locationCreateDocument,
+    {
+      companyId,
+      input: {
+        name: `${companyName} Location partial`,
+        phone: '+16135550106',
+      },
+    },
+    'companyLocationCreate',
+    'companyLocationCreate setup for location partial assignment',
+  );
+  const locationPartialLocationId = readStringAtPath(
+    locationPartialLocationCreate.response,
+    ['data', 'companyLocationCreate', 'companyLocation', 'id'],
+    'companyLocationCreate setup for location partial assignment',
+  );
+
+  const assignContactRolesPartial = await runRecorded(contactAssignRolesDocument, {
+    companyContactId: contactId,
+    rolesToAssign: [
+      { companyContactRoleId: locationAdminRoleId, companyLocationId: contactPartialLocationId },
+      { companyContactRoleId: locationAdminRoleId, companyLocationId: missingCompanyLocationId },
+    ],
+  });
+  const contactPartialAssignmentId = readStringAtPath(
+    assignContactRolesPartial.response,
+    ['data', 'companyContactAssignRoles', 'roleAssignments', '0', 'id'],
+    'companyContactAssignRoles partial assignment',
+  );
+
+  const assignLocationRolesPartial = await runRecorded(locationAssignRolesDocument, {
+    companyLocationId: locationPartialLocationId,
+    rolesToAssign: [
+      { companyContactId: contactId, companyContactRoleId: orderingOnlyRoleId },
+      { companyContactId: missingCompanyContactId, companyContactRoleId: orderingOnlyRoleId },
+    ],
+  });
+  const locationPartialAssignmentId = readStringAtPath(
+    assignLocationRolesPartial.response,
+    ['data', 'companyLocationAssignRoles', 'roleAssignments', '0', 'id'],
+    'companyLocationAssignRoles partial assignment',
+  );
+
+  const revokeContactRolesPartial = await runRecorded(contactRevokeRolesDocument, {
+    companyContactId: contactId,
+    roleAssignmentIds: [missingRoleAssignmentId, contactPartialAssignmentId],
+  });
+  readStringAtPath(
+    revokeContactRolesPartial.response,
+    ['data', 'companyContactRevokeRoles', 'revokedRoleAssignmentIds', '0'],
+    'companyContactRevokeRoles partial revoke',
+  );
+
+  const revokeLocationRolesPartial = await runRecorded(locationRevokeRolesDocument, {
+    companyLocationId: locationPartialLocationId,
+    rolesToRevoke: [missingRoleAssignmentId, locationPartialAssignmentId],
+  });
+  readStringAtPath(
+    revokeLocationRolesPartial.response,
+    ['data', 'companyLocationRevokeRoles', 'revokedRoleAssignmentIds', '0'],
+    'companyLocationRevokeRoles partial revoke',
+  );
+
   const revokeSingle = await runRequired(
     contactRevokeRoleDocument,
     { companyContactId: contactId, companyContactRoleAssignmentId: singleAssignmentId },
@@ -699,8 +783,8 @@ try {
     storeDomain,
     apiVersion,
     intent: {
-      ticket: 'HAR-446',
-      plan: 'Create a disposable B2B company, record role assignment, address/tax settings, relationship reads after contact/location updates, revoke/delete cleanup, and delete the company.',
+      ticket: 'HAR-446/HAR-756',
+      plan: 'Create a disposable B2B company, record role assignment, bulk partial-success assignment/revoke behavior, address/tax settings, relationship reads after contact/location updates, revoke/delete cleanup, and delete the company.',
     },
     staffAccessProbe,
     companyCreate,
@@ -716,6 +800,12 @@ try {
     contactUpdate,
     locationUpdate,
     readAfterAssignments,
+    contactPartialLocationCreate,
+    locationPartialLocationCreate,
+    assignContactRolesPartial,
+    assignLocationRolesPartial,
+    revokeContactRolesPartial,
+    revokeLocationRolesPartial,
     revokeSingle,
     revokeContactRoles,
     revokeLocationRoles,

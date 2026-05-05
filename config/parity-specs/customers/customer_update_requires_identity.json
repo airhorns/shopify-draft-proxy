@@ -1,0 +1,210 @@
+{
+  "scenarioId": "customer-update-requires-identity",
+  "operationNames": ["customerCreate", "customerUpdate", "customer"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "state-invariance"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/customers/customer-update-requires-identity.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/customers_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/customers/customer_update_requires_identity_create.graphql",
+    "variablesCapturePath": "$.scenarios.clearLastEmail.create.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2025-01 evidence for customerUpdate's required identity precondition: clearing the last email, phone, or name pair returns customer: null with a payload userError and does not change the downstream customer record; clearing email succeeds when firstName/lastName remain. This API version exposes Customer payload userErrors with field/message only, and the captured field is null.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-email-only",
+        "capturePath": "$.scenarios.clearLastEmail.create.response.data",
+        "proxyPath": "$.data",
+        "selectedPaths": [
+          "$.customerCreate.userErrors",
+          "$.customerCreate.customer.firstName",
+          "$.customerCreate.customer.lastName",
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.defaultEmailAddress",
+          "$.customerCreate.customer.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "clear-last-email-rejection",
+        "capturePath": "$.scenarios.clearLastEmail.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_update_requires_identity_update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+              },
+              "email": null
+            }
+          }
+        },
+        "selectedPaths": ["$.customerUpdate.customer", "$.customerUpdate.userErrors"]
+      },
+      {
+        "name": "clear-last-email-downstream-read",
+        "capturePath": "$.scenarios.clearLastEmail.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_update_requires_identity_read.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customer.firstName",
+          "$.customer.lastName",
+          "$.customer.email",
+          "$.customer.defaultEmailAddress",
+          "$.customer.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "create-phone-only",
+        "capturePath": "$.scenarios.clearLastPhone.create.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_update_requires_identity_create.graphql",
+          "variablesCapturePath": "$.scenarios.clearLastPhone.create.variables"
+        },
+        "selectedPaths": [
+          "$.customerCreate.userErrors",
+          "$.customerCreate.customer.firstName",
+          "$.customerCreate.customer.lastName",
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.defaultEmailAddress",
+          "$.customerCreate.customer.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "clear-last-phone-rejection",
+        "capturePath": "$.scenarios.clearLastPhone.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_update_requires_identity_update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "create-phone-only",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "phone": null
+            }
+          }
+        },
+        "selectedPaths": ["$.customerUpdate.customer", "$.customerUpdate.userErrors"]
+      },
+      {
+        "name": "clear-last-phone-downstream-read",
+        "capturePath": "$.scenarios.clearLastPhone.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_update_requires_identity_read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-phone-only",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customer.firstName",
+          "$.customer.lastName",
+          "$.customer.email",
+          "$.customer.defaultEmailAddress",
+          "$.customer.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "create-name-control",
+        "capturePath": "$.scenarios.clearEmailWhileNameRemains.create.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_update_requires_identity_create.graphql",
+          "variablesCapturePath": "$.scenarios.clearEmailWhileNameRemains.create.variables"
+        },
+        "selectedPaths": [
+          "$.customerCreate.userErrors",
+          "$.customerCreate.customer.firstName",
+          "$.customerCreate.customer.lastName",
+          "$.customerCreate.customer.email",
+          "$.customerCreate.customer.defaultEmailAddress",
+          "$.customerCreate.customer.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "clear-email-while-name-remains-control",
+        "capturePath": "$.scenarios.clearEmailWhileNameRemains.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_update_requires_identity_update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "create-name-control",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "email": null
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customerUpdate.userErrors",
+          "$.customerUpdate.customer.firstName",
+          "$.customerUpdate.customer.lastName",
+          "$.customerUpdate.customer.email",
+          "$.customerUpdate.customer.defaultEmailAddress",
+          "$.customerUpdate.customer.defaultPhoneNumber"
+        ]
+      },
+      {
+        "name": "clear-last-name-pair-rejection",
+        "capturePath": "$.scenarios.clearLastNamePair.update.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_update_requires_identity_update.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "create-name-control",
+                "path": "$.data.customerCreate.customer.id"
+              },
+              "firstName": null,
+              "lastName": null
+            }
+          }
+        },
+        "selectedPaths": ["$.customerUpdate.customer", "$.customerUpdate.userErrors"]
+      },
+      {
+        "name": "clear-last-name-pair-downstream-read",
+        "capturePath": "$.scenarios.clearLastNamePair.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/customers/customer_update_requires_identity_read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "create-name-control",
+              "path": "$.data.customerCreate.customer.id"
+            }
+          }
+        },
+        "selectedPaths": [
+          "$.customer.firstName",
+          "$.customer.lastName",
+          "$.customer.email",
+          "$.customer.defaultEmailAddress",
+          "$.customer.defaultPhoneNumber"
+        ]
+      }
+    ]
+  }
+}

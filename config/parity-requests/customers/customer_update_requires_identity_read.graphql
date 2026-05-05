@@ -1,0 +1,15 @@
+query CustomerUpdateRequiresIdentityRead($id: ID!) {
+  customer(id: $id) {
+    id
+    firstName
+    lastName
+    displayName
+    email
+    defaultEmailAddress {
+      emailAddress
+    }
+    defaultPhoneNumber {
+      phoneNumber
+    }
+  }
+}

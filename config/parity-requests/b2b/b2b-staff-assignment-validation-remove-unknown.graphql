@@ -1,0 +1,10 @@
+mutation B2BStaffAssignmentValidationRemoveUnknown($companyLocationStaffMemberAssignmentIds: [ID!]!) {
+  companyLocationRemoveStaffMembers(companyLocationStaffMemberAssignmentIds: $companyLocationStaffMemberAssignmentIds) {
+    deletedCompanyLocationStaffMemberAssignmentIds
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
