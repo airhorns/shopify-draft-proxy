@@ -750,16 +750,216 @@ fn route_mutation_to_domain(
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case mutation_domain_for(proxy, parsed, query, primary_root_field) {
-    Ok(SavedSearchesDomain) -> {
-      let outcome =
-        saved_searches.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
+  let store = proxy.store
+  let identity = proxy.synthetic_identity
+  let upstream =
+    upstream_query.UpstreamContext(
+      transport: proxy.upstream_transport,
+      origin: proxy.config.shopify_admin_origin,
+      headers: request_headers,
+    )
+
+  let outcome = case
+    mutation_domain_for(proxy, parsed, query, primary_root_field)
+  {
+    Ok(SavedSearchesDomain) ->
+      Some(saved_searches.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+      ))
+    Ok(WebhooksDomain) ->
+      Some(webhooks.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+      ))
+    Ok(AppsDomain) ->
+      Some(apps.process_mutation(
+        store,
+        identity,
+        request_path,
+        proxy.config.shopify_admin_origin,
+        query,
+        variables,
+      ))
+    Ok(FunctionsDomain) ->
+      Some(functions.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(GiftCardsDomain) ->
+      Some(gift_cards.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(DiscountsDomain) ->
+      Some(discounts.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(B2BDomain) ->
+      Some(b2b.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+      ))
+    Ok(SegmentsDomain) ->
+      Some(segments.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+      ))
+    Ok(MetafieldDefinitionsDomain) ->
+      Some(metafield_definitions.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(LocalizationDomain) ->
+      Some(localization.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+      ))
+    Ok(MetaobjectDefinitionsDomain) ->
+      Some(metaobject_definitions.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(MarketingDomain) ->
+      Some(marketing.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+      ))
+    Ok(BulkOperationsDomain) ->
+      Some(bulk_operations.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(MarketsDomain) ->
+      Some(markets.process_mutation(store, identity, query, variables, upstream))
+    Ok(MediaDomain) ->
+      Some(media.process_mutation(store, identity, query, variables, upstream))
+    Ok(AdminPlatformDomain) ->
+      Some(admin_platform.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+      ))
+    Ok(OnlineStoreDomain) ->
+      Some(online_store.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+      ))
+    Ok(StorePropertiesDomain) ->
+      Some(store_properties.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(ProductsDomain) ->
+      Some(products.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(PrivacyDomain) ->
+      Some(privacy.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(CustomersDomain) ->
+      Some(customers.process_mutation(
+        proxy,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(PaymentsDomain) ->
+      Some(payments.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(ShippingFulfillmentsDomain) ->
+      Some(shipping_fulfillments.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(OrdersDomain) ->
+      Some(orders.process_mutation(
+        store,
+        identity,
+        request_path,
+        query,
+        variables,
+        upstream,
+      ))
+    Ok(_) | Error(_) -> None
+  }
+
+  case outcome {
+    Some(outcome) ->
       finalize_mutation_outcome(
         proxy,
         request_path,
@@ -770,537 +970,7 @@ fn route_mutation_to_domain(
         outcome.identity,
         outcome.log_drafts,
       )
-    }
-    Ok(WebhooksDomain) -> {
-      let outcome =
-        webhooks.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(AppsDomain) -> {
-      let outcome =
-        apps.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          proxy.config.shopify_admin_origin,
-          query,
-          variables,
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(FunctionsDomain) -> {
-      let outcome =
-        functions.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(GiftCardsDomain) -> {
-      let outcome =
-        gift_cards.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(DiscountsDomain) -> {
-      let outcome =
-        discounts.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(B2BDomain) -> {
-      let outcome =
-        b2b.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(SegmentsDomain) -> {
-      let outcome =
-        segments.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(MetafieldDefinitionsDomain) -> {
-      let outcome =
-        metafield_definitions.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(LocalizationDomain) -> {
-      let outcome =
-        localization.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(MetaobjectDefinitionsDomain) -> {
-      let outcome =
-        metaobject_definitions.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(MarketingDomain) -> {
-      let outcome =
-        marketing.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(BulkOperationsDomain) -> {
-      let outcome =
-        bulk_operations.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(MarketsDomain) -> {
-      let outcome =
-        markets.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(MediaDomain) -> {
-      let outcome =
-        media.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(AdminPlatformDomain) -> {
-      let outcome =
-        admin_platform.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(OnlineStoreDomain) -> {
-      let outcome =
-        online_store.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(StorePropertiesDomain) -> {
-      let outcome =
-        store_properties.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            proxy.upstream_transport,
-            proxy.config.shopify_admin_origin,
-            request_headers,
-          ),
-        )
-      #(
-        Response(status: 200, body: outcome.data, headers: []),
-        DraftProxy(
-          ..proxy,
-          store: outcome.store,
-          synthetic_identity: outcome.identity,
-        ),
-      )
-    }
-    Ok(ProductsDomain) -> {
-      let outcome =
-        products.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            proxy.upstream_transport,
-            proxy.config.shopify_admin_origin,
-            request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(PrivacyDomain) -> {
-      let outcome =
-        privacy.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(CustomersDomain) -> {
-      let outcome =
-        customers.process_mutation(
-          proxy,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      #(
-        Response(status: 200, body: outcome.data, headers: []),
-        DraftProxy(
-          ..proxy,
-          store: outcome.store,
-          synthetic_identity: outcome.identity,
-        ),
-      )
-    }
-    Ok(PaymentsDomain) -> {
-      let outcome =
-        payments.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(ShippingFulfillmentsDomain) -> {
-      let outcome =
-        shipping_fulfillments.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(OrdersDomain) -> {
-      let outcome =
-        orders.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      finalize_mutation_outcome(
-        proxy,
-        request_path,
-        query,
-        variables,
-        outcome.data,
-        outcome.store,
-        outcome.identity,
-        outcome.log_drafts,
-      )
-    }
-    Ok(_) | Error(_) -> #(
+    None -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
         <> primary_root_field,
