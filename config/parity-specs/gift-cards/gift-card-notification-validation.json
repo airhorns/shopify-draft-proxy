@@ -1,0 +1,94 @@
+{
+  "scenarioId": "gift-card-notification-validation",
+  "operationNames": ["giftCardSendNotificationToCustomer", "giftCardSendNotificationToRecipient"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "notification-validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/gift-cards/gift-card-notification-validation.json"
+  ],
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
+    "variablesCapturePath": "$.proxyVariables.customerDeactivated"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "customer notification rejects deactivated card",
+        "capturePath": "$.operations.customerDeactivated.response.payload.data.giftCardSendNotificationToCustomer",
+        "proxyPath": "$.data.giftCardSendNotificationToCustomer",
+        "selectedPaths": ["$.giftCard", "$.userErrors"]
+      },
+      {
+        "name": "recipient notification rejects deactivated card",
+        "capturePath": "$.operations.recipientDeactivated.response.payload.data.giftCardSendNotificationToRecipient",
+        "proxyPath": "$.data.giftCardSendNotificationToRecipient",
+        "selectedPaths": ["$.giftCard", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
+          "variablesCapturePath": "$.proxyVariables.recipientDeactivated"
+        }
+      },
+      {
+        "name": "customer notification rejects card with no customer",
+        "capturePath": "$.operations.customerNoCustomer.response.payload.data.giftCardSendNotificationToCustomer",
+        "proxyPath": "$.data.giftCardSendNotificationToCustomer",
+        "selectedPaths": ["$.giftCard", "$.userErrors"],
+        "expectedDifferences": [
+          {
+            "path": "$[0].field",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The internal validation branch is base-scoped and HAR-688 acceptance requires field [\"base\"], while live Admin GraphQL 2025-01 serializes the same base error as null."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
+          "variablesCapturePath": "$.proxyVariables.customerNoCustomer"
+        }
+      },
+      {
+        "name": "recipient notification rejects no-contact recipient",
+        "capturePath": "$.operations.recipientNoContact.response.payload.data.giftCardSendNotificationToRecipient",
+        "proxyPath": "$.data.giftCardSendNotificationToRecipient",
+        "selectedPaths": ["$.giftCard", "$.userErrors"],
+        "expectedDifferences": [
+          {
+            "path": "$[0].field",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The internal validation branch is base-scoped and HAR-688 acceptance requires field [\"base\"], while live Admin GraphQL 2025-01 serializes the same base error as null."
+          }
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
+          "variablesCapturePath": "$.proxyVariables.recipientNoContact"
+        }
+      },
+      {
+        "name": "customer notification rejects expired card",
+        "capturePath": "$.operations.customerExpired.response.payload.data.giftCardSendNotificationToCustomer",
+        "proxyPath": "$.data.giftCardSendNotificationToCustomer",
+        "selectedPaths": ["$.giftCard", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-customer.graphql",
+          "variablesCapturePath": "$.proxyVariables.customerExpired"
+        }
+      },
+      {
+        "name": "recipient notification rejects expired card",
+        "capturePath": "$.operations.recipientExpired.response.payload.data.giftCardSendNotificationToRecipient",
+        "proxyPath": "$.data.giftCardSendNotificationToRecipient",
+        "selectedPaths": ["$.giftCard", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/gift-cards/gift-card-notification-to-recipient.graphql",
+          "variablesCapturePath": "$.proxyVariables.recipientExpired"
+        }
+      }
+    ]
+  },
+  "notes": "HAR-688 captures validation-failing gift-card notification roots only, so no successful customer-visible notification is sent. Notify-disabled validation is covered by runtime tests because public Admin GraphQL 2025-01 exposes no GiftCard notify field or GiftCardCreate/Update notify input to create that stored branch through the conformance harness."
+}

@@ -39,6 +39,7 @@ fn gift_card(
     last_characters: last4,
     masked_code: "•••• •••• •••• " <> last4,
     enabled: enabled,
+    notify: True,
     deactivated_at: case enabled {
       True -> None
       False -> Some("2024-02-01T00:00:00.000Z")

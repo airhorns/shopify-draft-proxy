@@ -1461,6 +1461,7 @@ pub type GiftCardRecord {
     last_characters: String,
     masked_code: String,
     enabled: Bool,
+    notify: Bool,
     deactivated_at: Option(String),
     expires_on: Option(String),
     note: Option(String),

@@ -1248,6 +1248,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'gift-cards',
+    captureId: 'gift-card-notification-validation',
+    scriptPath: 'scripts/capture-gift-card-notification-validation-conformance.ts',
+    purpose: 'Gift-card notification validation branches that fail before customer-visible notification dispatch.',
+    requiredAuthScopes: ['read_gift_cards', 'write_gift_cards', 'read_customers', 'write_customers'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}gift-card-notification-validation.json`,
+      'config/parity-specs/gift-cards/gift-card-notification-validation.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable customers and validation-only gift cards, records failing notification responses, deactivates gift cards, and deletes customers.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'customers',
     captureId: 'customers',
     scriptPath: 'scripts/capture-customer-conformance.mts',
