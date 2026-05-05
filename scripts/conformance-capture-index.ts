@@ -495,6 +495,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'saved-searches',
+    captureId: 'saved-search-required-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-required-input-validation-conformance.ts',
+    purpose:
+      'savedSearchCreate and savedSearchUpdate required input coercion plus explicit empty-query create success.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-required-input-validation.json`,
+      'config/parity-specs/saved-searches/saved-search-required-input-validation.json',
+      'config/parity-requests/saved-searches/saved-search-required-input-*.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable product saved search for the empty-query branch and deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'products',
     captureId: 'product-relationship-roots',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
