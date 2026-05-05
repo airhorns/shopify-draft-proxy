@@ -7,10 +7,18 @@ import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 
 fn run_mutation(document: String) -> discounts.MutationOutcome {
+  run_mutation_from(store.new(), synthetic_identity.new(), document)
+}
+
+fn run_mutation_from(
+  store: store.Store,
+  identity: synthetic_identity.SyntheticIdentityRegistry,
+  document: String,
+) -> discounts.MutationOutcome {
   let assert Ok(outcome) =
     discounts.process_mutation(
-      store.new(),
-      synthetic_identity.new(),
+      store,
+      identity,
       "/admin/api/2026-04/graphql.json",
       document,
       dict.new(),
@@ -43,6 +51,98 @@ pub fn blank_bxgy_returns_captured_user_errors_test() {
 
   assert json.to_string(outcome.data)
     == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"customerGets\"],\"message\":\"Items in 'customer get' cannot be set to all\",\"code\":\"INVALID\",\"extraInfo\":null},{\"field\":[\"bxgyCodeDiscount\",\"title\"],\"message\":\"Title can't be blank\",\"code\":\"BLANK\",\"extraInfo\":null},{\"field\":[\"bxgyCodeDiscount\",\"customerBuys\",\"items\"],\"message\":\"Items in 'customer buys' must be defined\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_bxgy_rejects_customer_gets_percentage_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGYPCT\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { percentage: 0.5 }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"value\",\"percentage\"],\"message\":\"Only discountOnQuantity permitted with bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null},{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"value\",\"discountOnQuantity\",\"quantity\"],\"message\":\"Quantity cannot be blank.\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_bxgy_rejects_customer_gets_discount_amount_test() {
+  let outcome =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGYAMT\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountAmount: { amount: \"5.00\", appliesOnEachItem: false } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"value\",\"discountAmount\"],\"message\":\"Only discountOnQuantity permitted with bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null},{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"value\",\"discountOnQuantity\",\"quantity\"],\"message\":\"Quantity cannot be blank.\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+}
+
+pub fn code_bxgy_rejects_customer_gets_subscription_fields_test() {
+  let subscription_outcome =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGYSUB\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } }, appliesOnSubscription: true } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let one_time_outcome =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGYOTP\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } }, appliesOnOneTimePurchase: false } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(subscription_outcome.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"appliesOnSubscription\"],\"message\":\"This field is not supported by bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(one_time_outcome.data)
+    == "{\"data\":{\"discountCodeBxgyCreate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"appliesOnOneTimePurchase\"],\"message\":\"This field is not supported by bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn automatic_bxgy_rejects_disallowed_customer_gets_fields_test() {
+  let percentage_outcome =
+    run_mutation(
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"BXGY\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { percentage: 0.5 }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let amount_outcome =
+    run_mutation(
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"BXGY\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountAmount: { amount: \"5.00\", appliesOnEachItem: false } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let subscription_outcome =
+    run_mutation(
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"BXGY\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } }, appliesOnSubscription: true } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let one_time_outcome =
+    run_mutation(
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"BXGY\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } }, appliesOnOneTimePurchase: false } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(percentage_outcome.data)
+    == "{\"data\":{\"discountAutomaticBxgyCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBxgyDiscount\",\"customerGets\",\"value\",\"percentage\"],\"message\":\"Only discountOnQuantity permitted with bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(amount_outcome.data)
+    == "{\"data\":{\"discountAutomaticBxgyCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBxgyDiscount\",\"customerGets\",\"value\",\"discountAmount\"],\"message\":\"Only discountOnQuantity permitted with bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(subscription_outcome.data)
+    == "{\"data\":{\"discountAutomaticBxgyCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBxgyDiscount\",\"customerGets\",\"appliesOnSubscription\"],\"message\":\"This field is not supported by automatic bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+  assert json.to_string(one_time_outcome.data)
+    == "{\"data\":{\"discountAutomaticBxgyCreate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBxgyDiscount\",\"customerGets\",\"appliesOnOneTimePurchase\"],\"message\":\"This field is not supported by automatic bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn bxgy_updates_reuse_create_validation_rules_test() {
+  let code_create =
+    run_mutation(
+      "mutation { discountCodeBxgyCreate(bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGYUP\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let code_update =
+    run_mutation_from(
+      code_create.store,
+      code_create.identity,
+      "mutation { discountCodeBxgyUpdate(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", bxgyCodeDiscount: { title: \"BXGY\", code: \"BXGYUP2\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { percentage: 0.5 }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { codeDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_create =
+    run_mutation(
+      "mutation { discountAutomaticBxgyCreate(automaticBxgyDiscount: { title: \"BXGY\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } } } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+  let automatic_update =
+    run_mutation_from(
+      automatic_create.store,
+      automatic_create.identity,
+      "mutation { discountAutomaticBxgyUpdate(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\", automaticBxgyDiscount: { title: \"BXGY\", startsAt: \"2026-04-25T00:00:00Z\", customerBuys: { value: { quantity: \"1\" }, items: { products: { productsToAdd: [\"gid://shopify/Product/1\"] } } }, customerGets: { value: { discountOnQuantity: { quantity: \"1\", effect: { percentage: 0.5 } } }, items: { products: { productsToAdd: [\"gid://shopify/Product/2\"] } }, appliesOnOneTimePurchase: false } }) { automaticDiscountNode { id } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(code_update.data)
+    == "{\"data\":{\"discountCodeBxgyUpdate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"value\",\"percentage\"],\"message\":\"Only discountOnQuantity permitted with bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null},{\"field\":[\"bxgyCodeDiscount\",\"customerGets\",\"value\",\"discountOnQuantity\",\"quantity\"],\"message\":\"Quantity cannot be blank.\",\"code\":\"BLANK\",\"extraInfo\":null}]}}}"
+  assert json.to_string(automatic_update.data)
+    == "{\"data\":{\"discountAutomaticBxgyUpdate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"automaticBxgyDiscount\",\"customerGets\",\"appliesOnOneTimePurchase\"],\"message\":\"This field is not supported by automatic bxgy discounts.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
 }
 
 pub fn inline_null_input_returns_top_level_error_test() {

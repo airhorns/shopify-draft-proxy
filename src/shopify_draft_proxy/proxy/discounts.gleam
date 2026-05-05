@@ -2380,6 +2380,15 @@ fn validate_bxgy_input(
     ]
     False -> []
   }
+  let errors =
+    list.append(errors, bxgy_disallowed_value_errors(input_name, input))
+  let errors =
+    list.append(
+      errors,
+      bxgy_missing_discount_on_quantity_errors(input_name, input),
+    )
+  let errors =
+    list.append(errors, bxgy_disallowed_subscription_errors(input_name, input))
   let errors = case title_is_blank(input) {
     True ->
       list.append(errors, [
@@ -2397,6 +2406,132 @@ fn validate_bxgy_input(
         ),
       ])
     False -> errors
+  }
+}
+
+fn bxgy_disallowed_value_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case customer_gets_value_fields(input) {
+    Some(fields) -> {
+      let errors = case dict.has_key(fields, "percentage") {
+        True -> [
+          user_error(
+            [input_name, "customerGets", "value", "percentage"],
+            "Only discountOnQuantity permitted with bxgy discounts.",
+            "INVALID",
+          ),
+        ]
+        False -> []
+      }
+      case dict.has_key(fields, "discountAmount") {
+        True ->
+          list.append(errors, [
+            user_error(
+              [input_name, "customerGets", "value", "discountAmount"],
+              "Only discountOnQuantity permitted with bxgy discounts.",
+              "INVALID",
+            ),
+          ])
+        False -> errors
+      }
+    }
+    None -> []
+  }
+}
+
+fn bxgy_missing_discount_on_quantity_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case input_name, customer_gets_value_fields(input) {
+    "bxgyCodeDiscount", Some(fields) ->
+      case dict.get(fields, "discountOnQuantity") {
+        Ok(root_field.ObjectVal(on_quantity)) ->
+          case read_string(on_quantity, "quantity") {
+            Some(quantity) ->
+              case string.trim(quantity) {
+                "" -> [
+                  bxgy_discount_on_quantity_quantity_blank_error(input_name),
+                ]
+                _ -> []
+              }
+            None -> [bxgy_discount_on_quantity_quantity_blank_error(input_name)]
+          }
+        Ok(_) -> [bxgy_discount_on_quantity_quantity_blank_error(input_name)]
+        Error(_) -> [bxgy_discount_on_quantity_quantity_blank_error(input_name)]
+      }
+    _, _ -> []
+  }
+}
+
+fn bxgy_discount_on_quantity_quantity_blank_error(
+  input_name: String,
+) -> SourceValue {
+  user_error(
+    [input_name, "customerGets", "value", "discountOnQuantity", "quantity"],
+    "Quantity cannot be blank.",
+    "BLANK",
+  )
+}
+
+fn bxgy_disallowed_subscription_errors(
+  input_name: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(SourceValue) {
+  case customer_gets_fields(input) {
+    Some(fields) -> {
+      let message = case input_name {
+        "automaticBxgyDiscount" ->
+          "This field is not supported by automatic bxgy discounts."
+        _ -> "This field is not supported by bxgy discounts."
+      }
+      let errors = case dict.has_key(fields, "appliesOnSubscription") {
+        True -> [
+          user_error(
+            [input_name, "customerGets", "appliesOnSubscription"],
+            message,
+            "INVALID",
+          ),
+        ]
+        False -> []
+      }
+      case dict.has_key(fields, "appliesOnOneTimePurchase") {
+        True ->
+          list.append(errors, [
+            user_error(
+              [input_name, "customerGets", "appliesOnOneTimePurchase"],
+              message,
+              "INVALID",
+            ),
+          ])
+        False -> errors
+      }
+    }
+    None -> []
+  }
+}
+
+fn customer_gets_value_fields(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case customer_gets_fields(input) {
+    Some(fields) ->
+      case dict.get(fields, "value") {
+        Ok(root_field.ObjectVal(value_fields)) -> Some(value_fields)
+        _ -> None
+      }
+    None -> None
+  }
+}
+
+fn customer_gets_fields(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(Dict(String, root_field.ResolvedValue)) {
+  case read_value(input, "customerGets") {
+    root_field.ObjectVal(fields) -> Some(fields)
+    _ -> None
   }
 }
 
