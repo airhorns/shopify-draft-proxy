@@ -133,6 +133,16 @@ duplicate role, foreign/missing role, foreign/missing location, successful main
 contact delete, and completed B2B order-history delete rejection branches as
 strict replayable parity evidence.
 
+HAR-754 aligns bulk B2B resolver `userErrors.field` paths with Shopify's
+string-indexed list paths. Bulk company/contact/location deletes, role
+assignment/revoke roots, and location staff assignment/removal roots report
+failed entries at paths such as `["companyContactIds", "1"]` or
+`["rolesToAssign", "0", "companyLocationId"]` while preserving top-level
+single-ID field paths on the single-resource mutation surfaces. Staff assignment
+still does not synthesize a broader staff catalog; the local guardrail rejects
+non-`StaffMember` GIDs at indexed `staffMemberIds` paths and otherwise stages the
+provided staff ID for downstream B2B reads.
+
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
 `CompanyLocation.taxSettings { taxRegistrationId taxExempt taxExemptions }`
