@@ -1,0 +1,278 @@
+{
+  "scenarioId": "online-store/article-create-validation",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-04T23:50:02.800Z",
+  "interactions": [
+    {
+      "name": "blogCreate-setup",
+      "request": {
+        "query": "#graphql\n  mutation BlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "HAR 557 Validation Blog 20260504235001"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120965038386",
+              "title": "HAR 557 Validation Blog 20260504235001",
+              "handle": "har-557-validation-blog-20260504235001"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1978,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-missing-blog-reference",
+      "request": {
+        "query": "#graphql\n  mutation ArticleCreate($article: ArticleCreateInput!, $blog: ArticleBlogInput) {\n    articleCreate(article: $article, blog: $blog) {\n      article {\n        id\n        title\n        handle\n        author { name }\n        blog { id title handle }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "HAR 557 Missing Blog 20260504235001",
+            "body": "<p>Body</p>",
+            "author": {
+              "name": "HAR 557 Author"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article"],
+                "message": "Must reference or create a blog when creating an article.",
+                "code": "BLOG_REFERENCE_REQUIRED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1931,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-ambiguous-blog",
+      "request": {
+        "query": "#graphql\n  mutation ArticleCreate($article: ArticleCreateInput!, $blog: ArticleBlogInput) {\n    articleCreate(article: $article, blog: $blog) {\n      article {\n        id\n        title\n        handle\n        author { name }\n        blog { id title handle }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "HAR 557 Ambiguous Blog 20260504235001",
+            "body": "<p>Body</p>",
+            "blogId": "gid://shopify/Blog/120965038386",
+            "author": {
+              "name": "HAR 557 Author"
+            }
+          },
+          "blog": {
+            "title": "HAR 557 Inline Blog 20260504235001"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article"],
+                "message": "Can't create a blog from input if a blog ID is supplied.",
+                "code": "AMBIGUOUS_BLOG"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1930,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-author-field-required",
+      "request": {
+        "query": "#graphql\n  mutation ArticleCreate($article: ArticleCreateInput!, $blog: ArticleBlogInput) {\n    articleCreate(article: $article, blog: $blog) {\n      article {\n        id\n        title\n        handle\n        author { name }\n        blog { id title handle }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "HAR 557 Missing Author 20260504235001",
+            "body": "<p>Body</p>",
+            "blogId": "gid://shopify/Blog/120965038386",
+            "author": {}
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article"],
+                "message": "Can't create an article if both author name and user ID are blank.",
+                "code": "AUTHOR_FIELD_REQUIRED"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1978,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-success",
+      "request": {
+        "query": "#graphql\n  mutation ArticleCreate($article: ArticleCreateInput!, $blog: ArticleBlogInput) {\n    articleCreate(article: $article, blog: $blog) {\n      article {\n        id\n        title\n        handle\n        author { name }\n        blog { id title handle }\n      }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "HAR 557 Success 20260504235001",
+            "body": "<p>Body</p>",
+            "blogId": "gid://shopify/Blog/120965038386",
+            "author": {
+              "name": "HAR 557 Author"
+            }
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683143921970",
+              "title": "HAR 557 Success 20260504235001",
+              "handle": "har-557-success-20260504235001",
+              "author": {
+                "name": "HAR 557 Author"
+              },
+              "blog": {
+                "id": "gid://shopify/Blog/120965038386",
+                "title": "HAR 557 Validation Blog 20260504235001",
+                "handle": "har-557-validation-blog-20260504235001"
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 12,
+            "actualQueryCost": 12,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1846,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "articleDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation ArticleDelete($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683143921970"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683143921970",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1851,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation BlogDelete($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/120965038386"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/120965038386",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1908,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}

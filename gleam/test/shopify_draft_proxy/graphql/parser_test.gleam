@@ -192,6 +192,19 @@ pub fn directive_on_operation_test() {
   let assert IntValue(value: "60", ..) = arg.value
 }
 
+pub fn directive_on_mutation_field_with_variable_argument_test() {
+  let doc =
+    parse_or_panic(
+      "mutation M($key: String!) { root(input: {}) @idempotent(key: $key) { id } }",
+    )
+  let assert Field(directives: [d], ..) = first_selection(first_definition(doc))
+  assert d.name.value == "idempotent"
+  let assert [arg] = d.arguments
+  assert arg.name.value == "key"
+  let assert VariableValue(variable: v) = arg.value
+  assert v.name.value == "key"
+}
+
 pub fn empty_argument_object_test() {
   let doc = parse_or_panic("{ foo(input: {}) }")
   let assert Field(arguments: [a], ..) = first_selection(first_definition(doc))

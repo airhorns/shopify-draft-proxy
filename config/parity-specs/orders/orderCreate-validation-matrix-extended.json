@@ -1,0 +1,42 @@
+{
+  "scenarioId": "orderCreate-validation-matrix-extended",
+  "operationNames": ["orderCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/orders/order-create-validation-matrix-extended.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderCreate-validation-matrix-extended.graphql",
+    "variablesPath": "config/parity-requests/orders/orderCreate-validation-matrix-extended.variables.json",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "HAR-556 direct-order create validation slices: future processedAt, redundant customer input, missing line-item tax-line rate, and missing shipping-line tax-line rate. The request compares only userErrors field/code payloads so the validation contract remains strict without depending on mutation success payloads. Live probing against the current 2025-01 conformance store rejects omitted/empty inline tax-line rate through GraphQL coercion before the mutation resolver; this fixture preserves the ticket's cited mutation-level TAX_LINE_RATE_MISSING contract for resolved handler inputs.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "future-processed-at-user-errors",
+        "capturePath": "$.mutation.response.data.futureProcessedAt.userErrors",
+        "proxyPath": "$.data.futureProcessedAt.userErrors"
+      },
+      {
+        "name": "redundant-customer-user-errors",
+        "capturePath": "$.mutation.response.data.redundantCustomer.userErrors",
+        "proxyPath": "$.data.redundantCustomer.userErrors"
+      },
+      {
+        "name": "tax-line-missing-rate-line-item-user-errors",
+        "capturePath": "$.mutation.response.data.lineItemTaxLineMissingRate.userErrors",
+        "proxyPath": "$.data.lineItemTaxLineMissingRate.userErrors"
+      },
+      {
+        "name": "tax-line-missing-rate-shipping-line-user-errors",
+        "capturePath": "$.mutation.response.data.shippingLineTaxLineMissingRate.userErrors",
+        "proxyPath": "$.data.shippingLineTaxLineMissingRate.userErrors"
+      }
+    ]
+  }
+}

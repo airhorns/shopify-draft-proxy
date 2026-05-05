@@ -41,10 +41,10 @@ import shopify_draft_proxy/state/synthetic_identity.{
 import shopify_draft_proxy/state/types.{
   type CapturedJsonValue, type CatalogRecord, type MarketRecord,
   type PriceListRecord, type ProductMetafieldRecord, type ProductRecord,
-  type ProductVariantRecord, type WebPresenceRecord, CapturedArray, CapturedBool,
-  CapturedFloat, CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CatalogRecord, MarketRecord, PriceListRecord, ProductMetafieldRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  type ProductVariantRecord, type ShopDomainRecord, type WebPresenceRecord,
+  CapturedArray, CapturedBool, CapturedFloat, CapturedInt, CapturedNull,
+  CapturedObject, CapturedString, CatalogRecord, MarketRecord, PriceListRecord,
+  ProductMetafieldRecord, ProductRecord, ProductSeoRecord, ProductVariantRecord,
   ProductVariantSelectedOptionRecord, WebPresenceRecord,
 }
 
@@ -58,6 +58,10 @@ type MarketConnectionItem {
     pagination_cursor: String,
     output_cursor: String,
   )
+}
+
+type MarketRegionInput {
+  MarketRegionInput(field: List(String), country_code: String)
 }
 
 pub fn is_markets_query_root(name: String) -> Bool {
@@ -1082,27 +1086,7 @@ fn handle_market_create(
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
   let name =
     graphql_helpers.read_arg_string_nonempty(input, "name") |> option.unwrap("")
-  let errors = case string.trim(name) {
-    "" -> [
-      user_error(["input", "name"], "Name can't be blank", "BLANK"),
-      user_error(
-        ["input", "name"],
-        "Name is too short (minimum is 2 characters)",
-        "TOO_SHORT",
-      ),
-    ]
-    trimmed ->
-      case string.length(trimmed) < 2 {
-        True -> [
-          user_error(
-            ["input", "name"],
-            "Name is too short (minimum is 2 characters)",
-            "TOO_SHORT",
-          ),
-        ]
-        False -> []
-      }
-  }
+  let errors = market_create_input_errors(store, input, name)
   case errors {
     [] -> {
       let #(id, next_identity) =
@@ -1137,6 +1121,146 @@ fn handle_market_create(
         [],
       )
   }
+}
+
+fn market_create_input_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> List(CapturedJsonValue) {
+  market_create_name_errors(name)
+  |> list.append(market_create_status_enabled_errors(input))
+  |> list.append(market_create_plan_limit_errors(store))
+  |> list.append(market_create_currency_errors(store, input))
+  |> list.append(market_create_region_errors(store, input))
+}
+
+fn market_create_name_errors(name: String) -> List(CapturedJsonValue) {
+  case string.trim(name) {
+    "" -> [
+      user_error(["input", "name"], "Name can't be blank", "BLANK"),
+      user_error(
+        ["input", "name"],
+        "Name is too short (minimum is 2 characters)",
+        "TOO_SHORT",
+      ),
+    ]
+    trimmed ->
+      case string.length(trimmed) < 2 {
+        True -> [
+          user_error(
+            ["input", "name"],
+            "Name is too short (minimum is 2 characters)",
+            "TOO_SHORT",
+          ),
+        ]
+        False -> []
+      }
+  }
+}
+
+fn market_create_status_enabled_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  let status =
+    graphql_helpers.read_arg_string_nonempty(input, "status")
+    |> option.unwrap("ACTIVE")
+  let enabled =
+    graphql_helpers.read_arg_bool(input, "enabled")
+    |> option.unwrap(status == "ACTIVE")
+  case enabled == { status == "ACTIVE" } {
+    True -> []
+    False -> [
+      user_error(
+        ["input"],
+        "Invalid status and enabled combination.",
+        "INVALID_STATUS_AND_ENABLED_COMBINATION",
+      ),
+    ]
+  }
+}
+
+fn market_create_plan_limit_errors(store: Store) -> List(CapturedJsonValue) {
+  let market_count = store.list_effective_markets(store) |> list.length
+  case market_count >= default_market_plan_limit() {
+    True -> [
+      user_error(
+        ["input"],
+        "Shop has reached the maximum number of markets for the current plan.",
+        "SHOP_REACHED_PLAN_MARKETS_LIMIT",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn default_market_plan_limit() -> Int {
+  3
+}
+
+fn market_create_currency_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  case graphql_helpers.read_arg_object(input, "currencySettings") {
+    Some(currency_settings) ->
+      case
+        graphql_helpers.read_arg_string_nonempty(
+          currency_settings,
+          "baseCurrency",
+        )
+      {
+        Some(currency) ->
+          case valid_market_base_currency(store, currency) {
+            True -> []
+            False -> [
+              user_error(
+                ["input", "currencySettings", "baseCurrency"],
+                "Base currency is invalid",
+                "INVALID",
+              ),
+            ]
+          }
+        None -> []
+      }
+    None -> []
+  }
+}
+
+fn valid_market_base_currency(store: Store, currency: String) -> Bool {
+  valid_currency(currency) && market_base_currency_supported(store, currency)
+}
+
+fn market_base_currency_supported(store: Store, currency: String) -> Bool {
+  let known =
+    store.list_effective_markets(store)
+    |> list.filter_map(fn(record) {
+      captured_field(record.data, "currencySettings")
+      |> option.then(captured_field(_, "baseCurrency"))
+      |> option.then(captured_string_field(_, "currencyCode"))
+      |> option_to_result
+    })
+  list.contains(known, currency)
+  || list.contains(default_supported_market_base_currencies(), currency)
+}
+
+fn default_supported_market_base_currencies() -> List(String) {
+  ["CAD", "DKK", "MXN", "USD"]
+}
+
+fn market_create_region_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(CapturedJsonValue) {
+  let existing_codes = assigned_market_country_codes(store)
+  read_market_region_inputs(input)
+  |> list.filter_map(fn(region) {
+    case list.contains(existing_codes, region.country_code) {
+      True ->
+        Ok(user_error(region.field, "Code has already been taken", "TAKEN"))
+      False -> Error(Nil)
+    }
+  })
 }
 
 fn handle_market_update(
@@ -2101,7 +2225,7 @@ fn handle_web_presence_create(
   let args = graphql_helpers.field_args(field, variables)
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
-  let errors = web_presence_create_errors(input)
+  let errors = web_presence_create_errors(store, input)
   case errors {
     [] -> {
       let #(id, next_identity) =
@@ -2154,21 +2278,41 @@ fn handle_web_presence_update(
     Some(id_value) ->
       case store.get_effective_web_presence_by_id(store, id_value) {
         Some(_) -> {
-          let data = web_presence_data(store, id_value, input)
-          let record = WebPresenceRecord(id: id_value, cursor: None, data: data)
-          let #(_, next_store) = store.upsert_staged_web_presence(store, record)
-          mutation_result(
-            key,
-            field,
-            fragments,
-            "webPresenceUpdate",
-            "webPresence",
-            data,
-            [],
-            next_store,
-            identity,
-            [id_value],
-          )
+          let errors = web_presence_create_errors(store, input)
+          case errors {
+            [] -> {
+              let data = web_presence_data(store, id_value, input)
+              let record =
+                WebPresenceRecord(id: id_value, cursor: None, data: data)
+              let #(_, next_store) =
+                store.upsert_staged_web_presence(store, record)
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "webPresenceUpdate",
+                "webPresence",
+                data,
+                [],
+                next_store,
+                identity,
+                [id_value],
+              )
+            }
+            _ ->
+              mutation_result(
+                key,
+                field,
+                fragments,
+                "webPresenceUpdate",
+                "webPresence",
+                CapturedNull,
+                errors,
+                store,
+                identity,
+                [],
+              )
+          }
         }
         None ->
           web_presence_not_found_result(
@@ -2432,18 +2576,23 @@ fn web_presence_delete_not_found_result(
 }
 
 fn web_presence_create_errors(
+  store: Store,
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(CapturedJsonValue) {
   let domain_errors = case
     graphql_helpers.read_arg_string_nonempty(input, "domainId")
   {
-    Some(_) -> [
-      user_error(
-        ["input", "domainId"],
-        "Domain does not exist",
-        "DOMAIN_NOT_FOUND",
-      ),
-    ]
+    Some(domain_id) ->
+      case web_presence_domain_for_id(store, domain_id) {
+        Some(_) -> []
+        None -> [
+          user_error(
+            ["input", "domainId"],
+            "Domain does not exist",
+            "DOMAIN_NOT_FOUND",
+          ),
+        ]
+      }
     None -> []
   }
   let locale_errors = case
@@ -2477,22 +2626,38 @@ fn web_presence_data(
     read_arg_string_array(input, "alternateLocales") |> option.unwrap([])
   let suffix =
     graphql_helpers.read_arg_string_nonempty(input, "subfolderSuffix")
+  let domain =
+    web_presence_domain_for_input(
+      store,
+      graphql_helpers.read_arg_string_nonempty(input, "domainId"),
+    )
+  let has_alternate_locales = !list.is_empty(alternate_locales)
+  let locales = [default_locale, ..alternate_locales]
   CapturedObject([
     #("__typename", CapturedString("MarketWebPresence")),
     #("id", CapturedString(id)),
     #("subfolderSuffix", optional_captured_string(suffix)),
-    #("domain", CapturedNull),
+    #("domain", optional_web_presence_domain(domain)),
     #(
       "rootUrls",
-      CapturedArray([
-        CapturedObject([
-          #("locale", CapturedString(default_locale)),
-          #(
-            "url",
-            CapturedString(web_presence_root_url(store, default_locale, suffix)),
-          ),
-        ]),
-      ]),
+      CapturedArray(
+        list.map(locales, fn(locale) {
+          CapturedObject([
+            #("locale", CapturedString(locale)),
+            #(
+              "url",
+              CapturedString(web_presence_root_url(
+                store,
+                locale,
+                default_locale,
+                suffix,
+                domain,
+                has_alternate_locales,
+              )),
+            ),
+          ])
+        }),
+      ),
     ),
     #("defaultLocale", locale_payload(default_locale, True)),
     #(
@@ -2514,31 +2679,165 @@ fn web_presence_data(
 fn web_presence_root_url(
   store: Store,
   locale: String,
+  default_locale: String,
+  suffix: Option(String),
+  domain: Option(ShopDomainRecord),
+  has_alternate_locales: Bool,
+) -> String {
+  let base_url = case domain {
+    Some(domain) -> web_presence_domain_base_url(domain)
+    None -> shop_primary_web_presence_base_url(store) |> option.unwrap("")
+  }
+  case domain {
+    Some(_) -> localized_root_url(base_url, locale, default_locale)
+    None ->
+      case shop_primary_web_presence_base_url(store) {
+        Some(base_url) ->
+          documented_subfolder_root_url(
+            base_url,
+            locale,
+            default_locale,
+            suffix,
+          )
+        None ->
+          case has_alternate_locales {
+            True ->
+              documented_subfolder_root_url(
+                captured_web_presence_base_url(store) |> option.unwrap(""),
+                locale,
+                default_locale,
+                suffix,
+              )
+            False ->
+              legacy_captured_subfolder_root_url(
+                captured_web_presence_base_url(store) |> option.unwrap(""),
+                locale,
+                suffix,
+              )
+          }
+      }
+  }
+}
+
+fn web_presence_domain_for_input(
+  store: Store,
+  domain_id: Option(String),
+) -> Option(ShopDomainRecord) {
+  case domain_id {
+    Some(id) -> web_presence_domain_for_id(store, id)
+    None -> None
+  }
+}
+
+fn web_presence_domain_for_id(
+  store: Store,
+  domain_id: String,
+) -> Option(ShopDomainRecord) {
+  case store.get_effective_shop(store) {
+    Some(shop) ->
+      case shop.primary_domain.id == domain_id {
+        True -> Some(shop.primary_domain)
+        False -> None
+      }
+    None -> None
+  }
+}
+
+fn optional_web_presence_domain(
+  domain: Option(ShopDomainRecord),
+) -> CapturedJsonValue {
+  case domain {
+    Some(domain) ->
+      CapturedObject([
+        #("__typename", CapturedString("Domain")),
+        #("id", CapturedString(domain.id)),
+        #("host", CapturedString(domain.host)),
+        #("url", CapturedString(domain.url)),
+        #("sslEnabled", CapturedBool(domain.ssl_enabled)),
+      ])
+    None -> CapturedNull
+  }
+}
+
+fn localized_root_url(
+  base_url: String,
+  locale: String,
+  default_locale: String,
+) -> String {
+  case locale == default_locale {
+    True -> base_url <> "/"
+    False -> base_url <> "/" <> locale <> "/"
+  }
+}
+
+fn documented_subfolder_root_url(
+  base_url: String,
+  locale: String,
+  default_locale: String,
   suffix: Option(String),
 ) -> String {
-  let base_url = store_web_presence_base_url(store)
+  case suffix {
+    Some(s) ->
+      case locale == default_locale {
+        True -> base_url <> "/" <> s <> "/"
+        False -> base_url <> "/" <> s <> "/" <> locale <> "/"
+      }
+    None -> localized_root_url(base_url, locale, default_locale)
+  }
+}
+
+fn legacy_captured_subfolder_root_url(
+  base_url: String,
+  locale: String,
+  suffix: Option(String),
+) -> String {
   case suffix {
     Some(s) -> base_url <> "/" <> locale <> "-" <> s <> "/"
     None -> base_url <> "/"
   }
 }
 
-fn store_web_presence_base_url(store: Store) -> String {
+fn shop_primary_web_presence_base_url(store: Store) -> Option(String) {
+  case store.get_effective_shop(store) {
+    Some(shop) -> Some(web_presence_domain_base_url(shop.primary_domain))
+    None -> None
+  }
+}
+
+fn captured_web_presence_base_url(store: Store) -> Option(String) {
   case list.first(store.list_effective_web_presences(store)) {
     Ok(record) ->
       case captured_field(record.data, "domain") {
-        Some(domain) ->
-          case captured_string_field(domain, "url") {
-            Some(url) -> url
-            None ->
-              case captured_string_field(domain, "host") {
-                Some(host) -> "https://" <> host
-                None -> "https://harry-test-heelo.myshopify.com"
-              }
-          }
-        None -> "https://harry-test-heelo.myshopify.com"
+        Some(domain) -> captured_domain_base_url(domain)
+        None -> None
       }
-    Error(_) -> "https://harry-test-heelo.myshopify.com"
+    Error(_) -> None
+  }
+}
+
+fn captured_domain_base_url(domain: CapturedJsonValue) -> Option(String) {
+  case captured_string_field(domain, "url") {
+    Some(url) -> Some(trim_trailing_slash(url))
+    None ->
+      case captured_string_field(domain, "host") {
+        Some(host) -> Some("https://" <> host)
+        None -> None
+      }
+  }
+}
+
+fn web_presence_domain_base_url(domain: ShopDomainRecord) -> String {
+  let raw = case domain.url == "" {
+    True -> "https://" <> domain.host
+    False -> domain.url
+  }
+  trim_trailing_slash(raw)
+}
+
+fn trim_trailing_slash(value: String) -> String {
+  case string.ends_with(value, "/") {
+    True -> string.drop_end(value, 1)
+    False -> value
   }
 }
 
@@ -2594,6 +2893,7 @@ fn market_data(
   existing: Option(CapturedJsonValue),
 ) -> CapturedJsonValue {
   let existing_value = existing |> option.unwrap(CapturedObject([]))
+  let region_inputs = read_market_region_inputs(input)
   let name =
     read_arg_string_allow_empty(input, "name")
     |> option.or(captured_string_field(existing_value, "name"))
@@ -2605,6 +2905,12 @@ fn market_data(
   let enabled =
     graphql_helpers.read_arg_bool(input, "enabled")
     |> option.unwrap(status == "ACTIVE")
+  let market_type = case region_inputs {
+    [] ->
+      captured_string_field(existing_value, "type")
+      |> option.unwrap("NONE")
+    [_, ..] -> "REGION"
+  }
   captured_object_upsert(existing_value, [
     #("__typename", CapturedString("Market")),
     #("id", CapturedString(id)),
@@ -2612,10 +2918,16 @@ fn market_data(
     #("handle", CapturedString(market_handle(name))),
     #("status", CapturedString(status)),
     #("enabled", CapturedBool(enabled)),
+    #("type", CapturedString(market_type)),
+    #("conditions", market_conditions_data(region_inputs, existing_value)),
     #(
-      "type",
-      captured_field(existing_value, "type")
-        |> option.unwrap(CapturedString("NONE")),
+      "currencySettings",
+      market_currency_settings_data(input, region_inputs, existing_value),
+    ),
+    #(
+      "priceInclusions",
+      captured_field(existing_value, "priceInclusions")
+        |> option.unwrap(default_market_price_inclusions()),
     ),
     #(
       "catalogs",
@@ -2634,6 +2946,301 @@ fn market_handle(name: String) -> String {
   string.trim(name)
   |> string.lowercase
   |> string.replace(" ", "-")
+}
+
+fn read_market_region_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(MarketRegionInput) {
+  list.append(
+    read_legacy_market_region_inputs(input),
+    read_conditions_market_region_inputs(input),
+  )
+}
+
+fn read_legacy_market_region_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(MarketRegionInput) {
+  read_arg_object_array(input, "regions")
+  |> list.index_map(fn(region, index) {
+    case graphql_helpers.read_arg_string_nonempty(region, "countryCode") {
+      Some(code) ->
+        Ok(MarketRegionInput(
+          field: ["input", "regions", int.to_string(index), "countryCode"],
+          country_code: code,
+        ))
+      None -> Error(Nil)
+    }
+  })
+  |> result.values
+}
+
+fn read_conditions_market_region_inputs(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(MarketRegionInput) {
+  let regions_condition =
+    graphql_helpers.read_arg_object(input, "conditions")
+    |> option.then(graphql_helpers.read_arg_object(_, "regionsCondition"))
+    |> option.unwrap(dict.new())
+  read_arg_object_array(regions_condition, "regions")
+  |> list.index_map(fn(region, index) {
+    case graphql_helpers.read_arg_string_nonempty(region, "countryCode") {
+      Some(code) ->
+        Ok(MarketRegionInput(
+          field: [
+            "input",
+            "conditions",
+            "regionsCondition",
+            "regions",
+            int.to_string(index),
+            "countryCode",
+          ],
+          country_code: code,
+        ))
+      None -> Error(Nil)
+    }
+  })
+  |> result.values
+}
+
+fn assigned_market_country_codes(store: Store) -> List(String) {
+  store.list_effective_markets(store)
+  |> list.fold([], fn(codes, record) {
+    list.append(codes, market_country_codes(record.data))
+  })
+}
+
+fn market_country_codes(data: CapturedJsonValue) -> List(String) {
+  captured_field(data, "conditions")
+  |> option.then(captured_field(_, "regionsCondition"))
+  |> option.then(captured_field(_, "regions"))
+  |> option.map(region_codes_from_connection)
+  |> option.unwrap([])
+}
+
+fn region_codes_from_connection(connection: CapturedJsonValue) -> List(String) {
+  let node_codes =
+    captured_field(connection, "nodes")
+    |> option.map(fn(nodes) {
+      case nodes {
+        CapturedArray(items) ->
+          list.filter_map(items, fn(item) {
+            region_code_from_node(item) |> option_to_result
+          })
+        _ -> []
+      }
+    })
+    |> option.unwrap([])
+  let edge_codes =
+    captured_field(connection, "edges")
+    |> option.map(fn(edges) {
+      case edges {
+        CapturedArray(items) ->
+          list.filter_map(items, fn(edge) {
+            captured_field(edge, "node")
+            |> option.then(region_code_from_node)
+            |> option_to_result
+          })
+        _ -> []
+      }
+    })
+    |> option.unwrap([])
+  list.append(node_codes, edge_codes)
+}
+
+fn region_code_from_node(node: CapturedJsonValue) -> Option(String) {
+  captured_string_field(node, "code")
+  |> option.or(captured_string_field(node, "countryCode"))
+}
+
+fn market_conditions_data(
+  regions: List(MarketRegionInput),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  case regions {
+    [] ->
+      captured_field(existing_value, "conditions")
+      |> option.unwrap(empty_market_conditions())
+    [_, ..] ->
+      CapturedObject([
+        #("conditionTypes", CapturedArray([CapturedString("REGION")])),
+        #(
+          "regionsCondition",
+          CapturedObject([
+            #("applicationLevel", CapturedString("SPECIFIED")),
+            #("regions", market_regions_connection(regions)),
+          ]),
+        ),
+      ])
+  }
+}
+
+fn empty_market_conditions() -> CapturedJsonValue {
+  CapturedObject([
+    #("conditionTypes", CapturedArray([])),
+    #(
+      "regionsCondition",
+      CapturedObject([
+        #("applicationLevel", CapturedString("SPECIFIED")),
+        #(
+          "regions",
+          CapturedObject([
+            #("edges", CapturedArray([])),
+            #("nodes", CapturedArray([])),
+            #("pageInfo", page_info_for_cursors([])),
+          ]),
+        ),
+      ]),
+    ),
+  ])
+}
+
+fn market_regions_connection(
+  regions: List(MarketRegionInput),
+) -> CapturedJsonValue {
+  let nodes = list.map(regions, market_region_node)
+  let cursors = list.map(regions, fn(region) { region.country_code })
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(nodes, fn(node) {
+          let cursor =
+            captured_string_field(node, "code") |> option.unwrap("region")
+          CapturedObject([
+            #("cursor", CapturedString(cursor)),
+            #("node", node),
+          ])
+        }),
+      ),
+    ),
+    #("nodes", CapturedArray(nodes)),
+    #("pageInfo", page_info_for_cursors(cursors)),
+  ])
+}
+
+fn market_region_node(region: MarketRegionInput) -> CapturedJsonValue {
+  let currency = country_currency(region.country_code)
+  CapturedObject([
+    #("__typename", CapturedString("MarketRegionCountry")),
+    #(
+      "id",
+      CapturedString(
+        "gid://shopify/MarketRegionCountry/" <> region.country_code,
+      ),
+    ),
+    #("name", CapturedString(country_name(region.country_code))),
+    #("code", CapturedString(region.country_code)),
+    #("currency", currency_payload(currency)),
+  ])
+}
+
+fn market_currency_settings_data(
+  input: Dict(String, root_field.ResolvedValue),
+  regions: List(MarketRegionInput),
+  existing_value: CapturedJsonValue,
+) -> CapturedJsonValue {
+  let settings =
+    graphql_helpers.read_arg_object(input, "currencySettings")
+    |> option.unwrap(dict.new())
+  let base_currency =
+    graphql_helpers.read_arg_string_nonempty(settings, "baseCurrency")
+    |> option.or(
+      captured_field(existing_value, "currencySettings")
+      |> option.then(captured_field(_, "baseCurrency"))
+      |> option.then(captured_string_field(_, "currencyCode")),
+    )
+    |> option.or(first_region_currency(regions))
+    |> option.unwrap("CAD")
+  let existing_settings =
+    captured_field(existing_value, "currencySettings")
+    |> option.unwrap(CapturedObject([]))
+  CapturedObject([
+    #("baseCurrency", currency_payload(base_currency)),
+    #(
+      "localCurrencies",
+      graphql_helpers.read_arg_bool(settings, "localCurrencies")
+        |> option.map(CapturedBool)
+        |> option.or(captured_field(existing_settings, "localCurrencies"))
+        |> option.unwrap(CapturedBool(False)),
+    ),
+    #(
+      "roundingEnabled",
+      graphql_helpers.read_arg_bool(settings, "roundingEnabled")
+        |> option.map(CapturedBool)
+        |> option.or(captured_field(existing_settings, "roundingEnabled"))
+        |> option.unwrap(CapturedBool(True)),
+    ),
+  ])
+}
+
+fn first_region_currency(regions: List(MarketRegionInput)) -> Option(String) {
+  case regions {
+    [first, ..] -> Some(country_currency(first.country_code))
+    [] -> None
+  }
+}
+
+fn currency_payload(currency: String) -> CapturedJsonValue {
+  CapturedObject([
+    #("currencyCode", CapturedString(currency)),
+    #("currencyName", CapturedString(currency_name(currency))),
+    #("enabled", CapturedBool(True)),
+  ])
+}
+
+fn default_market_price_inclusions() -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "inclusiveDutiesPricingStrategy",
+      CapturedString("ADD_DUTIES_AT_CHECKOUT"),
+    ),
+    #(
+      "inclusiveTaxPricingStrategy",
+      CapturedString("INCLUDES_TAXES_IN_PRICE_BASED_ON_COUNTRY"),
+    ),
+  ])
+}
+
+fn country_currency(country_code: String) -> String {
+  case country_code {
+    "CA" -> "CAD"
+    "CO" -> "COP"
+    "BR" -> "BRL"
+    "CL" -> "CLP"
+    "DK" -> "DKK"
+    "MX" -> "MXN"
+    "PE" -> "PEN"
+    "US" -> "USD"
+    _ -> "CAD"
+  }
+}
+
+fn country_name(country_code: String) -> String {
+  case country_code {
+    "BR" -> "Brazil"
+    "CA" -> "Canada"
+    "CL" -> "Chile"
+    "CO" -> "Colombia"
+    "DK" -> "Denmark"
+    "MX" -> "Mexico"
+    "PE" -> "Peru"
+    "US" -> "United States"
+    _ -> country_code
+  }
+}
+
+fn currency_name(currency: String) -> String {
+  case currency {
+    "BRL" -> "Brazilian Real"
+    "CAD" -> "Canadian Dollar"
+    "CLP" -> "Chilean Peso"
+    "COP" -> "Colombian Peso"
+    "DKK" -> "Danish Krone"
+    "MXN" -> "Mexican Peso"
+    "PEN" -> "Peruvian Sol"
+    "USD" -> "United States Dollar"
+    _ -> currency
+  }
 }
 
 fn catalog_data(

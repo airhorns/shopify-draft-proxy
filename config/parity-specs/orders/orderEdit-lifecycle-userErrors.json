@@ -1,0 +1,57 @@
+{
+  "scenarioId": "orderEdit-lifecycle-userErrors",
+  "operationNames": ["orderEditBegin", "orderEditAddVariant", "orderEditSetQuantity", "orderEditCommit"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-lifecycle-user-errors.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/orders/orderEdit-lifecycle-userErrors-begin.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cases[0].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Shopify 2026-04 order-edit userError payload roots for a missing order and missing calculated-order session branches. The scenario proves these handlers return non-null mutation payload objects with nullable resources and userErrors instead of a null root.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "begin-not-found-root",
+        "capturePath": "$.cases[0].response.payload.data.orderEditBegin",
+        "proxyPath": "$.data.orderEditBegin"
+      },
+      {
+        "name": "add-variant-missing-calculated-order-root",
+        "capturePath": "$.cases[1].response.payload.data.orderEditAddVariant",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-lifecycle-userErrors-addVariant.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[1].variables"
+        },
+        "proxyPath": "$.data.orderEditAddVariant"
+      },
+      {
+        "name": "set-quantity-missing-calculated-order-root",
+        "capturePath": "$.cases[2].response.payload.data.orderEditSetQuantity",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-lifecycle-userErrors-setQuantity.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[2].variables"
+        },
+        "proxyPath": "$.data.orderEditSetQuantity"
+      },
+      {
+        "name": "commit-missing-calculated-order-root",
+        "capturePath": "$.cases[3].response.payload.data.orderEditCommit",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/orders/orderEdit-lifecycle-userErrors-commit.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.cases[3].variables"
+        },
+        "proxyPath": "$.data.orderEditCommit"
+      }
+    ]
+  }
+}

@@ -1,14 +1,14 @@
 import gleam/dict.{type Dict}
 import gleam/json
 import gleam/list
-import gleam/option.{None, Some}
+import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/orders
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 pub fn orders_abandoned_checkout_empty_read_test() {
   let query =
@@ -320,6 +320,7 @@ pub fn orders_access_denied_guardrails_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -511,6 +512,14 @@ pub fn orders_order_edit_add_variant_payload_test() {
         cursor: None,
       ),
     ])
+    |> store.upsert_base_orders([
+      order_edit_test_order("gid://shopify/Order/7012", "PAID", None, [
+        order_edit_test_session(
+          "gid://shopify/Order/7012",
+          "gid://shopify/CalculatedOrder/10",
+        ),
+      ]),
+    ])
   let mutation =
     "
     mutation OrderEditExistingWorkflowAddVariantPayload(
@@ -623,9 +632,19 @@ pub fn orders_order_edit_add_variant_invalid_variant_payload_test() {
       ),
       #("allowDuplicates", root_field.BoolVal(False)),
     ])
+  let session_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order("gid://shopify/Order/7010", "PAID", None, [
+        order_edit_test_session(
+          "gid://shopify/Order/7010",
+          "gid://shopify/CalculatedOrder/1",
+        ),
+      ]),
+    ])
   let outcome =
     orders.process_mutation(
-      store.new(),
+      session_store,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
@@ -636,6 +655,324 @@ pub fn orders_order_edit_add_variant_invalid_variant_payload_test() {
     == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"variantId\"],\"message\":\"can't convert Integer[0] to a positive Integer to use as an untrusted id\"}]}}}"
   assert outcome.staged_resource_ids == []
   assert outcome.log_drafts == []
+}
+
+pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
+  let begin =
+    "
+    mutation OrderEditBeginUserErrors($id: ID!) {
+      orderEditBegin(id: $id) {
+        calculatedOrder {
+          id
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+
+  let missing_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      begin,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/Order/0")),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_outcome.data)
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The order does not exist.\",\"code\":\"INVALID\"}]}}}"
+
+  let refunded_id = "gid://shopify/Order/7001"
+  let refunded_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order(refunded_id, "REFUNDED", None, []),
+    ])
+  let refunded_outcome =
+    orders.process_mutation(
+      refunded_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      begin,
+      dict.from_list([#("id", root_field.StringVal(refunded_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(refunded_outcome.data)
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The order cannot be edited.\",\"code\":\"INVALID\"}]}}}"
+
+  let cancel_id = "gid://shopify/Order/7002"
+  let cancel_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order(cancel_id, "PAID", None, []),
+    ])
+  let cancel =
+    "
+    mutation CancelForOrderEdit($orderId: ID!, $reason: OrderCancelReason!, $restock: Boolean!) {
+      orderCancel(orderId: $orderId, reason: $reason, restock: $restock) {
+        userErrors {
+          field
+          message
+        }
+      }
+    }
+  "
+  let cancel_outcome =
+    orders.process_mutation(
+      cancel_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      cancel,
+      dict.from_list([
+        #("orderId", root_field.StringVal(cancel_id)),
+        #("reason", root_field.StringVal("OTHER")),
+        #("restock", root_field.BoolVal(True)),
+      ]),
+      empty_upstream_context(),
+    )
+  let canceled_begin_outcome =
+    orders.process_mutation(
+      cancel_outcome.store,
+      cancel_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      begin,
+      dict.from_list([#("id", root_field.StringVal(cancel_id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(canceled_begin_outcome.data)
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The order cannot be edited.\",\"code\":\"INVALID\"}]}}}"
+
+  let existing_session_id = "gid://shopify/CalculatedOrder/99"
+  let existing_session_order_id = "gid://shopify/Order/7003"
+  let existing_session_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order(existing_session_order_id, "PAID", None, [
+        order_edit_test_session(existing_session_order_id, existing_session_id),
+      ]),
+    ])
+  let existing_session_outcome =
+    orders.process_mutation(
+      existing_session_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      begin,
+      dict.from_list([
+        #("id", root_field.StringVal(existing_session_order_id)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(existing_session_outcome.data)
+    == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"An edit is already in progress for this order\",\"code\":\"INVALID\"}]}}}"
+  assert existing_session_outcome.store == existing_session_store
+}
+
+pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
+  let add_variant =
+    "
+    mutation AddMissingVariant($id: ID!, $variantId: ID!, $quantity: Int!) {
+      orderEditAddVariant(id: $id, variantId: $variantId, quantity: $quantity) {
+        calculatedOrder {
+          id
+        }
+        calculatedLineItem {
+          id
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let add_variant_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      add_variant,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #("variantId", root_field.StringVal("gid://shopify/ProductVariant/404")),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(add_variant_outcome.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
+
+  let session_store =
+    store.new()
+    |> store.upsert_base_orders([
+      order_edit_test_order("gid://shopify/Order/7011", "PAID", None, [
+        order_edit_test_session(
+          "gid://shopify/Order/7011",
+          "gid://shopify/CalculatedOrder/1",
+        ),
+      ]),
+    ])
+  let missing_variant_outcome =
+    orders.process_mutation(
+      session_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      add_variant,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #("variantId", root_field.StringVal("gid://shopify/ProductVariant/404")),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_variant_outcome.data)
+    == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"variantId\"],\"message\":\"Variant does not exist\",\"code\":\"INVALID\"}]}}}"
+
+  let set_quantity =
+    "
+    mutation SetMissingLine($id: ID!, $lineItemId: ID!, $quantity: Int!) {
+      orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {
+        calculatedOrder {
+          id
+        }
+        calculatedLineItem {
+          id
+        }
+        orderEditSession {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let set_quantity_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      set_quantity,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #(
+          "lineItemId",
+          root_field.StringVal("gid://shopify/CalculatedLineItem/404"),
+        ),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(set_quantity_outcome.data)
+    == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
+
+  let missing_line_outcome =
+    orders.process_mutation(
+      session_store,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      set_quantity,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/1")),
+        #(
+          "lineItemId",
+          root_field.StringVal("gid://shopify/CalculatedLineItem/404"),
+        ),
+        #("quantity", root_field.IntVal(1)),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_line_outcome.data)
+    == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"lineItemId\"],\"message\":\"Line item does not exist\",\"code\":\"INVALID\"}]}}}"
+
+  let commit =
+    "
+    mutation CommitMissingCalculatedOrder($id: ID!) {
+      orderEditCommit(id: $id, notifyCustomer: false) {
+        order {
+          id
+        }
+        successMessages
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let commit_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      commit,
+      dict.from_list([
+        #("id", root_field.StringVal("gid://shopify/CalculatedOrder/404")),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(commit_outcome.data)
+    == "{\"data\":{\"orderEditCommit\":{\"order\":null,\"successMessages\":[],\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
+}
+
+fn order_edit_test_order(
+  id: String,
+  display_financial_status: String,
+  cancelled_at: Option(String),
+  order_edit_sessions: List(types.CapturedJsonValue),
+) -> types.OrderRecord {
+  types.OrderRecord(
+    id: id,
+    cursor: None,
+    data: types.CapturedObject([
+      #("id", types.CapturedString(id)),
+      #("name", types.CapturedString("#7001")),
+      #(
+        "displayFinancialStatus",
+        types.CapturedString(display_financial_status),
+      ),
+      #("cancelledAt", case cancelled_at {
+        Some(timestamp) -> types.CapturedString(timestamp)
+        None -> types.CapturedNull
+      }),
+      #(
+        "lineItems",
+        types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+      ),
+      #("orderEditSessions", types.CapturedArray(order_edit_sessions)),
+    ]),
+  )
+}
+
+fn order_edit_test_session(
+  order_id: String,
+  calculated_order_id: String,
+) -> types.CapturedJsonValue {
+  types.CapturedObject([
+    #("id", types.CapturedString(calculated_order_id)),
+    #("originalOrderId", types.CapturedString(order_id)),
+    #("lineItems", types.CapturedObject([#("nodes", types.CapturedArray([]))])),
+    #(
+      "addedLineItems",
+      types.CapturedObject([#("nodes", types.CapturedArray([]))]),
+    ),
+    #("shippingLines", types.CapturedArray([])),
+  ])
 }
 
 pub fn orders_order_edit_set_quantity_payload_test() {
@@ -696,6 +1033,15 @@ pub fn orders_order_edit_set_quantity_payload_test() {
                     ),
                   ]),
                 ]),
+              ),
+            ]),
+          ),
+          #(
+            "orderEditSessions",
+            types.CapturedArray([
+              order_edit_test_session(
+                order_id,
+                "gid://shopify/CalculatedOrder/1",
               ),
             ]),
           ),
@@ -2841,6 +3187,18 @@ pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() 
             ]),
           ),
           #(
+            "totalReceivedSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("15.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
             "shippingLines",
             types.CapturedObject([
               #(
@@ -2957,6 +3315,7 @@ pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() 
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -3016,7 +3375,7 @@ pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() 
       empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":{\"id\":\"gid://shopify/Order/6830465417449\",\"displayFinancialStatus\":\"PAID\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[{\"field\":null,\"message\":\"Refund amount $25.00 is greater than net payment received $15.00\"}]}}}"
+    == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":{\"id\":\"gid://shopify/Order/6830465417449\",\"displayFinancialStatus\":\"PAID\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[{\"field\":[\"transactions\"],\"message\":\"Refund amount $25.00 is greater than net payment received $15.00\",\"code\":\"INVALID\"}]}}}"
   assert outcome.staged_resource_ids == []
   assert list.length(outcome.log_drafts) == 1
 
@@ -3067,6 +3426,407 @@ pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() 
     orders.process(outcome.store, read_query, read_variables)
   assert json.to_string(read)
     == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/6830465417449\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"refunds\":[],\"returns\":{\"nodes\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}},\"transactions\":[{\"id\":\"gid://shopify/OrderTransaction/8194169077993\",\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}}],\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}}}}}"
+}
+
+pub fn orders_refund_create_unknown_order_uses_order_id_user_error_path_test() {
+  let mutation =
+    "
+    mutation RefundCreateUnknownOrder($input: RefundInput!) {
+      refundCreate(input: $input) {
+        refund {
+          id
+        }
+        order {
+          id
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #(
+              "orderId",
+              root_field.StringVal("gid://shopify/Order/9999999999999"),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn orders_refund_create_line_item_quantity_validation_uses_refundable_quantity_test() {
+  let order_id = "gid://shopify/Order/6830465417550"
+  let line_item_id = "gid://shopify/LineItem/16202166637700"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #(
+            "displayFinancialStatus",
+            types.CapturedString("PARTIALLY_REFUNDED"),
+          ),
+          #(
+            "totalPriceSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("50.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "totalReceivedSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("50.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "totalRefundedSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("10.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "lineItems",
+            types.CapturedObject([
+              #(
+                "nodes",
+                types.CapturedArray([
+                  types.CapturedObject([
+                    #("id", types.CapturedString(line_item_id)),
+                    #("title", types.CapturedString("Partially refunded item")),
+                    #("quantity", types.CapturedInt(2)),
+                    #("currentQuantity", types.CapturedInt(2)),
+                    #(
+                      "originalUnitPriceSet",
+                      types.CapturedObject([
+                        #(
+                          "shopMoney",
+                          types.CapturedObject([
+                            #("amount", types.CapturedString("10.0")),
+                            #("currencyCode", types.CapturedString("CAD")),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ]),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "transactions",
+            types.CapturedArray([
+              types.CapturedObject([
+                #(
+                  "id",
+                  types.CapturedString("gid://shopify/OrderTransaction/sale"),
+                ),
+                #("kind", types.CapturedString("SALE")),
+                #("status", types.CapturedString("SUCCESS")),
+                #("gateway", types.CapturedString("manual")),
+                #(
+                  "amountSet",
+                  types.CapturedObject([
+                    #(
+                      "shopMoney",
+                      types.CapturedObject([
+                        #("amount", types.CapturedString("50.0")),
+                        #("currencyCode", types.CapturedString("CAD")),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+          #(
+            "refunds",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString("gid://shopify/Refund/previous")),
+                #(
+                  "totalRefundedSet",
+                  types.CapturedObject([
+                    #(
+                      "shopMoney",
+                      types.CapturedObject([
+                        #("amount", types.CapturedString("10.0")),
+                        #("currencyCode", types.CapturedString("CAD")),
+                      ]),
+                    ),
+                  ]),
+                ),
+                #(
+                  "refundLineItems",
+                  types.CapturedObject([
+                    #(
+                      "nodes",
+                      types.CapturedArray([
+                        types.CapturedObject([
+                          #("quantity", types.CapturedInt(1)),
+                          #(
+                            "lineItem",
+                            types.CapturedObject([
+                              #("id", types.CapturedString(line_item_id)),
+                            ]),
+                          ),
+                        ]),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation RefundCreateOverQuantity($input: RefundInput!) {
+      refundCreate(input: $input) {
+        refund {
+          id
+        }
+        order {
+          id
+          totalRefundedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("orderId", root_field.StringVal(order_id)),
+            #("allowOverRefunding", root_field.BoolVal(True)),
+            #(
+              "refundLineItems",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("lineItemId", root_field.StringVal(line_item_id)),
+                    #("quantity", root_field.IntVal(2)),
+                    #("restockType", root_field.StringVal("RETURN")),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":{\"id\":\"gid://shopify/Order/6830465417550\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"10.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[{\"field\":[\"refundLineItems\",\"0\",\"quantity\"],\"message\":\"Quantity cannot refund more items than were purchased\",\"code\":\"INVALID\"}]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn orders_refund_create_allow_over_refunding_stages_amount_over_refund_test() {
+  let order_id = "gid://shopify/Order/6830465417660"
+  let transaction_id = "gid://shopify/OrderTransaction/8194169077660"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("displayFinancialStatus", types.CapturedString("PAID")),
+          #(
+            "totalPriceSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("15.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "totalReceivedSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("15.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "totalRefundedSet",
+            types.CapturedObject([
+              #(
+                "shopMoney",
+                types.CapturedObject([
+                  #("amount", types.CapturedString("0.0")),
+                  #("currencyCode", types.CapturedString("CAD")),
+                ]),
+              ),
+            ]),
+          ),
+          #(
+            "transactions",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(transaction_id)),
+                #("kind", types.CapturedString("SALE")),
+                #("status", types.CapturedString("SUCCESS")),
+                #("gateway", types.CapturedString("manual")),
+                #(
+                  "amountSet",
+                  types.CapturedObject([
+                    #(
+                      "shopMoney",
+                      types.CapturedObject([
+                        #("amount", types.CapturedString("15.0")),
+                        #("currencyCode", types.CapturedString("CAD")),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+          #("refunds", types.CapturedArray([])),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation RefundCreateAllowOverRefunding($input: RefundInput!) {
+      refundCreate(input: $input) {
+        refund {
+          id
+          totalRefundedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        order {
+          id
+          totalRefundedSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let variables =
+    dict.from_list([
+      #(
+        "input",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("orderId", root_field.StringVal(order_id)),
+            #("allowOverRefunding", root_field.BoolVal(True)),
+            #(
+              "transactions",
+              root_field.ListVal([
+                root_field.ObjectVal(
+                  dict.from_list([
+                    #("amount", root_field.StringVal("25.00")),
+                    #("gateway", root_field.StringVal("manual")),
+                    #("kind", root_field.StringVal("REFUND")),
+                    #("orderId", root_field.StringVal(order_id)),
+                    #("parentId", root_field.StringVal(transaction_id)),
+                  ]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+    ])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"refundCreate\":{\"refund\":{\"id\":\"gid://shopify/Refund/1\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}},\"order\":{\"id\":\"gid://shopify/Order/6830465417660\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == [order_id]
 }
 
 pub fn orders_refund_create_partial_success_stages_refund_and_transaction_test() {
@@ -3581,6 +4341,7 @@ pub fn orders_order_create_validation_guardrails_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -3610,10 +4371,174 @@ pub fn orders_order_create_validation_guardrails_test() {
       empty_upstream_context(),
     )
   assert json.to_string(no_line_items_outcome.data)
-    == "{\"data\":{\"orderCreate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"lineItems\"],\"message\":\"Line items must have at least one line item\"}]}}}"
+    == "{\"data\":{\"orderCreate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"lineItems\"],\"message\":\"Line items must have at least one line item\",\"code\":\"INVALID\"}]}}}"
   assert no_line_items_outcome.staged_resource_ids == []
   assert no_line_items_outcome.log_drafts == []
   assert store.list_effective_orders(no_line_items_outcome.store) == []
+
+  let extended =
+    "
+    mutation OrderCreateValidationMatrixExtended(
+      $futureProcessedAt: OrderCreateOrderInput!
+      $redundantCustomer: OrderCreateOrderInput!
+      $lineItemTaxLineMissingRate: OrderCreateOrderInput!
+      $shippingLineTaxLineMissingRate: OrderCreateOrderInput!
+    ) {
+      futureProcessedAt: orderCreate(order: $futureProcessedAt) {
+        order { id }
+        userErrors { field message code }
+      }
+      redundantCustomer: orderCreate(order: $redundantCustomer) {
+        order { id }
+        userErrors { field message code }
+      }
+      lineItemTaxLineMissingRate: orderCreate(order: $lineItemTaxLineMissingRate) {
+        order { id }
+        userErrors { field message code }
+      }
+      shippingLineTaxLineMissingRate: orderCreate(order: $shippingLineTaxLineMissingRate) {
+        order { id }
+        userErrors { field message code }
+      }
+    }
+  "
+  let extended_variables =
+    dict.from_list([
+      #(
+        "futureProcessedAt",
+        order_create_test_order([
+          #("processedAt", root_field.StringVal("2099-01-01T00:00:00Z")),
+        ]),
+      ),
+      #(
+        "redundantCustomer",
+        order_create_test_order([
+          #("customerId", root_field.StringVal("gid://shopify/Customer/1")),
+          #(
+            "customer",
+            root_field.ObjectVal(
+              dict.from_list([
+                #(
+                  "toUpsert",
+                  root_field.ObjectVal(
+                    dict.from_list([
+                      #("email", root_field.StringVal("redundant@example.com")),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+          ),
+        ]),
+      ),
+      #(
+        "lineItemTaxLineMissingRate",
+        order_create_test_order([
+          #(
+            "lineItems",
+            root_field.ListVal([
+              order_create_test_line_item([
+                #(
+                  "taxLines",
+                  root_field.ListVal([
+                    root_field.ObjectVal(
+                      dict.from_list([
+                        #("priceSet", order_create_test_money("1.00")),
+                      ]),
+                    ),
+                  ]),
+                ),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+      #(
+        "shippingLineTaxLineMissingRate",
+        order_create_test_order([
+          #(
+            "shippingLines",
+            root_field.ListVal([
+              root_field.ObjectVal(
+                dict.from_list([
+                  #("title", root_field.StringVal("Standard")),
+                  #("priceSet", order_create_test_money("5.00")),
+                  #(
+                    "taxLines",
+                    root_field.ListVal([
+                      root_field.ObjectVal(
+                        dict.from_list([
+                          #("priceSet", order_create_test_money("1.00")),
+                        ]),
+                      ),
+                    ]),
+                  ),
+                ]),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+  let extended_outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2025-01/graphql.json",
+      extended,
+      extended_variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(extended_outcome.data)
+    == "{\"data\":{\"futureProcessedAt\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"processedAt\"],\"message\":\"Processed at must not be in the future\",\"code\":\"PROCESSED_AT_INVALID\"}]},\"redundantCustomer\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\"],\"message\":\"Cannot specify both customerId and customer\",\"code\":\"REDUNDANT_CUSTOMER_FIELDS\"}]},\"lineItemTaxLineMissingRate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"lineItems\",0,\"taxLines\",0,\"rate\"],\"message\":\"Tax line rate must be provided\",\"code\":\"TAX_LINE_RATE_MISSING\"}]},\"shippingLineTaxLineMissingRate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"shippingLines\",0,\"taxLines\",0,\"rate\"],\"message\":\"Tax line rate must be provided\",\"code\":\"TAX_LINE_RATE_MISSING\"}]}}}"
+  assert extended_outcome.staged_resource_ids == []
+  assert extended_outcome.log_drafts == []
+  assert store.list_effective_orders(extended_outcome.store) == []
+}
+
+fn order_create_test_order(
+  overrides: List(#(String, root_field.ResolvedValue)),
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list(list.append(
+      [
+        #("email", root_field.StringVal("hermes-order-validation@example.com")),
+        #("lineItems", root_field.ListVal([order_create_test_line_item([])])),
+      ],
+      overrides,
+    )),
+  )
+}
+
+fn order_create_test_line_item(
+  overrides: List(#(String, root_field.ResolvedValue)),
+) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list(list.append(
+      [
+        #("title", root_field.StringVal("Validation custom item")),
+        #("quantity", root_field.IntVal(1)),
+        #("priceSet", order_create_test_money("1.00")),
+      ],
+      overrides,
+    )),
+  )
+}
+
+fn order_create_test_money(amount: String) -> root_field.ResolvedValue {
+  root_field.ObjectVal(
+    dict.from_list([
+      #(
+        "shopMoney",
+        root_field.ObjectVal(
+          dict.from_list([
+            #("amount", root_field.StringVal(amount)),
+            #("currencyCode", root_field.StringVal("USD")),
+          ]),
+        ),
+      ),
+    ]),
+  )
 }
 
 pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {

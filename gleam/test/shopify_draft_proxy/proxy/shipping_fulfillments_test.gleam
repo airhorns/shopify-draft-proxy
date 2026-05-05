@@ -9,19 +9,21 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state
 import shopify_draft_proxy/proxy/shipping_fulfillments
 import shopify_draft_proxy/proxy/store_properties
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type CapturedJsonValue, type DeliveryProfileRecord, type ShippingPackageRecord,
+  type CapturedJsonValue, type DeliveryProfileRecord,
+  type FulfillmentOrderRecord, type ShippingPackageRecord,
   type StorePropertyRecord, CalculatedOrderRecord, CapturedArray, CapturedBool,
   CapturedInt, CapturedNull, CapturedObject, CapturedString,
-  CarrierServiceRecord, DeliveryProfileRecord, FulfillmentRecord, LocationRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ReverseFulfillmentOrderRecord, ShippingPackageDimensionsRecord,
-  ShippingPackageRecord, ShippingPackageWeightRecord, StorePropertyBool,
-  StorePropertyNull, StorePropertyRecord, StorePropertyString,
+  CarrierServiceRecord, DeliveryProfileRecord, FulfillmentOrderRecord,
+  FulfillmentRecord, LocationRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ReverseFulfillmentOrderRecord,
+  ShippingPackageDimensionsRecord, ShippingPackageRecord,
+  ShippingPackageWeightRecord, StorePropertyBool, StorePropertyNull,
+  StorePropertyRecord, StorePropertyString,
 }
-import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 
 fn package(id: String, name: String, default: Bool) -> ShippingPackageRecord {
   ShippingPackageRecord(
@@ -330,6 +332,42 @@ fn location(
       #("isFulfillmentService", StorePropertyBool(is_fulfillment_service)),
       #("localPickupSettingsV2", StorePropertyNull),
       #("localPickupSettings", StorePropertyNull),
+    ]),
+  )
+}
+
+fn fulfillment_order_at_location(
+  id: String,
+  location_id: String,
+  location_name: String,
+) -> FulfillmentOrderRecord {
+  FulfillmentOrderRecord(
+    id: id,
+    order_id: Some("gid://shopify/Order/har-571"),
+    status: "OPEN",
+    request_status: "UNSUBMITTED",
+    assigned_location_id: Some(location_id),
+    assignment_status: None,
+    manually_held: False,
+    data: CapturedObject([
+      #("id", CapturedString(id)),
+      #("status", CapturedString("OPEN")),
+      #("requestStatus", CapturedString("UNSUBMITTED")),
+      #(
+        "assignedLocation",
+        CapturedObject([
+          #("name", CapturedString(location_name)),
+          #(
+            "location",
+            CapturedObject([
+              #("id", CapturedString(location_id)),
+              #("name", CapturedString(location_name)),
+            ]),
+          ),
+        ]),
+      ),
+      #("supportedActions", CapturedArray([])),
+      #("lineItems", empty_captured_connection()),
     ]),
   )
 }
@@ -1351,6 +1389,175 @@ pub fn fulfillment_service_validation_branches_return_user_errors_test() {
     )
   assert json.to_string(delete_outcome.data)
     == "{\"data\":{\"fulfillmentServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Fulfillment service could not be found.\"}]}}}"
+}
+
+pub fn fulfillment_service_delete_transfer_validates_destination_test() {
+  let create_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!) { fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) { fulfillmentService { id } userErrors { field message } } }",
+      dict.from_list([#("name", root_field.StringVal("Hermes FS"))]),
+      empty_upstream_context(),
+    )
+  let assert [created, ..] =
+    store.list_effective_fulfillment_services(create_outcome.store)
+
+  let missing_destination_outcome =
+    shipping_fulfillments.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation DeleteFs($id: ID!) { fulfillmentServiceDelete(id: $id, inventoryAction: TRANSFER) { deletedId userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(created.id))]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(missing_destination_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":null,\"message\":\"Invalid destination location.\",\"code\":null}]}}}"
+  assert store.get_effective_fulfillment_service_by_id(
+      missing_destination_outcome.store,
+      created.id,
+    )
+    == Some(created)
+
+  let invalid_destination_outcome =
+    shipping_fulfillments.process_mutation(
+      create_outcome.store,
+      create_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation DeleteFs($id: ID!, $destinationLocationId: ID!) { fulfillmentServiceDelete(id: $id, destinationLocationId: $destinationLocationId, inventoryAction: TRANSFER) { deletedId userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(created.id)),
+        #(
+          "destinationLocationId",
+          root_field.StringVal("gid://shopify/Location/999999999"),
+        ),
+      ]),
+      empty_upstream_context(),
+    )
+  assert json.to_string(invalid_destination_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":null,\"message\":\"Invalid destination location.\",\"code\":null}]}}}"
+  assert store.get_effective_fulfillment_service_by_id(
+      invalid_destination_outcome.store,
+      created.id,
+    )
+    == Some(created)
+}
+
+pub fn fulfillment_service_delete_transfer_reassigns_fulfillment_orders_test() {
+  let destination_id = "gid://shopify/Location/destination"
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/har-571-transfer"
+
+  let create_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!) { fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) { fulfillmentService { id } userErrors { field message } } }",
+      dict.from_list([#("name", root_field.StringVal("Hermes FS"))]),
+      empty_upstream_context(),
+    )
+  let assert [created, ..] =
+    store.list_effective_fulfillment_services(create_outcome.store)
+  let service_location_id = created.location_id |> option.unwrap("")
+  let #(_, store_with_order) =
+    create_outcome.store
+    |> store.upsert_base_store_property_location(location(
+      destination_id,
+      "Destination location",
+      True,
+      False,
+    ))
+    |> store.stage_upsert_fulfillment_order(fulfillment_order_at_location(
+      fulfillment_order_id,
+      service_location_id,
+      "Hermes FS",
+    ))
+
+  let delete_outcome =
+    shipping_fulfillments.process_mutation(
+      store_with_order,
+      create_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation DeleteFs($id: ID!, $destinationLocationId: ID!) { fulfillmentServiceDelete(id: $id, destinationLocationId: $destinationLocationId, inventoryAction: TRANSFER) { deletedId userErrors { field message code } } }",
+      dict.from_list([
+        #("id", root_field.StringVal(created.id)),
+        #("destinationLocationId", root_field.StringVal(destination_id)),
+      ]),
+      empty_upstream_context(),
+    )
+  let deleted_id =
+    string.split(created.id, "?") |> list.first |> result.unwrap(created.id)
+  assert json.to_string(delete_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceDelete\":{\"deletedId\":\""
+    <> deleted_id
+    <> "\",\"userErrors\":[]}}}"
+
+  let assert Ok(read_response) =
+    shipping_fulfillments.process(
+      delete_outcome.store,
+      "query ReadFo($id: ID!) { fulfillmentOrder(id: $id) { id status assignedLocation { name location { id name } } } }",
+      dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+    )
+  assert json.to_string(read_response)
+    == "{\"data\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/har-571-transfer\",\"status\":\"OPEN\",\"assignedLocation\":{\"name\":\"Destination location\",\"location\":{\"id\":\"gid://shopify/Location/destination\",\"name\":\"Destination location\"}}}}}"
+}
+
+pub fn fulfillment_service_delete_keep_closes_fulfillment_orders_test() {
+  let fulfillment_order_id = "gid://shopify/FulfillmentOrder/har-571-keep"
+
+  let create_outcome =
+    shipping_fulfillments.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      "mutation CreateFs($name: String!) { fulfillmentServiceCreate(name: $name, trackingSupport: true, inventoryManagement: true, requiresShippingMethod: true) { fulfillmentService { id } userErrors { field message } } }",
+      dict.from_list([#("name", root_field.StringVal("Hermes FS"))]),
+      empty_upstream_context(),
+    )
+  let assert [created, ..] =
+    store.list_effective_fulfillment_services(create_outcome.store)
+  let service_location_id = created.location_id |> option.unwrap("")
+  let #(_, store_with_order) =
+    create_outcome.store
+    |> store.stage_upsert_fulfillment_order(fulfillment_order_at_location(
+      fulfillment_order_id,
+      service_location_id,
+      "Hermes FS",
+    ))
+
+  let delete_outcome =
+    shipping_fulfillments.process_mutation(
+      store_with_order,
+      create_outcome.identity,
+      "/admin/api/2026-04/graphql.json",
+      "mutation DeleteFs($id: ID!) { fulfillmentServiceDelete(id: $id, inventoryAction: KEEP) { deletedId userErrors { field message code } } }",
+      dict.from_list([#("id", root_field.StringVal(created.id))]),
+      empty_upstream_context(),
+    )
+  let deleted_id =
+    string.split(created.id, "?") |> list.first |> result.unwrap(created.id)
+  assert json.to_string(delete_outcome.data)
+    == "{\"data\":{\"fulfillmentServiceDelete\":{\"deletedId\":\""
+    <> deleted_id
+    <> "\",\"userErrors\":[]}}}"
+
+  let assert Ok(read_response) =
+    shipping_fulfillments.process(
+      delete_outcome.store,
+      "query ReadAfterKeep($fulfillmentOrderId: ID!, $locationId: ID!) { fulfillmentOrder(id: $fulfillmentOrderId) { id status assignedLocation { location { id } } } location(id: $locationId) { id isFulfillmentService fulfillmentService { id } } }",
+      dict.from_list([
+        #("fulfillmentOrderId", root_field.StringVal(fulfillment_order_id)),
+        #("locationId", root_field.StringVal(service_location_id)),
+      ]),
+    )
+  assert json.to_string(read_response)
+    == "{\"data\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/har-571-keep\",\"status\":\"CLOSED\",\"assignedLocation\":{\"location\":{\"id\":\""
+    <> service_location_id
+    <> "\"}}},\"location\":{\"id\":\""
+    <> service_location_id
+    <> "\",\"isFulfillmentService\":false,\"fulfillmentService\":null}}}"
 }
 
 pub fn fulfillment_event_create_stages_event_and_downstream_read_test() {

@@ -1,0 +1,19 @@
+#graphql
+fragment LocationLifecycleFields on Location {
+  id
+  name
+  isActive
+  activatable
+  deactivatable
+  fulfillsOnlineOrders
+  hasActiveInventory
+  hasUnfulfilledOrders
+  deletable
+  shipsInventory
+}
+
+query LocationLifecycleRead($id: ID!) {
+  location(id: $id) {
+    ...LocationLifecycleFields
+  }
+}

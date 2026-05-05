@@ -12,7 +12,10 @@ import gleam/option.{type Option, None, Some}
 import gleam/order
 import gleam/result
 import gleam/string
-import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
+import shopify_draft_proxy/graphql/ast.{
+  type Argument, type Directive, type Selection, Argument, Directive, Field,
+  SelectionSet, StringValue, VariableValue,
+}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/commit
@@ -467,6 +470,8 @@ pub fn process_mutation(
                   field,
                   fragments,
                   variables,
+                  request_path,
+                  document,
                   upstream,
                 )
               let #(logged_store, logged_identity) = case result.should_log {
@@ -1157,6 +1162,8 @@ fn stage_location_mutation(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  request_path: String,
+  document: String,
   upstream: UpstreamContext,
 ) -> GenericMutationResult {
   case root_name {
@@ -1165,7 +1172,22 @@ fn stage_location_mutation(
     "locationEdit" ->
       stage_location_edit(store, identity, field, fragments, variables)
     "locationActivate" | "locationDeactivate" ->
-      missing_idempotency_location_result(store, identity, root_name)
+      case
+        admin_api_version_at_least(request_path, "2026-04")
+        && !has_idempotency_key(field, document, variables)
+      {
+        True -> missing_idempotency_location_result(store, identity, root_name)
+        False ->
+          stage_location_lifecycle_mutation(
+            store,
+            identity,
+            root_name,
+            field,
+            fragments,
+            variables,
+            upstream,
+          )
+      }
     "locationDelete" ->
       stage_location_delete(
         store,
@@ -1175,6 +1197,37 @@ fn stage_location_mutation(
         variables,
         upstream,
       )
+    _ ->
+      GenericMutationResult(
+        payload: json.null(),
+        store: store,
+        identity: identity,
+        staged_resource_ids: [],
+        top_level_errors: [],
+        should_log: False,
+      )
+  }
+}
+
+fn stage_location_lifecycle_mutation(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root_name: String,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> GenericMutationResult {
+  let args = graphql_helpers.field_args(field, variables)
+  let store = case read_string(args, "locationId") {
+    Some(id) -> hydrate_location_if_missing(store, upstream, id)
+    None -> store
+  }
+  case root_name {
+    "locationActivate" ->
+      stage_location_activate(store, identity, field, fragments, variables)
+    "locationDeactivate" ->
+      stage_location_deactivate(store, identity, field, fragments, variables)
     _ ->
       GenericMutationResult(
         payload: json.null(),
@@ -1350,6 +1403,306 @@ fn stage_location_edit(
   }
 }
 
+fn stage_location_activate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> GenericMutationResult {
+  let args = graphql_helpers.field_args(field, variables)
+  case read_string(args, "locationId") {
+    Some(location_id) ->
+      case
+        store.get_effective_store_property_location_by_id(store, location_id)
+      {
+        Some(record) ->
+          case location_bool_field(record, "isActive", True) {
+            True ->
+              location_lifecycle_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "locationActivateUserErrors",
+                Some(record),
+                [],
+                [location_id],
+                True,
+              )
+            False ->
+              case location_bool_field(record, "activatable", True) {
+                False ->
+                  location_lifecycle_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "locationActivateUserErrors",
+                    Some(record),
+                    [
+                      location_error_source(
+                        "locationId",
+                        "Location cannot be activated.",
+                        "GENERIC_ERROR",
+                      ),
+                    ],
+                    [],
+                    False,
+                  )
+                True ->
+                  case has_duplicate_active_location_name(store, record) {
+                    True ->
+                      location_lifecycle_result(
+                        store,
+                        identity,
+                        field,
+                        fragments,
+                        "locationActivateUserErrors",
+                        Some(record),
+                        [
+                          location_error_source(
+                            "locationId",
+                            "A location with this name already exists.",
+                            "HAS_NON_UNIQUE_NAME",
+                          ),
+                        ],
+                        [],
+                        False,
+                      )
+                    False -> {
+                      let #(now, next_identity) =
+                        synthetic_identity.make_synthetic_timestamp(identity)
+                      let next_record =
+                        StorePropertyRecord(
+                          ..record,
+                          data: record.data
+                            |> dict.insert("isActive", StorePropertyBool(True))
+                            |> dict.insert(
+                              "activatable",
+                              StorePropertyBool(True),
+                            )
+                            |> dict.insert(
+                              "deactivatable",
+                              StorePropertyBool(True),
+                            )
+                            |> dict.insert("deactivatedAt", StorePropertyNull)
+                            |> dict.insert(
+                              "deletable",
+                              StorePropertyBool(False),
+                            )
+                            |> dict.insert(
+                              "fulfillsOnlineOrders",
+                              StorePropertyBool(location_bool_field(
+                                record,
+                                "fulfillsOnlineOrders",
+                                True,
+                              )),
+                            )
+                            |> dict.insert(
+                              "shipsInventory",
+                              StorePropertyBool(location_bool_field(
+                                record,
+                                "shipsInventory",
+                                False,
+                              )),
+                            )
+                            |> dict.insert(
+                              "updatedAt",
+                              StorePropertyString(now),
+                            ),
+                        )
+                      let #(_, next_store) =
+                        store.upsert_staged_store_property_location(
+                          store,
+                          next_record,
+                        )
+                      location_lifecycle_result(
+                        next_store,
+                        next_identity,
+                        field,
+                        fragments,
+                        "locationActivateUserErrors",
+                        Some(next_record),
+                        [],
+                        [location_id],
+                        True,
+                      )
+                    }
+                  }
+              }
+          }
+        None ->
+          location_lifecycle_not_found_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "locationActivateUserErrors",
+            "locationId",
+          )
+      }
+    None ->
+      location_lifecycle_not_found_result(
+        store,
+        identity,
+        field,
+        fragments,
+        "locationActivateUserErrors",
+        "locationId",
+      )
+  }
+}
+
+fn stage_location_deactivate(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> GenericMutationResult {
+  let args = graphql_helpers.field_args(field, variables)
+  case read_string(args, "locationId") {
+    Some(location_id) ->
+      case
+        store.get_effective_store_property_location_by_id(store, location_id)
+      {
+        Some(record) ->
+          case location_bool_field(record, "isActive", True) {
+            False ->
+              location_lifecycle_result(
+                store,
+                identity,
+                field,
+                fragments,
+                "locationDeactivateUserErrors",
+                Some(record),
+                [],
+                [location_id],
+                True,
+              )
+            True ->
+              case location_bool_field(record, "hasUnfulfilledOrders", False) {
+                True ->
+                  location_lifecycle_result(
+                    store,
+                    identity,
+                    field,
+                    fragments,
+                    "locationDeactivateUserErrors",
+                    Some(record),
+                    [
+                      location_error_source(
+                        "locationId",
+                        "Location could not be deactivated because it has pending orders.",
+                        "HAS_FULFILLMENT_ORDERS_ERROR",
+                      ),
+                    ],
+                    [],
+                    False,
+                  )
+                False ->
+                  case
+                    is_only_active_online_fulfilling_location(store, record)
+                  {
+                    True ->
+                      location_lifecycle_result(
+                        store,
+                        identity,
+                        field,
+                        fragments,
+                        "locationDeactivateUserErrors",
+                        Some(record),
+                        [
+                          location_error_source(
+                            "locationId",
+                            "Location could not be deactivated because it is the only location that fulfills online orders.",
+                            "CANNOT_DISABLE_ONLINE_ORDER_FULFILLMENT",
+                          ),
+                        ],
+                        [],
+                        False,
+                      )
+                    False -> {
+                      let #(now, next_identity) =
+                        synthetic_identity.make_synthetic_timestamp(identity)
+                      let next_record =
+                        StorePropertyRecord(
+                          ..record,
+                          data: record.data
+                            |> dict.insert("isActive", StorePropertyBool(False))
+                            |> dict.insert(
+                              "activatable",
+                              StorePropertyBool(True),
+                            )
+                            |> dict.insert(
+                              "deactivatable",
+                              StorePropertyBool(True),
+                            )
+                            |> dict.insert(
+                              "deactivatedAt",
+                              StorePropertyString(now),
+                            )
+                            |> dict.insert("deletable", StorePropertyBool(True))
+                            |> dict.insert(
+                              "fulfillsOnlineOrders",
+                              StorePropertyBool(False),
+                            )
+                            |> dict.insert(
+                              "hasActiveInventory",
+                              StorePropertyBool(False),
+                            )
+                            |> dict.insert(
+                              "shipsInventory",
+                              StorePropertyBool(False),
+                            )
+                            |> dict.insert(
+                              "updatedAt",
+                              StorePropertyString(now),
+                            ),
+                        )
+                      let #(_, next_store) =
+                        store.upsert_staged_store_property_location(
+                          store,
+                          next_record,
+                        )
+                      location_lifecycle_result(
+                        next_store,
+                        next_identity,
+                        field,
+                        fragments,
+                        "locationDeactivateUserErrors",
+                        Some(next_record),
+                        [],
+                        [location_id],
+                        True,
+                      )
+                    }
+                  }
+              }
+          }
+        None ->
+          location_lifecycle_not_found_result(
+            store,
+            identity,
+            field,
+            fragments,
+            "locationDeactivateUserErrors",
+            "locationId",
+          )
+      }
+    None ->
+      location_lifecycle_not_found_result(
+        store,
+        identity,
+        field,
+        fragments,
+        "locationDeactivateUserErrors",
+        "locationId",
+      )
+  }
+}
+
 fn stage_location_delete(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -1460,6 +1813,123 @@ fn missing_idempotency_error(root_name: String) -> Json {
   ])
 }
 
+fn has_idempotency_key(
+  field: Selection,
+  _document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  case read_field_idempotency_key(field, variables) {
+    Some(_) -> True
+    None -> False
+  }
+}
+
+fn read_field_idempotency_key(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case field {
+    Field(directives: directives, ..) ->
+      read_idempotency_key_from_directives(directives, variables)
+    _ -> None
+  }
+}
+
+fn read_idempotency_key_from_directives(
+  directives: List(Directive),
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  let directive_arguments =
+    directives
+    |> list.filter_map(fn(directive) {
+      case directive {
+        Directive(name: name, arguments: arguments, ..)
+          if name.value == "idempotent"
+        -> Ok(arguments)
+        _ -> Error(Nil)
+      }
+    })
+    |> list.first
+    |> option.from_result
+  case directive_arguments {
+    None -> None
+    Some(arguments) -> {
+      let argument = case find_argument(arguments, "key") {
+        Some(argument) -> Some(argument)
+        None -> find_argument(arguments, "idempotencyKey")
+      }
+      case argument {
+        Some(Argument(value: StringValue(value: value, ..), ..)) ->
+          non_empty_string(value)
+        Some(Argument(value: VariableValue(variable: variable), ..)) ->
+          case dict.get(variables, variable.name.value) {
+            Ok(root_field.StringVal(value)) -> non_empty_string(value)
+            _ -> None
+          }
+        _ -> None
+      }
+    }
+  }
+}
+
+fn find_argument(arguments: List(Argument), name: String) -> Option(Argument) {
+  arguments
+  |> list.find_map(fn(argument) {
+    case argument {
+      Argument(name: argument_name, ..) if argument_name.value == name ->
+        Ok(argument)
+      _ -> Error(Nil)
+    }
+  })
+  |> option.from_result
+}
+
+fn non_empty_string(value: String) -> Option(String) {
+  let trimmed = string.trim(value)
+  case string.length(trimmed) > 0 {
+    True -> Some(trimmed)
+    False -> None
+  }
+}
+
+fn admin_api_version_at_least(
+  request_path: String,
+  minimum_version: String,
+) -> Bool {
+  case
+    admin_api_version_from_path(request_path),
+    parse_admin_api_version(minimum_version)
+  {
+    Some(version), Some(minimum) -> compare_admin_api_versions(version, minimum)
+    _, _ -> False
+  }
+}
+
+fn admin_api_version_from_path(path: String) -> Option(#(Int, Int)) {
+  case string.split(path, "/") {
+    ["", "admin", "api", version, "graphql.json"] ->
+      parse_admin_api_version(version)
+    _ -> None
+  }
+}
+
+fn parse_admin_api_version(version: String) -> Option(#(Int, Int)) {
+  case string.split(version, "-") {
+    [year, month] ->
+      case int.parse(year), int.parse(month) {
+        Ok(parsed_year), Ok(parsed_month) -> Some(#(parsed_year, parsed_month))
+        _, _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn compare_admin_api_versions(version: #(Int, Int), minimum: #(Int, Int)) {
+  let #(year, month) = version
+  let #(minimum_year, minimum_month) = minimum
+  year > minimum_year || { year == minimum_year && month >= minimum_month }
+}
+
 fn active_location_delete_result(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -1546,6 +2016,134 @@ fn location_user_error_result(
     top_level_errors: [],
     should_log: False,
   )
+}
+
+fn location_lifecycle_not_found_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors_field: String,
+  error_field: String,
+) -> GenericMutationResult {
+  location_lifecycle_result(
+    store,
+    identity,
+    field,
+    fragments,
+    errors_field,
+    None,
+    [
+      location_error_source(
+        error_field,
+        "Location not found.",
+        "LOCATION_NOT_FOUND",
+      ),
+    ],
+    [],
+    False,
+  )
+}
+
+fn location_lifecycle_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors_field: String,
+  location: Option(StorePropertyRecord),
+  errors: List(SourceValue),
+  staged_resource_ids: List(String),
+  should_log: Bool,
+) -> GenericMutationResult {
+  let payload_source =
+    src_object([
+      #("location", case location {
+        Some(record) -> store_property_data_to_source(record.data)
+        None -> SrcNull
+      }),
+      #(errors_field, SrcList(errors)),
+    ])
+  GenericMutationResult(
+    payload: project_graphql_value(
+      payload_source,
+      selected_children(field),
+      fragments,
+    ),
+    store: store,
+    identity: identity,
+    staged_resource_ids: staged_resource_ids,
+    top_level_errors: [],
+    should_log: should_log,
+  )
+}
+
+fn location_error_source(
+  field: String,
+  message: String,
+  code: String,
+) -> SourceValue {
+  src_object([
+    #("field", SrcList([SrcString(field)])),
+    #("message", SrcString(message)),
+    #("code", SrcString(code)),
+  ])
+}
+
+fn location_bool_field(
+  record: StorePropertyRecord,
+  key: String,
+  default: Bool,
+) -> Bool {
+  store_property_bool_field(record, key) |> option.unwrap(default)
+}
+
+fn location_string_field(
+  record: StorePropertyRecord,
+  key: String,
+) -> Option(String) {
+  case dict.get(record.data, key) {
+    Ok(StorePropertyString(value)) -> Some(value)
+    _ -> None
+  }
+}
+
+fn has_duplicate_active_location_name(
+  store: Store,
+  record: StorePropertyRecord,
+) -> Bool {
+  case location_string_field(record, "name") {
+    None -> False
+    Some(name) ->
+      store.list_effective_store_property_locations(store)
+      |> list.any(fn(other) {
+        other.id != record.id
+        && location_bool_field(other, "isActive", True)
+        && location_string_field(other, "name") == Some(name)
+      })
+  }
+}
+
+fn is_only_active_online_fulfilling_location(
+  store: Store,
+  record: StorePropertyRecord,
+) -> Bool {
+  case
+    location_bool_field(record, "isActive", True)
+    && location_bool_field(record, "fulfillsOnlineOrders", True)
+  {
+    False -> False
+    True -> {
+      let active_online_count =
+        store.list_effective_store_property_locations(store)
+        |> list.filter(fn(location) {
+          location_bool_field(location, "isActive", True)
+          && location_bool_field(location, "fulfillsOnlineOrders", True)
+        })
+        |> list.length
+      active_online_count <= 1
+    }
+  }
 }
 
 fn stage_publishable_mutation(

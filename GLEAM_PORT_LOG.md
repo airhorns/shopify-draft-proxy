@@ -9,6 +9,406 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-05 - Pass 205: HAR-571 fulfillment service delete transfer contract
+
+Aligns `fulfillmentServiceDelete` local staging with the destination-location
+contract required for transfer deletes and keeps fulfillment-order downstream
+reads coherent after a service is removed.
+
+| Module / fixture                                                                                                                                                                                                    | Change                                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/shipping_fulfillments.gleam`                                                                                                                                                   | Parses `inventoryAction`, validates `destinationLocationId` for TRANSFER against active merchant-managed locations, returns the captured invalid-destination userError shape, and stages fulfillment-order effects. |
+| `gleam/test/shopify_draft_proxy/proxy/shipping_fulfillments_test.gleam`                                                                                                                                             | Adds focused coverage for missing/invalid TRANSFER destinations, TRANSFER reassignment, KEEP closure, and selected `userErrors.code`.                                                                               |
+| `scripts/capture-fulfillment-service-delete-transfer-conformance.ts` / `scripts/conformance-capture-index.ts`                                                                                                       | Adds aggregate-indexed live capture for invalid destination and valid transfer delete evidence on Admin GraphQL 2026-04.                                                                                            |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/fulfillment-service-delete-transfer.json` / `config/parity-specs/shipping-fulfillments/fulfillment-service-delete-transfer.json` | Records executable parity evidence for the captured invalid-destination userError and valid transfer delete branch.                                                                                                 |
+| `config/operation-registry.json` / `gleam/src/shopify_draft_proxy/proxy/operation_registry_data.gleam`                                                                                                              | Updates the support notes and regenerated Gleam registry mirror for the stronger delete contract.                                                                                                                   |
+| `docs/endpoints/shipping-fulfillments.md`                                                                                                                                                                           | Documents the supported destination validation, local reassignment/closure effects, and remaining inventory-quantity fixture boundary.                                                                              |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- live 2026-04 Admin GraphQL probe for invalid `destinationLocationId`
+  userError shape
+- `corepack pnpm conformance:capture -- --run fulfillment-service-delete-transfer`
+- `corepack pnpm parity:record fulfillment-service-delete-transfer`
+- `cd gleam && gleam test --target javascript -- shipping_fulfillments_test parity_test`
+  (860 passed)
+- `cd gleam && gleam test --target javascript` (860 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 851 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm conformance:check` (1443 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2307 passed)
+- `git diff --check`
+
+### Findings
+
+- Live Shopify 2026-04 returned `field: null` and
+  `message: "Invalid destination location."` for an invalid transfer
+  destination.
+- The current Shopify `UserError` type rejected selecting `code` for this
+  mutation, so the local projection exposes selected `code` as `null`.
+- Open local fulfillment orders assigned to the deleted service location now
+  reassign to the transfer destination or close for non-transfer deletes, rather
+  than continuing to point at a removed service location.
+- The executable parity fixture covers invalid destination and valid transfer
+  delete evidence. The live valid-transfer cleanup attempt hit Shopify's
+  temporary location deactivation blocker after transfer-side inventory state
+  appeared on the disposable destination location.
+
+### Risks / open items
+
+- Live TRANSFER probes without `destinationLocationId` succeeded, including an
+  inventory-free fulfillment-order setup, and that setup left the fulfillment
+  order assigned to the source service location. The local implementation follows
+  the ticket acceptance for missing-destination and local fulfillment-order
+  reassignment/closure guardrails; the checked-in parity spec is limited to the
+  captured invalid-destination and valid-delete branches.
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation used the
+  established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 204: HAR-562 order edit user-error payloads
+
+Aligns the Gleam order-edit handlers with Shopify's mutation payload contract
+for local user-error branches without sending supported mutations upstream.
+
+| Module / fixture                                                                                                                                                              | Change                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                                                                                                                            | Replaces `data.<root>: null` order-edit early-outs with selected payload objects containing nullable resource fields and `userErrors`, adds `INVALID` codes, blocks begin for refunded/voided/cancelled orders, rejects a second open session per order, and prioritizes missing calculated-order sessions before add/set target validation. |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`                                                                                                                      | Adds focused coverage for missing begin order, refunded and locally cancelled begin orders, existing open session rejection, unknown variant, unknown calculated line item, missing calculated-order add/set/commit branches, and successful edit-session add/set flows.                                                                     |
+| `config/parity-specs/orders/orderEdit-lifecycle-userErrors.json` / `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/order-edit-lifecycle-user-errors.json` | Adds captured strict parity evidence for order-edit missing-resource payload roots.                                                                                                                                                                                                                                                          |
+| `scripts/capture-order-edit-lifecycle-user-errors-conformance.mts` / `scripts/conformance-capture-index.ts`                                                                   | Registers the order-edit user-error capture path in the aggregate conformance index.                                                                                                                                                                                                                                                         |
+| `docs/endpoints/orders.md`                                                                                                                                                    | Updates order-edit coverage notes so concurrent-session, missing-resource, and unknown target user-error branches are no longer listed as open gaps.                                                                                                                                                                                         |
+
+Validation:
+
+- `cd gleam && gleam test --target javascript -- orders_order_edit_begin_user_error_payload_shapes_test orders_order_edit_unknown_resource_user_error_payload_shapes_test orders_order_edit_add_variant_invalid_variant_payload_test orders_order_edit_set_quantity_payload_test orders_order_edit_begin_payload_test orders_order_edit_missing_id_validation_guardrails_test`
+  (853 passed)
+- `corepack pnpm conformance:probe`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm tsx scripts/capture-order-edit-lifecycle-user-errors-conformance.mts`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm parity:record orderEdit-lifecycle-userErrors`
+- `cd gleam && gleam test --target javascript -- parity_test` (853 passed)
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (870 passed after merging
+  `origin/main`)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 861 passed after merging `origin/main`)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm conformance:check` (1452 passed)
+- `corepack pnpm typecheck`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm test` (123 files passed; 2316 passed)
+- `corepack pnpm build`
+- `git diff --check`
+
+### Findings
+
+- The pre-fix begin-not-found branch returned `{"data":{"orderEditBegin":null}}`;
+  the new shared order-edit error serializer keeps the mutation root non-null
+  while preserving selected nullable fields.
+- Existing missing-`$id` GraphQL validation remains top-level
+  `INVALID_VARIABLE` behavior and is intentionally separate from mutation-scoped
+  `userErrors`.
+
+### Risks / open items
+
+- The new unknown-target messages are local approximations anchored to the
+  ticket's field/code acceptance criteria. Fresh live capture can tighten exact
+  wording later if Shopify exposes different translated text in the target shop.
+
+---
+
+## 2026-05-04 - Pass 204: HAR-557 articleCreate validation fidelity
+
+Aligns Online Store `articleCreate` with Shopify validation behavior for blog
+reference and author input errors before local staging. The handler now rejects
+missing or ambiguous blog references and missing or ambiguous authors with
+Shopify-captured `ArticleCreateUserErrorCode` values, records failed mutation
+log entries, and leaves local article/blog state unchanged on validation
+failure.
+
+| Module / fixture                                                                                                                 | Change                                                                                                                            |
+| -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/online_store.gleam`                                                                         | Adds pre-staging articleCreate validation and failed mutation-log outcomes for rejected validation branches.                      |
+| `gleam/test/shopify_draft_proxy/proxy/online_store_test.gleam`                                                                   | Covers missing blog reference, ambiguous blog, missing author, ambiguous author, no-staging behavior, and the valid success path. |
+| `scripts/capture-online-store-article-create-validation-conformance.ts` / `scripts/conformance-capture-index.ts`                 | Adds an aggregate-indexed live capture for the validation branches and valid blogId plus author.name success path.                |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/online-store-article-create-validation.json`           | Records live Shopify validation payloads and disposable blog/article cleanup.                                                     |
+| `config/parity-specs/online-store/online-store-article-create-validation.json` / `config/parity-requests/online-store/*.graphql` | Adds executable parity evidence for the captured validation and success payloads.                                                 |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- one-off live Admin GraphQL 2025-01 probes for `BLOG_REFERENCE_REQUIRED`,
+  `AMBIGUOUS_BLOG`, `AUTHOR_FIELD_REQUIRED`, and `AMBIGUOUS_AUTHOR`
+- `corepack pnpm conformance:capture -- --run online-store-article-create-validation`
+- `cd gleam && gleam test --target javascript -- online_store_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+- `cd gleam && gleam test --target javascript` (857 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 848 passed)
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2300 passed)
+- `git diff --check`
+
+### Findings
+
+- Shopify returns service-level `AUTHOR_FIELD_REQUIRED` for `author: {}`.
+  Omitting the non-null `author` field from variables instead fails earlier as
+  a top-level `INVALID_VARIABLE` GraphQL error, so the local runtime and parity
+  scenario target the service validation branch.
+- Validation failures return `field: ["article"]`, `article: null`, and no
+  staged records; failed local mutation-log entries keep the rejected write
+  visible without claiming a staged resource.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 200: HAR-574 product variant scalar validation
+
+Adds shared Shopify-like scalar validation for product variant mutation inputs
+and backs the bulk-create validation branches with a new live capture and
+strict parity scenario.
+
+| Module / fixture                                                                                                                                           | Change                                                                                                                                                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                                                                                                       | Adds shared variant validators for explicit-null/negative/too-large prices, too-large compare-at price, weight bounds/unit, inventory quantity bounds, SKU/barcode/option value length, and 2048 caps.           |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`                                                                                        | Covers bulk create/update, legacy single-variant create/update, productCreate/productSet rejection, oversized `variants:` input, cumulative product cap, failed logs, and no local variant staging on rejection. |
+| `scripts/capture-product-variant-scalar-validation-conformance.ts` / `scripts/conformance-capture-index.ts`                                                | Adds an aggregate-indexed live capture for `productVariantsBulkCreate` scalar validation against a disposable optioned product, with before/after product-state atomicity checks.                                |
+| `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productVariantsBulkCreate-validation.json`                                           | Records explicit `price: null`, negative/too-large price, too-large compare-at price, invalid weight/quantity, text length, option length, and max input-size Shopify responses.                                 |
+| `config/parity-specs/products/productVariantsBulkCreate-validation.json` / `config/parity-requests/products/productVariantsBulkCreate-validation*.graphql` | Adds executable strict JSON parity for captured `userErrors.field`, `message`, and `code`, plus Shopify's top-level max-input-size error.                                                                        |
+| `docs/endpoints/products.md`                                                                                                                               | Documents the scalar validation boundary, captured omitted-price behavior, no-write rejection behavior, and new validation anchors.                                                                              |
+
+Validation:
+
+- `corepack pnpm conformance:capture -- --run product-variant-scalar-validations`
+- `cd gleam && gleam test --target javascript -- products_mutation_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+
+### Findings
+
+- Shopify 2025-01 accepts omitted `price` for `productVariantsBulkCreate` on
+  the conformance store, while explicit `price: null` returns `Price can't be
+blank` with code `INVALID`.
+- The max-input-size branch is a top-level GraphQL error. Its location depends
+  on the request document formatting, so the parity request mirrors the capture
+  document layout for strict comparison.
+
+### Risks / open items
+
+- Direct live evidence for legacy `productVariantCreate` and
+  `productVariantUpdate` remains unavailable on the captured 2025-01 schema, so
+  their scalar validation is covered by shared runtime tests plus the
+  bulk-create conformance oracle.
+
+---
+
+## 2026-05-04 - Pass 203: HAR-556 orderCreate validation matrix
+
+Extends direct `orderCreate` validation beyond the no-line-items branch. The
+Gleam Orders handler now rejects future `processedAt`, simultaneous
+`customerId` plus `customer`, and missing/empty tax-line rates on both line
+items and shipping lines before staging any order or appending mutation-log
+entries. The touched validation payloads now project Shopify-style `code`
+values and preserve indexed `field` segments for tax-line paths.
+
+| Module / fixture                                                                                              | Change                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/orders.gleam`                                                            | Adds order-create validation helpers and typed user-error serialization for string and integer field segments plus optional `code`.            |
+| `gleam/test/shopify_draft_proxy/proxy/orders_test.gleam`                                                      | Covers the extended validation matrix and asserts no staged orders or log drafts are created for rejected inputs.                              |
+| `config/parity-specs/orders/orderCreate-validation-matrix-extended.json` / matching request and fixture files | Adds strict parity coverage for future `processedAt`, redundant customer fields, and line-item/shipping-line tax-line missing-rate userErrors. |
+| `config/parity-requests/orders/orderCreate-validation-matrix.graphql` / existing no-line-items fixture        | Selects and records `userErrors.code: "INVALID"` for the existing empty-line-items branch.                                                     |
+| `docs/endpoints/orders.md`                                                                                    | Documents the expanded create-time validation boundary and the current live tax-line coercion caveat.                                          |
+
+Validation:
+
+- Reproduction before the fix: `corepack pnpm gleam:build:js` then a JS
+  `orderCreate` request with `processedAt: "2099-01-01T00:00:00Z"` returned a
+  staged synthetic order and empty `userErrors`.
+- Fixed JS proof: rebuilt JS wrapper returned
+  `userErrors[{ field: ["order", "processedAt"], code: "PROCESSED_AT_INVALID" }]`
+  and `order: null` for the same future timestamp request.
+- `cd gleam && gleam test --target javascript -- orders_order_create_validation_guardrails_test parity_test`
+  (851 passed)
+- `cd gleam && gleam test --target javascript` (851 passed)
+- `cd gleam && gleam test --target erlang` failed on host OTP 25 with the
+  known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 842 passed)
+- `corepack pnpm parity:record order-create-validation-matrix` (0 upstream
+  calls)
+- `corepack pnpm parity:record orderCreate-validation-matrix-extended` (0
+  upstream calls)
+- `corepack pnpm conformance:check` (1433 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2297 passed)
+- `git diff --check`
+
+### Findings
+
+- Current live probing against the 2025-01 conformance store rejects omitted or
+  empty inline `OrderCreateTaxLineInput.rate` through GraphQL coercion before
+  the mutation resolver. HAR-556 still requires local handler protection for
+  resolved inputs that reach the proxy with a missing/empty tax-line rate, so
+  the parity fixture preserves the ticket's cited mutation-level
+  `TAX_LINE_RATE_MISSING` payload contract and the endpoint notes call out the
+  probe caveat explicitly.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 202: HAR-599 BXGY disallowed value validation
+
+Aligns local BXGY validation with live Shopify for `customerGets.value` branch
+selection and subscription purchase flags. Code and automatic BXGY now reject
+`percentage` / `discountAmount` value branches before staging, and both reject
+`customerGets.appliesOnSubscription` / `appliesOnOneTimePurchase` with the
+captured code-vs-automatic messages. Code BXGY also mirrors Shopify's captured
+secondary blank `discountOnQuantity.quantity` userError when the submitted value
+omits `discountOnQuantity`.
+
+| Module / fixture                                                                                                      | Change                                                                                                                 |
+| --------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/discounts.gleam`                                                                 | Adds BXGY value-branch, missing discount-on-quantity quantity, and subscription-flag guardrails.                       |
+| `gleam/test/shopify_draft_proxy/proxy/discounts_test.gleam`                                                           | Covers code and automatic create/update validation for value branches and subscription flags.                          |
+| `scripts/capture-discount-bxgy-disallowed-value-shapes-conformance.ts` / `scripts/conformance-capture-index.ts`       | Adds an aggregate-indexed capture that creates two temporary products, records rejected BXGY branches, then cleans up. |
+| `config/parity-specs/discounts/discount-bxgy-disallowed-value-shapes.json` / matching request and conformance fixture | Adds executable strict JSON parity for the captured userErrors.                                                        |
+| `docs/endpoints/discounts.md`                                                                                         | Documents the captured BXGY validation boundary and capture script.                                                    |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run discount-bxgy-disallowed-value-shapes`
+- `cd gleam && gleam test --target javascript -- discounts_test parity_test`
+- `cd gleam && gleam test --target erlang -- discounts_test parity_test` failed on
+  host OTP 25 with the known `gleam_json` OTP 27+ requirement
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang -- discounts_test parity_test'`
+  (OTP 28, 847 passed)
+- `corepack pnpm conformance:check`
+- `corepack pnpm conformance:capture:check`
+- `corepack pnpm gleam:format:check`
+- `cd gleam && gleam test --target javascript` (856 passed)
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 847 passed)
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm typecheck`
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2298 passed)
+- `git diff --check`
+
+### Findings
+
+- Live 2026-04 Shopify returns `Only discountOnQuantity permitted with bxgy
+discounts.`, not the older wording in the ticket body.
+- Live 2026-04 Shopify rejects automatic BXGY `customerGets` subscription flags
+  with an automatic-specific unsupported-field message, so the local proxy now
+  treats those fields as invalid for both code and automatic BXGY.
+
+### Risks / open items
+
+- Host Erlang remains OTP 25 in this workspace, so Erlang validation still
+  requires the established OTP 28 container fallback.
+
+---
+
+## 2026-05-04 - Pass 201: HAR-601 productSet validator and async operation fidelity
+
+Aligns `productSet` with captured Shopify guardrails for shape validation,
+existing-product references, and asynchronous `ProductSetOperation` polling.
+The mutation now rejects over-large variant and inventory-quantity arrays with
+Shopify's top-level `MAX_INPUT_SIZE_EXCEEDED` error shape, returns structured
+user errors for missing or suspended existing products, shares existing product
+field validation before staging, and records async productSet operations so
+`productOperation(id:)` can read the completed local result.
+
+| Module / fixture                                                                                                                         | Change                                                                                                                                                  |
+| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/products.gleam`                                                                                     | Adds productSet shape guardrails, existing-product lookup errors, suspended-product errors, shared product field validation, and async operation state. |
+| `gleam/src/shopify_draft_proxy/state/types.gleam`                                                                                        | Persists product operation user-error codes for `productOperation` reads.                                                                               |
+| `gleam/test/shopify_draft_proxy/proxy/products_mutation_test.gleam`                                                                      | Covers variant, option, option-value, file, inventory-quantity, missing-product, suspended-product, and async operation behavior.                       |
+| `scripts/capture-product-set-validator-conformance.ts` / `scripts/conformance-capture-index.ts`                                          | Adds the aggregate-indexed live capture for productSet validator and async operation evidence.                                                          |
+| `config/parity-specs/products/productSet-*` / `config/parity-requests/products/productSet-*` / `fixtures/conformance/**/products/*.json` | Adds executable parity specs and cassettes for shape guardrails, unknown-product validation, and async operation polling.                               |
+| `docs/endpoints/products.md`                                                                                                             | Documents the productSet validator limits, reference errors, suspended-product branch, and async operation semantics.                                   |
+
+Validation:
+
+- `corepack pnpm conformance:probe`
+- `corepack pnpm conformance:capture -- --run product-set-validator`
+- `corepack pnpm parity:record productSet-shape-validator-parity`
+- `corepack pnpm parity:record productSet-async-operation-parity`
+- `cd gleam && gleam test --target javascript -- products_mutation_test`
+- `cd gleam && gleam test --target javascript -- parity_test`
+- `corepack pnpm conformance:check` (1436 passed)
+- `corepack pnpm conformance:capture:check` (9 passed)
+- `corepack pnpm gleam:format:check`
+- `corepack pnpm typecheck`
+- `corepack pnpm lint` (passes with the pre-existing
+  `scripts/parity-record.mts` unused catch-parameter warning)
+- `corepack pnpm gleam:test` ran the JavaScript target successfully (854
+  passed) before the host Erlang target failed on the known local OTP 25
+  runtime issue
+- `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
+  (OTP 28, 845 passed)
+- `cd gleam && gleam test --target javascript` (854 passed)
+- `cd gleam && gleam test --target javascript -- parity_test` after
+  `parity:record` (854 passed)
+- `corepack pnpm build`
+- `corepack pnpm test` (123 files passed; 2300 passed)
+- `git diff --check`
+
+### Findings
+
+- Shopify returns top-level `MAX_INPUT_SIZE_EXCEEDED` errors with no `data`
+  envelope for `productSet` arrays above 2048 variants and 250
+  `inventoryQuantities`; source `locations` are parser-specific and ignored in
+  the parity contract.
+- Missing existing-product references return payload user errors on the
+  referenced input field, while suspended effective local products are modeled
+  as `INVALID_PRODUCT` on `["input"]`.
+- `productSet(synchronous: false)` returns a `CREATED` operation with no
+  product immediately, then `productOperation(id:)` observes the completed
+  staged product in the same proxy session.
+
+### Risks / open items
+
+- Public Admin API setup cannot create suspended products, and the parity runner
+  intentionally has no base-state seed hook. Suspended-product behavior is
+  covered by focused Gleam runtime tests instead of a live parity cassette.
+
+---
+
 ## 2026-05-04 - Pass 200: HAR-567 local-pickup validation parity
 
 Aligns `locationLocalPickupEnable` with captured Shopify validation for custom

@@ -30,17 +30,14 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, source_to_json, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome,
-  type LogDraft, RequiredArgument, find_argument, single_root_log_draft,
-  validate_required_field_arguments,
+  type LogDraft, type MutationOutcome, MutationOutcome, RequiredArgument,
+  find_argument, single_root_log_draft, validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser
 import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
@@ -59,6 +56,14 @@ import shopify_draft_proxy/state/types.{
 
 pub type OrdersError {
   ParseFailed(root_field.RootFieldError)
+}
+
+type OrderEditUserError {
+  OrderEditUserError(
+    field_path: List(String),
+    message: String,
+    code: Option(String),
+  )
 }
 
 pub fn is_orders_query_root(name: String) -> Bool {
@@ -1496,7 +1501,6 @@ fn serialize_draft_order_node(
   )
 }
 
-
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
@@ -1504,1245 +1508,1283 @@ pub fn process_mutation(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> MutationOutcome {case root_field.get_root_fields(document) {
+) -> MutationOutcome {
+  case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
-    Ok(fields) -> {  let fragments = get_document_fragments(document)
-  let operation_path = get_operation_path_label(document)
-  let initial = #([], [], store, identity, [], [])
-  let #(
-    data_entries,
-    all_errors,
-    final_store,
-    final_identity,
-    staged_ids,
-    log_drafts,
-  ) =
-    list.fold(fields, initial, fn(acc, field) {
-      let #(entries, errors, current_store, current_identity, ids, drafts) = acc
-      case field {
-        Field(name: name, ..)
-          if name.value == "abandonmentUpdateActivitiesDeliveryStatuses"
-        -> {
-          let result =
-            handle_abandonment_delivery_status(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              drafts,
-            )
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let operation_path = get_operation_path_label(document)
+      let initial = #([], [], store, identity, [], [])
+      let #(
+        data_entries,
+        all_errors,
+        final_store,
+        final_identity,
+        staged_ids,
+        log_drafts,
+      ) =
+        list.fold(fields, initial, fn(acc, field) {
+          let #(entries, errors, current_store, current_identity, ids, drafts) =
+            acc
+          case field {
+            Field(name: name, ..)
+              if name.value == "abandonmentUpdateActivitiesDeliveryStatuses"
+            -> {
+              let result =
+                handle_abandonment_delivery_status(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "draftOrderCreate" -> {
+              let result =
+                handle_draft_order_create(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..)
+              if name.value == "draftOrderCreateFromOrder"
+            -> {
+              let result =
+                handle_draft_order_create_from_order(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "draftOrderComplete" -> {
+              let result =
+                handle_draft_order_complete(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "draftOrderDelete" -> {
+              let result =
+                handle_draft_order_delete(
+                  current_store,
+                  document,
+                  operation_path,
+                  field,
+                  variables,
+                  upstream,
+                )
+              let #(key, payload, next_store, next_errors, next_drafts) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  current_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  next_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "draftOrderDuplicate" -> {
+              let result =
+                handle_draft_order_duplicate(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_drafts,
+              ) = result
+              #(
+                list.append(entries, [#(key, payload)]),
+                errors,
+                next_store,
+                next_identity,
+                list.append(ids, next_ids),
+                list.append(drafts, next_drafts),
+              )
+            }
+            Field(name: name, ..) if name.value == "draftOrderCalculate" -> {
+              let result =
+                handle_draft_order_calculate(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(key, payload, next_errors, next_drafts) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  current_store,
+                  current_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..)
+              if name.value == "draftOrderBulkAddTags"
+              || name.value == "draftOrderBulkRemoveTags"
+              || name.value == "draftOrderBulkDelete"
+            -> {
+              let result =
+                handle_draft_order_bulk_helper(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_drafts,
+              ) = result
+              #(
+                list.append(entries, [#(key, payload)]),
+                errors,
+                next_store,
+                next_identity,
+                list.append(ids, next_ids),
+                list.append(drafts, next_drafts),
+              )
+            }
+            Field(name: name, ..) if name.value == "draftOrderInvoicePreview" -> {
+              let result =
+                handle_draft_order_invoice_preview(
+                  current_store,
+                  document,
+                  operation_path,
+                  field,
+                  variables,
+                )
+              let #(key, payload, next_errors, next_drafts) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  current_store,
+                  current_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "draftOrderInvoiceSend" -> {
+              let result =
+                handle_draft_order_invoice_send(
+                  current_store,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              let #(key, payload, next_errors, next_drafts) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  current_store,
+                  current_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "draftOrderUpdate" -> {
+              let result =
+                handle_draft_order_update(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..)
+              if name.value == "fulfillmentCancel"
+              || name.value == "fulfillmentTrackingInfoUpdate"
+            -> {
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                staged_ids,
+                next_errors,
+                next_drafts,
+              ) =
+                handle_fulfillment_mutation(
+                  name.value,
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, staged_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "fulfillmentCreate" -> {
+              let result =
+                handle_fulfillment_create_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  list.append(entries, [#(key, payload)]),
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "fulfillmentEventCreate" -> {
+              let result =
+                handle_fulfillment_event_create_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  list.append(entries, [#(key, payload)]),
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+              }
+            }
+            Field(name: name, ..)
+              if name.value == "fulfillmentOrderMerge"
+              || name.value == "fulfillmentOrderSplit"
+              || name.value == "fulfillmentOrdersSetFulfillmentDeadline"
+            -> {
+              let result =
+                handle_fulfillment_order_bulk_mutation(
+                  name.value,
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  list.append(entries, [#(key, payload)]),
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+              }
+            }
+            Field(name: name, ..)
+              if name.value == "fulfillmentOrderCancel"
+              || name.value == "fulfillmentOrderClose"
+              || name.value == "fulfillmentOrderHold"
+              || name.value == "fulfillmentOrderMove"
+              || name.value == "fulfillmentOrderOpen"
+              || name.value == "fulfillmentOrderReleaseHold"
+              || name.value == "fulfillmentOrderReportProgress"
+              || name.value == "fulfillmentOrderReschedule"
+            -> {
+              let result =
+                handle_fulfillment_order_lifecycle_mutation(
+                  name.value,
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  list.append(entries, [#(key, payload)]),
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+              }
+            }
+            Field(name: name, ..)
+              if name.value == "fulfillmentOrderAcceptCancellationRequest"
+              || name.value == "fulfillmentOrderAcceptFulfillmentRequest"
+              || name.value == "fulfillmentOrderRejectCancellationRequest"
+              || name.value == "fulfillmentOrderRejectFulfillmentRequest"
+              || name.value == "fulfillmentOrderSubmitCancellationRequest"
+              || name.value == "fulfillmentOrderSubmitFulfillmentRequest"
+            -> {
+              let result =
+                handle_fulfillment_order_request_mutation(
+                  name.value,
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  list.append(entries, [#(key, payload)]),
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderCreate" -> {
+              let result =
+                handle_order_create_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderDelete" -> {
+              let result =
+                handle_order_delete_mutation(current_store, field, variables)
+              let #(key, payload, next_store, next_ids, next_drafts) = result
+              #(
+                list.append(entries, [#(key, payload)]),
+                errors,
+                next_store,
+                current_identity,
+                list.append(ids, next_ids),
+                list.append(drafts, next_drafts),
+              )
+            }
+            Field(name: name, ..)
+              if name.value == "orderClose" || name.value == "orderOpen"
+            -> {
+              let result =
+                handle_order_lifecycle_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderCancel" -> {
+              let result =
+                handle_order_cancel_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  variables,
+                  upstream,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_errors,
+                next_drafts,
+              ) = result
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, next_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  next_store,
+                  next_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderCapture" -> {
+              let result =
+                handle_order_capture_mutation(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_drafts,
+              ) = result
+              #(
+                list.append(entries, [#(key, payload)]),
+                errors,
+                next_store,
+                next_identity,
+                list.append(ids, next_ids),
+                list.append(drafts, next_drafts),
+              )
+            }
+            Field(name: name, ..) if name.value == "transactionVoid" -> {
+              let result =
+                handle_transaction_void_mutation(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_drafts,
+              ) = result
+              #(
+                list.append(entries, [#(key, payload)]),
+                errors,
+                next_store,
+                next_identity,
+                list.append(ids, next_ids),
+                list.append(drafts, next_drafts),
+              )
+            }
+            Field(name: name, ..)
+              if name.value == "orderCreateMandatePayment"
+            -> {
+              let result =
+                handle_order_create_mandate_payment_mutation(
+                  current_store,
+                  current_identity,
+                  field,
+                  fragments,
+                  variables,
+                )
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                next_ids,
+                next_drafts,
+              ) = result
+              #(
+                list.append(entries, [#(key, payload)]),
+                errors,
+                next_store,
+                next_identity,
+                list.append(ids, next_ids),
+                list.append(drafts, next_drafts),
+              )
+            }
+            Field(name: name, ..) if name.value == "orderInvoiceSend" -> {
+              let #(key, payload, next_errors) =
+                handle_order_invoice_send(
+                  current_store,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderMarkAsPaid" -> {
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                staged_ids,
+                next_errors,
+                next_drafts,
+              ) =
+                handle_order_mark_as_paid_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, staged_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  list.append(drafts, next_drafts),
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderUpdate" -> {
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                staged_ids,
+                next_errors,
+                next_drafts,
+              ) =
+                handle_order_update_mutation(
+                  current_store,
+                  current_identity,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, staged_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "refundCreate" -> {
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                staged_ids,
+                next_errors,
+                next_drafts,
+              ) =
+                handle_refund_create_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, staged_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderEditBegin" -> {
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                staged_ids,
+                next_errors,
+                next_drafts,
+              ) =
+                handle_order_edit_begin_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, staged_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderEditAddVariant" -> {
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                staged_ids,
+                next_errors,
+                next_drafts,
+              ) =
+                handle_order_edit_add_variant_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, staged_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderEditSetQuantity" -> {
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                staged_ids,
+                next_errors,
+                next_drafts,
+              ) =
+                handle_order_edit_set_quantity_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, staged_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..) if name.value == "orderEditCommit" -> {
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                staged_ids,
+                next_errors,
+                next_drafts,
+              ) =
+                handle_order_edit_commit_mutation(
+                  current_store,
+                  current_identity,
+                  document,
+                  operation_path,
+                  field,
+                  fragments,
+                  variables,
+                )
+              case next_errors {
+                [] -> #(
+                  list.append(entries, [#(key, payload)]),
+                  errors,
+                  next_store,
+                  next_identity,
+                  list.append(ids, staged_ids),
+                  list.append(drafts, next_drafts),
+                )
+                _ -> #(
+                  entries,
+                  list.append(errors, next_errors),
+                  current_store,
+                  current_identity,
+                  ids,
+                  drafts,
+                )
+              }
+            }
+            Field(name: name, ..)
+              if name.value == "orderEditAddCustomItem"
+              || name.value == "orderEditAddLineItemDiscount"
+              || name.value == "orderEditRemoveDiscount"
+              || name.value == "orderEditAddShippingLine"
+              || name.value == "orderEditUpdateShippingLine"
+              || name.value == "orderEditRemoveShippingLine"
+            -> {
+              let #(key, payload, next_store, next_identity) =
+                handle_order_edit_residual_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                )
+              #(
+                list.append(entries, [#(key, payload)]),
+                errors,
+                next_store,
+                next_identity,
+                ids,
+                drafts,
+              )
+            }
+            Field(name: name, ..)
+              if name.value == "returnCreate"
+              || name.value == "returnRequest"
+              || name.value == "returnCancel"
+              || name.value == "returnClose"
+              || name.value == "returnReopen"
+              || name.value == "removeFromReturn"
+              || name.value == "returnDeclineRequest"
+              || name.value == "returnApproveRequest"
+              || name.value == "returnProcess"
+              || name.value == "reverseDeliveryCreateWithShipping"
+              || name.value == "reverseDeliveryShippingUpdate"
+              || name.value == "reverseFulfillmentOrderDispose"
+            -> {
+              let #(
+                key,
+                payload,
+                next_store,
+                next_identity,
+                staged_ids,
+                next_drafts,
+              ) =
+                handle_return_lifecycle_mutation(
+                  current_store,
+                  current_identity,
+                  name.value,
+                  field,
+                  fragments,
+                  variables,
+                  upstream,
+                )
+              #(
+                list.append(entries, [#(key, payload)]),
+                errors,
+                next_store,
+                next_identity,
+                list.append(ids, staged_ids),
+                list.append(drafts, next_drafts),
+              )
+            }
+            Field(name: name, ..)
+              if name.value == "orderCreateManualPayment"
+              || name.value == "taxSummaryCreate"
+            -> {
+              let #(key, payload, next_errors, next_drafts) =
+                handle_access_denied_guardrail(name.value, field)
+              #(
+                list.append(entries, [#(key, payload)]),
+                list.append(errors, next_errors),
+                current_store,
+                current_identity,
+                ids,
+                list.append(drafts, next_drafts),
+              )
+            }
+            _ -> acc
           }
-        }
-        Field(name: name, ..) if name.value == "draftOrderCreate" -> {
-          let result =
-            handle_draft_order_create(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "draftOrderCreateFromOrder" -> {
-          let result =
-            handle_draft_order_create_from_order(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "draftOrderComplete" -> {
-          let result =
-            handle_draft_order_complete(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "draftOrderDelete" -> {
-          let result =
-            handle_draft_order_delete(
-              current_store,
-              document,
-              operation_path,
-              field,
-              variables,
-              upstream,
-            )
-          let #(key, payload, next_store, next_errors, next_drafts) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              current_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              next_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "draftOrderDuplicate" -> {
-          let result =
-            handle_draft_order_duplicate(
-              current_store,
-              current_identity,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
-            result
-          #(
-            list.append(entries, [#(key, payload)]),
-            errors,
-            next_store,
-            next_identity,
-            list.append(ids, next_ids),
-            list.append(drafts, next_drafts),
-          )
-        }
-        Field(name: name, ..) if name.value == "draftOrderCalculate" -> {
-          let result =
-            handle_draft_order_calculate(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-            )
-          let #(key, payload, next_errors, next_drafts) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              current_store,
-              current_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..)
-          if name.value == "draftOrderBulkAddTags"
-          || name.value == "draftOrderBulkRemoveTags"
-          || name.value == "draftOrderBulkDelete"
-        -> {
-          let result =
-            handle_draft_order_bulk_helper(
-              current_store,
-              current_identity,
-              name.value,
-              field,
-              variables,
-            )
-          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
-            result
-          #(
-            list.append(entries, [#(key, payload)]),
-            errors,
-            next_store,
-            next_identity,
-            list.append(ids, next_ids),
-            list.append(drafts, next_drafts),
-          )
-        }
-        Field(name: name, ..) if name.value == "draftOrderInvoicePreview" -> {
-          let result =
-            handle_draft_order_invoice_preview(
-              current_store,
-              document,
-              operation_path,
-              field,
-              variables,
-            )
-          let #(key, payload, next_errors, next_drafts) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              current_store,
-              current_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "draftOrderInvoiceSend" -> {
-          let result =
-            handle_draft_order_invoice_send(
-              current_store,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          let #(key, payload, next_errors, next_drafts) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              current_store,
-              current_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "draftOrderUpdate" -> {
-          let result =
-            handle_draft_order_update(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..)
-          if name.value == "fulfillmentCancel"
-          || name.value == "fulfillmentTrackingInfoUpdate"
-        -> {
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            staged_ids,
-            next_errors,
-            next_drafts,
-          ) =
-            handle_fulfillment_mutation(
-              name.value,
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, staged_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "fulfillmentCreate" -> {
-          let result =
-            handle_fulfillment_create_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              list.append(entries, [#(key, payload)]),
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "fulfillmentEventCreate" -> {
-          let result =
-            handle_fulfillment_event_create_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              list.append(entries, [#(key, payload)]),
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-          }
-        }
-        Field(name: name, ..)
-          if name.value == "fulfillmentOrderMerge"
-          || name.value == "fulfillmentOrderSplit"
-          || name.value == "fulfillmentOrdersSetFulfillmentDeadline"
-        -> {
-          let result =
-            handle_fulfillment_order_bulk_mutation(
-              name.value,
-              current_store,
-              current_identity,
-              field,
-              fragments,
-              variables,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              list.append(entries, [#(key, payload)]),
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-          }
-        }
-        Field(name: name, ..)
-          if name.value == "fulfillmentOrderCancel"
-          || name.value == "fulfillmentOrderClose"
-          || name.value == "fulfillmentOrderHold"
-          || name.value == "fulfillmentOrderMove"
-          || name.value == "fulfillmentOrderOpen"
-          || name.value == "fulfillmentOrderReleaseHold"
-          || name.value == "fulfillmentOrderReportProgress"
-          || name.value == "fulfillmentOrderReschedule"
-        -> {
-          let result =
-            handle_fulfillment_order_lifecycle_mutation(
-              name.value,
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              list.append(entries, [#(key, payload)]),
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-          }
-        }
-        Field(name: name, ..)
-          if name.value == "fulfillmentOrderAcceptCancellationRequest"
-          || name.value == "fulfillmentOrderAcceptFulfillmentRequest"
-          || name.value == "fulfillmentOrderRejectCancellationRequest"
-          || name.value == "fulfillmentOrderRejectFulfillmentRequest"
-          || name.value == "fulfillmentOrderSubmitCancellationRequest"
-          || name.value == "fulfillmentOrderSubmitFulfillmentRequest"
-        -> {
-          let result =
-            handle_fulfillment_order_request_mutation(
-              name.value,
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              list.append(entries, [#(key, payload)]),
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderCreate" -> {
-          let result =
-            handle_order_create_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderDelete" -> {
-          let result =
-            handle_order_delete_mutation(current_store, field, variables)
-          let #(key, payload, next_store, next_ids, next_drafts) = result
-          #(
-            list.append(entries, [#(key, payload)]),
-            errors,
-            next_store,
-            current_identity,
-            list.append(ids, next_ids),
-            list.append(drafts, next_drafts),
-          )
-        }
-        Field(name: name, ..)
-          if name.value == "orderClose" || name.value == "orderOpen"
-        -> {
-          let result =
-            handle_order_lifecycle_mutation(
-              current_store,
-              current_identity,
-              name.value,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderCancel" -> {
-          let result =
-            handle_order_cancel_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              variables,
-              upstream,
-            )
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            next_ids,
-            next_errors,
-            next_drafts,
-          ) = result
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, next_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              next_store,
-              next_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderCapture" -> {
-          let result =
-            handle_order_capture_mutation(
-              current_store,
-              current_identity,
-              field,
-              fragments,
-              variables,
-            )
-          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
-            result
-          #(
-            list.append(entries, [#(key, payload)]),
-            errors,
-            next_store,
-            next_identity,
-            list.append(ids, next_ids),
-            list.append(drafts, next_drafts),
-          )
-        }
-        Field(name: name, ..) if name.value == "transactionVoid" -> {
-          let result =
-            handle_transaction_void_mutation(
-              current_store,
-              current_identity,
-              field,
-              fragments,
-              variables,
-            )
-          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
-            result
-          #(
-            list.append(entries, [#(key, payload)]),
-            errors,
-            next_store,
-            next_identity,
-            list.append(ids, next_ids),
-            list.append(drafts, next_drafts),
-          )
-        }
-        Field(name: name, ..) if name.value == "orderCreateMandatePayment" -> {
-          let result =
-            handle_order_create_mandate_payment_mutation(
-              current_store,
-              current_identity,
-              field,
-              fragments,
-              variables,
-            )
-          let #(key, payload, next_store, next_identity, next_ids, next_drafts) =
-            result
-          #(
-            list.append(entries, [#(key, payload)]),
-            errors,
-            next_store,
-            next_identity,
-            list.append(ids, next_ids),
-            list.append(drafts, next_drafts),
-          )
-        }
-        Field(name: name, ..) if name.value == "orderInvoiceSend" -> {
-          let #(key, payload, next_errors) =
-            handle_order_invoice_send(
-              current_store,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderMarkAsPaid" -> {
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            staged_ids,
-            next_errors,
-            next_drafts,
-          ) =
-            handle_order_mark_as_paid_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, staged_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              list.append(drafts, next_drafts),
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderUpdate" -> {
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            staged_ids,
-            next_errors,
-            next_drafts,
-          ) =
-            handle_order_update_mutation(
-              current_store,
-              current_identity,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, staged_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "refundCreate" -> {
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            staged_ids,
-            next_errors,
-            next_drafts,
-          ) =
-            handle_refund_create_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, staged_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderEditBegin" -> {
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            staged_ids,
-            next_errors,
-            next_drafts,
-          ) =
-            handle_order_edit_begin_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, staged_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderEditAddVariant" -> {
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            staged_ids,
-            next_errors,
-            next_drafts,
-          ) =
-            handle_order_edit_add_variant_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, staged_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderEditSetQuantity" -> {
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            staged_ids,
-            next_errors,
-            next_drafts,
-          ) =
-            handle_order_edit_set_quantity_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-            )
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, staged_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..) if name.value == "orderEditCommit" -> {
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            staged_ids,
-            next_errors,
-            next_drafts,
-          ) =
-            handle_order_edit_commit_mutation(
-              current_store,
-              current_identity,
-              document,
-              operation_path,
-              field,
-              fragments,
-              variables,
-            )
-          case next_errors {
-            [] -> #(
-              list.append(entries, [#(key, payload)]),
-              errors,
-              next_store,
-              next_identity,
-              list.append(ids, staged_ids),
-              list.append(drafts, next_drafts),
-            )
-            _ -> #(
-              entries,
-              list.append(errors, next_errors),
-              current_store,
-              current_identity,
-              ids,
-              drafts,
-            )
-          }
-        }
-        Field(name: name, ..)
-          if name.value == "orderEditAddCustomItem"
-          || name.value == "orderEditAddLineItemDiscount"
-          || name.value == "orderEditRemoveDiscount"
-          || name.value == "orderEditAddShippingLine"
-          || name.value == "orderEditUpdateShippingLine"
-          || name.value == "orderEditRemoveShippingLine"
-        -> {
-          let #(key, payload, next_store, next_identity) =
-            handle_order_edit_residual_mutation(
-              current_store,
-              current_identity,
-              name.value,
-              field,
-              fragments,
-              variables,
-            )
-          #(
-            list.append(entries, [#(key, payload)]),
-            errors,
-            next_store,
-            next_identity,
-            ids,
-            drafts,
-          )
-        }
-        Field(name: name, ..)
-          if name.value == "returnCreate"
-          || name.value == "returnRequest"
-          || name.value == "returnCancel"
-          || name.value == "returnClose"
-          || name.value == "returnReopen"
-          || name.value == "removeFromReturn"
-          || name.value == "returnDeclineRequest"
-          || name.value == "returnApproveRequest"
-          || name.value == "returnProcess"
-          || name.value == "reverseDeliveryCreateWithShipping"
-          || name.value == "reverseDeliveryShippingUpdate"
-          || name.value == "reverseFulfillmentOrderDispose"
-        -> {
-          let #(
-            key,
-            payload,
-            next_store,
-            next_identity,
-            staged_ids,
-            next_drafts,
-          ) =
-            handle_return_lifecycle_mutation(
-              current_store,
-              current_identity,
-              name.value,
-              field,
-              fragments,
-              variables,
-              upstream,
-            )
-          #(
-            list.append(entries, [#(key, payload)]),
-            errors,
-            next_store,
-            next_identity,
-            list.append(ids, staged_ids),
-            list.append(drafts, next_drafts),
-          )
-        }
-        Field(name: name, ..)
-          if name.value == "orderCreateManualPayment"
-          || name.value == "taxSummaryCreate"
-        -> {
-          let #(key, payload, next_errors, next_drafts) =
-            handle_access_denied_guardrail(name.value, field)
-          #(
-            list.append(entries, [#(key, payload)]),
-            list.append(errors, next_errors),
-            current_store,
-            current_identity,
-            ids,
-            list.append(drafts, next_drafts),
-          )
-        }
-        _ -> acc
-      }
-    })
-  let envelope = case all_errors {
-    [] -> json.object([#("data", json.object(data_entries))])
-    _ ->
-      case data_entries {
-        [] -> json.object([#("errors", json.preprocessed_array(all_errors))])
+        })
+      let envelope = case all_errors {
+        [] -> json.object([#("data", json.object(data_entries))])
         _ ->
-          json.object([
-            #("errors", json.preprocessed_array(all_errors)),
-            #("data", json.object(data_entries)),
-          ])
+          case data_entries {
+            [] ->
+              json.object([#("errors", json.preprocessed_array(all_errors))])
+            _ ->
+              json.object([
+                #("errors", json.preprocessed_array(all_errors)),
+                #("data", json.object(data_entries)),
+              ])
+          }
       }
-  }
-  MutationOutcome(
-    data: envelope,
-    store: final_store,
-    identity: final_identity,
-    staged_resource_ids: staged_ids,
-    log_drafts: log_drafts,
-  )
+      MutationOutcome(
+        data: envelope,
+        store: final_store,
+        identity: final_identity,
+        staged_resource_ids: staged_ids,
+        log_drafts: log_drafts,
+      )
     }
   }
 }
@@ -5507,19 +5549,57 @@ fn handle_order_edit_begin_mutation(
         |> option.then(fn(id) { store.get_order_by_id(hydrated_store, id) })
       case order {
         Some(order) -> {
-          let #(calculated_order, next_identity) =
-            build_calculated_order_from_order(order, identity)
-          let next_store =
-            stage_order_edit_session(hydrated_store, order, calculated_order)
-          let payload =
-            serialize_order_edit_begin_payload(
-              field,
-              calculated_order,
-              fragments,
-            )
-          #(key, payload, next_store, next_identity, [], [], [])
+          case order_edit_order_not_editable(order) {
+            True -> {
+              let payload =
+                serialize_order_edit_error_payload(field, [
+                  order_edit_invalid_user_error(
+                    ["base"],
+                    "The order cannot be edited.",
+                  ),
+                ])
+              #(key, payload, hydrated_store, identity, [], [], [])
+            }
+            False -> {
+              case order_has_open_order_edit_session(order) {
+                True -> {
+                  let payload =
+                    serialize_order_edit_error_payload(field, [
+                      order_edit_invalid_user_error(
+                        ["id"],
+                        "An edit is already in progress for this order",
+                      ),
+                    ])
+                  #(key, payload, hydrated_store, identity, [], [], [])
+                }
+                False -> {
+                  let #(calculated_order, next_identity) =
+                    build_calculated_order_from_order(order, identity)
+                  let next_store =
+                    stage_order_edit_session(
+                      hydrated_store,
+                      order,
+                      calculated_order,
+                    )
+                  let payload =
+                    serialize_order_edit_begin_payload(
+                      field,
+                      calculated_order,
+                      fragments,
+                    )
+                  #(key, payload, next_store, next_identity, [], [], [])
+                }
+              }
+            }
+          }
         }
-        None -> #(key, json.null(), store, identity, [], [], [])
+        None -> {
+          let payload =
+            serialize_order_edit_error_payload(field, [
+              order_edit_invalid_user_error(["id"], "The order does not exist."),
+            ])
+          #(key, payload, hydrated_store, identity, [], [], [])
+        }
       }
     }
   }
@@ -5559,63 +5639,84 @@ fn handle_order_edit_add_variant_mutation(
       let args = field_arguments(field, variables)
       let calculated_order_id = read_string(args, "id")
       let variant_id = read_string(args, "variantId")
-      let hydrated_store = case variant_id {
-        Some(id) -> maybe_hydrate_product_variant_by_id(store, id, upstream)
-        None -> store
-      }
-      let variant =
-        variant_id
-        |> option.then(fn(id) {
-          store.get_effective_variant_by_id(hydrated_store, id)
-        })
-      case variant {
-        Some(variant) -> {
-          let product =
-            store.get_effective_product_by_id(
-              hydrated_store,
-              variant.product_id,
-            )
-          let quantity = read_int(args, "quantity", 1)
-          let session_id =
-            calculated_order_id
-            |> option.map(order_edit_session_id_from_calculated_id)
-            |> option.unwrap("")
-          let #(calculated_line_item, next_identity) =
-            build_added_calculated_line_item(
-              variant,
-              product,
-              quantity,
-              identity,
-            )
-          let #(next_store, calculated_order) =
-            update_order_edit_session_with_line_item(
-              hydrated_store,
-              calculated_order_id,
-              calculated_line_item,
-            )
-          let payload =
-            serialize_order_edit_add_variant_payload(
-              field,
-              calculated_line_item,
-              calculated_order,
-              session_id,
-              fragments,
-            )
-          #(key, payload, next_store, next_identity, [], [], [])
-        }
+      case find_order_edit_session(store, calculated_order_id) {
         None -> {
-          let payload = case variant_id {
-            Some(id) ->
-              case draft_order_gid_tail(id) == "0" {
-                True ->
-                  serialize_order_edit_add_variant_invalid_variant_payload(
-                    field,
-                  )
-                False -> json.null()
-              }
-            _ -> json.null()
+          let payload =
+            serialize_order_edit_error_payload(field, [
+              order_edit_invalid_user_error(
+                ["id"],
+                "The calculated order does not exist.",
+              ),
+            ])
+          #(key, payload, store, identity, [], [], [])
+        }
+        Some(_) -> {
+          let hydrated_store = case variant_id {
+            Some(id) -> maybe_hydrate_product_variant_by_id(store, id, upstream)
+            None -> store
           }
-          #(key, payload, hydrated_store, identity, [], [], [])
+          let variant =
+            variant_id
+            |> option.then(fn(id) {
+              store.get_effective_variant_by_id(hydrated_store, id)
+            })
+          case variant {
+            Some(variant) -> {
+              let product =
+                store.get_effective_product_by_id(
+                  hydrated_store,
+                  variant.product_id,
+                )
+              let quantity = read_int(args, "quantity", 1)
+              let session_id =
+                calculated_order_id
+                |> option.map(order_edit_session_id_from_calculated_id)
+                |> option.unwrap("")
+              let #(calculated_line_item, next_identity) =
+                build_added_calculated_line_item(
+                  variant,
+                  product,
+                  quantity,
+                  identity,
+                )
+              let #(next_store, calculated_order) =
+                update_order_edit_session_with_line_item(
+                  hydrated_store,
+                  calculated_order_id,
+                  calculated_line_item,
+                )
+              let payload =
+                serialize_order_edit_add_variant_payload(
+                  field,
+                  calculated_line_item,
+                  calculated_order,
+                  session_id,
+                  fragments,
+                )
+              #(key, payload, next_store, next_identity, [], [], [])
+            }
+            None -> {
+              let user_error = case variant_id {
+                Some(id) ->
+                  case draft_order_gid_tail(id) == "0" {
+                    True -> order_edit_invalid_variant_user_error()
+                    False ->
+                      order_edit_invalid_user_error(
+                        ["variantId"],
+                        "Variant does not exist",
+                      )
+                  }
+                _ ->
+                  order_edit_invalid_user_error(
+                    ["variantId"],
+                    "Variant does not exist",
+                  )
+              }
+              let payload =
+                serialize_order_edit_error_payload(field, [user_error])
+              #(key, payload, hydrated_store, identity, [], [], [])
+            }
+          }
         }
       }
     }
@@ -5655,40 +5756,63 @@ fn handle_order_edit_set_quantity_mutation(
       let args = field_arguments(field, variables)
       let calculated_order_id = read_string(args, "id")
       let quantity = read_int(args, "quantity", 0)
-      let line_item =
-        find_order_edit_session_line_item(
-          store,
-          calculated_order_id,
-          read_string(args, "lineItemId"),
-        )
-        |> option.or(
-          read_string(args, "lineItemId")
-          |> option.then(fn(id) {
-            find_order_edit_line_item_by_calculated_id(store, id)
-          }),
-        )
-      case line_item {
-        Some(line_item) -> {
-          let calculated_line_item =
-            build_set_quantity_calculated_line_item(line_item, quantity)
-          let #(next_store, calculated_order) =
-            update_order_edit_session_line_item_quantity(
+      case find_order_edit_session(store, calculated_order_id) {
+        None -> {
+          let payload =
+            serialize_order_edit_error_payload(field, [
+              order_edit_invalid_user_error(
+                ["id"],
+                "The calculated order does not exist.",
+              ),
+            ])
+          #(key, payload, store, identity, [], [], [])
+        }
+        Some(_) -> {
+          let line_item =
+            find_order_edit_session_line_item(
               store,
               calculated_order_id,
               read_string(args, "lineItemId"),
-              quantity,
             )
-          let payload =
-            serialize_order_edit_set_quantity_payload(
-              field,
-              calculated_line_item,
-              calculated_order,
-              calculated_order_id,
-              fragments,
+            |> option.or(
+              read_string(args, "lineItemId")
+              |> option.then(fn(id) {
+                find_order_edit_line_item_by_calculated_id(store, id)
+              }),
             )
-          #(key, payload, next_store, identity, [], [], [])
+          case line_item {
+            Some(line_item) -> {
+              let calculated_line_item =
+                build_set_quantity_calculated_line_item(line_item, quantity)
+              let #(next_store, calculated_order) =
+                update_order_edit_session_line_item_quantity(
+                  store,
+                  calculated_order_id,
+                  read_string(args, "lineItemId"),
+                  quantity,
+                )
+              let payload =
+                serialize_order_edit_set_quantity_payload(
+                  field,
+                  calculated_line_item,
+                  calculated_order,
+                  calculated_order_id,
+                  fragments,
+                )
+              #(key, payload, next_store, identity, [], [], [])
+            }
+            None -> {
+              let payload =
+                serialize_order_edit_error_payload(field, [
+                  order_edit_invalid_user_error(
+                    ["lineItemId"],
+                    "Line item does not exist",
+                  ),
+                ])
+              #(key, payload, store, identity, [], [], [])
+            }
+          }
         }
-        None -> #(key, json.null(), store, identity, [], [], [])
       }
     }
   }
@@ -5727,7 +5851,16 @@ fn handle_order_edit_commit_mutation(
       let args = field_arguments(field, variables)
       let calculated_order_id = read_string(args, "id")
       case find_order_edit_session(store, calculated_order_id) {
-        None -> #(key, json.null(), store, identity, [], [], [])
+        None -> {
+          let payload =
+            serialize_order_edit_error_payload(field, [
+              order_edit_invalid_user_error(
+                ["id"],
+                "The calculated order does not exist.",
+              ),
+            ])
+          #(key, payload, store, identity, [], [], [])
+        }
         Some(match) -> {
           let #(order, session) = match
           let #(timestamp, next_identity) =
@@ -9253,6 +9386,27 @@ fn order_edit_sessions(order: OrderRecord) -> List(CapturedJsonValue) {
   }
 }
 
+fn order_has_open_order_edit_session(order: OrderRecord) -> Bool {
+  case order_edit_sessions(order) {
+    [] -> False
+    [_, ..] -> True
+  }
+}
+
+fn order_edit_order_not_editable(order: OrderRecord) -> Bool {
+  case captured_string_field(order.data, "displayFinancialStatus") {
+    Some("REFUNDED") | Some("VOIDED") -> True
+    _ -> order_cancelled_at_is_set(order)
+  }
+}
+
+fn order_cancelled_at_is_set(order: OrderRecord) -> Bool {
+  case captured_object_field(order.data, "cancelledAt") {
+    Some(CapturedNull) | None -> False
+    Some(_) -> True
+  }
+}
+
 fn find_order_edit_session(
   store: Store,
   calculated_order_id: Option(String),
@@ -9917,8 +10071,9 @@ fn serialize_order_edit_add_variant_payload(
   json.object(entries)
 }
 
-fn serialize_order_edit_add_variant_invalid_variant_payload(
+fn serialize_order_edit_error_payload(
   field: Selection,
+  user_errors: List(OrderEditUserError),
 ) -> Json {
   let entries =
     list.map(selection_children(field), fn(child) {
@@ -9929,10 +10084,15 @@ fn serialize_order_edit_add_variant_invalid_variant_payload(
             "calculatedOrder" -> #(key, json.null())
             "calculatedLineItem" -> #(key, json.null())
             "orderEditSession" -> #(key, json.null())
+            "order" -> #(key, json.null())
+            "successMessages" -> #(
+              key,
+              json.array([], fn(message) { json.string(message) }),
+            )
             "userErrors" -> #(
               key,
-              json.array([order_edit_invalid_variant_user_error()], fn(error) {
-                error
+              json.array(user_errors, fn(error) {
+                serialize_order_edit_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
@@ -9943,16 +10103,41 @@ fn serialize_order_edit_add_variant_invalid_variant_payload(
   json.object(entries)
 }
 
-fn order_edit_invalid_variant_user_error() -> Json {
-  json.object([
-    #("field", json.array(["variantId"], json.string)),
-    #(
-      "message",
-      json.string(
-        "can't convert Integer[0] to a positive Integer to use as an untrusted id",
-      ),
-    ),
-  ])
+fn order_edit_invalid_user_error(
+  field_path: List(String),
+  message: String,
+) -> OrderEditUserError {
+  OrderEditUserError(
+    field_path: field_path,
+    message: message,
+    code: Some("INVALID"),
+  )
+}
+
+fn order_edit_invalid_variant_user_error() -> OrderEditUserError {
+  order_edit_invalid_user_error(
+    ["variantId"],
+    "can't convert Integer[0] to a positive Integer to use as an untrusted id",
+  )
+}
+
+fn serialize_order_edit_user_error(
+  field: Selection,
+  error: OrderEditUserError,
+) -> Json {
+  let code = case error.code {
+    Some(value) -> SrcString(value)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("field", SrcList(list.map(error.field_path, SrcString))),
+      #("message", SrcString(error.message)),
+      #("code", code),
+    ]),
+    selection_children(field),
+    dict.new(),
+  )
 }
 
 fn serialize_order_edit_set_quantity_payload(
@@ -13544,7 +13729,7 @@ fn handle_order_update_mutation(
                 None -> #(
                   key,
                   serialize_order_mutation_error_payload(field, [
-                    #(["id"], "Order does not exist"),
+                    mutation_user_error(["id"], "Order does not exist"),
                   ]),
                   hydrated_store,
                   identity,
@@ -13583,6 +13768,14 @@ fn handle_order_update_mutation(
       }
     }
   }
+}
+
+type RefundCreateUserError {
+  RefundCreateUserError(
+    field_path: Option(List(String)),
+    message: String,
+    code: Option(String),
+  )
 }
 
 fn handle_refund_create_mutation(
@@ -13625,7 +13818,7 @@ fn handle_refund_create_mutation(
             None,
             None,
             [
-              #(Some(["input"]), "Input is required."),
+              RefundCreateUserError(Some(["input"]), "Input is required.", None),
             ],
             fragments,
           ),
@@ -13655,7 +13848,11 @@ fn handle_refund_create_mutation(
                 None,
                 None,
                 [
-                  #(Some(["input", "orderId"]), "Order does not exist"),
+                  RefundCreateUserError(
+                    Some(["orderId"]),
+                    "Order does not exist",
+                    Some("NOT_FOUND"),
+                  ),
                 ],
                 fragments,
               ),
@@ -13666,55 +13863,89 @@ fn handle_refund_create_mutation(
               [refund_create_log_draft([], store.Failed)],
             )
             Some(order) -> {
-              let refund_amount = refund_create_requested_amount(input, order)
-              let already_refunded = sum_order_refunded_amount(order)
-              let refundable_amount =
-                order_total_price(order) -. already_refunded
-              let allow_over_refunding =
-                read_bool(input, "allowOverRefunding", False)
-              case !allow_over_refunding && refund_amount >. refundable_amount {
-                True -> {
-                  let message =
-                    "Refund amount $"
-                    <> float_to_fixed_2(refund_amount)
-                    <> " is greater than net payment received $"
-                    <> float_to_fixed_2(refundable_amount)
-                  #(
-                    key,
-                    serialize_refund_create_payload(
-                      field,
-                      None,
-                      Some(order),
-                      [
-                        #(None, message),
-                      ],
-                      fragments,
-                    ),
-                    hydrated_store,
-                    identity,
-                    [],
-                    [],
-                    [refund_create_log_draft([order.id], store.Failed)],
-                  )
-                }
-                False -> {
-                  let #(refund, refund_transaction, next_identity) =
-                    build_refund_from_input(order, input, identity)
-                  let updated_order =
-                    apply_refund_to_order(order, refund, refund_transaction)
-                  let next_store =
-                    store.stage_order(hydrated_store, updated_order)
-                  let payload =
-                    serialize_refund_create_payload(
-                      field,
-                      Some(refund),
-                      Some(updated_order),
-                      [],
-                      fragments,
-                    )
-                  #(key, payload, next_store, next_identity, [order.id], [], [
-                    refund_create_log_draft([order.id], store.Staged),
-                  ])
+              let line_item_errors =
+                refund_create_line_item_quantity_errors(input, order)
+              case line_item_errors {
+                [_, ..] -> #(
+                  key,
+                  serialize_refund_create_payload(
+                    field,
+                    None,
+                    Some(order),
+                    line_item_errors,
+                    fragments,
+                  ),
+                  hydrated_store,
+                  identity,
+                  [],
+                  [],
+                  [refund_create_log_draft([order.id], store.Failed)],
+                )
+                [] -> {
+                  let refund_amount =
+                    refund_create_requested_amount(input, order)
+                  let refundable_amount = order_refundable_payment_amount(order)
+                  let allow_over_refunding =
+                    read_bool(input, "allowOverRefunding", False)
+                  case
+                    !allow_over_refunding && refund_amount >. refundable_amount
+                  {
+                    True -> {
+                      let message =
+                        "Refund amount $"
+                        <> float_to_fixed_2(refund_amount)
+                        <> " is greater than net payment received $"
+                        <> float_to_fixed_2(refundable_amount)
+                      #(
+                        key,
+                        serialize_refund_create_payload(
+                          field,
+                          None,
+                          Some(order),
+                          [
+                            RefundCreateUserError(
+                              Some(over_refund_field_path(input)),
+                              message,
+                              Some("INVALID"),
+                            ),
+                          ],
+                          fragments,
+                        ),
+                        hydrated_store,
+                        identity,
+                        [],
+                        [],
+                        [refund_create_log_draft([order.id], store.Failed)],
+                      )
+                    }
+                    False -> {
+                      let #(refund, refund_transaction, next_identity) =
+                        build_refund_from_input(order, input, identity)
+                      let updated_order =
+                        apply_refund_to_order(order, refund, refund_transaction)
+                      let next_store =
+                        store.stage_order(hydrated_store, updated_order)
+                      let payload =
+                        serialize_refund_create_payload(
+                          field,
+                          Some(refund),
+                          Some(updated_order),
+                          [],
+                          fragments,
+                        )
+                      #(
+                        key,
+                        payload,
+                        next_store,
+                        next_identity,
+                        [order.id],
+                        [],
+                        [
+                          refund_create_log_draft([order.id], store.Staged),
+                        ],
+                      )
+                    }
+                  }
                 }
               }
             }
@@ -13743,7 +13974,7 @@ fn serialize_refund_create_payload(
   field: Selection,
   refund: Option(CapturedJsonValue),
   order: Option(OrderRecord),
-  user_errors: List(#(Option(List(String)), String)),
+  user_errors: List(RefundCreateUserError),
   fragments: FragmentMap,
 ) -> Json {
   let entries =
@@ -13768,7 +13999,7 @@ fn serialize_refund_create_payload(
             "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
-                serialize_nullable_user_error(child, error)
+                serialize_refund_create_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
@@ -13777,6 +14008,29 @@ fn serialize_refund_create_payload(
       }
     })
   json.object(entries)
+}
+
+fn serialize_refund_create_user_error(
+  field: Selection,
+  error: RefundCreateUserError,
+) -> Json {
+  let field_value = case error.field_path {
+    Some(path) -> SrcList(list.map(path, SrcString))
+    None -> SrcNull
+  }
+  let code_value = case error.code {
+    Some(code) -> SrcString(code)
+    None -> SrcNull
+  }
+  project_graphql_value(
+    src_object([
+      #("field", field_value),
+      #("message", SrcString(error.message)),
+      #("code", code_value),
+    ]),
+    selection_children(field),
+    dict.new(),
+  )
 }
 
 fn build_refund_from_input(
@@ -14040,6 +14294,126 @@ fn refund_line_item_subtotal(
   })
 }
 
+fn refund_create_line_item_quantity_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  order: OrderRecord,
+) -> List(RefundCreateUserError) {
+  let #(errors, _) =
+    read_object_list(input, "refundLineItems")
+    |> list.fold(#([], 0), fn(acc, refund_line_item) {
+      let #(errors, index) = acc
+      let line_errors =
+        refund_create_line_item_quantity_error(order, refund_line_item, index)
+      #(list.append(errors, line_errors), index + 1)
+    })
+  errors
+}
+
+fn refund_create_line_item_quantity_error(
+  order: OrderRecord,
+  refund_line_item: Dict(String, root_field.ResolvedValue),
+  index: Int,
+) -> List(RefundCreateUserError) {
+  let requested_quantity = read_int(refund_line_item, "quantity", 0)
+  let line_item =
+    read_string(refund_line_item, "lineItemId")
+    |> option.then(fn(line_item_id) {
+      find_order_line_item(order, line_item_id)
+    })
+  case line_item {
+    Some(line_item) -> {
+      let refundable_quantity =
+        order_line_item_refundable_quantity(order, line_item)
+      case requested_quantity > refundable_quantity {
+        True -> [
+          RefundCreateUserError(
+            Some(["refundLineItems", int.to_string(index), "quantity"]),
+            "Quantity cannot refund more items than were purchased",
+            Some("INVALID"),
+          ),
+        ]
+        False -> []
+      }
+    }
+    None -> []
+  }
+}
+
+fn order_line_item_refundable_quantity(
+  order: OrderRecord,
+  line_item: CapturedJsonValue,
+) -> Int {
+  let current_quantity =
+    captured_int_field(line_item, "currentQuantity")
+    |> option.or(captured_int_field(line_item, "quantity"))
+    |> option.unwrap(0)
+  let line_item_id = captured_string_field(line_item, "id") |> option.unwrap("")
+  let refunded_quantity = sum_refunded_line_item_quantity(order, line_item_id)
+  let remaining = current_quantity - refunded_quantity
+  case remaining < 0 {
+    True -> 0
+    False -> remaining
+  }
+}
+
+fn sum_refunded_line_item_quantity(
+  order: OrderRecord,
+  line_item_id: String,
+) -> Int {
+  order_refunds(order.data)
+  |> list.fold(0, fn(sum, refund) {
+    sum
+    + {
+      refund_line_items(refund)
+      |> list.fold(0, fn(line_sum, refund_line_item) {
+        case refund_line_item_order_line_item_id(refund_line_item) {
+          Some(id) if id == line_item_id ->
+            line_sum
+            + {
+              captured_int_field(refund_line_item, "quantity")
+              |> option.unwrap(0)
+            }
+          _ -> line_sum
+        }
+      })
+    }
+  })
+}
+
+fn refund_line_items(refund: CapturedJsonValue) -> List(CapturedJsonValue) {
+  case captured_object_field(refund, "refundLineItems") {
+    Some(CapturedObject(fields)) ->
+      dict.from_list(fields)
+      |> dict.get("nodes")
+      |> result.unwrap(CapturedArray([]))
+      |> captured_refund_line_items
+    Some(CapturedArray(items)) -> items
+    _ -> []
+  }
+}
+
+fn captured_refund_line_items(
+  value: CapturedJsonValue,
+) -> List(CapturedJsonValue) {
+  case value {
+    CapturedArray(items) -> items
+    _ -> []
+  }
+}
+
+fn refund_line_item_order_line_item_id(
+  refund_line_item: CapturedJsonValue,
+) -> Option(String) {
+  case captured_string_field(refund_line_item, "lineItemId") {
+    Some(id) -> Some(id)
+    None ->
+      case captured_object_field(refund_line_item, "lineItem") {
+        Some(line_item) -> captured_string_field(line_item, "id")
+        None -> None
+      }
+  }
+}
+
 fn order_line_items(order_data: CapturedJsonValue) -> List(CapturedJsonValue) {
   case captured_object_field(order_data, "lineItems") {
     Some(line_items) ->
@@ -14107,6 +14481,37 @@ fn sum_order_refunded_amount(order: OrderRecord) -> Float {
   |> list.fold(0.0, fn(sum, refund) {
     sum +. captured_money_amount(refund, "totalRefundedSet")
   })
+}
+
+fn order_refundable_payment_amount(order: OrderRecord) -> Float {
+  let refunded =
+    captured_money_amount_field(order.data, "totalRefundedSet")
+    |> option.unwrap(sum_order_refunded_amount(order))
+  case captured_money_amount_field(order.data, "totalReceivedSet") {
+    Some(received) -> received -. refunded
+    None -> order_total_price(order) -. refunded
+  }
+}
+
+fn captured_money_amount_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> Option(Float) {
+  captured_object_field(value, name)
+  |> option.map(captured_money_value)
+}
+
+fn over_refund_field_path(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(String) {
+  case read_object_list(input, "transactions") {
+    [_, ..] -> ["transactions"]
+    [] ->
+      case read_object_list(input, "refundLineItems") {
+        [_, ..] -> ["refundLineItems"]
+        [] -> ["transactions"]
+      }
+  }
 }
 
 fn sum_order_refunded_shipping_amount(order: OrderRecord) -> Float {
@@ -14614,18 +15019,143 @@ fn handle_order_create_mutation(
 
 fn validate_order_create_input(
   input: Dict(String, root_field.ResolvedValue),
-) -> List(#(List(String), String)) {
-  case read_object_list(input, "lineItems") {
+) -> List(OrderMutationUserError) {
+  let line_items = read_object_list(input, "lineItems")
+  list.flatten([
+    validate_order_create_line_item_presence(line_items),
+    validate_order_create_processed_at(input),
+    validate_order_create_customer_fields(input),
+    validate_order_create_tax_line_rates("lineItems", line_items),
+    validate_order_create_tax_line_rates(
+      "shippingLines",
+      read_object_list(input, "shippingLines"),
+    ),
+  ])
+}
+
+fn validate_order_create_line_item_presence(
+  line_items: List(Dict(String, root_field.ResolvedValue)),
+) -> List(OrderMutationUserError) {
+  case line_items {
     [] -> [
-      #(["order", "lineItems"], "Line items must have at least one line item"),
+      order_mutation_user_error(
+        [UserErrorField("order"), UserErrorField("lineItems")],
+        "Line items must have at least one line item",
+        Some("INVALID"),
+      ),
     ]
     _ -> []
   }
 }
 
+fn validate_order_create_processed_at(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  case read_string(input, "processedAt") {
+    Some(value) ->
+      case
+        iso_timestamp.parse_iso(value),
+        iso_timestamp.parse_iso(iso_timestamp.now_iso())
+      {
+        Ok(processed_at), Ok(now) ->
+          case processed_at > now {
+            True -> [
+              order_mutation_user_error(
+                [UserErrorField("order"), UserErrorField("processedAt")],
+                "Processed at must not be in the future",
+                Some("PROCESSED_AT_INVALID"),
+              ),
+            ]
+            False -> []
+          }
+        _, _ -> []
+      }
+    None -> []
+  }
+}
+
+fn validate_order_create_customer_fields(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(OrderMutationUserError) {
+  case
+    non_empty_string_field(input, "customerId"),
+    has_non_null_field(input, "customer")
+  {
+    True, True -> [
+      order_mutation_user_error(
+        [UserErrorField("order")],
+        "Cannot specify both customerId and customer",
+        Some("REDUNDANT_CUSTOMER_FIELDS"),
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn validate_order_create_tax_line_rates(
+  parent_field: String,
+  parents: List(Dict(String, root_field.ResolvedValue)),
+) -> List(OrderMutationUserError) {
+  parents
+  |> list.index_map(fn(parent, parent_index) {
+    read_object_list(parent, "taxLines")
+    |> list.index_map(fn(tax_line, tax_line_index) {
+      case has_non_empty_rate(tax_line) {
+        True -> []
+        False -> [
+          order_mutation_user_error(
+            [
+              UserErrorField("order"),
+              UserErrorField(parent_field),
+              UserErrorIndex(parent_index),
+              UserErrorField("taxLines"),
+              UserErrorIndex(tax_line_index),
+              UserErrorField("rate"),
+            ],
+            "Tax line rate must be provided",
+            Some("TAX_LINE_RATE_MISSING"),
+          ),
+        ]
+      }
+    })
+    |> list.flatten
+  })
+  |> list.flatten
+}
+
+fn non_empty_string_field(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case read_string(input, name) {
+    Some(value) -> string.trim(value) != ""
+    None -> False
+  }
+}
+
+fn has_non_null_field(
+  input: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Bool {
+  case dict.get(input, name) {
+    Ok(root_field.NullVal) -> False
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
+fn has_non_empty_rate(input: Dict(String, root_field.ResolvedValue)) -> Bool {
+  case dict.get(input, "rate") {
+    Ok(root_field.NullVal) -> False
+    Ok(root_field.StringVal(value)) -> string.trim(value) != ""
+    Ok(_) -> True
+    Error(_) -> False
+  }
+}
+
 fn serialize_order_mutation_error_payload(
   field: Selection,
-  user_errors: List(#(List(String), String)),
+  user_errors: List(OrderMutationUserError),
 ) -> Json {
   let entries =
     list.map(selection_children(field), fn(child) {
@@ -14637,7 +15167,7 @@ fn serialize_order_mutation_error_payload(
             "userErrors" -> #(
               key,
               json.array(user_errors, fn(error) {
-                serialize_user_error(child, error)
+                serialize_order_mutation_user_error(child, error)
               }),
             )
             _ -> #(key, json.null())
@@ -14646,6 +15176,60 @@ fn serialize_order_mutation_error_payload(
       }
     })
   json.object(entries)
+}
+
+type UserErrorFieldSegment {
+  UserErrorField(String)
+  UserErrorIndex(Int)
+}
+
+type OrderMutationUserError {
+  OrderMutationUserError(
+    field_path: List(UserErrorFieldSegment),
+    message: String,
+    code: Option(String),
+  )
+}
+
+fn mutation_user_error(
+  field_path: List(String),
+  message: String,
+) -> OrderMutationUserError {
+  order_mutation_user_error(list.map(field_path, UserErrorField), message, None)
+}
+
+fn order_mutation_user_error(
+  field_path: List(UserErrorFieldSegment),
+  message: String,
+  code: Option(String),
+) -> OrderMutationUserError {
+  OrderMutationUserError(field_path: field_path, message: message, code: code)
+}
+
+fn serialize_order_mutation_user_error(
+  field: Selection,
+  error: OrderMutationUserError,
+) -> Json {
+  let base_fields = [
+    #("field", SrcList(list.map(error.field_path, user_error_path_source))),
+    #("message", SrcString(error.message)),
+  ]
+  let fields = case error.code {
+    Some(code) -> list.append(base_fields, [#("code", SrcString(code))])
+    None -> list.append(base_fields, [#("code", SrcNull)])
+  }
+  project_graphql_value(
+    src_object(fields),
+    selection_children(field),
+    dict.new(),
+  )
+}
+
+fn user_error_path_source(segment: UserErrorFieldSegment) -> SourceValue {
+  case segment {
+    UserErrorField(value) -> SrcString(value)
+    UserErrorIndex(value) -> SrcInt(value)
+  }
 }
 
 fn build_order_from_create_input(
@@ -15819,7 +16403,7 @@ fn maybe_hydrate_order_by_id(
     False -> {
       let query =
         "query OrdersOrderHydrate($id: ID!) {
-  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } transactions { kind status gateway amountSet { shopMoney { amount currencyCode } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } variant { id title sku } } } }
+  order(id: $id) { id name email phone poNumber createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus paymentGatewayNames note tags customAttributes { key value } customer { id email displayName } totalOutstandingSet { shopMoney { amount currencyCode } } totalReceivedSet { shopMoney { amount currencyCode } } totalRefundedSet { shopMoney { amount currencyCode } } currentTotalPriceSet { shopMoney { amount currencyCode } } totalPriceSet { shopMoney { amount currencyCode } } transactions { id kind status gateway amountSet { shopMoney { amount currencyCode } } } refunds { id note totalRefundedSet { shopMoney { amount currencyCode } } refundLineItems(first: 10) { nodes { id quantity restockType lineItem { id title } subtotalSet { shopMoney { amount currencyCode } } } } transactions(first: 10) { nodes { id kind status gateway amountSet { shopMoney { amount currencyCode } } } } } fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } shippingLines { nodes { id title code source originalPriceSet { shopMoney { amount currencyCode } } discountedPriceSet { shopMoney { amount currencyCode } } } } lineItems { nodes { id title name quantity currentQuantity sku variantTitle originalUnitPriceSet { shopMoney { amount currencyCode } } originalTotalSet { shopMoney { amount currencyCode } } variant { id title sku } } } }
 }
 "
       let variables = json.object([#("id", json.string(order_id))])

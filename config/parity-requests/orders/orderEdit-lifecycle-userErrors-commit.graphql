@@ -1,0 +1,12 @@
+mutation OrderEditLifecycleCommitMissingCalculatedOrder($id: ID!) {
+  orderEditCommit(id: $id) {
+    order {
+      id
+      name
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

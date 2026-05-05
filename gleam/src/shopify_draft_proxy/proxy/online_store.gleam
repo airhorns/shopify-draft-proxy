@@ -678,49 +678,124 @@ fn create_article(
   let article_input =
     graphql_helpers.read_arg_object(args, "article")
     |> option.unwrap(dict.new())
-  let blog_from_arg =
-    graphql_helpers.read_arg_object(args, "blog") |> option.unwrap(dict.new())
-  let #(blog_id, store, identity, staged_blog_ids) = case
-    input_string(article_input, "blogId")
-  {
-    Some(id) -> #(id, outcome.store, outcome.identity, [])
+  case article_create_validation_error(args, article_input) {
+    Some(error) -> {
+      let payload =
+        mutation_payload(field, fragments, "article", json.null(), [error])
+      #(
+        key,
+        payload,
+        mutation_outcome_with_status(
+          outcome,
+          outcome.store,
+          outcome.identity,
+          "articleCreate",
+          [],
+          store.Failed,
+          Some("Rejected articleCreate validation in shopify-draft-proxy."),
+        ),
+      )
+    }
     None -> {
-      let #(blog, next_identity) =
-        make_content(outcome.identity, "blog", blog_from_arg, None, None)
-      let #(_, next_store) =
-        store.upsert_staged_online_store_content(outcome.store, blog)
-      #(blog.id, next_store, next_identity, [blog.id])
+      let blog_from_arg =
+        graphql_helpers.read_arg_object(args, "blog")
+        |> option.unwrap(dict.new())
+      let #(blog_id, store, identity, staged_blog_ids) = case
+        input_string(article_input, "blogId")
+      {
+        Some(id) -> #(id, outcome.store, outcome.identity, [])
+        None -> {
+          let #(blog, next_identity) =
+            make_content(outcome.identity, "blog", blog_from_arg, None, None)
+          let #(_, next_store) =
+            store.upsert_staged_online_store_content(outcome.store, blog)
+          #(blog.id, next_store, next_identity, [blog.id])
+        }
+      }
+      let #(record, identity) =
+        make_content(identity, "article", article_input, Some(blog_id), None)
+      let #(_, store) = store.upsert_staged_online_store_content(store, record)
+      let payload =
+        mutation_payload(
+          field,
+          fragments,
+          "article",
+          project_content_payload(
+            store,
+            record,
+            field,
+            fragments,
+            variables,
+            "article",
+          ),
+          [],
+        )
+      #(
+        key,
+        payload,
+        mutation_outcome(
+          outcome,
+          store,
+          identity,
+          "articleCreate",
+          list.append(staged_blog_ids, [record.id]),
+        ),
+      )
     }
   }
-  let #(record, identity) =
-    make_content(identity, "article", article_input, Some(blog_id), None)
-  let #(_, store) = store.upsert_staged_online_store_content(store, record)
-  let payload =
-    mutation_payload(
-      field,
-      fragments,
-      "article",
-      project_content_payload(
-        store,
-        record,
-        field,
-        fragments,
-        variables,
-        "article",
-      ),
-      [],
-    )
-  #(
-    key,
-    payload,
-    mutation_outcome(
-      outcome,
-      store,
-      identity,
-      "articleCreate",
-      list.append(staged_blog_ids, [record.id]),
-    ),
-  )
+}
+
+fn article_create_validation_error(
+  args: Dict(String, root_field.ResolvedValue),
+  article_input: Dict(String, root_field.ResolvedValue),
+) -> Option(graphql_helpers.SourceValue) {
+  let has_blog_id = option.is_some(input_string(article_input, "blogId"))
+  let has_inline_blog = case graphql_helpers.read_arg_object(args, "blog") {
+    Some(_) -> True
+    None -> False
+  }
+  case has_blog_id, has_inline_blog {
+    True, True ->
+      Some(article_user_error(
+        "Can't create a blog from input if a blog ID is supplied.",
+        "AMBIGUOUS_BLOG",
+      ))
+    False, False ->
+      Some(article_user_error(
+        "Must reference or create a blog when creating an article.",
+        "BLOG_REFERENCE_REQUIRED",
+      ))
+    _, _ -> article_author_validation_error(article_input)
+  }
+}
+
+fn article_author_validation_error(
+  article_input: Dict(String, root_field.ResolvedValue),
+) -> Option(graphql_helpers.SourceValue) {
+  case dict.get(article_input, "author") {
+    Ok(root_field.ObjectVal(author)) -> {
+      let has_name = option.is_some(input_non_blank_string(author, "name"))
+      let has_user_id = option.is_some(input_non_blank_string(author, "userId"))
+      case has_name, has_user_id {
+        True, True ->
+          Some(article_user_error(
+            "Can't create an article author if both author name and user ID are supplied.",
+            "AMBIGUOUS_AUTHOR",
+          ))
+        False, False ->
+          Some(article_user_error(
+            "Can't create an article if both author name and user ID are blank.",
+            "AUTHOR_FIELD_REQUIRED",
+          ))
+        _, _ -> None
+      }
+    }
+    _ ->
+      Some(article_user_error(
+        "Can't create an article if both author name and user ID are blank.",
+        "AUTHOR_FIELD_REQUIRED",
+      ))
+  }
 }
 
 fn update_content(
@@ -1728,11 +1803,31 @@ fn integration_payload_result(
 }
 
 fn mutation_outcome(
+  outcome: MutationOutcome,
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  root: String,
+  staged_ids: List(String),
+) -> MutationOutcome {
+  mutation_outcome_with_status(
+    outcome,
+    store,
+    identity,
+    root,
+    staged_ids,
+    store.Staged,
+    Some("Locally staged " <> root <> " in shopify-draft-proxy."),
+  )
+}
+
+fn mutation_outcome_with_status(
   _outcome: MutationOutcome,
   store: Store,
   identity: SyntheticIdentityRegistry,
   root: String,
   staged_ids: List(String),
+  status: store.EntryStatus,
+  notes: Option(String),
 ) -> MutationOutcome {
   MutationOutcome(
     data: json.object([]),
@@ -1743,10 +1838,10 @@ fn mutation_outcome(
       single_root_log_draft(
         root,
         staged_ids,
-        store.Staged,
+        status,
         "online-store",
         "stage-locally",
-        Some("Locally staged " <> root <> " in shopify-draft-proxy."),
+        notes,
       ),
     ],
   )
@@ -2731,6 +2826,17 @@ fn user_error(
   ])
 }
 
+fn article_user_error(
+  message: String,
+  code: String,
+) -> graphql_helpers.SourceValue {
+  src_object([
+    #("field", SrcList([SrcString("article")])),
+    #("message", SrcString(message)),
+    #("code", SrcString(code)),
+  ])
+}
+
 fn user_errors_source(
   errors: List(graphql_helpers.SourceValue),
 ) -> graphql_helpers.SourceValue {
@@ -2754,6 +2860,22 @@ fn input_string(
   case dict.get(args, name) {
     Ok(root_field.StringVal(value)) -> Some(value)
     _ -> None
+  }
+}
+
+fn input_non_blank_string(
+  args: Dict(String, root_field.ResolvedValue),
+  name: String,
+) -> Option(String) {
+  case input_string(args, name) {
+    Some(value) -> {
+      let trimmed = string.trim(value)
+      case trimmed == "" {
+        True -> None
+        False -> Some(trimmed)
+      }
+    }
+    None -> None
   }
 }
 
