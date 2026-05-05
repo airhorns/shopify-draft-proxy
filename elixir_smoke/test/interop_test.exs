@@ -241,6 +241,8 @@ defmodule ShopifyDraftProxy.InteropTest do
     next =
       ShopifyDraftProxy.graphql(
         restored,
+        # Keep the smoke focused on identity continuity. Reusing the first name
+        # now correctly exercises saved-search uniqueness instead.
         saved_search_create_query("id", "Smoke Restored")
       )
 
