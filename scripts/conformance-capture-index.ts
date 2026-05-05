@@ -161,6 +161,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-set-validator',
+    scriptPath: 'scripts/capture-product-set-validator-conformance.ts',
+    purpose:
+      'productSet ProductSetShapeValidator guardrails, unknown-product validation, and asynchronous ProductSetOperation polling behavior.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-set-shape-validator-parity.json`,
+      `${CAPTURE_ROOT}product-set-async-operation-parity.json`,
+      'config/parity-specs/products/productSet-shape-validator-parity.json',
+      'config/parity-specs/products/productSet-async-operation-parity.json',
+    ],
+    cleanupBehavior:
+      'Validation branches create no products; async productSet creates one disposable product and deletes it in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-state-mutations',
     scriptPath: 'scripts/capture-product-state-mutation-conformance.mts',
     purpose: 'productChangeStatus/tagsAdd/tagsRemove mutation branches.',
