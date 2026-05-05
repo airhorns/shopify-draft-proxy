@@ -1626,6 +1626,7 @@ pub type CustomerRecord {
     email_marketing_consent: Option(CustomerEmailMarketingConsentRecord),
     sms_marketing_consent: Option(CustomerSmsMarketingConsentRecord),
     default_address: Option(CustomerDefaultAddressRecord),
+    account_activation_token: Option(String),
     created_at: Option(String),
     updated_at: Option(String),
   )

@@ -1841,9 +1841,12 @@ pub fn default_registry() -> List(RegistryEntry) {
         "customerGenerateAccountActivationUrl",
         "CustomerGenerateAccountActivationUrl",
       ],
-      runtime_tests: ["test/parity_test.gleam"],
+      runtime_tests: [
+        "test/parity_test.gleam",
+        "test/shopify_draft_proxy/proxy/customers_test.gleam",
+      ],
       support_notes: Some(
-        "Staged locally with a synthetic non-deliverable activation URL. The original raw mutation is retained in the mutation log for commit replay; runtime support does not request a live Shopify activation URL.",
+        "Staged locally for DISABLED/INVITED customers only, with a stable synthetic reset-token-bearing activation URL recorded on the local customer row. Non-eligible customer states return account_already_enabled; runtime support does not request a live Shopify activation URL.",
       ),
     ),
     RegistryEntry(

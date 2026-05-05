@@ -115,6 +115,7 @@ fn customer(
     email_marketing_consent: None,
     sms_marketing_consent: None,
     default_address: None,
+    account_activation_token: None,
     created_at: None,
     updated_at: None,
   )
