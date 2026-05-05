@@ -37,7 +37,7 @@ The product-owner lifecycle slice stages these roots locally without runtime Sho
 - `metafieldDefinitionUpdate(definition:)`
 - `metafieldDefinitionDelete(id:|identifier:, deleteAllAssociatedMetafields:)`
 
-Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, empty constraints, and `validationStatus: ALL_VALID`.
+Create supports the normalized fields represented by `MetafieldDefinitionRecord`: identity (`ownerType`, `namespace`, `key`), `name`, `description`, `type`, `validations`, selected `access`, selected `capabilities`, optional `pin`, empty constraints, and `validationStatus: ALL_VALID`. Product-owner creates reject Shopify-incompatible namespace/key lengths and characters, overlong `name` / `description`, unsupported custom-data type names, and protected or Shopify-reserved namespaces before staging any local definition.
 
 Update resolves the existing definition by immutable identity (`ownerType`, `namespace`, `key`). It preserves `type`, `ownerType`, `namespace`, and `key`, and locally updates `name`, `description`, `validations`, selected `access`, and selected `capabilities`. The local `validationJob` payload is currently `null`.
 
@@ -100,6 +100,7 @@ The local implementation intentionally covers pin/unpin for definitions already 
 
 Validation entry points:
 
+- `config/parity-specs/metafields/metafield-definition-create-input-validation.json`
 - `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
 - `config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json`
 - `config/parity-specs/metafields/metafield-definition-lifecycle-mutations.json`

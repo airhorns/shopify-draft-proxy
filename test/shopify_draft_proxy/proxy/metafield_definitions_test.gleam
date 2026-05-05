@@ -46,6 +46,27 @@ fn create_definition_query(key: String) -> String {
   }"
 }
 
+fn create_definition_validation_query(
+  namespace: String,
+  key: String,
+  name: String,
+  type_name: String,
+  extra: String,
+) -> String {
+  "mutation {
+    metafieldDefinitionCreate(definition: {
+      name: \"" <> name <> "\",
+      namespace: \"" <> namespace <> "\",
+      key: \"" <> key <> "\",
+      ownerType: PRODUCT,
+      type: \"" <> type_name <> "\"" <> extra <> "
+    }) {
+      createdDefinition { id }
+      userErrors { field message code }
+    }
+  }"
+}
+
 fn pin_definition_query(key: String) -> String {
   "mutation {
     metafieldDefinitionPin(identifier: {
@@ -70,6 +91,149 @@ fn unpin_definition_query(key: String) -> String {
       userErrors { field message code }
     }
   }"
+}
+
+pub fn metafield_definition_create_rejects_namespace_and_key_length_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "ab",
+        "x",
+        "X",
+        "single_line_text_field",
+        "",
+      ),
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"namespace\"],\"message\":\"Namespace is too short (minimum is 3 characters)\",\"code\":\"TOO_SHORT\"},{\"field\":[\"definition\",\"key\"],\"message\":\"Key is too short (minimum is 2 characters)\",\"code\":\"TOO_SHORT\"}]}}}"
+}
+
+pub fn metafield_definition_create_rejects_invalid_characters_test() {
+  let namespace_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "my space",
+        "valid_key",
+        "X",
+        "single_line_text_field",
+        "",
+      ),
+    )
+  let key_result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "loyalty",
+        "bad.key!",
+        "X",
+        "single_line_text_field",
+        "",
+      ),
+    )
+
+  assert namespace_result.staged_resource_ids == []
+  assert json.to_string(namespace_result.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"namespace\"],\"message\":\"Namespace contains one or more invalid characters.\",\"code\":\"INVALID_CHARACTER\"}]}}}"
+  assert key_result.staged_resource_ids == []
+  assert json.to_string(key_result.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"key\"],\"message\":\"Key contains one or more invalid characters.\",\"code\":\"INVALID_CHARACTER\"}]}}}"
+}
+
+pub fn metafield_definition_create_rejects_unknown_type_test() {
+  let result =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "loyalty",
+        "tier",
+        "Tier",
+        "totally_made_up_type",
+        "",
+      ),
+    )
+  let body = json.to_string(result.data)
+
+  assert result.staged_resource_ids == []
+  assert string.contains(body, "\"createdDefinition\":null")
+  assert string.contains(body, "\"field\":[\"definition\",\"type\"]")
+  assert string.contains(body, "\"code\":\"INCLUSION\"")
+  assert string.contains(body, "totally_made_up_type is not a valid type")
+}
+
+pub fn metafield_definition_create_rejects_reserved_namespaces_test() {
+  let shopify_standard =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "shopify_standard",
+        "xx",
+        "X",
+        "single_line_text_field",
+        "",
+      ),
+    )
+  let protected =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "protected",
+        "xx",
+        "X",
+        "single_line_text_field",
+        "",
+      ),
+    )
+
+  assert shopify_standard.staged_resource_ids == []
+  assert json.to_string(shopify_standard.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"namespace\"],\"message\":\"Namespace shopify_standard is reserved.\",\"code\":\"RESERVED\"}]}}}"
+  assert protected.staged_resource_ids == []
+  assert json.to_string(protected.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"namespace\"],\"message\":\"Namespace protected is reserved.\",\"code\":\"RESERVED\"}]}}}"
+}
+
+pub fn metafield_definition_create_rejects_long_name_and_description_test() {
+  let name =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "loyalty",
+        "long_name",
+        string.repeat("N", times: 256),
+        "single_line_text_field",
+        "",
+      ),
+    )
+  let description =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_validation_query(
+        "loyalty",
+        "long_description",
+        "X",
+        "single_line_text_field",
+        ", description: \"" <> string.repeat("D", times: 256) <> "\"",
+      ),
+    )
+
+  assert name.staged_resource_ids == []
+  assert json.to_string(name.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"name\"],\"message\":\"Name is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
+  assert description.staged_resource_ids == []
+  assert json.to_string(description.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"description\"],\"message\":\"Description is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\"}]}}}"
 }
 
 fn create_and_pin(
