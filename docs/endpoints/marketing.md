@@ -54,6 +54,15 @@ HAR-213 captures external lifecycle write evidence with `write_marketing_events`
 - deleteAllExternal asynchronous `Job` payload with `done: false`
 - userErrors for missing non-hierarchical attribution and immutable UTM changes
 
+HAR-687 extends external delete guard coverage:
+
+- `marketingActivityDeleteExternal` with neither `marketingActivityId` nor `remoteId` returns `INVALID_DELETE_ACTIVITY_EXTERNAL_ARGUMENTS`
+- missing external records continue to return `MARKETING_ACTIVITY_DOES_NOT_EXIST`
+- non-external activity delete attempts return `ACTIVITY_NOT_EXTERNAL` and leave the activity staged/readable
+- parent activity delete attempts return `CANNOT_DELETE_ACTIVITY_WITH_CHILD_EVENTS` when a local child activity references the parent by `parentActivityId` or `parentRemoteId`
+- `marketingActivitiesDeleteAllExternal` records a delete-all job as in flight in local staged state; while that flag is set, external create/update/upsert return Shopify's captured `DELETE_JOB_ENQUEUED` userError and do not stage a write
+- the live parity fixture captures the no-selector delete guard and create-after-delete-all rejection. Parent/child success-path setup remains blocked in the current disposable shop because campaign-level external activity creation requires a recognized `channelHandle`, and native delete evidence remains blocked because the shop exposes no non-external marketing activities.
+
 HAR-681 extends existing external activity update/upsert validation:
 
 - existing external activities reject immutable `channelHandle`, `urlParameterValue`, UTM, invalid `parentRemoteId`, and `hierarchyLevel` changes with Shopify's captured `MarketingActivityUserError.code` values and `marketingActivity: null`
@@ -109,5 +118,6 @@ Unsupported marketing reads outside these registered roots continue through the 
 - HAR-453 reviewed Shopify docs/examples and public Admin GraphQL examples for marketing activity, event, and engagement roots. Public examples remain sparse and mostly generated from Shopify's schema/docs, so local fidelity should continue to be driven by checked-in conformance captures and focused runtime tests rather than inferred app-specific behavior.
 - HAR-463 adds the `marketing-engagement` aggregate capture path and refreshes `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/marketing/marketing-engagement-lifecycle.json` with setup/cleanup evidence for disposable external activity-level engagement writes. The fixture backs `primaryConversions` and `allConversions` through executable parity rather than runtime tests alone.
 - HAR-684 adds `marketing-engagement-currency-validation` live parity for `marketingEngagementCreate` currency guardrails. Shopify returns `field: ["marketingEngagement"]` for the captured currency userErrors; an unrecognized `channelHandle` returns `INVALID_CHANNEL_HANDLE` before currency validation, so recognized channel-handle currency behavior remains runtime-test-backed until the conformance shop exposes a valid handle.
+- HAR-687 adds `marketing-activity-delete-external-guards` live parity for the no-selector delete guard and delete-all in-flight write rejection. The fixture records the blocked parent/child and native setup probes; local runtime tests cover those no-state-change guards until the conformance shop exposes a recognized channel handle and a non-external activity.
 - HAR-463 did not find a live evidence path for native/deprecated activity success or recognized channel-handle engagement success in the current disposable shop. Native success remains blocked on installing or discovering a deprecated `MarketingActivityExtension`; channel-level engagement success remains blocked because the live marketing event catalog has no non-null `channelHandle`, and probes for the conformance app handle plus common channel handles all returned `INVALID_CHANNEL_HANDLE`.
 - HAR-453 added focused local coverage that `marketingActivitiesDeleteAllExternal` removes staged external activities and events without deleting staged native activities. The operation still returns Shopify's captured asynchronous `Job` shape (`done: false`), and downstream local reads reflect the delete-all effect immediately so tests can observe deterministic draft state.
