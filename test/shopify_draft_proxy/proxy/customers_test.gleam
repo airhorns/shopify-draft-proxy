@@ -794,6 +794,121 @@ pub fn customer_address_lifecycle_test() {
   )
 }
 
+pub fn customer_address_country_province_validation_test() {
+  let proxy = draft_proxy.new()
+
+  let #(
+    Response(status: invalid_create_status, body: invalid_create_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"invalid-address@example.com\", addresses: [{ address1: \"1 Spear\", country: \"Atlantis\" }] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert invalid_create_status == 200
+  let invalid_create_json = json.to_string(invalid_create_body)
+  assert string.contains(invalid_create_json, "\"customer\":null")
+  assert string.contains(
+    invalid_create_json,
+    "\"userErrors\":[{\"field\":[\"addresses\",\"0\",\"country\"],\"message\":\"Country is invalid\",\"code\":\"INVALID\"}]",
+  )
+  assert_log_omits_root(proxy, "customerCreate")
+
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerCreate(input: { email: \"valid-address@example.com\", addresses: [{ address1: \"1 Valid St\", city: \"San Francisco\", countryCode: US, country: \"Canada\", provinceCode: CA, zip: \"94105\" }] }) { customer { id defaultAddress { country countryCodeV2 province provinceCode formattedArea } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+  let create_json = json.to_string(create_body)
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert string.contains(create_json, "\"country\":\"United States\"")
+  assert string.contains(create_json, "\"countryCodeV2\":\"US\"")
+  assert string.contains(create_json, "\"province\":\"California\"")
+
+  let #(
+    Response(status: create_address_status, body: create_address_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"2 Bad Country\", countryCode: ZZ, provinceCode: ON }) { address { id } userErrors { field message code } } }",
+    )
+  assert create_address_status == 200
+  let create_address_json = json.to_string(create_address_body)
+  assert string.contains(create_address_json, "\"address\":null")
+  assert string.contains(
+    create_address_json,
+    "\"userErrors\":[{\"field\":[\"address\",\"country\"],\"message\":\"Country is invalid\",\"code\":\"INVALID\"}]",
+  )
+  assert_log_omits_root(proxy, "customerAddressCreate")
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerUpdate(input: { id: \"gid://shopify/Customer/1\", addresses: [{ address1: \"3 Bad Province\", city: \"Chicago\", countryCode: US, provinceCode: ON }] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"customer\":null")
+  assert string.contains(
+    update_json,
+    "\"userErrors\":[{\"field\":[\"addresses\",\"0\",\"province\"],\"message\":\"Province is invalid\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { customerSet(identifier: { id: \"gid://shopify/Customer/1\" }, input: { email: \"valid-address@example.com\", addresses: [{ address1: \"4 Bad Province\", city: \"Chicago\", countryCode: US, provinceCode: ON }] }) { customer { id } userErrors { field message code } } }",
+    )
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"customer\":null")
+  assert string.contains(
+    set_json,
+    "\"userErrors\":[{\"field\":[\"input\",\"addresses\",\"0\",\"province\"],\"message\":\"Province is invalid\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(
+    Response(status: second_address_status, body: second_address_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { customerAddressCreate(customerId: \"gid://shopify/Customer/1\", address: { address1: \"5 Valid St\", city: \"New York\", countryCode: US, provinceCode: NY }) { address { id province provinceCode } userErrors { field message code } } }",
+    )
+  assert second_address_status == 200
+  let second_address_json = json.to_string(second_address_body)
+  assert string.contains(second_address_json, "\"province\":\"New York\"")
+
+  let #(
+    Response(status: address_update_status, body: address_update_body, ..),
+    proxy,
+  ) =
+    graphql(
+      proxy,
+      "mutation { customerAddressUpdate(customerId: \"gid://shopify/Customer/1\", addressId: \"gid://shopify/MailingAddress/3\", address: { countryCode: US, provinceCode: ON }) { address { id } userErrors { field message code } } }",
+    )
+  assert address_update_status == 200
+  let address_update_json = json.to_string(address_update_body)
+  assert string.contains(address_update_json, "\"address\":null")
+  assert string.contains(
+    address_update_json,
+    "\"userErrors\":[{\"field\":[\"address\",\"province\"],\"message\":\"Province is invalid\",\"code\":\"INVALID\"}]",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { defaultAddress { country countryCodeV2 province provinceCode } addressesV2(first: 5) { nodes { address1 province provinceCode } } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"province\":\"California\"")
+  assert !string.contains(read_json, "Bad Province")
+  assert !string.contains(read_json, "Bad Country")
+}
+
 pub fn customer_address_update_requires_address_owner_test() {
   let #(proxy, owner_id, address_id, other_id) = setup_cross_customer_address()
 

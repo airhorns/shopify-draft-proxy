@@ -52,6 +52,19 @@ fn price_rule_saved_search(id: String) -> SavedSearchRecord {
   )
 }
 
+fn redeem_code_saved_search(id: String, query: String) -> SavedSearchRecord {
+  SavedSearchRecord(
+    id: id,
+    legacy_resource_id: "67890",
+    name: "Redeem code search",
+    query: query,
+    resource_type: "DISCOUNT_REDEEM_CODE",
+    search_terms: "",
+    filters: [],
+    cursor: None,
+  )
+}
+
 pub fn bulk_selector_validation_matches_captured_code_roots_test() {
   let outcome =
     run_mutation(
@@ -86,6 +99,59 @@ pub fn bulk_selector_validation_accepts_known_price_rule_saved_search_test() {
 
   assert json.to_string(outcome.data)
     == "{\"data\":{\"discountCodeBulkActivate\":{\"userErrors\":[]}}}"
+}
+
+pub fn redeem_code_bulk_delete_validation_matches_captured_shopify_order_test() {
+  let created =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Bulk\", code: \"BULK\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let outcome =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { missing: discountCodeRedeemCodeBulkDelete(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { job { done } userErrors { field message code extraInfo } } tooMany: discountCodeRedeemCodeBulkDelete(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", ids: [\"gid://shopify/DiscountRedeemCode/2?shopify-draft-proxy=synthetic\"], search: \"code:BULK\") { job { done } userErrors { field message code extraInfo } } unknownDiscount: discountCodeRedeemCodeBulkDelete(discountId: \"gid://shopify/DiscountCodeNode/0\", ids: [\"gid://shopify/DiscountRedeemCode/2?shopify-draft-proxy=synthetic\"]) { job { done } userErrors { field message code extraInfo } } emptyIds: discountCodeRedeemCodeBulkDelete(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", ids: []) { job { done } userErrors { field message code extraInfo } } blankSearch: discountCodeRedeemCodeBulkDelete(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", search: \"   \") { job { done } userErrors { field message code extraInfo } } invalidSavedSearch: discountCodeRedeemCodeBulkDelete(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", savedSearchId: \"gid://shopify/SavedSearch/0\") { job { done } userErrors { field message code extraInfo } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"missing\":{\"job\":null,\"userErrors\":[{\"field\":null,\"message\":\"Missing expected argument key: 'ids', 'search' or 'saved_search_id'.\",\"code\":\"MISSING_ARGUMENT\",\"extraInfo\":null}]},\"tooMany\":{\"job\":null,\"userErrors\":[{\"field\":null,\"message\":\"Only one of 'ids', 'search' or 'saved_search_id' is allowed.\",\"code\":\"TOO_MANY_ARGUMENTS\",\"extraInfo\":null}]},\"unknownDiscount\":{\"job\":null,\"userErrors\":[{\"field\":[\"discountId\"],\"message\":\"Code discount does not exist.\",\"code\":\"INVALID\",\"extraInfo\":null}]},\"emptyIds\":{\"job\":null,\"userErrors\":[{\"field\":null,\"message\":\"Something went wrong, please try again.\",\"code\":null,\"extraInfo\":null}]},\"blankSearch\":{\"job\":null,\"userErrors\":[{\"field\":[\"search\"],\"message\":\"'Search' can't be blank.\",\"code\":\"BLANK\",\"extraInfo\":null}]},\"invalidSavedSearch\":{\"job\":null,\"userErrors\":[{\"field\":[\"savedSearchId\"],\"message\":\"Invalid 'saved_search_id'.\",\"code\":\"INVALID\",\"extraInfo\":null}]}}}"
+}
+
+pub fn redeem_code_bulk_delete_saved_search_selector_removes_matching_codes_test() {
+  let base_store =
+    store.upsert_base_saved_searches(store.new(), [
+      redeem_code_saved_search("gid://shopify/SavedSearch/67890", "code:BULK"),
+    ])
+  let created =
+    run_mutation_from(
+      base_store,
+      synthetic_identity.new(),
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Bulk\", code: \"BULK\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { message } } }",
+    )
+  let added =
+    run_mutation_from(
+      created.store,
+      created.identity,
+      "mutation { discountRedeemCodeBulkAdd(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", codes: [\"EXTRA\"]) { bulkCreation { codesCount } userErrors { message } } }",
+    )
+  let deleted =
+    run_mutation_from(
+      added.store,
+      added.identity,
+      "mutation { discountCodeRedeemCodeBulkDelete(discountId: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\", savedSearchId: \"gid://shopify/SavedSearch/67890\") { job { done } userErrors { field message code extraInfo } } }",
+    )
+
+  let assert Ok(after_delete) =
+    discounts.handle_discount_query(
+      deleted.store,
+      "query { codeDiscountNode(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { codeDiscount { codes(first: 5) { nodes { code } } } } }",
+      dict.new(),
+    )
+
+  assert json.to_string(deleted.data)
+    == "{\"data\":{\"discountCodeRedeemCodeBulkDelete\":{\"job\":{\"done\":true},\"userErrors\":[]}}}"
+  assert json.to_string(after_delete)
+    == "{\"codeDiscountNode\":{\"codeDiscount\":{\"codes\":{\"nodes\":[{\"code\":\"EXTRA\"}]}}}}"
 }
 
 pub fn bulk_selector_validation_keeps_unknown_ids_success_noop_test() {
