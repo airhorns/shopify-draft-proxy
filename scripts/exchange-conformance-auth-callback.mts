@@ -7,7 +7,7 @@ import {
   exchangeConformanceAuthCallback,
   getValidConformanceAccessToken,
 } from './shopify-conformance-auth.mjs';
-import { DEFAULT_ADMIN_API_VERSION } from '../src/shopify/api-version.js';
+import { DEFAULT_ADMIN_API_VERSION } from './support/shopify/api-version.js';
 
 const callbackArgs = process.argv.slice(2).filter((value) => value !== '--');
 const callbackUrl = callbackArgs[0];

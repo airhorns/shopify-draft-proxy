@@ -106,6 +106,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       '`staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains runtime-test-backed rather than live-parity-backed.',
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-contact-input-normalization',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-contact-input-normalization-conformance.mts',
+    purpose:
+      'B2B contact phone normalization, locale defaulting/format validation, and duplicate email/phone validation for create/update inputs.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-contact-input-normalization.json`,
+      'config/parity-specs/b2b/b2b-contact-input-normalization.json',
+    ],
+    cleanupBehavior: 'Creates one disposable company with B2B contacts, then deletes the company during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The active Shopify Admin 2026-04 schema exposes CompanyContact phone/locale input validation but not note/notes fields, so note-to-notes behavior remains runtime-test-backed.',
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',
@@ -908,7 +925,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['schema introspection access through the active Admin token'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}root-operation-introspection.json`,
-      'config/operation-registry.json updates when intentionally edited',
+      'src/shopify_draft_proxy/proxy/operation_registry_data.gleam updates when intentionally edited',
     ],
     cleanupBehavior: 'Read-only introspection; no cleanup expected.',
     expectedStatusChecks: ['conformance:check', 'conformance:status'],

@@ -2,7 +2,7 @@
 /**
  * Live end-to-end smoke for the Elixir+Gleam path.
  *
- * Pairs with `gleam/elixir_smoke/test/live_hybrid_e2e_test.exs`. This
+ * Pairs with `elixir_smoke/test/live_hybrid_e2e_test.exs`. This
  * launcher is the canonical way to run that `:live`-tagged test:
  *
  *   1. Builds a fresh Erlang shipment (`gleam export erlang-shipment`)
@@ -14,7 +14,7 @@
  *      with the `SHOPIFY_CONFORMANCE_*` env populated.
  *
  * Sibling: `scripts/e2e-product-create-commit-smoke.mts` exercises the
- * same flow against the JS-target proxy embedded in a Node Koa app —
+ * same flow against the JS-target proxy embedded in a Node HTTP app —
  * keep both green when changing committable mutation behaviour.
  *
  * Run via:  `pnpm e2e:elixir-product-create-commit-smoke`
@@ -63,10 +63,10 @@ console.log(`live target: ${adminOrigin} (api ${apiVersion}, store ${storeDomain
 console.log(`auth headers: ${authHeaderForLog}`);
 
 console.log('building Erlang shipment for shopify_draft_proxy...');
-runOrExit('sh', ['-lc', 'cd gleam && gleam export erlang-shipment']);
+runOrExit('sh', ['-lc', 'gleam export erlang-shipment']);
 
 console.log('running mix test --only live...');
-runOrExit('sh', ['-lc', 'cd gleam/elixir_smoke && mix test --only live test/live_hybrid_e2e_test.exs'], {
+runOrExit('sh', ['-lc', 'cd elixir_smoke && mix test --only live test/live_hybrid_e2e_test.exs'], {
   SHOPIFY_CONFORMANCE_STORE_DOMAIN: storeDomain,
   SHOPIFY_CONFORMANCE_ADMIN_ORIGIN: adminOrigin,
   SHOPIFY_CONFORMANCE_API_VERSION: apiVersion,

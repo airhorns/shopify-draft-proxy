@@ -41,7 +41,6 @@ install the root toolchain and package dependencies:
 
 ```sh
 corepack pnpm install
-cd gleam
 gleam deps download
 ```
 
@@ -114,7 +113,6 @@ The same Gleam core compiles to BEAM. Before Hex publication, the repository
 smoke path is:
 
 ```sh
-cd gleam
 gleam export erlang-shipment
 cd elixir_smoke
 mix test
@@ -243,15 +241,13 @@ workspace `.env` token values.
 
 ## TypeScript Retirement Boundary
 
-The runtime is Gleam. The remaining TypeScript runtime code is a retirement
-boundary: it stays in the repository only until full parity, packaging, CI, and
-conformance coverage are proven. Once parity is complete, the TypeScript runtime
-implementation and TypeScript runtime tests should be deleted instead of
-maintained beside the Gleam implementation.
+The runtime is Gleam. The legacy TypeScript runtime and TypeScript runtime tests
+have been removed after the full strict parity corpus moved to the Gleam runner.
 
-TypeScript build, capture, and registry scripts may remain where they are still
-the right repository tooling; deleting the runtime does not require rewriting
-live conformance capture tooling.
+TypeScript still exists where it is the right repository tooling: the JavaScript
+interop shim under `js/src`, live conformance capture scripts, registry
+checks, and report generation. Those files do not own Shopify domain runtime
+behavior.
 
 ## Important Docs
 

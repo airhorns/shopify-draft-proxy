@@ -1,0 +1,14 @@
+mutation HAR614ContactUpdate($companyContactId: ID!, $input: CompanyContactInput!) {
+  companyContactUpdate(companyContactId: $companyContactId, input: $input) {
+    companyContact {
+      id
+      locale
+      title
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
