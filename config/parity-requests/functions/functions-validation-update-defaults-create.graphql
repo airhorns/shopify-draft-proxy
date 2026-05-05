@@ -1,0 +1,15 @@
+mutation ValidationUpdateDefaultsSetup($validation: ValidationCreateInput!) {
+  validationCreate(validation: $validation) {
+    validation {
+      id
+      title
+      enabled
+      blockOnFailure
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

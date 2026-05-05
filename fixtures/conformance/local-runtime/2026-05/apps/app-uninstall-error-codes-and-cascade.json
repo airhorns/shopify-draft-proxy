@@ -1,0 +1,94 @@
+{
+  "scenarioId": "app-uninstall-error-codes-and-cascade",
+  "recordedAt": "2026-05-05T00:00:00.000Z",
+  "source": "local-runtime",
+  "upstreamCalls": [],
+  "evidence": {
+    "parity": {
+      "expected": {
+        "unknownAppId": {
+          "data": {
+            "appUninstall": {
+              "app": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "The app cannot be found.",
+                  "code": "APP_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        },
+        "subscriptionCreate": {
+          "data": {
+            "appSubscriptionCreate": {
+              "appSubscription": {
+                "status": "ACTIVE"
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "delegateCreate": {
+          "data": {
+            "delegateAccessTokenCreate": {
+              "delegateAccessToken": {
+                "accessScopes": ["read_products"],
+                "expiresIn": 3600
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "uninstallCurrent": {
+          "data": {
+            "appUninstall": {
+              "app": {
+                "id": "gid://shopify/App/2"
+              },
+              "userErrors": []
+            }
+          }
+        },
+        "subscriptionNode": {
+          "data": {
+            "node": {
+              "__typename": "AppSubscription",
+              "status": "CANCELLED"
+            }
+          }
+        },
+        "delegateDestroy": {
+          "data": {
+            "delegateAccessTokenDestroy": {
+              "status": false,
+              "userErrors": [
+                {
+                  "field": ["accessToken"],
+                  "message": "Access token not found.",
+                  "code": "ACCESS_TOKEN_NOT_FOUND"
+                }
+              ]
+            }
+          }
+        },
+        "knownUninstalledApp": {
+          "data": {
+            "appUninstall": {
+              "app": null,
+              "userErrors": [
+                {
+                  "field": ["id"],
+                  "message": "App is not installed on this shop.",
+                  "code": "APP_NOT_INSTALLED"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "notes": "Executable local-runtime fixture for HAR-747. The flow intentionally earns state through replayed appSubscriptionCreate, delegateAccessTokenCreate, and appUninstall requests instead of pre-seeding parity runner state."
+}

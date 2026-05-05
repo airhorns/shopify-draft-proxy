@@ -90,5 +90,5 @@
       }
     ]
   },
-  "notes": "HAR-703 executable parity coverage for validationUpdate shape fidelity. The local-runtime cassette grounds Function lookup through a shopifyFunctions upstream read containing two VALIDATION functions; the scenario verifies update rejects rebind-only input fields, enforces the active-validation cap when re-enabling with the updated validation excluded, persists validation metafields, and exposes those metafields through a downstream validations connection without runtime Shopify writes."
+  "notes": "HAR-703/HAR-777 executable parity coverage for validationUpdate shape fidelity. The local-runtime cassette grounds Function lookup through a shopifyFunctions upstream read containing two VALIDATION functions; the scenario verifies update rejects rebind-only input fields, enforces the 25-active-validation cap when re-enabling with the updated validation excluded, persists validation metafields, and exposes those metafields through a downstream validations connection without runtime Shopify writes."
 }

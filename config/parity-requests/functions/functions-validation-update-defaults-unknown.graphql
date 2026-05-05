@@ -1,0 +1,12 @@
+mutation ValidationUpdateUnknownId($id: ID!, $validation: ValidationUpdateInput!) {
+  validationUpdate(id: $id, validation: $validation) {
+    validation {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

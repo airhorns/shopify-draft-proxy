@@ -662,6 +662,39 @@ const flowTriggerOversizeMutation = `#graphql
   }
 `;
 
+const flowTriggerBodyNotJsonMutation = `#graphql
+  mutation FlowTriggerReceiveBodyNotJson {
+    flowTriggerReceive(body: "not json") {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const flowTriggerBodyPropertiesNotObjectMutation = `#graphql
+  mutation FlowTriggerReceiveBodyPropertiesNotObject {
+    flowTriggerReceive(body: "{\\"properties\\":\\"oops\\"}") {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+const flowTriggerBodyMissingResourceUrlMutation = `#graphql
+  mutation FlowTriggerReceiveBodyMissingResourceUrl {
+    flowTriggerReceive(body: "{\\"trigger_id\\":\\"abc\\",\\"resources\\":[{\\"name\\":\\"x\\"}],\\"properties\\":{}}") {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const flowGenerateUnknownMutation = `mutation {
   flowGenerateSignature(id: "gid://shopify/FlowTrigger/0", payload: "{}") {
     signature
@@ -887,6 +920,18 @@ const captures = {
     result: await runGraphqlCapture(flowTriggerOversizeMutation, {
       payload: { value: 'x'.repeat(50_001) },
     }),
+  },
+  flowTriggerReceiveBodyNotJson: {
+    query: flowTriggerBodyNotJsonMutation,
+    result: await runGraphqlCapture(flowTriggerBodyNotJsonMutation),
+  },
+  flowTriggerReceiveBodyPropertiesNotObject: {
+    query: flowTriggerBodyPropertiesNotObjectMutation,
+    result: await runGraphqlCapture(flowTriggerBodyPropertiesNotObjectMutation),
+  },
+  flowTriggerReceiveBodyMissingResourceUrl: {
+    query: flowTriggerBodyMissingResourceUrlMutation,
+    result: await runGraphqlCapture(flowTriggerBodyMissingResourceUrlMutation),
   },
   flowGenerateSignatureUnknown: {
     query: flowGenerateUnknownMutation,

@@ -99,6 +99,16 @@ defaults the created contact locale and derives the contact customer payload
 from the resolved local `Customer` record instead of synthesizing an arbitrary
 customer shape.
 
+Empty-object B2B write inputs short-circuit before local staging. The
+2026-04 `b2b-no-input-validation` parity capture records the public Admin
+payloads for the empty-object branches: `companyContactCreate`,
+`companyContactUpdate`, and `companyLocationUpdate` return root-specific
+`NO_INPUT` userErrors with a null field, while `companyUpdate` returns
+`INVALID` at `input` with Shopify's "At least one attribute to change must be
+present" message. The same capture records null-only probes showing the public
+schema does not treat explicit null keys as a uniform NO_INPUT branch, so the
+runtime null-only guardrail remains covered by the focused local test.
+
 HAR-446 captured a fidelity trap in the company-create path: when
 `companyCreate` creates both a main contact and a default company location,
 Shopify automatically assigns that contact the `Ordering only` role for that
@@ -132,6 +142,19 @@ error. The 2026-04 `b2b-contact-business-rule-preconditions` capture records the
 duplicate role, foreign/missing role, foreign/missing location, successful main
 contact delete, and completed B2B order-history delete rejection branches as
 strict replayable parity evidence.
+
+HAR-754 aligns bulk B2B resolver `userErrors.field` paths with Shopify's
+string-indexed list paths. Bulk company/contact/location deletes, role
+assignment/revoke roots, and location staff assignment/removal roots report
+failed entries at paths such as `["companyContactIds", "1"]` or
+`["rolesToAssign", "0", "companyLocationId"]` while preserving top-level
+single-ID field paths on the single-resource mutation surfaces. The 2026-04
+capture records the Shopify quirk that `companyLocationAssignRoles` reports
+missing contact/role entries at the indexed list item path (for example
+`["rolesToAssign", "0"]`) rather than at a nested sub-field. Staff assignment
+still does not synthesize a broader staff catalog, but missing staff-member and
+staff-assignment IDs use Shopify's indexed user error paths and null payload
+shape for the failed list-valued fields.
 
 Company location tax settings are written by
 `companyLocationTaxSettingsUpdate(...)` and can be read through the current
@@ -235,6 +258,10 @@ conformance-backed local modeling.
   `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-location-address-management.json`
 - Location/address management parity scenario:
   `config/parity-specs/b2b/b2b-location-address-management.json`
+- Empty input validation capture:
+  `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-no-input-validation.json`
+- Empty input validation parity scenario:
+  `config/parity-specs/b2b/b2b-no-input-validation.json`
 - Lifecycle runtime coverage:
 - Root inventory:
   `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
@@ -298,3 +325,12 @@ external IDs returning Shopify's observable `TAKEN` code, so the proxy emits
 DB-conflict enum names. Update mutations use the same checks while allowing the
 current record to retain its own unchanged external ID. Executable parity specs
 cover charset, too-long, duplicate-company, and duplicate-location branches.
+
+HAR-760 adds the captured create-only `customerSince` guard for
+`companyUpdate`. Shopify 2026-04 accepts `customerSince` on `companyCreate` but
+rejects `companyUpdate(input.customerSince)` whenever the key is present,
+including `null`, with `INVALID_INPUT`, field `["input", "customerSince"]`, and
+message `This field may only be set on creation.` The checked-in parity
+scenario records timestamp-only, mixed `name` plus `customerSince`, and
+`customerSince: null` updates; each rejected update is followed by a company
+read proving the original `name` and `customerSince` stayed unchanged.

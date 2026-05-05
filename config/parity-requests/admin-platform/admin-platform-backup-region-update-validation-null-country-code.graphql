@@ -1,0 +1,11 @@
+mutation BackupRegionUpdateNullCountryCode {
+  backupRegionUpdate(region: { countryCode: null }) {
+    backupRegion {
+      id
+    }
+    userErrors {
+      field
+      code
+    }
+  }
+}

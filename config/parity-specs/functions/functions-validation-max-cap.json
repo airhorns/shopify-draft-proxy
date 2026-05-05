@@ -1,0 +1,38 @@
+{
+  "scenarioId": "functions-validation-max-cap",
+  "operationNames": ["validationCreate", "validationUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "side-effect-boundary", "functions-validation-max-cap"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-04/functions/functions-validation-max-cap.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/functions_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-validation-max-cap-stage.graphql",
+    "variables": {}
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "validation-create-max-active-data",
+        "capturePath": "$.primary.response.data.maxActive",
+        "proxyPath": "$.data.maxActive"
+      },
+      {
+        "name": "validation-update-max-active-data",
+        "capturePath": "$.updateMaxActive.response.data.validationUpdate",
+        "proxyPath": "$.data.validationUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-validation-update-shape-max-active.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.inactiveSubject.validation.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "HAR-777 executable parity coverage for the Shopify 25-active validation cap. The primary request stages 25 active validations plus one inactive validation locally, proves the 26th active validationCreate returns MAX_VALIDATIONS_ACTIVATED with a base field path, and then proves validationUpdate(enable: true) on the inactive validation returns the same cap error without runtime Shopify writes."
+}

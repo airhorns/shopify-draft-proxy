@@ -1,0 +1,116 @@
+{
+  "scenarioId": "app-uninstall-error-codes-and-cascade",
+  "operationNames": [
+    "appUninstall",
+    "appSubscriptionCreate",
+    "delegateAccessTokenCreate",
+    "node",
+    "delegateAccessTokenDestroy"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "mutation-log-replay",
+    "no-upstream-passthrough"
+  ],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2026-05/apps/app-uninstall-error-codes-and-cascade.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/apps_mutation_test.gleam"],
+  "comparisonMode": "captured-vs-proxy-request",
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/apps/appUninstall-unknown-input.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/App/9999999999"
+      }
+    }
+  },
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-app-id",
+        "capturePath": "$.evidence.parity.expected.unknownAppId.data.appUninstall",
+        "proxyPath": "$.data.appUninstall",
+        "selectedPaths": ["$.app", "$.userErrors[*].field", "$.userErrors[*].message", "$.userErrors[*].code"]
+      },
+      {
+        "name": "subscription-create-setup",
+        "capturePath": "$.evidence.parity.expected.subscriptionCreate.data.appSubscriptionCreate",
+        "proxyPath": "$.data.appSubscriptionCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscriptionCreate-uninstall-cascade.graphql"
+        },
+        "selectedPaths": ["$.appSubscription.status", "$.userErrors"]
+      },
+      {
+        "name": "delegate-token-create-setup",
+        "capturePath": "$.evidence.parity.expected.delegateCreate.data.delegateAccessTokenCreate",
+        "proxyPath": "$.data.delegateAccessTokenCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenCreate-current-input-local-lifecycle.graphql"
+        },
+        "selectedPaths": ["$.delegateAccessToken.accessScopes", "$.delegateAccessToken.expiresIn", "$.userErrors"]
+      },
+      {
+        "name": "uninstall-current-cascades",
+        "capturePath": "$.evidence.parity.expected.uninstallCurrent.data.appUninstall",
+        "proxyPath": "$.data.appUninstall",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appUninstall-cascade-current.graphql"
+        },
+        "selectedPaths": ["$.app", "$.userErrors"]
+      },
+      {
+        "name": "subscription-node-cancelled-after-uninstall",
+        "capturePath": "$.evidence.parity.expected.subscriptionNode.data.node",
+        "proxyPath": "$.data.node",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appSubscription-node-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "subscription-create-setup",
+              "path": "$.data.appSubscriptionCreate.appSubscription.id"
+            }
+          }
+        },
+        "selectedPaths": ["$.__typename", "$.status"]
+      },
+      {
+        "name": "delegate-token-destroy-after-uninstall",
+        "capturePath": "$.evidence.parity.expected.delegateDestroy.data.delegateAccessTokenDestroy",
+        "proxyPath": "$.data.delegateAccessTokenDestroy",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/delegateAccessTokenDestroy-local-lifecycle.graphql",
+          "variables": {
+            "token": {
+              "fromProxyResponse": "delegate-token-create-setup",
+              "path": "$.data.delegateAccessTokenCreate.delegateAccessToken.accessToken"
+            }
+          }
+        },
+        "selectedPaths": ["$.status", "$.userErrors[*].field", "$.userErrors[*].message", "$.userErrors[*].code"]
+      },
+      {
+        "name": "known-app-id-after-uninstall-not-installed",
+        "capturePath": "$.evidence.parity.expected.knownUninstalledApp.data.appUninstall",
+        "proxyPath": "$.data.appUninstall",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/apps/appUninstall-unknown-input.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromProxyResponse": "uninstall-current-cascades",
+                "path": "$.data.appUninstall.app.id"
+              }
+            }
+          }
+        },
+        "selectedPaths": ["$.app", "$.userErrors[*].field", "$.userErrors[*].message", "$.userErrors[*].code"]
+      }
+    ]
+  },
+  "notes": "HAR-747 local-runtime executable scenario. It avoids base-state seeding: the subscription, delegated token, and known-app-not-installed branch are earned through replayed proxy requests. Live billing-capable Shopify capture remains blocked by the custom-app Billing API limitation tracked in HAR-631."
+}
