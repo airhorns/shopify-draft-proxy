@@ -562,6 +562,16 @@ fn value_matches(value: JsonValue, matcher: String) -> Bool {
         JString(s) -> string.starts_with(s, prefix)
         _ -> False
       }
+    "shop-policy-url-base:" <> base ->
+      case value {
+        JString(s) -> is_shop_policy_url(s, base)
+        _ -> False
+      }
+    "exact-string:" <> expected ->
+      case value {
+        JString(s) -> s == expected
+        _ -> False
+      }
     _ ->
       case value {
         JString(s) -> s == matcher
@@ -624,6 +634,30 @@ fn is_shopify_gid(s: String, ty: String) -> Bool {
         Error(_) -> rest
       }
       string.length(id_part) > 0
+    }
+  }
+}
+
+fn is_shop_policy_url(s: String, base: String) -> Bool {
+  let normalized_base = case string.ends_with(base, "/") {
+    True -> string.drop_end(base, 1)
+    False -> base
+  }
+  let prefix = normalized_base <> "/"
+  case string.starts_with(s, prefix) {
+    False -> False
+    True -> {
+      let rest = string.drop_start(s, string.length(prefix))
+      let #(shop_tail, after_shop_tail) = take_digits(rest, "")
+      case shop_tail, string.starts_with(after_shop_tail, "/policies/") {
+        "", _ -> False
+        _, False -> False
+        _, True -> {
+          let policy_part = string.drop_start(after_shop_tail, 10)
+          let #(policy_tail, suffix) = take_digits(policy_part, "")
+          policy_tail != "" && suffix == ".html?locale=en"
+        }
+      }
     }
   }
 }

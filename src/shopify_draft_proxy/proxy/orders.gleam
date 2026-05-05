@@ -11348,7 +11348,7 @@ fn fulfillment_order_hold_validation_errors(
           nullable_user_error(
             Some(["fulfillmentHold", "handle"]),
             "Handle is too long (maximum is 64 characters)",
-            None,
+            Some("TOO_LONG"),
           ),
         ]
         False -> {
@@ -11362,7 +11362,7 @@ fn fulfillment_order_hold_validation_errors(
               nullable_user_error(
                 Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
                 "The fulfillment order is not in a splittable state.",
-                None,
+                Some("FULFILLMENT_ORDER_NOT_SPLITTABLE"),
               ),
             ]
             False ->
@@ -11376,7 +11376,7 @@ fn fulfillment_order_hold_validation_errors(
                   nullable_user_error(
                     Some(["fulfillmentHold", "handle"]),
                     "The handle provided for the fulfillment hold is already in use by this app for another hold on this fulfillment order.",
-                    None,
+                    Some("DUPLICATE_FULFILLMENT_HOLD_HANDLE"),
                   ),
                 ]
                 False ->
@@ -11390,7 +11390,7 @@ fn fulfillment_order_hold_validation_errors(
                       nullable_user_error(
                         Some(["id"]),
                         "The maximum number of fulfillment holds for this fulfillment order has been reached for this app. An app can only have up to 10 holds on a single fulfillment order at any one time.",
-                        None,
+                        Some("FULFILLMENT_ORDER_HOLD_LIMIT_REACHED"),
                       ),
                     ]
                     False -> []
@@ -11425,7 +11425,7 @@ fn fulfillment_order_hold_line_item_quantity_errors(
               "quantity",
             ]),
             message,
-            None,
+            Some("GREATER_THAN_ZERO"),
           ),
         ])
       None -> errors
@@ -11449,7 +11449,7 @@ fn fulfillment_order_hold_duplicate_line_item_errors(
       nullable_user_error(
         Some(["fulfillmentHold", "fulfillmentOrderLineItems"]),
         "must contain unique line item ids",
-        None,
+        Some("DUPLICATED_FULFILLMENT_ORDER_LINE_ITEMS"),
       ),
     ]
     False -> []
@@ -13700,6 +13700,11 @@ fn handle_fulfillment_order_lifecycle_mutation(
                         )
                       {
                         "fulfillmentOrderHold", [_, ..] as user_errors -> {
+                          let nullable_user_errors =
+                            list.map(user_errors, fn(error) {
+                              let #(field, message, code) = error
+                              nullable_user_error(field, message, code)
+                            })
                           let payload =
                             serialize_fulfillment_order_mutation_payload(
                               field,
@@ -13711,7 +13716,7 @@ fn handle_fulfillment_order_lifecycle_mutation(
                                   Some(CapturedNull),
                                 ),
                               ],
-                              user_errors,
+                              nullable_user_errors,
                               fragments,
                             )
                           #(key, payload, store, identity, [], [], [])

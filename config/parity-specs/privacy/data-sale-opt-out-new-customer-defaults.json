@@ -1,0 +1,82 @@
+{
+  "scenarioId": "data-sale-opt-out-new-customer-defaults",
+  "operationNames": ["dataSaleOptOut", "customer", "customers"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "downstream-read-parity", "search-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/privacy/data-sale-opt-out-new-customer-defaults.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/privacy/dataSaleOptOut-parity.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.mutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 evidence for dataSaleOptOut on a fresh email. The mutation creates a new customer with the created-by-dns-form tag, locale en, verifiedEmail true, and state DISABLED; the tag-search read is polled until Shopify indexing returns the new customer. The live capture contradicts the ticket's internal-code expectation that verifiedEmail is false, so this executable parity spec follows observable Admin API behavior.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "mutation-data",
+        "capturePath": "$.mutation.response.data",
+        "proxyPath": "$.data",
+        "expectedDifferences": [
+          {
+            "path": "$.dataSaleOptOut.customerId",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The proxy returns a stable synthetic customer ID for the locally staged customer."
+          }
+        ]
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data.customer",
+        "proxyPath": "$.data.customer",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/data-sale-opt-out-new-customer-defaults-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.dataSaleOptOut.customerId"
+            }
+          }
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The downstream read uses the proxy-created synthetic customer ID."
+          }
+        ]
+      },
+      {
+        "name": "tag-search-read",
+        "capturePath": "$.tagSearchRead.response.data.customers",
+        "proxyPath": "$.data.customers",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/privacy/data-sale-opt-out-new-customer-defaults-tag-search.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.tagSearchRead.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.nodes[0].id",
+            "matcher": "shopify-gid:Customer",
+            "reason": "The tag-search connection returns the proxy-created synthetic customer ID."
+          },
+          {
+            "path": "$.pageInfo.startCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify cursors are opaque and differ from proxy connection cursors."
+          },
+          {
+            "path": "$.pageInfo.endCursor",
+            "matcher": "non-empty-string",
+            "reason": "Shopify cursors are opaque and differ from proxy connection cursors."
+          }
+        ]
+      }
+    ]
+  }
+}

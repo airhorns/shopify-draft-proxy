@@ -1,0 +1,163 @@
+{
+  "capturedAt": "2026-05-05T03:55:26.190Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "token": "H718-mos3i62e",
+  "notes": [
+    "HAR-718 capture for savedSearchCreate/savedSearchUpdate required input coercion.",
+    "Missing inline SavedSearchCreateInput required fields return top-level GraphQL errors before a data payload is emitted.",
+    "An explicitly empty query string is accepted on savedSearchCreate and the disposable saved search is deleted during cleanup.",
+    "Missing inline SavedSearchUpdateInput.id returns a top-level GraphQL error before resolver userErrors."
+  ],
+  "savedSearchCreateMissingName": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-name-create.graphql",
+    "variables": {},
+    "payload": {
+      "errors": [
+        {
+          "message": "Argument 'name' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
+          "locations": [
+            {
+              "line": 2,
+              "column": 28
+            }
+          ],
+          "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "name"],
+          "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "name",
+            "argumentType": "String!",
+            "inputObjectType": "SavedSearchCreateInput"
+          }
+        },
+        {
+          "message": "Argument 'query' on InputObject 'SavedSearchCreateInput' is required. Expected type String!",
+          "locations": [
+            {
+              "line": 2,
+              "column": 28
+            }
+          ],
+          "path": ["mutation SavedSearchCreateMissingName", "savedSearchCreate", "input", "query"],
+          "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "query",
+            "argumentType": "String!",
+            "inputObjectType": "SavedSearchCreateInput"
+          }
+        }
+      ]
+    }
+  },
+  "savedSearchCreateMissingResourceType": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-resource-type-create.graphql",
+    "variables": {},
+    "payload": {
+      "errors": [
+        {
+          "message": "Argument 'resourceType' on InputObject 'SavedSearchCreateInput' is required. Expected type SearchResultType!",
+          "locations": [
+            {
+              "line": 2,
+              "column": 28
+            }
+          ],
+          "path": ["mutation SavedSearchCreateMissingResourceType", "savedSearchCreate", "input", "resourceType"],
+          "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "resourceType",
+            "argumentType": "SearchResultType!",
+            "inputObjectType": "SavedSearchCreateInput"
+          }
+        }
+      ]
+    }
+  },
+  "savedSearchCreateEmptyQuery": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-empty-query-create.graphql",
+    "variables": {
+      "input": {
+        "resourceType": "PRODUCT",
+        "name": "H718 Empty Query H718-mos3i62e",
+        "query": ""
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchCreate": {
+          "savedSearch": {
+            "id": "gid://shopify/SavedSearch/4007395787058",
+            "legacyResourceId": "4007395787058",
+            "name": "H718 Empty Query H718-mos3i62e",
+            "query": "",
+            "resourceType": "PRODUCT"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "savedSearchUpdateMissingId": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-required-input-missing-id-update.graphql",
+    "variables": {},
+    "payload": {
+      "errors": [
+        {
+          "message": "Argument 'id' on InputObject 'SavedSearchUpdateInput' is required. Expected type ID!",
+          "locations": [
+            {
+              "line": 2,
+              "column": 28
+            }
+          ],
+          "path": ["mutation SavedSearchUpdateMissingId", "savedSearchUpdate", "input", "id"],
+          "extensions": {
+            "code": "missingRequiredInputObjectAttribute",
+            "argumentName": "id",
+            "argumentType": "ID!",
+            "inputObjectType": "SavedSearchUpdateInput"
+          }
+        }
+      ]
+    }
+  },
+  "cleanupDelete": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-query-grammar-delete.graphql",
+    "variables": {
+      "input": {
+        "id": "gid://shopify/SavedSearch/4007395787058"
+      }
+    },
+    "payload": {
+      "data": {
+        "savedSearchDelete": {
+          "deletedSavedSearchId": "gid://shopify/SavedSearch/4007395787058",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

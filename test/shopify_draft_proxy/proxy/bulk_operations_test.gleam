@@ -76,6 +76,23 @@ fn run_mutation_import_validator(inner_mutation: String) {
   )
 }
 
+fn run_query_mutation(query_string: String) -> String {
+  let document =
+    "mutation { bulkOperationRunQuery(query: \""
+    <> query_string
+    <> "\") { bulkOperation { id status } userErrors { field message code } } }"
+  let outcome =
+    bulk_operations.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      document,
+      empty_vars(),
+      empty_upstream_context(),
+    )
+  json.to_string(outcome.data)
+}
+
 fn bulk_operation(
   id: String,
   status: String,
@@ -261,6 +278,68 @@ pub fn run_query_without_connection_returns_shopify_error_test() {
   assert json.to_string(outcome.data)
     == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries must contain at least one connection.\",\"code\":\"INVALID\"}]}}}"
   assert outcome.staged_resource_ids == []
+}
+
+pub fn run_query_empty_string_returns_invalid_bulk_query_error_test() {
+  let response = run_query_mutation("")
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Invalid bulk query: syntax error, unexpected end of file\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_top_level_node_with_shopify_error_test() {
+  let response =
+    run_query_mutation("{ node(id: \\\"gid://shopify/Product/1\\\") { id } }")
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries cannot contain a top level `node` field.\",\"code\":\"INVALID\"},{\"field\":[\"query\"],\"message\":\"Bulk queries must contain at least one connection.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_nodes_selection_with_shopify_error_test() {
+  let response = run_query_mutation("{ products { nodes { id title } } }")
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'products'.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_more_than_five_connections_test() {
+  let response =
+    run_query_mutation(
+      "{ products { edges { node { id variants { edges { node { id } } } metafields { edges { node { id } } } collections { edges { node { id } } } media { edges { node { id } } } sellingPlanGroups { edges { node { id } } } } } } }",
+    )
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries cannot contain more than 5 connections.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_connection_nesting_depth_greater_than_two_test() {
+  let response =
+    run_query_mutation(
+      "{ collections { edges { node { id products { edges { node { id variants { edges { node { id metafields { edges { node { id } } } } } } } } } } } } }",
+    )
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"Bulk queries cannot contain connections with a nesting depth greater than 2.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_rejects_nested_connection_without_parent_id_test() {
+  let response =
+    run_query_mutation(
+      "{ products { edges { node { title variants { edges { node { id } } } } } } }",
+    )
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"The parent 'node' field for a nested connection must select the 'id' field without an alias and must be of 'ID' return type. Connection fields without 'id': products.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn run_query_accumulates_multiple_admin_query_errors_test() {
+  let response =
+    run_query_mutation(
+      "{ products { nodes { variants { edges { node { id } } } } } }",
+    )
+
+  assert response
+    == "{\"data\":{\"bulkOperationRunQuery\":{\"bulkOperation\":null,\"userErrors\":[{\"field\":[\"query\"],\"message\":\"All connection fields in a bulk query must select their contents using 'edges' > 'node', e.g: 'products { edges { node {'. Selecting via 'nodes' is not supported. Invalid connection fields: 'products'.\",\"code\":\"INVALID\"},{\"field\":[\"query\"],\"message\":\"The parent 'node' field for a nested connection must select the 'id' field without an alias and must be of 'ID' return type. Connection fields without 'id': products.\",\"code\":\"INVALID\"}]}}}"
 }
 
 pub fn run_mutation_missing_upload_stages_failed_job_test() {

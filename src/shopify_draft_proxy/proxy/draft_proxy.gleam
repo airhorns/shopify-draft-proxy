@@ -1296,14 +1296,15 @@ fn webhooks_mutation_handler(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-  _upstream: upstream_query.UpstreamContext,
+  upstream: upstream_query.UpstreamContext,
 ) -> mutation_helpers.MutationOutcome {
-  webhooks.process_mutation(
+  webhooks.process_mutation_with_headers(
     proxy.store,
     proxy.synthetic_identity,
     request_path,
     document,
     variables,
+    upstream.headers,
   )
 }
 
@@ -1447,13 +1448,14 @@ fn metaobject_definitions_mutation_handler(
   variables: Dict(String, root_field.ResolvedValue),
   upstream: upstream_query.UpstreamContext,
 ) -> mutation_helpers.MutationOutcome {
-  metaobject_definitions.process_mutation(
+  metaobject_definitions.process_mutation_with_headers(
     proxy.store,
     proxy.synthetic_identity,
     request_path,
     document,
     variables,
     upstream,
+    upstream.headers,
   )
 }
 
