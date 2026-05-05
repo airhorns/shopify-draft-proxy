@@ -848,6 +848,59 @@ pub fn webhook_subscription_create_http_uri_user_error_test() {
     == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address protocol http:// is not supported\"}]}}}"
 }
 
+pub fn webhook_subscription_create_json_only_topic_xml_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: RETURNS_APPROVE, webhookSubscription: { uri: \"https://hooks.example.com/returns\", format: XML }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"format\"],\"message\":\"Format 'xml' is invalid for this webhook topic. Allowed formats: json\"}]}}}"
+}
+
+pub fn webhook_subscription_create_pubsub_xml_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"pubsub://valid-project:topic\", format: XML }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"format\"],\"message\":\"Format can only be used with format: 'json'\"}]}}}"
+}
+
+pub fn webhook_subscription_create_empty_name_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\", name: \"\" }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name is too short (minimum is 1 character)\"},{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name name field can only contain alphanumeric characters, underscores, and hyphens\"}]}}}"
+}
+
+pub fn webhook_subscription_create_bad_name_format_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\", name: \"has spaces\" }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name name field can only contain alphanumeric characters, underscores, and hyphens\"}]}}}"
+}
+
+pub fn webhook_subscription_create_long_name_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/shop\", name: \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" }) { webhookSubscription { id } userErrors { field message } } }"
+  let body = run_mutation(store.new(), document)
+  assert body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"name\"],\"message\":\"Name is too long (maximum is 50 characters)\"}]}}}"
+}
+
+pub fn webhook_subscription_create_duplicate_topic_uri_user_error_test() {
+  let document =
+    "mutation { webhookSubscriptionCreate(topic: SHOP_UPDATE, webhookSubscription: { uri: \"https://hooks.example.com/dup\", format: JSON, filter: \"\" }) { webhookSubscription { id topic uri format filter } userErrors { field message } } }"
+  let first_outcome = run_mutation_outcome(store.new(), document)
+  let first_body = json.to_string(first_outcome.data)
+  assert first_body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":{\"id\":\"gid://shopify/WebhookSubscription/1?shopify-draft-proxy=synthetic\",\"topic\":\"SHOP_UPDATE\",\"uri\":\"https://hooks.example.com/dup\",\"format\":\"JSON\",\"filter\":\"\"},\"userErrors\":[]}}}"
+
+  let second_body = run_mutation(first_outcome.store, document)
+  assert second_body
+    == "{\"data\":{\"webhookSubscriptionCreate\":{\"webhookSubscription\":null,\"userErrors\":[{\"field\":[\"webhookSubscription\",\"callbackUrl\"],\"message\":\"Address for this topic has already been taken\"}]}}}"
+}
+
 pub fn webhook_subscription_create_accepts_callback_url_alias_test() {
   // Real Shopify accepts `callbackUrl` on `WebhookSubscriptionInput` as a
   // legacy alias for `uri`. The proxy used to read only `uri`, fabricating
