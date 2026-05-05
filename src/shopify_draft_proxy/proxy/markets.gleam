@@ -25,14 +25,12 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, serialize_empty_connection,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type LogDraft, single_root_log_draft,
+  type LogDraft, type MutationOutcome, MutationOutcome, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, DraftProxy, LiveHybrid, Response,
 }
-import shopify_draft_proxy/proxy/upstream_query.{
-  type UpstreamContext, empty_upstream_context,
-}
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry, is_proxy_synthetic_gid,
@@ -49,16 +47,6 @@ import shopify_draft_proxy/state/types.{
 
 pub type MarketsError {
   ParseFailed(root_field.RootFieldError)
-}
-
-pub type MutationOutcome {
-  MutationOutcome(
-    data: Json,
-    store: Store,
-    identity: SyntheticIdentityRegistry,
-    staged_resource_ids: List(String),
-    log_drafts: List(LogDraft),
-  )
 }
 
 type MarketConnectionItem {
@@ -862,40 +850,25 @@ fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
-  _request_path: String,
-  document: String,
-  variables: Dict(String, root_field.ResolvedValue),
-) -> Result(MutationOutcome, MarketsError) {
-  process_mutation_with_upstream(
-    store,
-    identity,
-    document,
-    variables,
-    empty_upstream_context(),
-  )
-}
-
-pub fn process_mutation_with_upstream(
-  store: Store,
-  identity: SyntheticIdentityRegistry,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
-) -> Result(MutationOutcome, MarketsError) {
-  use fields <- result.try(
-    root_field.get_root_fields(document)
-    |> result.map_error(ParseFailed),
-  )
-  let fragments = get_document_fragments(document)
-  let hydrated_store =
-    hydrate_mutation_preconditions(store, fields, variables, upstream)
-  Ok(handle_mutation_fields(
-    hydrated_store,
-    identity,
-    fields,
-    fragments,
-    variables,
-  ))
+) -> MutationOutcome {
+  case root_field.get_root_fields(document) {
+    Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
+    Ok(fields) -> {
+      let fragments = get_document_fragments(document)
+      let hydrated_store =
+        hydrate_mutation_preconditions(store, fields, variables, upstream)
+      handle_mutation_fields(
+        hydrated_store,
+        identity,
+        fields,
+        fragments,
+        variables,
+      )
+    }
+  }
 }
 
 fn serialize_root_fields(

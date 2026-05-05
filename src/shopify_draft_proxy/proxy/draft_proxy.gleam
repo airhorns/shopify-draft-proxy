@@ -413,33 +413,24 @@ fn reset_response() -> Response {
 }
 
 fn not_found_response() -> Response {
-  Response(
-    status: 404,
-    body: json.object([
-      #(
-        "errors",
-        json.array(
-          [json.object([#("message", json.string("Not found"))])],
-          fn(x) { x },
-        ),
-      ),
-    ]),
-    headers: [],
-  )
+  error_response(404, "Not found")
 }
 
 fn method_not_allowed_response() -> Response {
+  error_response(405, "Method not allowed")
+}
+
+/// Build a Shopify-style `{"errors": [...]}` envelope from a list of
+/// already-built error JSON objects.
+fn error_envelope(errors: List(Json)) -> Json {
+  json.object([#("errors", json.preprocessed_array(errors))])
+}
+
+/// Single-message error response with the given HTTP status.
+fn error_response(status: Int, message: String) -> Response {
   Response(
-    status: 405,
-    body: json.object([
-      #(
-        "errors",
-        json.array(
-          [json.object([#("message", json.string("Method not allowed"))])],
-          fn(x) { x },
-        ),
-      ),
-    ]),
+    status: status,
+    body: error_envelope([json.object([#("message", json.string(message))])]),
     headers: [],
   )
 }
@@ -570,7 +561,7 @@ fn record_proxied_mutation(
     mutation_helpers.LogDraft(
       operation_name: cap.operation_name,
       root_fields: parsed.root_fields,
-      primary_root_field: list.first(parsed.root_fields) |> result_to_option,
+      primary_root_field: list.first(parsed.root_fields) |> option.from_result,
       domain: domain,
       execution: execution,
       query: Some(body.query),
@@ -600,7 +591,7 @@ fn passthrough_capability_strings(
 ) -> #(String, String) {
   let candidates =
     list.append(list.map(parsed.root_fields, Some), case parsed.name {
-      Some(name) -> [Some(name)]
+      Some(_) -> [parsed.name]
       None -> []
     })
   case
@@ -618,13 +609,6 @@ fn passthrough_capability_strings(
       operation_registry.domain_to_string(cap.domain),
       operation_registry.execution_to_string(cap.execution),
     )
-  }
-}
-
-fn result_to_option(r: Result(a, b)) -> Option(a) {
-  case r {
-    Ok(value) -> Some(value)
-    Error(_) -> None
   }
 }
 
@@ -721,11 +705,7 @@ fn route_mutation(
 }
 
 fn schema_validation_error_response(errors: List(Json)) -> Response {
-  Response(
-    status: 200,
-    body: json.object([#("errors", json.preprocessed_array(errors))]),
-    headers: [],
-  )
+  Response(status: 200, body: error_envelope(errors), headers: [])
 }
 
 fn schema_validation_errors(
@@ -768,657 +748,28 @@ fn route_mutation_to_domain(
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case mutation_domain_for(proxy, parsed, query, primary_root_field) {
-    Ok(SavedSearchesDomain) ->
-      case
-        saved_searches.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle saved searches mutation"),
-          proxy,
-        )
-      }
-    Ok(WebhooksDomain) ->
-      case
-        webhooks.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle webhooks mutation"), proxy)
-      }
-    Ok(AppsDomain) ->
-      case
-        apps.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          proxy.config.shopify_admin_origin,
-          query,
-          variables,
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle apps mutation"), proxy)
-      }
-    Ok(FunctionsDomain) ->
-      case
-        functions.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle functions mutation"), proxy)
-      }
-    Ok(GiftCardsDomain) ->
-      case
-        gift_cards.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle gift cards mutation"),
-          proxy,
-        )
-      }
-    Ok(DiscountsDomain) ->
-      case
-        discounts.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle discounts mutation"), proxy)
-      }
-    Ok(B2BDomain) ->
-      case
-        b2b.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle B2B mutation"), proxy)
-      }
-    Ok(SegmentsDomain) ->
-      case
-        segments.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle segments mutation"), proxy)
-      }
-    Ok(MetafieldDefinitionsDomain) ->
-      case
-        metafield_definitions.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle metafield definitions mutation"),
-          proxy,
-        )
-      }
-    Ok(LocalizationDomain) ->
-      case
-        localization.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle localization mutation"),
-          proxy,
-        )
-      }
-    Ok(MetaobjectDefinitionsDomain) ->
-      case
-        metaobject_definitions.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle metaobject definitions mutation"),
-          proxy,
-        )
-      }
-    Ok(MarketingDomain) ->
-      case
-        marketing.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle marketing mutation"), proxy)
-      }
-    Ok(BulkOperationsDomain) ->
-      case
-        bulk_operations.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle bulk operations mutation"),
-          proxy,
-        )
-      }
-    Ok(MarketsDomain) ->
-      case
-        markets.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle markets mutation"), proxy)
-      }
-    Ok(MediaDomain) ->
-      case
-        media.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle media mutation"), proxy)
-      }
-    Ok(AdminPlatformDomain) ->
-      case
-        admin_platform.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle admin platform mutation"),
-          proxy,
-        )
-      }
-    Ok(OnlineStoreDomain) ->
-      case
-        online_store.process_mutation(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle online-store mutation"),
-          proxy,
-        )
-      }
-    Ok(StorePropertiesDomain) ->
-      case
-        store_properties.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            proxy.upstream_transport,
-            proxy.config.shopify_admin_origin,
-            request_headers,
-          ),
-        )
-      {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
-        Error(_) -> #(
-          bad_request("Failed to handle store properties mutation"),
-          proxy,
-        )
-      }
-    Ok(ProductsDomain) ->
-      case
-        products.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            proxy.upstream_transport,
-            proxy.config.shopify_admin_origin,
-            request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle products mutation"), proxy)
-      }
-    Ok(PrivacyDomain) ->
-      case
-        privacy.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle privacy mutation"), proxy)
-      }
-    Ok(CustomersDomain) ->
-      case
-        customers.process_mutation_with_upstream(
-          proxy,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) -> #(
-          Response(status: 200, body: outcome.data, headers: []),
-          DraftProxy(
-            ..proxy,
-            store: outcome.store,
-            synthetic_identity: outcome.identity,
-          ),
-        )
-        Error(_) -> #(bad_request("Failed to handle customers mutation"), proxy)
-      }
-    Ok(PaymentsDomain) ->
-      case
-        payments.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle payments mutation"), proxy)
-      }
-    Ok(ShippingFulfillmentsDomain) ->
-      case
-        shipping_fulfillments.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(
-          bad_request("Failed to handle shipping fulfillments mutation"),
-          proxy,
-        )
-      }
-    Ok(OrdersDomain) ->
-      case
-        orders.process_mutation_with_upstream(
-          proxy.store,
-          proxy.synthetic_identity,
-          request_path,
-          query,
-          variables,
-          upstream_query.UpstreamContext(
-            transport: proxy.upstream_transport,
-            origin: proxy.config.shopify_admin_origin,
-            headers: request_headers,
-          ),
-        )
-      {
-        Ok(outcome) ->
-          finalize_mutation_outcome(
-            proxy,
-            request_path,
-            query,
-            variables,
-            outcome.data,
-            outcome.store,
-            outcome.identity,
-            outcome.log_drafts,
-          )
-        Error(_) -> #(bad_request("Failed to handle orders mutation"), proxy)
-      }
-    Ok(_) | Error(_) -> #(
+  let upstream =
+    upstream_query.UpstreamContext(
+      transport: proxy.upstream_transport,
+      origin: proxy.config.shopify_admin_origin,
+      headers: request_headers,
+    )
+
+  case mutation_handler_for(proxy, parsed, query, primary_root_field) {
+    Some(handler) -> {
+      let outcome = handler(proxy, request_path, query, variables, upstream)
+      finalize_mutation_outcome(
+        proxy,
+        request_path,
+        query,
+        variables,
+        outcome.data,
+        outcome.store,
+        outcome.identity,
+        outcome.log_drafts,
+      )
+    }
+    None -> #(
       bad_request(
         "No mutation dispatcher implemented for root field: "
         <> primary_root_field,
@@ -1436,208 +787,10 @@ fn route_query(
   primary_root_field: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> #(Response, DraftProxy) {
-  case query_domain_for(proxy, parsed, query, primary_root_field) {
-    Ok(EventsDomain) ->
-      respond(proxy, events.process(query), "Failed to handle events query")
-    Ok(DeliverySettingsDomain) ->
-      respond(
-        proxy,
-        delivery_settings.process(query),
-        "Failed to handle delivery settings query",
-      )
-    Ok(SavedSearchesDomain) ->
-      respond(
-        proxy,
-        saved_searches.process(proxy.store, query, variables),
-        "Failed to handle saved searches query",
-      )
-    Ok(WebhooksDomain) ->
-      respond(
-        proxy,
-        webhooks.process(proxy.store, query, variables),
-        "Failed to handle webhooks query",
-      )
-    Ok(AppsDomain) ->
-      apps.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(FunctionsDomain) ->
-      functions.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(GiftCardsDomain) ->
-      respond(
-        proxy,
-        gift_cards.process(proxy.store, query, variables),
-        "Failed to handle gift cards query",
-      )
-    Ok(DiscountsDomain) ->
-      discounts.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(B2BDomain) ->
-      b2b.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(SegmentsDomain) ->
-      segments.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(MetafieldDefinitionsDomain) ->
-      metafield_definitions.handle_query_request(
-        proxy,
-        request,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(LocalizationDomain) ->
-      localization.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(MetaobjectDefinitionsDomain) ->
-      metaobject_definitions.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(MarketingDomain) ->
-      respond(
-        proxy,
-        marketing.process(proxy.store, query, variables),
-        "Failed to handle marketing query",
-      )
-    Ok(BulkOperationsDomain) ->
-      respond(
-        proxy,
-        bulk_operations.process(proxy.store, query, variables),
-        "Failed to handle bulk operations query",
-      )
-    Ok(MarketsDomain) ->
-      markets.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(MediaDomain) ->
-      respond(
-        proxy,
-        media.process(proxy.store, query, variables),
-        "Failed to handle media query",
-      )
-    Ok(ProductsDomain) ->
-      products.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(AdminPlatformDomain) ->
-      admin_platform.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(StorePropertiesDomain) ->
-      store_properties.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(OnlineStoreDomain) ->
-      online_store.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(CustomersDomain) ->
-      customers.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(PaymentsDomain) ->
-      respond(
-        proxy,
-        payments.process(proxy.store, query, variables),
-        "Failed to handle payments query",
-      )
-    Ok(ShippingFulfillmentsDomain) ->
-      shipping_fulfillments.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(OrdersDomain) ->
-      orders.handle_query_request(
-        proxy,
-        request,
-        parsed,
-        primary_root_field,
-        query,
-        variables,
-      )
-    Ok(PrivacyDomain) -> #(
-      bad_request(
-        "No domain dispatcher implemented for root field: "
-        <> primary_root_field,
-      ),
-      proxy,
-    )
-    Error(_) -> #(
+  case query_handler_for(proxy, parsed, query, primary_root_field) {
+    Some(handler) ->
+      handler(proxy, request, parsed, primary_root_field, query, variables)
+    None -> #(
       bad_request(
         "No domain dispatcher implemented for root field: "
         <> primary_root_field,
@@ -1647,46 +800,46 @@ fn route_query(
   }
 }
 
-type Domain {
-  EventsDomain
-  DeliverySettingsDomain
-  SavedSearchesDomain
-  WebhooksDomain
-  AppsDomain
-  FunctionsDomain
-  GiftCardsDomain
-  DiscountsDomain
-  B2BDomain
-  SegmentsDomain
-  MetafieldDefinitionsDomain
-  LocalizationDomain
-  MetaobjectDefinitionsDomain
-  MarketingDomain
-  BulkOperationsDomain
-  MarketsDomain
-  MediaDomain
-  ProductsDomain
-  AdminPlatformDomain
-  StorePropertiesDomain
-  OnlineStoreDomain
-  PrivacyDomain
-  CustomersDomain
-  PaymentsDomain
-  ShippingFulfillmentsDomain
-  OrdersDomain
-}
+/// Closure invoked for a query whose domain has been resolved. Every
+/// domain module's `handle_query_request` already matches this shape,
+/// so the dispatch table just hands the function back directly.
+type QueryHandler =
+  fn(
+    DraftProxy,
+    Request,
+    ParsedOperation,
+    String,
+    String,
+    Dict(String, root_field.ResolvedValue),
+  ) -> #(Response, DraftProxy)
 
-/// Resolve a query operation's domain. The registry decides whether a
-/// known root is implemented at all; the local dispatch table decides
-/// whether this Gleam port can actually handle that root today.
-fn query_domain_for(
+/// Closure invoked for a mutation whose domain has been resolved.
+/// Domain modules' `process_mutation` signatures vary slightly (some
+/// take an upstream context, `apps` takes only the origin string,
+/// `customers` takes the whole proxy). The dispatch table normalizes
+/// them by wrapping each one in a closure that pulls what it needs
+/// out of the proxy and the shared `UpstreamContext`.
+type MutationHandler =
+  fn(
+    DraftProxy,
+    String,
+    String,
+    Dict(String, root_field.ResolvedValue),
+    upstream_query.UpstreamContext,
+  ) -> mutation_helpers.MutationOutcome
+
+/// Resolve a query operation's handler. The registry decides whether
+/// a known root is implemented at all; the local dispatch table
+/// decides whether this Gleam port can actually handle that root
+/// today.
+fn query_handler_for(
   proxy: DraftProxy,
   parsed: ParsedOperation,
   query: String,
   primary_root_field: String,
-) -> Result(Domain, Nil) {
+) -> Option(QueryHandler) {
   case parsed.type_ {
-    QueryOperation -> {
+    QueryOperation ->
       case
         operation_registry.find_entry(proxy.registry, operation_registry.Query, [
           Some(primary_root_field),
@@ -1694,42 +847,38 @@ fn query_domain_for(
       {
         Some(entry) ->
           case entry.implemented {
-            True -> local_query_dispatch_domain(primary_root_field, query)
-            False -> Error(Nil)
+            True -> local_query_handler(primary_root_field, query)
+            False -> None
           }
-        None -> local_query_dispatch_domain(primary_root_field, query)
+        None -> local_query_handler(primary_root_field, query)
       }
-    }
-    _ -> Error(Nil)
+    _ -> None
   }
 }
 
-fn mutation_domain_for(
+fn mutation_handler_for(
   proxy: DraftProxy,
   parsed: ParsedOperation,
   query: String,
   primary_root_field: String,
-) -> Result(Domain, Nil) {
+) -> Option(MutationHandler) {
   case parsed.type_ {
-    MutationOperation -> {
+    MutationOperation ->
       case
         operation_registry.find_entry(
           proxy.registry,
           operation_registry.Mutation,
-          [
-            Some(primary_root_field),
-          ],
+          [Some(primary_root_field)],
         )
       {
         Some(entry) ->
           case entry.implemented {
-            True -> local_mutation_dispatch_domain(primary_root_field, query)
-            False -> Error(Nil)
+            True -> local_mutation_handler(primary_root_field, query)
+            False -> None
           }
-        None -> local_mutation_dispatch_domain(primary_root_field, query)
+        None -> local_mutation_handler(primary_root_field, query)
       }
-    }
-    _ -> Error(Nil)
+    _ -> None
   }
 }
 
@@ -1749,16 +898,8 @@ pub fn registry_entry_has_local_dispatch(entry: RegistryEntry) -> Bool {
 
 fn local_dispatch_supported(type_: GraphQLOperationType, name: String) -> Bool {
   case type_ {
-    QueryOperation ->
-      case local_query_dispatch_domain(name, "") {
-        Ok(_) -> True
-        Error(_) -> False
-      }
-    MutationOperation ->
-      case local_mutation_dispatch_domain(name, "") {
-        Ok(_) -> True
-        Error(_) -> False
-      }
+    QueryOperation -> option.is_some(local_query_handler(name, ""))
+    MutationOperation -> option.is_some(local_mutation_handler(name, ""))
   }
 }
 
@@ -1767,45 +908,36 @@ fn local_registry_dispatch_supported(
   name: String,
 ) -> Bool {
   case type_ {
-    operation_registry.Query ->
-      case local_query_dispatch_domain(name, "") {
-        Ok(_) -> True
-        Error(_) -> False
-      }
+    operation_registry.Query -> option.is_some(local_query_handler(name, ""))
     operation_registry.Mutation ->
-      case local_mutation_dispatch_domain(name, "") {
-        Ok(_) -> True
-        Error(_) -> False
-      }
+      option.is_some(local_mutation_handler(name, ""))
   }
 }
 
-fn local_query_dispatch_domain(
-  name: String,
-  query: String,
-) -> Result(Domain, Nil) {
+fn local_query_handler(name: String, query: String) -> Option(QueryHandler) {
   case name {
-    "event" | "events" | "eventsCount" -> Ok(EventsDomain)
-    "deliverySettings" | "deliveryPromiseSettings" -> Ok(DeliverySettingsDomain)
+    "event" | "events" | "eventsCount" -> Some(events.handle_query_request)
+    "deliverySettings" | "deliveryPromiseSettings" ->
+      Some(delivery_settings.handle_query_request)
     "shop" ->
       case online_store.is_online_store_query_root(name, query) {
-        True -> Ok(OnlineStoreDomain)
-        False -> Ok(StorePropertiesDomain)
+        True -> Some(online_store.handle_query_request)
+        False -> Some(store_properties.handle_query_request)
       }
     "order" ->
       case shipping_fulfillment_order_lifecycle_query(query) {
-        True -> Ok(ShippingFulfillmentsDomain)
-        False -> Ok(OrdersDomain)
+        True -> Some(shipping_fulfillments.handle_query_request)
+        False -> Some(orders.handle_query_request)
       }
     "draftOrder" ->
       case draft_order_payment_terms_only_query(query) {
-        True -> Ok(PaymentsDomain)
-        False -> Ok(OrdersDomain)
+        True -> Some(payments.handle_query_request)
+        False -> Some(orders.handle_query_request)
       }
     "customer" ->
       case customer_payment_methods_only_query(query) {
-        True -> Ok(PaymentsDomain)
-        False -> Ok(CustomersDomain)
+        True -> Some(payments.handle_query_request)
+        False -> Some(customers.handle_query_request)
       }
     "market"
     | "markets"
@@ -1818,60 +950,84 @@ fn local_query_dispatch_domain(
     | "marketsResolvedValues"
     | "marketLocalizableResource"
     | "marketLocalizableResources"
-    | "marketLocalizableResourcesByIds" -> Ok(MarketsDomain)
+    | "marketLocalizableResourcesByIds" -> Some(markets.handle_query_request)
     "product" | "collection" ->
       case store_publishable_owner_query(name, query) {
-        True -> Ok(StorePropertiesDomain)
-        False -> Ok(ProductsDomain)
+        True -> Some(store_properties.handle_query_request)
+        False -> Some(products.handle_query_request)
       }
     _ ->
-      first_matching_domain([
-        #(payments.is_payments_query_root(name), PaymentsDomain),
-        #(saved_searches.is_saved_search_query_root(name), SavedSearchesDomain),
-        #(webhooks.is_webhook_subscription_query_root(name), WebhooksDomain),
-        #(apps.is_app_query_root(name), AppsDomain),
-        #(functions.is_function_query_root(name), FunctionsDomain),
-        #(gift_cards.is_gift_card_query_root(name), GiftCardsDomain),
-        #(discounts.is_discount_query_root(name), DiscountsDomain),
-        #(b2b.is_b2b_query_root(name), B2BDomain),
-        #(segments.is_segment_query_root(name), SegmentsDomain),
-        #(products.is_products_query_root(name), ProductsDomain),
-        #(customers.is_customer_query_root(name), CustomersDomain),
+      first_matching_handler([
+        #(payments.is_payments_query_root(name), payments.handle_query_request),
+        #(
+          saved_searches.is_saved_search_query_root(name),
+          saved_searches.handle_query_request,
+        ),
+        #(
+          webhooks.is_webhook_subscription_query_root(name),
+          webhooks.handle_query_request,
+        ),
+        #(apps.is_app_query_root(name), apps.handle_query_request),
+        #(
+          functions.is_function_query_root(name),
+          functions.handle_query_request,
+        ),
+        #(
+          gift_cards.is_gift_card_query_root(name),
+          gift_cards.handle_query_request,
+        ),
+        #(
+          discounts.is_discount_query_root(name),
+          discounts.handle_query_request,
+        ),
+        #(b2b.is_b2b_query_root(name), b2b.handle_query_request),
+        #(segments.is_segment_query_root(name), segments.handle_query_request),
+        #(products.is_products_query_root(name), products.handle_query_request),
+        #(
+          customers.is_customer_query_root(name),
+          customers.handle_query_request,
+        ),
         #(
           shipping_fulfillment_priority_query_root(name),
-          ShippingFulfillmentsDomain,
+          shipping_fulfillments.handle_query_request,
         ),
-        #(orders.is_orders_query_root(name), OrdersDomain),
+        #(orders.is_orders_query_root(name), orders.handle_query_request),
         #(
           metafield_definitions.is_metafield_definitions_query_root(name),
-          MetafieldDefinitionsDomain,
+          metafield_definitions.handle_query_request,
         ),
-        #(localization.is_localization_query_root(name), LocalizationDomain),
+        #(
+          localization.is_localization_query_root(name),
+          localization.handle_query_request,
+        ),
         #(
           metaobject_definitions.is_metaobject_definitions_query_root(name),
-          MetaobjectDefinitionsDomain,
+          metaobject_definitions.handle_query_request,
         ),
-        #(marketing.is_marketing_query_root(name), MarketingDomain),
+        #(
+          marketing.is_marketing_query_root(name),
+          marketing.handle_query_request,
+        ),
         #(
           bulk_operations.is_bulk_operations_query_root(name),
-          BulkOperationsDomain,
+          bulk_operations.handle_query_request,
         ),
-        #(media.is_media_query_root(name), MediaDomain),
+        #(media.is_media_query_root(name), media.handle_query_request),
         #(
           admin_platform.is_admin_platform_query_root(name),
-          AdminPlatformDomain,
+          admin_platform.handle_query_request,
         ),
         #(
           store_properties.is_store_properties_query_root(name),
-          StorePropertiesDomain,
+          store_properties.handle_query_request,
         ),
         #(
           online_store.is_online_store_query_root(name, query),
-          OnlineStoreDomain,
+          online_store.handle_query_request,
         ),
         #(
           shipping_fulfillments.is_shipping_fulfillment_query_root(name),
-          ShippingFulfillmentsDomain,
+          shipping_fulfillments.handle_query_request,
         ),
       ])
   }
@@ -1917,13 +1073,13 @@ fn customer_payment_methods_only_query(query: String) -> Bool {
   }
 }
 
-fn first_matching_domain(
-  candidates: List(#(Bool, Domain)),
-) -> Result(Domain, Nil) {
+fn first_matching_handler(
+  candidates: List(#(Bool, handler)),
+) -> Option(handler) {
   case candidates {
-    [] -> Error(Nil)
-    [#(True, domain), ..] -> Ok(domain)
-    [_, ..rest] -> first_matching_domain(rest)
+    [] -> None
+    [#(True, handler), ..] -> Some(handler)
+    [_, ..rest] -> first_matching_handler(rest)
   }
 }
 
@@ -1989,64 +1145,474 @@ fn shipping_fulfillment_order_lifecycle_query(query: String) -> Bool {
   || string.contains(query, "supportedActions")
 }
 
-fn local_mutation_dispatch_domain(
+fn local_mutation_handler(
   name: String,
   query: String,
-) -> Result(Domain, Nil) {
+) -> Option(MutationHandler) {
   case publishable_mutation_requests_store_properties(name, query) {
-    True -> Ok(StorePropertiesDomain)
-    False -> local_non_store_publishable_mutation_dispatch_domain(name)
+    True -> Some(store_properties_mutation_handler)
+    False -> local_non_store_publishable_mutation_handler(name)
   }
 }
 
-fn local_non_store_publishable_mutation_dispatch_domain(
+fn local_non_store_publishable_mutation_handler(
   name: String,
-) -> Result(Domain, Nil) {
-  first_matching_domain([
-    #(payments.is_payments_mutation_root(name), PaymentsDomain),
-    #(products.is_products_mutation_root(name), ProductsDomain),
+) -> Option(MutationHandler) {
+  first_matching_handler([
+    #(payments.is_payments_mutation_root(name), payments_mutation_handler),
+    #(products.is_products_mutation_root(name), products_mutation_handler),
     #(
       store_properties.is_store_properties_mutation_root(name),
-      StorePropertiesDomain,
+      store_properties_mutation_handler,
     ),
-    #(saved_searches.is_saved_search_mutation_root(name), SavedSearchesDomain),
-    #(webhooks.is_webhook_subscription_mutation_root(name), WebhooksDomain),
-    #(apps.is_app_mutation_root(name), AppsDomain),
-    #(functions.is_function_mutation_root(name), FunctionsDomain),
-    #(gift_cards.is_gift_card_mutation_root(name), GiftCardsDomain),
-    #(discounts.is_discount_mutation_root(name), DiscountsDomain),
-    #(b2b.is_b2b_mutation_root(name), B2BDomain),
-    #(segments.is_segment_mutation_root(name), SegmentsDomain),
+    #(
+      saved_searches.is_saved_search_mutation_root(name),
+      saved_searches_mutation_handler,
+    ),
+    #(
+      webhooks.is_webhook_subscription_mutation_root(name),
+      webhooks_mutation_handler,
+    ),
+    #(apps.is_app_mutation_root(name), apps_mutation_handler),
+    #(functions.is_function_mutation_root(name), functions_mutation_handler),
+    #(gift_cards.is_gift_card_mutation_root(name), gift_cards_mutation_handler),
+    #(discounts.is_discount_mutation_root(name), discounts_mutation_handler),
+    #(b2b.is_b2b_mutation_root(name), b2b_mutation_handler),
+    #(segments.is_segment_mutation_root(name), segments_mutation_handler),
     #(
       metafield_definitions.is_metafield_definitions_mutation_root(name),
-      MetafieldDefinitionsDomain,
+      metafield_definitions_mutation_handler,
     ),
-    #(localization.is_localization_mutation_root(name), LocalizationDomain),
+    #(
+      localization.is_localization_mutation_root(name),
+      localization_mutation_handler,
+    ),
     #(
       metaobject_definitions.is_metaobject_definitions_mutation_root(name),
-      MetaobjectDefinitionsDomain,
+      metaobject_definitions_mutation_handler,
     ),
-    #(marketing.is_marketing_mutation_root(name), MarketingDomain),
+    #(marketing.is_marketing_mutation_root(name), marketing_mutation_handler),
     #(
       bulk_operations.is_bulk_operations_mutation_root(name),
-      BulkOperationsDomain,
+      bulk_operations_mutation_handler,
     ),
-    #(media.is_media_mutation_root(name), MediaDomain),
-    #(markets.is_markets_mutation_root(name), MarketsDomain),
-    #(admin_platform.is_admin_platform_mutation_root(name), AdminPlatformDomain),
-    #(online_store.is_online_store_mutation_root(name), OnlineStoreDomain),
-    #(privacy.is_privacy_mutation_root(name), PrivacyDomain),
+    #(media.is_media_mutation_root(name), media_mutation_handler),
+    #(markets.is_markets_mutation_root(name), markets_mutation_handler),
+    #(
+      admin_platform.is_admin_platform_mutation_root(name),
+      admin_platform_mutation_handler,
+    ),
+    #(
+      online_store.is_online_store_mutation_root(name),
+      online_store_mutation_handler,
+    ),
+    #(privacy.is_privacy_mutation_root(name), privacy_mutation_handler),
     #(
       shipping_fulfillment_priority_mutation_root(name),
-      ShippingFulfillmentsDomain,
+      shipping_fulfillments_mutation_handler,
     ),
-    #(orders.is_orders_mutation_root(name), OrdersDomain),
-    #(customers.is_customer_mutation_root(name), CustomersDomain),
+    #(orders.is_orders_mutation_root(name), orders_mutation_handler),
+    #(customers.is_customer_mutation_root(name), customers_mutation_handler),
     #(
       shipping_fulfillments.is_shipping_fulfillment_mutation_root(name),
-      ShippingFulfillmentsDomain,
+      shipping_fulfillments_mutation_handler,
     ),
   ])
+}
+
+/// Per-domain `MutationHandler` adapters. Each closure normalizes the
+/// domain module's `process_mutation` signature down to the shared
+/// `MutationHandler` shape — pulling `store` / `identity` out of the
+/// proxy and dropping or unpacking the `UpstreamContext` as needed.
+fn payments_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  payments.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn products_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  products.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn store_properties_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  store_properties.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn saved_searches_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  _upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  saved_searches.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+  )
+}
+
+fn webhooks_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  _upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  webhooks.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+  )
+}
+
+fn apps_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  _upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  apps.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    proxy.config.shopify_admin_origin,
+    document,
+    variables,
+  )
+}
+
+fn functions_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  functions.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn gift_cards_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  gift_cards.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn discounts_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  discounts.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn b2b_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  _upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  b2b.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+  )
+}
+
+fn segments_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  _upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  segments.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+  )
+}
+
+fn metafield_definitions_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  metafield_definitions.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn localization_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  _upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  localization.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+  )
+}
+
+fn metaobject_definitions_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  metaobject_definitions.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn marketing_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  _upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  marketing.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+  )
+}
+
+fn bulk_operations_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  bulk_operations.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn media_mutation_handler(
+  proxy: DraftProxy,
+  _request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  media.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn markets_mutation_handler(
+  proxy: DraftProxy,
+  _request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  markets.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn admin_platform_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  _upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  admin_platform.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+  )
+}
+
+fn online_store_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  _upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  online_store.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+  )
+}
+
+fn privacy_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  privacy.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn shipping_fulfillments_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  shipping_fulfillments.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn orders_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  orders.process_mutation(
+    proxy.store,
+    proxy.synthetic_identity,
+    request_path,
+    document,
+    variables,
+    upstream,
+  )
+}
+
+fn customers_mutation_handler(
+  proxy: DraftProxy,
+  request_path: String,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  upstream: upstream_query.UpstreamContext,
+) -> mutation_helpers.MutationOutcome {
+  customers.process_mutation(proxy, request_path, document, variables, upstream)
 }
 
 fn publishable_mutation_requests_store_properties(
@@ -2084,17 +1650,6 @@ fn shipping_fulfillment_priority_mutation_root(name: String) -> Bool {
     | "fulfillmentOrdersSetFulfillmentDeadline"
     | "fulfillmentOrderMerge" -> True
     _ -> False
-  }
-}
-
-fn respond(
-  proxy: DraftProxy,
-  result: Result(Json, a),
-  error_message: String,
-) -> #(Response, DraftProxy) {
-  case result {
-    Ok(envelope) -> #(Response(status: 200, body: envelope, headers: []), proxy)
-    Error(_) -> #(bad_request(error_message), proxy)
   }
 }
 
@@ -2141,18 +1696,7 @@ fn resolved_value_decoder() -> decode.Decoder(root_field.ResolvedValue) {
 }
 
 fn bad_request(message: String) -> Response {
-  Response(
-    status: 400,
-    body: json.object([
-      #(
-        "errors",
-        json.array([json.object([#("message", json.string(message))])], fn(x) {
-          x
-        }),
-      ),
-    ]),
-    headers: [],
-  )
+  error_response(400, message)
 }
 
 /// Render a port number for the cli/server adapter. Currently unused

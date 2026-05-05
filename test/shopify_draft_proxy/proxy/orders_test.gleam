@@ -5,6 +5,7 @@ import gleam/option.{type Option, None, Some}
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/proxy/orders
+import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types
@@ -275,13 +276,14 @@ pub fn orders_abandonment_delivery_status_unknown_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       query,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":null,\"userErrors\":[{\"field\":[\"abandonmentId\"],\"message\":\"abandonment_not_found\"}]}}}"
@@ -323,13 +325,14 @@ pub fn orders_access_denied_guardrails_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       query,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"errors\":[{\"message\":\"Access denied for orderCreateManualPayment field. Required access: `write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.\",\"extensions\":{\"code\":\"ACCESS_DENIED\",\"documentation\":\"https://shopify.dev/api/usage/access-scopes\",\"requiredAccess\":\"`write_orders` access scope. Also: The user must have mark_orders_as_paid permission. The API client must be installed on a Shopify Plus store to use the amount field.\"},\"path\":[\"orderCreateManualPayment\"]},{\"message\":\"Access denied for taxSummaryCreate field. Required access: `write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on.\",\"extensions\":{\"code\":\"ACCESS_DENIED\",\"documentation\":\"https://shopify.dev/api/usage/access-scopes\",\"requiredAccess\":\"`write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on.\"},\"path\":[\"taxSummaryCreate\"]}],\"data\":{\"orderCreateManualPayment\":null,\"taxSummaryCreate\":null}}"
@@ -445,13 +448,14 @@ pub fn orders_order_edit_begin_existing_order_payload_test() {
     }
   "
   let variables = dict.from_list([#("id", root_field.StringVal(order_id))])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":{\"id\":\"gid://shopify/CalculatedOrder/1\",\"originalOrder\":{\"id\":\"gid://shopify/Order/6834565087465\",\"name\":\"#1331\"},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/CalculatedLineItem/2\",\"title\":\"Custom installation service\",\"quantity\":2,\"currentQuantity\":2,\"sku\":\"hermes-custom-service-1777076856718\",\"variant\":null,\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}}}]},\"addedLineItems\":{\"nodes\":[]}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/1\"},\"userErrors\":[]}}}"
@@ -569,13 +573,14 @@ pub fn orders_order_edit_add_variant_payload_test() {
       ),
       #("allowDuplicates", root_field.BoolVal(False)),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"orderEditAddVariant\":{\"calculatedLineItem\":{\"id\":\"gid://shopify/CalculatedLineItem/1\",\"title\":\"VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE\",\"quantity\":1,\"currentQuantity\":1,\"sku\":\"VN-01-burgandy-4\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/46789254021353\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"29.0\",\"currencyCode\":\"CAD\"}}},\"orderEditSession\":{\"id\":\"gid://shopify/OrderEditSession/10\"},\"userErrors\":[]}}}"
@@ -637,13 +642,14 @@ pub fn orders_order_edit_add_variant_invalid_variant_payload_test() {
         ),
       ]),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       session_store,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"variantId\"],\"message\":\"can't convert Integer[0] to a positive Integer to use as an untrusted id\"}]}}}"
@@ -671,7 +677,7 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
     }
   "
 
-  let assert Ok(missing_outcome) =
+  let missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -680,6 +686,7 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/Order/0")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(missing_outcome.data)
     == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The order does not exist.\",\"code\":\"INVALID\"}]}}}"
@@ -690,13 +697,14 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
     |> store.upsert_base_orders([
       order_edit_test_order(refunded_id, "REFUNDED", None, []),
     ])
-  let assert Ok(refunded_outcome) =
+  let refunded_outcome =
     orders.process_mutation(
       refunded_store,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       begin,
       dict.from_list([#("id", root_field.StringVal(refunded_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(refunded_outcome.data)
     == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The order cannot be edited.\",\"code\":\"INVALID\"}]}}}"
@@ -718,7 +726,7 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
       }
     }
   "
-  let assert Ok(cancel_outcome) =
+  let cancel_outcome =
     orders.process_mutation(
       cancel_store,
       synthetic_identity.new(),
@@ -729,14 +737,16 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
         #("reason", root_field.StringVal("OTHER")),
         #("restock", root_field.BoolVal(True)),
       ]),
+      empty_upstream_context(),
     )
-  let assert Ok(canceled_begin_outcome) =
+  let canceled_begin_outcome =
     orders.process_mutation(
       cancel_outcome.store,
       cancel_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       begin,
       dict.from_list([#("id", root_field.StringVal(cancel_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(canceled_begin_outcome.data)
     == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The order cannot be edited.\",\"code\":\"INVALID\"}]}}}"
@@ -750,7 +760,7 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
         order_edit_test_session(existing_session_order_id, existing_session_id),
       ]),
     ])
-  let assert Ok(existing_session_outcome) =
+  let existing_session_outcome =
     orders.process_mutation(
       existing_session_store,
       synthetic_identity.new(),
@@ -759,6 +769,7 @@ pub fn orders_order_edit_begin_user_error_payload_shapes_test() {
       dict.from_list([
         #("id", root_field.StringVal(existing_session_order_id)),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(existing_session_outcome.data)
     == "{\"data\":{\"orderEditBegin\":{\"calculatedOrder\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"An edit is already in progress for this order\",\"code\":\"INVALID\"}]}}}"
@@ -787,7 +798,7 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
       }
     }
   "
-  let assert Ok(add_variant_outcome) =
+  let add_variant_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -798,6 +809,7 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
         #("variantId", root_field.StringVal("gid://shopify/ProductVariant/404")),
         #("quantity", root_field.IntVal(1)),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(add_variant_outcome.data)
     == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
@@ -812,7 +824,7 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
         ),
       ]),
     ])
-  let assert Ok(missing_variant_outcome) =
+  let missing_variant_outcome =
     orders.process_mutation(
       session_store,
       synthetic_identity.new(),
@@ -823,6 +835,7 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
         #("variantId", root_field.StringVal("gid://shopify/ProductVariant/404")),
         #("quantity", root_field.IntVal(1)),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(missing_variant_outcome.data)
     == "{\"data\":{\"orderEditAddVariant\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"variantId\"],\"message\":\"Variant does not exist\",\"code\":\"INVALID\"}]}}}"
@@ -848,7 +861,7 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
       }
     }
   "
-  let assert Ok(set_quantity_outcome) =
+  let set_quantity_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -862,11 +875,12 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
         ),
         #("quantity", root_field.IntVal(1)),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(set_quantity_outcome.data)
     == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
 
-  let assert Ok(missing_line_outcome) =
+  let missing_line_outcome =
     orders.process_mutation(
       session_store,
       synthetic_identity.new(),
@@ -880,6 +894,7 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
         ),
         #("quantity", root_field.IntVal(1)),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(missing_line_outcome.data)
     == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedOrder\":null,\"calculatedLineItem\":null,\"orderEditSession\":null,\"userErrors\":[{\"field\":[\"lineItemId\"],\"message\":\"Line item does not exist\",\"code\":\"INVALID\"}]}}}"
@@ -900,7 +915,7 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
       }
     }
   "
-  let assert Ok(commit_outcome) =
+  let commit_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -909,6 +924,7 @@ pub fn orders_order_edit_unknown_resource_user_error_payload_shapes_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/CalculatedOrder/404")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(commit_outcome.data)
     == "{\"data\":{\"orderEditCommit\":{\"order\":null,\"successMessages\":[],\"userErrors\":[{\"field\":[\"id\"],\"message\":\"The calculated order does not exist.\",\"code\":\"INVALID\"}]}}}"
@@ -1078,13 +1094,14 @@ pub fn orders_order_edit_set_quantity_payload_test() {
       #("quantity", root_field.IntVal(0)),
       #("restock", root_field.BoolVal(True)),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"orderEditSetQuantity\":{\"calculatedLineItem\":{\"title\":\"VANS |AUTHENTIC | LO PRO | BURGANDY/WHITE\",\"quantity\":0,\"currentQuantity\":0,\"sku\":\"VN-01-burgandy-4\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/46789254021353\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"29.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[]}}}"
@@ -1125,13 +1142,14 @@ pub fn orders_draft_order_create_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(missing_outcome) =
+  let missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       missing_input,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(missing_outcome.data)
     == "{\"errors\":[{\"message\":\"Field 'draftOrderCreate' is missing required arguments: input\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineMissingDraftOrderInput\",\"draftOrderCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"draftOrderCreate\",\"arguments\":\"input\"}}]}"
@@ -1150,13 +1168,14 @@ pub fn orders_draft_order_create_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(null_outcome) =
+  let null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       null_input,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(null_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'input' on Field 'draftOrderCreate' has an invalid value (null). Expected type 'DraftOrderInput!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineNullDraftOrderInput\",\"draftOrderCreate\",\"input\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"input\"}}]}"
@@ -1217,13 +1236,14 @@ pub fn orders_draft_order_create_payload_validation_matrix_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"noLineItems\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\"}]},\"unknownVariant\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Product with ID 999999999999999999 is no longer available.\"}]},\"customMissingTitle\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Merchandise title is empty.\"}]},\"zeroQuantity\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"lineItems\",\"0\",\"quantity\"],\"message\":\"Quantity must be greater than or equal to 1\"}]},\"paymentTerms\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Payment terms template id can not be empty.\"}]},\"negativePrice\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Cannot send negative price for line_item\"}]},\"pastReserve\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Reserve until can't be in the past\"}]},\"badEmail\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is invalid\"}]}}}"
@@ -1249,13 +1269,14 @@ pub fn orders_draft_order_complete_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(missing_outcome) =
+  let missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       missing_id,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(missing_outcome.data)
     == "{\"errors\":[{\"message\":\"Field 'draftOrderComplete' is missing required arguments: id\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation DraftOrderCompleteInlineMissingIdParity\",\"draftOrderComplete\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"draftOrderComplete\",\"arguments\":\"id\"}}]}"
@@ -1278,13 +1299,14 @@ pub fn orders_draft_order_complete_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(null_outcome) =
+  let null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       null_id,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(null_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'id' on Field 'draftOrderComplete' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation DraftOrderCompleteInlineNullIdParity\",\"draftOrderComplete\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"id\"}}]}"
@@ -1306,13 +1328,14 @@ pub fn orders_fulfillment_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(cancel_missing_outcome) =
+  let cancel_missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       cancel_missing_id,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(cancel_missing_outcome.data)
     == "{\"errors\":[{\"message\":\"Field 'fulfillmentCancel' is missing required arguments: id\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation FulfillmentCancelInlineMissingId\",\"fulfillmentCancel\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"fulfillmentCancel\",\"arguments\":\"id\"}}]}"
@@ -1332,13 +1355,14 @@ pub fn orders_fulfillment_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(cancel_null_outcome) =
+  let cancel_null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       cancel_null_id,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(cancel_null_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'id' on Field 'fulfillmentCancel' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation FulfillmentCancelInlineNullId\",\"fulfillmentCancel\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"id\"}}]}"
@@ -1383,13 +1407,14 @@ pub fn orders_fulfillment_validation_guardrails_test() {
       ),
       #("notifyCustomer", root_field.BoolVal(False)),
     ])
-  let assert Ok(tracking_missing_outcome) =
+  let tracking_missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       tracking_missing_id,
       tracking_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(tracking_missing_outcome.data)
     == "{\"errors\":[{\"message\":\"Field 'fulfillmentTrackingInfoUpdate' is missing required arguments: fulfillmentId\",\"locations\":[{\"line\":6,\"column\":7}],\"path\":[\"mutation FulfillmentTrackingInfoUpdateInlineMissingId\",\"fulfillmentTrackingInfoUpdate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"fulfillmentTrackingInfoUpdate\",\"arguments\":\"fulfillmentId\"}}]}"
@@ -1416,13 +1441,14 @@ pub fn orders_fulfillment_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(tracking_null_outcome) =
+  let tracking_null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       tracking_null_id,
       tracking_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(tracking_null_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'fulfillmentId' on Field 'fulfillmentTrackingInfoUpdate' has an invalid value (null). Expected type 'ID!'.\",\"locations\":[{\"line\":6,\"column\":7}],\"path\":[\"mutation FulfillmentTrackingInfoUpdateInlineNullId\",\"fulfillmentTrackingInfoUpdate\",\"fulfillmentId\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"fulfillmentId\"}}]}"
@@ -1508,13 +1534,14 @@ pub fn orders_fulfillment_cancel_tracking_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(tracking_outcome) =
+  let tracking_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       tracking_mutation,
       tracking_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(tracking_outcome.data)
     == "{\"data\":{\"fulfillmentTrackingInfoUpdate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"status\":\"SUCCESS\",\"trackingInfo\":[{\"number\":\"HERMES-UPDATE-20260425000631\",\"url\":\"https://example.com/track/HERMES-UPDATE-20260425000631\",\"company\":\"Hermes\"}]},\"userErrors\":[]}}}"
@@ -1544,13 +1571,14 @@ pub fn orders_fulfillment_cancel_tracking_read_after_write_test() {
   "
   let cancel_variables =
     dict.from_list([#("id", root_field.StringVal(fulfillment_id))])
-  let assert Ok(cancel_outcome) =
+  let cancel_outcome =
     orders.process_mutation(
       tracking_outcome.store,
       tracking_outcome.identity,
       "/admin/api/2025-01/graphql.json",
       cancel_mutation,
       cancel_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(cancel_outcome.data)
     == "{\"data\":{\"fulfillmentCancel\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/6189151518953\",\"status\":\"CANCELLED\",\"displayStatus\":\"CANCELED\",\"trackingInfo\":[{\"number\":\"HERMES-UPDATE-20260425000631\",\"url\":\"https://example.com/track/HERMES-UPDATE-20260425000631\",\"company\":\"Hermes\"}]},\"userErrors\":[]}}}"
@@ -1642,13 +1670,14 @@ pub fn orders_fulfillment_create_invalid_id_guardrail_test() {
       ),
       #("message", root_field.StringVal("hermes fulfillment probe")),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"errors\":[{\"message\":\"invalid id\",\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"},\"path\":[\"fulfillmentCreate\"]}],\"data\":{\"fulfillmentCreate\":null}}"
@@ -1844,13 +1873,14 @@ pub fn orders_fulfillment_create_event_and_detail_read_test() {
       ),
       #("message", root_field.StringVal("HAR-159 create")),
     ])
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       create_mutation,
       create_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(create_outcome.data)
     == "{\"data\":{\"fulfillmentCreate\":{\"fulfillment\":{\"id\":\"gid://shopify/Fulfillment/1\",\"status\":\"SUCCESS\",\"displayStatus\":\"FULFILLED\",\"trackingInfo\":[{\"number\":\"HAR159-CREATE\",\"url\":\"https://example.com/track/HAR159-CREATE\",\"company\":\"Hermes\"}],\"fulfillmentLineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentLineItem/2\",\"quantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-create\",\"title\":\"Fulfillment item\"}}]}},\"userErrors\":[]}}}"
@@ -1908,13 +1938,14 @@ pub fn orders_fulfillment_create_event_and_detail_read_test() {
         ),
       ),
     ])
-  let assert Ok(event_outcome) =
+  let event_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       event_mutation,
       event_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(event_outcome.data)
     == "{\"data\":{\"fulfillmentEventCreate\":{\"fulfillmentEvent\":{\"id\":\"gid://shopify/FulfillmentEvent/3\",\"status\":\"IN_TRANSIT\",\"message\":\"HAR-159 package scanned\",\"happenedAt\":\"2026-04-25T22:25:00Z\",\"estimatedDeliveryAt\":\"2026-04-27T18:00:00Z\",\"city\":\"Toronto\",\"province\":\"Ontario\",\"country\":\"Canada\",\"zip\":\"M5H 2M9\",\"address1\":\"123 Queen St W\",\"latitude\":43.6532,\"longitude\":-79.3832},\"userErrors\":[]}}}"
@@ -2078,13 +2109,14 @@ pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(hold_outcome) =
+  let hold_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       hold_mutation,
       hold_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(hold_outcome.data)
     == "{\"data\":{\"fulfillmentOrderHold\":{\"fulfillmentHold\":{\"handle\":\"local-lifecycle-hold\",\"reason\":\"OTHER\",\"reasonNotes\":\"Local lifecycle hold\",\"heldByRequestingApp\":true},\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/hold-release\",\"status\":\"ON_HOLD\",\"requestStatus\":\"UNSUBMITTED\",\"supportedActions\":[{\"action\":\"RELEASE_HOLD\"},{\"action\":\"HOLD\"},{\"action\":\"MOVE\"}],\"fulfillmentHolds\":[{\"handle\":\"local-lifecycle-hold\",\"reason\":\"OTHER\",\"reasonNotes\":\"Local lifecycle hold\",\"heldByRequestingApp\":true}],\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\",\"title\":\"Fulfillment order lifecycle item\"}}]}},\"remainingFulfillmentOrder\":{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\"}}]}},\"userErrors\":[]}}}"
@@ -2150,13 +2182,14 @@ pub fn orders_fulfillment_order_hold_release_read_after_write_test() {
       }
     }
   "
-  let assert Ok(release_outcome) =
+  let release_outcome =
     orders.process_mutation(
       hold_outcome.store,
       hold_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       release_mutation,
       dict.from_list([#("id", root_field.StringVal(fulfillment_order_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(release_outcome.data)
     == "{\"data\":{\"fulfillmentOrderReleaseHold\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/hold-release\",\"status\":\"OPEN\",\"fulfillmentHolds\":[],\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"},{\"action\":\"SPLIT\"}],\"lineItems\":{\"nodes\":[{\"totalQuantity\":2,\"remainingQuantity\":2}]}},\"userErrors\":[]}}}"
@@ -2247,13 +2280,14 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
         ]),
       ),
     ])
-  let assert Ok(move_outcome) =
+  let move_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       move_mutation,
       move_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(move_outcome.data)
     == "{\"data\":{\"fulfillmentOrderMove\":{\"movedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"OPEN\",\"assignedLocation\":{\"name\":\"Shop location\",\"location\":{\"id\":\"gid://shopify/Location/destination\",\"name\":\"Shop location\"}},\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"originalFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/lifecycle\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/lifecycle\",\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"userErrors\":[]}}}"
@@ -2277,7 +2311,7 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
       }
     }
   "
-  let assert Ok(progress_outcome) =
+  let progress_outcome =
     orders.process_mutation(
       move_outcome.store,
       move_outcome.identity,
@@ -2294,6 +2328,7 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
           ),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(progress_outcome.data)
     == "{\"data\":{\"fulfillmentOrderReportProgress\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"IN_PROGRESS\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"HOLD\"},{\"action\":\"MARK_AS_OPEN\"}]},\"userErrors\":[]}}}"
@@ -2316,13 +2351,14 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
       }
     }
   "
-  let assert Ok(open_outcome) =
+  let open_outcome =
     orders.process_mutation(
       progress_outcome.store,
       progress_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       open_mutation,
       dict.from_list([#("id", root_field.StringVal(moved_fulfillment_order_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(open_outcome.data)
     == "{\"data\":{\"fulfillmentOrderOpen\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"OPEN\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"}]},\"userErrors\":[]}}}"
@@ -2356,13 +2392,14 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
       }
     }
   "
-  let assert Ok(cancel_outcome) =
+  let cancel_outcome =
     orders.process_mutation(
       open_outcome.store,
       open_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(moved_fulfillment_order_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(cancel_outcome.data)
     == "{\"data\":{\"fulfillmentOrderCancel\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"CLOSED\",\"lineItems\":{\"nodes\":[]}},\"replacementFulfillmentOrder\":{\"status\":\"OPEN\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1}]}},\"userErrors\":[]}}}"
@@ -2390,7 +2427,7 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
       }
     }
   "
-  let assert Ok(guardrail_outcome) =
+  let guardrail_outcome =
     orders.process_mutation(
       cancel_outcome.store,
       cancel_outcome.identity,
@@ -2401,6 +2438,7 @@ pub fn orders_fulfillment_order_lifecycle_mutations_read_after_write_test() {
         #("fulfillAt", root_field.StringVal("2026-04-28T00:00:00Z")),
         #("message", root_field.StringVal("close guardrail")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(guardrail_outcome.data)
     == "{\"data\":{\"fulfillmentOrderReschedule\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Fulfillment order must be scheduled.\"}]},\"fulfillmentOrderClose\":{\"fulfillmentOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"The fulfillment order's assigned fulfillment service must be of api type\"}]}}}"
@@ -2584,13 +2622,14 @@ pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
         ]),
       ),
     ])
-  let assert Ok(split_outcome) =
+  let split_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       split_mutation,
       split_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(split_outcome.data)
     == "{\"data\":{\"fulfillmentOrderSplit\":{\"fulfillmentOrderSplits\":[{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/residual\",\"status\":\"OPEN\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"},{\"action\":\"SPLIT\"},{\"action\":\"MERGE\"}],\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/residual\",\"totalQuantity\":2,\"remainingQuantity\":2,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\",\"quantity\":3,\"fulfillableQuantity\":3}}]}},\"remainingFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/2\",\"status\":\"OPEN\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"},{\"action\":\"MERGE\"}],\"lineItems\":{\"nodes\":[{\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\",\"quantity\":3,\"fulfillableQuantity\":3}}]}},\"replacementFulfillmentOrder\":null}],\"userErrors\":[]}}}"
@@ -2612,7 +2651,7 @@ pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
       }
     }
   "
-  let assert Ok(deadline_outcome) =
+  let deadline_outcome =
     orders.process_mutation(
       split_outcome.store,
       split_outcome.identity,
@@ -2628,6 +2667,7 @@ pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
         ),
         #("fulfillmentDeadline", root_field.StringVal(deadline)),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(deadline_outcome.data)
     == "{\"data\":{\"fulfillmentOrdersSetFulfillmentDeadline\":{\"success\":true,\"userErrors\":[]}}}"
@@ -2666,7 +2706,7 @@ pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
       }
     }
   "
-  let assert Ok(merge_outcome) =
+  let merge_outcome =
     orders.process_mutation(
       deadline_outcome.store,
       deadline_outcome.identity,
@@ -2704,6 +2744,7 @@ pub fn orders_fulfillment_order_split_deadline_merge_read_after_write_test() {
           ]),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(merge_outcome.data)
     == "{\"data\":{\"fulfillmentOrderMerge\":{\"fulfillmentOrderMerges\":[{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/residual\",\"status\":\"OPEN\",\"fulfillBy\":\"2026-05-02T02:16:59Z\",\"supportedActions\":[{\"action\":\"CREATE_FULFILLMENT\"},{\"action\":\"REPORT_PROGRESS\"},{\"action\":\"MOVE\"},{\"action\":\"HOLD\"},{\"action\":\"SPLIT\"}],\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/residual\",\"totalQuantity\":3,\"remainingQuantity\":3,\"lineItem\":{\"id\":\"gid://shopify/LineItem/fulfillment-order-lifecycle\",\"quantity\":3,\"fulfillableQuantity\":3}}]}}}],\"userErrors\":[]}}}"
@@ -2772,7 +2813,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(submit_outcome) =
+  let submit_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
@@ -2792,6 +2833,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
           ]),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(submit_outcome.data)
     == "{\"data\":{\"fulfillmentOrderSubmitFulfillmentRequest\":{\"submittedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"OPEN\",\"requestStatus\":\"SUBMITTED\",\"merchantRequests\":{\"nodes\":[{\"kind\":\"FULFILLMENT_REQUEST\",\"message\":\"submit partial\",\"requestOptions\":{\"notify_customer\":false},\"responseData\":null}]},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/partial\",\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/partial\",\"title\":\"Partial request item\"}}]}},\"unsubmittedFulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/3\",\"status\":\"OPEN\",\"requestStatus\":\"UNSUBMITTED\",\"merchantRequests\":{\"nodes\":[]},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/FulfillmentOrderLineItem/1\",\"totalQuantity\":1,\"remainingQuantity\":1,\"lineItem\":{\"id\":\"gid://shopify/LineItem/partial\",\"title\":\"Partial request item\"}}]}},\"userErrors\":[]}}}"
@@ -2805,13 +2847,14 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(accept_outcome) =
+  let accept_outcome =
     orders.process_mutation(
       submit_outcome.store,
       submit_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       accept_mutation,
       dict.from_list([#("id", root_field.StringVal(partial_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(accept_outcome.data)
     == "{\"data\":{\"fulfillmentOrderAcceptFulfillmentRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"ACCEPTED\"},\"userErrors\":[]}}}"
@@ -2832,13 +2875,14 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(submit_cancel_outcome) =
+  let submit_cancel_outcome =
     orders.process_mutation(
       accept_outcome.store,
       accept_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       submit_cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(partial_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(submit_cancel_outcome.data)
     == "{\"data\":{\"fulfillmentOrderSubmitCancellationRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"ACCEPTED\",\"merchantRequests\":{\"nodes\":[{\"kind\":\"FULFILLMENT_REQUEST\",\"message\":\"submit partial\"},{\"kind\":\"CANCELLATION_REQUEST\",\"message\":\"cancel requested\"}]}},\"userErrors\":[]}}}"
@@ -2852,18 +2896,19 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(reject_cancel_outcome) =
+  let reject_cancel_outcome =
     orders.process_mutation(
       submit_cancel_outcome.store,
       submit_cancel_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       reject_cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(partial_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(reject_cancel_outcome.data)
     == "{\"data\":{\"fulfillmentOrderRejectCancellationRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/partial\",\"status\":\"IN_PROGRESS\",\"requestStatus\":\"CANCELLATION_REJECTED\"},\"userErrors\":[]}}}"
 
-  let assert Ok(submit_reject_outcome) =
+  let submit_reject_outcome =
     orders.process_mutation(
       reject_cancel_outcome.store,
       reject_cancel_outcome.identity,
@@ -2873,6 +2918,7 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
         #("id", root_field.StringVal(reject_id)),
         #("lineItems", root_field.NullVal),
       ]),
+      empty_upstream_context(),
     )
   let reject_mutation =
     "
@@ -2883,18 +2929,19 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(reject_outcome) =
+  let reject_outcome =
     orders.process_mutation(
       submit_reject_outcome.store,
       submit_reject_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       reject_mutation,
       dict.from_list([#("id", root_field.StringVal(reject_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(reject_outcome.data)
     == "{\"data\":{\"fulfillmentOrderRejectFulfillmentRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/reject\",\"status\":\"OPEN\",\"requestStatus\":\"REJECTED\"},\"userErrors\":[]}}}"
 
-  let assert Ok(submit_cancel_request_outcome) =
+  let submit_cancel_request_outcome =
     orders.process_mutation(
       reject_outcome.store,
       reject_outcome.identity,
@@ -2904,22 +2951,25 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
         #("id", root_field.StringVal(cancel_id)),
         #("lineItems", root_field.NullVal),
       ]),
+      empty_upstream_context(),
     )
-  let assert Ok(accept_cancel_request_outcome) =
+  let accept_cancel_request_outcome =
     orders.process_mutation(
       submit_cancel_request_outcome.store,
       submit_cancel_request_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       accept_mutation,
       dict.from_list([#("id", root_field.StringVal(cancel_id))]),
+      empty_upstream_context(),
     )
-  let assert Ok(submit_cancel_accept_outcome) =
+  let submit_cancel_accept_outcome =
     orders.process_mutation(
       accept_cancel_request_outcome.store,
       accept_cancel_request_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       submit_cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(cancel_id))]),
+      empty_upstream_context(),
     )
   let accept_cancel_mutation =
     "
@@ -2935,13 +2985,14 @@ pub fn orders_fulfillment_order_request_cancellation_read_after_write_test() {
       }
     }
   "
-  let assert Ok(accept_cancel_outcome) =
+  let accept_cancel_outcome =
     orders.process_mutation(
       submit_cancel_accept_outcome.store,
       submit_cancel_accept_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       accept_cancel_mutation,
       dict.from_list([#("id", root_field.StringVal(cancel_id))]),
+      empty_upstream_context(),
     )
   assert json.to_string(accept_cancel_outcome.data)
     == "{\"data\":{\"fulfillmentOrderAcceptCancellationRequest\":{\"fulfillmentOrder\":{\"id\":\"gid://shopify/FulfillmentOrder/cancel\",\"status\":\"CLOSED\",\"requestStatus\":\"CANCELLATION_ACCEPTED\",\"lineItems\":{\"nodes\":[{\"totalQuantity\":0,\"remainingQuantity\":0}]}},\"userErrors\":[]}}}"
@@ -3314,13 +3365,14 @@ pub fn orders_refund_create_over_refund_validation_keeps_order_unchanged_test() 
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":{\"id\":\"gid://shopify/Order/6830465417449\",\"displayFinancialStatus\":\"PAID\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[{\"field\":[\"transactions\"],\"message\":\"Refund amount $25.00 is greater than net payment received $15.00\",\"code\":\"INVALID\"}]}}}"
@@ -3409,13 +3461,14 @@ pub fn orders_refund_create_unknown_order_uses_order_id_user_error_path_test() {
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
@@ -3617,13 +3670,14 @@ pub fn orders_refund_create_line_item_quantity_validation_uses_refundable_quanti
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"refundCreate\":{\"refund\":null,\"order\":{\"id\":\"gid://shopify/Order/6830465417550\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"10.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[{\"field\":[\"refundLineItems\",\"0\",\"quantity\"],\"message\":\"Quantity cannot refund more items than were purchased\",\"code\":\"INVALID\"}]}}}"
@@ -3761,13 +3815,14 @@ pub fn orders_refund_create_allow_over_refunding_stages_amount_over_refund_test(
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"refundCreate\":{\"refund\":{\"id\":\"gid://shopify/Refund/1\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}},\"order\":{\"id\":\"gid://shopify/Order/6830465417660\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[]}}}"
@@ -4028,13 +4083,14 @@ pub fn orders_refund_create_partial_success_stages_refund_and_transaction_test()
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"refundCreate\":{\"refund\":{\"id\":\"gid://shopify/Refund/1\",\"note\":\"partial line item and shipping refund\",\"createdAt\":\"2024-01-01T00:00:00.000Z\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}},\"refundLineItems\":{\"nodes\":[{\"id\":\"gid://shopify/RefundLineItem/2\",\"quantity\":1,\"restockType\":\"RETURN\",\"lineItem\":{\"id\":\"gid://shopify/LineItem/16202166272233\",\"title\":\"Hermes refundable partial-shipping-restock item\"},\"subtotalSet\":{\"shopMoney\":{\"amount\":\"10.0\",\"currencyCode\":\"CAD\"}}}]},\"transactions\":{\"nodes\":[{\"id\":\"gid://shopify/OrderTransaction/3\",\"kind\":\"REFUND\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}}]}},\"order\":{\"id\":\"gid://shopify/Order/6830465188073\",\"displayFinancialStatus\":\"PARTIALLY_REFUNDED\",\"totalRefundedSet\":{\"shopMoney\":{\"amount\":\"15.0\",\"currencyCode\":\"CAD\"}}},\"userErrors\":[]}}}"
@@ -4129,13 +4185,14 @@ pub fn orders_draft_order_delete_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"draftOrderDelete\":{\"deletedId\":\"gid://shopify/DraftOrder/10079785100\",\"userErrors\":[]}}}"
@@ -4171,13 +4228,14 @@ pub fn orders_order_delete_tombstone_read_after_write_test() {
     }
   "
   let variables = dict.from_list([#("orderId", root_field.StringVal(order_id))])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"orderDelete\":{\"deletedId\":\"gid://shopify/Order/order-delete\",\"userErrors\":[]}}}"
@@ -4206,13 +4264,14 @@ pub fn orders_order_delete_tombstone_read_after_write_test() {
   assert json.to_string(read_result)
     == "{\"data\":{\"order\":null,\"orders\":{\"nodes\":[]},\"ordersCount\":{\"count\":0,\"precision\":\"EXACT\"}}}"
 
-  let assert Ok(repeated) =
+  let repeated =
     orders.process_mutation(
       outcome.store,
       outcome.identity,
       "/admin/api/2026-04/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(repeated.data)
     == "{\"data\":{\"orderDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\"}]}}}"
@@ -4234,13 +4293,14 @@ pub fn orders_order_create_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(missing_outcome) =
+  let missing_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       missing_order,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(missing_outcome.data)
     == "{\"errors\":[{\"message\":\"Field 'orderCreate' is missing required arguments: order\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineMissingOrderArg\",\"orderCreate\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"orderCreate\",\"arguments\":\"order\"}}]}"
@@ -4259,13 +4319,14 @@ pub fn orders_order_create_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(null_outcome) =
+  let null_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       null_order,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(null_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'order' on Field 'orderCreate' has an invalid value (null). Expected type 'OrderCreateOrderInput!'.\",\"locations\":[{\"line\":3,\"column\":7}],\"path\":[\"mutation InlineNullOrderArg\",\"orderCreate\",\"order\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"Field\",\"argumentName\":\"order\"}}]}"
@@ -4300,13 +4361,14 @@ pub fn orders_order_create_validation_guardrails_test() {
         ),
       ),
     ])
-  let assert Ok(no_line_items_outcome) =
+  let no_line_items_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       no_line_items,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(no_line_items_outcome.data)
     == "{\"data\":{\"orderCreate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"lineItems\"],\"message\":\"Line items must have at least one line item\",\"code\":\"INVALID\"}]}}}"
@@ -4418,13 +4480,14 @@ pub fn orders_order_create_validation_guardrails_test() {
         ]),
       ),
     ])
-  let assert Ok(extended_outcome) =
+  let extended_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       extended,
       extended_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(extended_outcome.data)
     == "{\"data\":{\"futureProcessedAt\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"processedAt\"],\"message\":\"Processed at must not be in the future\",\"code\":\"PROCESSED_AT_INVALID\"}]},\"redundantCustomer\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\"],\"message\":\"Cannot specify both customerId and customer\",\"code\":\"REDUNDANT_CUSTOMER_FIELDS\"}]},\"lineItemTaxLineMissingRate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"lineItems\",0,\"taxLines\",0,\"rate\"],\"message\":\"Tax line rate must be provided\",\"code\":\"TAX_LINE_RATE_MISSING\"}]},\"shippingLineTaxLineMissingRate\":{\"order\":null,\"userErrors\":[{\"field\":[\"order\",\"shippingLines\",0,\"taxLines\",0,\"rate\"],\"message\":\"Tax line rate must be provided\",\"code\":\"TAX_LINE_RATE_MISSING\"}]}}}"
@@ -4776,13 +4839,14 @@ pub fn orders_order_create_stages_selected_order_and_downstream_read_test() {
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"orderCreate\":{\"order\":{\"id\":\"gid://shopify/Order/1\",\"name\":\"#1\",\"email\":\"order-create@example.test\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"FULFILLED\",\"note\":\"order create parity\",\"tags\":[\"order-create\",\"parity-plan\"],\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"42.5\",\"currencyCode\":\"USD\"}},\"totalTaxSet\":{\"shopMoney\":{\"amount\":\"2.5\",\"currencyCode\":\"USD\"}},\"totalDiscountsSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"USD\"}},\"discountCodes\":[\"SAVE5\"],\"shippingLines\":{\"nodes\":[{\"title\":\"Standard\",\"originalPriceSet\":{\"shopMoney\":{\"amount\":\"5.0\",\"currencyCode\":\"USD\"}}}]},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/LineItem/2\",\"title\":\"Inventory-backed line\",\"quantity\":2,\"sku\":\"order-create-sku\",\"variant\":{\"id\":\"gid://shopify/ProductVariant/99\"},\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"USD\"},\"presentmentMoney\":{\"amount\":\"27.0\",\"currencyCode\":\"CAD\"}},\"taxLines\":[{\"title\":\"Line tax\",\"rate\":0.05,\"priceSet\":{\"shopMoney\":{\"amount\":\"2.0\",\"currencyCode\":\"USD\"}}}]}]}},\"userErrors\":[]}}}"
@@ -4839,13 +4903,14 @@ pub fn orders_order_update_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(missing_inline_outcome) =
+  let missing_inline_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       missing_inline_id,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(missing_inline_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'id' on InputObject 'OrderInput' is required. Expected type ID!\",\"path\":[\"mutation OrderUpdateInlineMissingIdParityPlan\",\"orderUpdate\",\"input\",\"id\"],\"extensions\":{\"code\":\"missingRequiredInputObjectAttribute\",\"argumentName\":\"id\",\"argumentType\":\"ID!\",\"inputObjectType\":\"OrderInput\"}}]}"
@@ -4870,13 +4935,14 @@ pub fn orders_order_update_validation_guardrails_test() {
       }
     }
   "
-  let assert Ok(null_inline_outcome) =
+  let null_inline_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       null_inline_id,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(null_inline_outcome.data)
     == "{\"errors\":[{\"message\":\"Argument 'id' on InputObject 'OrderInput' has an invalid value (null). Expected type 'ID!'.\",\"path\":[\"mutation OrderUpdateInlineNullIdParityPlan\",\"orderUpdate\",\"input\",\"id\"],\"extensions\":{\"code\":\"argumentLiteralsIncompatible\",\"typeName\":\"InputObject\",\"argumentName\":\"id\"}}]}"
@@ -4917,13 +4983,14 @@ pub fn orders_order_update_validation_guardrails_test() {
         ),
       ),
     ])
-  let assert Ok(missing_variable_outcome) =
+  let missing_variable_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       missing_variable_id,
       variables,
+      empty_upstream_context(),
     )
   let missing_variable_json = json.to_string(missing_variable_outcome.data)
   assert string.contains(
@@ -4977,13 +5044,14 @@ pub fn orders_order_update_validation_guardrails_test() {
         ),
       ),
     ])
-  let assert Ok(unknown_outcome) =
+  let unknown_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       unknown_id,
       unknown_variables,
+      empty_upstream_context(),
     )
   assert json.to_string(unknown_outcome.data)
     == "{\"data\":{\"orderUpdate\":{\"order\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Order does not exist\"}]}}}"
@@ -5166,13 +5234,14 @@ pub fn orders_order_update_existing_order_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   let mutation_json = json.to_string(outcome.data)
   assert string.contains(
@@ -5309,13 +5378,14 @@ pub fn orders_order_open_close_read_after_write_test() {
       }
     }
   "
-  let assert Ok(close_outcome) =
+  let close_outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       close_mutation,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(close_outcome.data)
     == "{\"data\":{\"orderClose\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"name\":\"#1324\",\"closed\":true,\"closedAt\":\"2024-01-01T00:00:00.000Z\",\"cancelledAt\":null,\"cancelReason\":null,\"displayFinancialStatus\":null,\"paymentGatewayNames\":[],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"12.0\",\"currencyCode\":\"CAD\"}},\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"12.0\",\"currencyCode\":\"CAD\"}},\"customer\":null,\"transactions\":[]},\"userErrors\":[]}}}"
@@ -5350,13 +5420,14 @@ pub fn orders_order_open_close_read_after_write_test() {
       }
     }
   "
-  let assert Ok(open_outcome) =
+  let open_outcome =
     orders.process_mutation(
       close_outcome.store,
       close_outcome.identity,
       "/admin/api/2026-04/graphql.json",
       open_mutation,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(open_outcome.data)
     == "{\"data\":{\"orderOpen\":{\"order\":{\"id\":\"gid://shopify/Order/6830646198505\",\"closed\":false,\"closedAt\":null},\"userErrors\":[]}}}"
@@ -5409,13 +5480,14 @@ pub fn orders_order_cancel_read_after_write_test() {
       #("restock", root_field.BoolVal(False)),
       #("reason", root_field.StringVal("OTHER")),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"orderCancel\":{\"orderCancelUserErrors\":[]}}}"
@@ -5479,13 +5551,14 @@ pub fn orders_order_invoice_send_payload_test() {
     }
   "
   let variables = dict.from_list([#("id", root_field.StringVal(order_id))])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"orderInvoiceSend\":{\"order\":{\"id\":\"gid://shopify/Order/6830646329577\",\"name\":\"#1328\",\"closed\":false,\"closedAt\":null,\"cancelledAt\":null,\"cancelReason\":null,\"displayFinancialStatus\":null},\"userErrors\":[]}}}"
@@ -5578,13 +5651,14 @@ pub fn orders_order_mark_as_paid_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       seeded,
       synthetic_identity.new(),
       "/admin/api/2026-04/graphql.json",
       mutation,
       variables,
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"orderMarkAsPaid\":{\"order\":{\"id\":\"gid://shopify/Order/6830647771369\",\"displayFinancialStatus\":\"PAID\",\"paymentGatewayNames\":[\"manual\"],\"totalOutstandingSet\":{\"shopMoney\":{\"amount\":\"0.0\",\"currencyCode\":\"CAD\"}},\"transactions\":[{\"kind\":\"SALE\",\"status\":\"SUCCESS\",\"gateway\":\"manual\",\"amountSet\":{\"shopMoney\":{\"amount\":\"19.0\",\"currencyCode\":\"CAD\"}}}]},\"userErrors\":[]}}}"
@@ -5727,13 +5801,14 @@ fn order_edit_missing_id_json(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> String {
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       document,
       variables,
+      empty_upstream_context(),
     )
   json.to_string(outcome.data)
 }
@@ -5805,13 +5880,14 @@ pub fn orders_draft_order_create_custom_item_read_after_write_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       mutation,
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
     == "{\"data\":{\"draftOrderCreate\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"name\":\"#D1\",\"status\":\"OPEN\",\"email\":\"draft@example.test\",\"note\":\"Phone order\",\"tags\":[\"alpha\",\"beta\"],\"totalQuantityOfLineItems\":2,\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"36.0\",\"currencyCode\":\"CAD\"}},\"totalDiscountsSet\":{\"shopMoney\":{\"amount\":\"4.0\",\"currencyCode\":\"CAD\"}},\"totalShippingPriceSet\":{\"shopMoney\":{\"amount\":\"7.25\",\"currencyCode\":\"CAD\"}},\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"43.25\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/DraftOrderLineItem/2\",\"title\":\"Custom service\",\"name\":\"Custom service\",\"quantity\":2,\"sku\":\"CUSTOM\",\"custom\":true,\"requiresShipping\":false,\"taxable\":false,\"variantTitle\":null,\"variant\":null,\"originalUnitPriceSet\":{\"shopMoney\":{\"amount\":\"20.0\",\"currencyCode\":\"CAD\"}},\"originalTotalSet\":{\"shopMoney\":{\"amount\":\"40.0\",\"currencyCode\":\"CAD\"}},\"discountedTotalSet\":{\"shopMoney\":{\"amount\":\"36.0\",\"currencyCode\":\"CAD\"}},\"totalDiscountSet\":{\"shopMoney\":{\"amount\":\"4.0\",\"currencyCode\":\"CAD\"}}}]}},\"userErrors\":[]}}}"
@@ -5873,13 +5949,14 @@ pub fn orders_draft_order_update_read_after_write_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       create_mutation,
       dict.new(),
+      empty_upstream_context(),
     )
 
   let update_mutation =
@@ -6009,13 +6086,14 @@ pub fn orders_draft_order_update_read_after_write_test() {
         ),
       ),
     ])
-  let assert Ok(update_outcome) =
+  let update_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
       "/admin/api/2025-01/graphql.json",
       update_mutation,
       update_variables,
+      empty_upstream_context(),
     )
 
   assert json.to_string(update_outcome.data)
@@ -6084,13 +6162,14 @@ pub fn orders_draft_order_duplicate_read_after_write_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       create_mutation,
       dict.new(),
+      empty_upstream_context(),
     )
 
   let duplicate_mutation =
@@ -6163,7 +6242,7 @@ pub fn orders_draft_order_duplicate_read_after_write_test() {
       }
     }
   "
-  let assert Ok(duplicate_outcome) =
+  let duplicate_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -6172,6 +6251,7 @@ pub fn orders_draft_order_duplicate_read_after_write_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
       ]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(duplicate_outcome.data)
@@ -6238,13 +6318,14 @@ pub fn orders_draft_order_complete_read_after_write_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       create_mutation,
       dict.new(),
+      empty_upstream_context(),
     )
 
   let complete_mutation =
@@ -6327,7 +6408,7 @@ pub fn orders_draft_order_complete_read_after_write_test() {
       }
     }
   "
-  let assert Ok(complete_outcome) =
+  let complete_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -6338,6 +6419,7 @@ pub fn orders_draft_order_complete_read_after_write_test() {
         #("sourceName", root_field.StringVal("hermes-cron-orders")),
         #("paymentPending", root_field.BoolVal(False)),
       ]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(complete_outcome.data)
@@ -6388,13 +6470,14 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       create_mutation,
       dict.new(),
+      empty_upstream_context(),
     )
 
   let complete_mutation =
@@ -6410,7 +6493,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
       }
     }
   "
-  let assert Ok(complete_outcome) =
+  let complete_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -6419,6 +6502,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
       ]),
+      empty_upstream_context(),
     )
 
   let mutation =
@@ -6460,7 +6544,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
       }
     }
   "
-  let assert Ok(outcome) =
+  let outcome =
     orders.process_mutation(
       complete_outcome.store,
       complete_outcome.identity,
@@ -6469,6 +6553,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
       dict.from_list([
         #("orderId", root_field.StringVal("gid://shopify/Order/3")),
       ]),
+      empty_upstream_context(),
     )
 
   assert json.to_string(outcome.data)
@@ -6496,7 +6581,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/5\",\"email\":\"from-order-source@example.test\",\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}}}}}"
 
-  let assert Ok(missing_outcome) =
+  let missing_outcome =
     orders.process_mutation(
       outcome.store,
       outcome.identity,
@@ -6505,6 +6590,7 @@ pub fn orders_draft_order_create_from_order_read_after_write_test() {
       dict.from_list([
         #("orderId", root_field.StringVal("gid://shopify/Order/404")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(missing_outcome.data)
     == "{\"data\":{\"draftOrderCreateFromOrder\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\"}]}}}"
@@ -6528,7 +6614,7 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
       }
     }
   "
-  let assert Ok(unknown_outcome) =
+  let unknown_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -6537,6 +6623,7 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/DraftOrder/999")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(unknown_outcome.data)
     == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Draft order not found\"}]}}}"
@@ -6553,15 +6640,16 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       create_mutation,
       dict.new(),
+      empty_upstream_context(),
     )
-  let assert Ok(open_outcome) =
+  let open_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -6570,6 +6658,7 @@ pub fn orders_draft_order_invoice_send_safety_validation_test() {
       dict.from_list([
         #("id", root_field.StringVal("gid://shopify/DraftOrder/1")),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(open_outcome.data)
     == "{\"data\":{\"draftOrderInvoiceSend\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"OPEN\",\"email\":null,\"invoiceUrl\":\"https://shopify-draft-proxy.local/draft_orders/gid://shopify/DraftOrder/1/invoice\"},\"userErrors\":[{\"field\":null,\"message\":\"To can't be blank\"}]}}}"
@@ -6596,7 +6685,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
   assert json.to_string(delivery_result)
     == "{\"data\":{\"draftOrderAvailableDeliveryOptions\":{\"availableShippingRates\":[],\"availableLocalDeliveryRates\":[],\"availableLocalPickupOptions\":[],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":null,\"endCursor\":null}}}}"
 
-  let assert Ok(calculate_outcome) =
+  let calculate_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
@@ -6624,6 +6713,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     ",
       dict.new(),
+      empty_upstream_context(),
     )
   assert json.to_string(calculate_outcome.data)
     == "{\"data\":{\"draftOrderCalculate\":{\"calculatedDraftOrder\":{\"currencyCode\":\"CAD\",\"totalQuantityOfLineItems\":2,\"subtotalPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}},\"totalPriceSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}},\"lineItems\":[{\"title\":\"Calculated custom item\",\"quantity\":2,\"custom\":true,\"originalTotalSet\":{\"shopMoney\":{\"amount\":\"12.5\",\"currencyCode\":\"CAD\"}}}],\"availableShippingRates\":[]},\"userErrors\":[]}}}"
@@ -6641,13 +6731,14 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(create_outcome) =
+  let create_outcome =
     orders.process_mutation(
       store.new(),
       synthetic_identity.new(),
       "/admin/api/2025-01/graphql.json",
       create_mutation,
       dict.new(),
+      empty_upstream_context(),
     )
 
   let invoice_preview_mutation =
@@ -6659,7 +6750,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(preview_outcome) =
+  let preview_outcome =
     orders.process_mutation(
       create_outcome.store,
       create_outcome.identity,
@@ -6676,6 +6767,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
           ),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(preview_outcome.data)
     == "{\"data\":{\"draftOrderInvoicePreview\":{\"previewSubject\":\"Custom invoice subject\",\"userErrors\":[]}}}"
@@ -6689,7 +6781,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(add_outcome) =
+  let add_outcome =
     orders.process_mutation(
       preview_outcome.store,
       preview_outcome.identity,
@@ -6704,6 +6796,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
         ),
         #("tags", root_field.ListVal([root_field.StringVal("added")])),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(add_outcome.data)
     == "{\"data\":{\"draftOrderBulkAddTags\":{\"job\":{\"id\":\"gid://shopify/Job/3\",\"done\":false},\"userErrors\":[]}}}"
@@ -6726,7 +6819,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(remove_outcome) =
+  let remove_outcome =
     orders.process_mutation(
       add_outcome.store,
       add_outcome.identity,
@@ -6741,6 +6834,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
         ),
         #("tags", root_field.ListVal([root_field.StringVal("initial")])),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(remove_outcome.data)
     == "{\"data\":{\"draftOrderBulkRemoveTags\":{\"job\":{\"id\":\"gid://shopify/Job/4\",\"done\":false},\"userErrors\":[]}}}"
@@ -6763,7 +6857,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
       }
     }
   "
-  let assert Ok(delete_outcome) =
+  let delete_outcome =
     orders.process_mutation(
       remove_outcome.store,
       remove_outcome.identity,
@@ -6777,6 +6871,7 @@ pub fn orders_draft_order_residual_helper_roots_test() {
           ]),
         ),
       ]),
+      empty_upstream_context(),
     )
   assert json.to_string(delete_outcome.data)
     == "{\"data\":{\"draftOrderBulkDelete\":{\"job\":{\"id\":\"gid://shopify/Job/5\",\"done\":false},\"userErrors\":[]}}}"
