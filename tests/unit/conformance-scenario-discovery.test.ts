@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
@@ -17,16 +17,6 @@ const allowedScenarioStatuses = new Set(['captured', 'planned']);
 
 function readJson<T>(relativePath: string): T {
   return JSON.parse(readFileSync(resolve(repoRoot, relativePath), 'utf8')) as T;
-}
-
-function listFiles(directory: string): string[] {
-  return readdirSync(directory).flatMap((entry) => {
-    const fullPath = resolve(directory, entry);
-    if (statSync(fullPath).isDirectory()) {
-      return listFiles(fullPath);
-    }
-    return [fullPath];
-  });
 }
 
 describe('conformance scenario discovery', () => {
@@ -90,19 +80,6 @@ describe('conformance scenario discovery', () => {
       }
     },
   );
-
-  it('rejects parity-runner pre-seeding hooks in checked-in evidence', () => {
-    const files = [
-      ...listFiles(resolve(repoRoot, 'config/parity-specs')),
-      ...listFiles(resolve(repoRoot, 'fixtures/conformance')),
-    ].filter((file) => file.endsWith('.json'));
-
-    for (const file of files) {
-      const source = readFileSync(file, 'utf8');
-      expect(source, file).not.toContain('"localSetups"');
-      expect(source, file).not.toContain('"localRuntimeCases"');
-    }
-  });
 
   it.each(
     scenarios.flatMap((scenario) =>

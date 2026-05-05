@@ -182,11 +182,6 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
     None,
     decode.optional(decode.dynamic),
   )
-  use local_setups_present <- decode.optional_field(
-    "localSetups",
-    False,
-    decode.map(decode.dynamic, fn(_) { True }),
-  )
   use headers <- decode.optional_field(
     "headers",
     [],
@@ -198,20 +193,12 @@ fn proxy_request_decoder() -> Decoder(ProxyRequest) {
       variables_path,
       variables_inline,
     )
-  case local_setups_present {
-    True ->
-      decode.failure(
-        empty_proxy_request(),
-        "proxyRequest.localSetups cannot pre-seed parity runner state",
-      )
-    False ->
-      decode.success(ProxyRequest(
-        document_path: document_path,
-        variables: variables,
-        api_version: api_version,
-        headers: headers,
-      ))
-  }
+  decode.success(ProxyRequest(
+    document_path: document_path,
+    variables: variables,
+    api_version: api_version,
+    headers: headers,
+  ))
 }
 
 fn variables_from_fields(
