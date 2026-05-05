@@ -1,0 +1,77 @@
+{
+  "scenarioId": "functions-delete-error-shape",
+  "operationNames": ["cartTransformDelete", "validationDelete", "cartTransformCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "payload-shape",
+    "user-errors-parity",
+    "runtime-staging",
+    "downstream-read-parity",
+    "function-metadata-only"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/functions/functions-delete-error-shape.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/functions/functions-metadata-delete-cart-transform.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.cartTransformDeleteMissing.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "cart-transform-missing-user-error",
+        "capturePath": "$.cartTransformDeleteMissing.response.payload.data.cartTransformDelete",
+        "proxyPath": "$.data.cartTransformDelete"
+      },
+      {
+        "name": "validation-missing-user-error",
+        "capturePath": "$.validationDeleteMissing.response.payload.data.validationDelete",
+        "proxyPath": "$.data.validationDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-metadata-delete-validation.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.validationDeleteMissing.variables"
+        }
+      },
+      {
+        "name": "cart-transform-create-data",
+        "capturePath": "$.cartTransformCreateThenDelete.create.response.data.cartTransformCreate",
+        "proxyPath": "$.data.cartTransformCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-delete-error-shape-cart-transform-create.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "functionHandle": "cart-transform-delete-shape"
+          }
+        }
+      },
+      {
+        "name": "cart-transform-delete-canonical-data",
+        "capturePath": "$.cartTransformCreateThenDelete.delete.response.data.cartTransformDelete",
+        "proxyPath": "$.data.cartTransformDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-metadata-delete-cart-transform.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": "3"
+          }
+        }
+      },
+      {
+        "name": "post-delete-cart-transforms-read",
+        "capturePath": "$.cartTransformCreateThenDelete.postDeleteRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/functions/functions-delete-error-shape-cart-transform-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {}
+        }
+      }
+    ]
+  },
+  "notes": "HAR-701 delete error-shape parity. The missing-delete legs are live Shopify captures from harry-test-heelo on Admin GraphQL 2026-04. The create/delete leg is cassette-backed local runtime evidence because the current unattended conformance shop no longer exposes released validation/cart-transform Function handles, but the fixture still hydrates a CART_TRANSFORM ShopifyFunction through the same upstream cassette path used by live-hybrid parity."
+}

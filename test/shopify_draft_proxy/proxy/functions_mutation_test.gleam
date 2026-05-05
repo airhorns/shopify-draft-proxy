@@ -15,7 +15,9 @@ import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
-  type ShopifyFunctionRecord, type ValidationRecord, ShopifyFunctionRecord,
+  type AppInstallationRecord, type AppRecord, type CartTransformRecord,
+  type ShopifyFunctionRecord, type ValidationRecord, AccessScopeRecord,
+  AppInstallationRecord, AppRecord, CartTransformRecord, ShopifyFunctionRecord,
   ValidationRecord,
 }
 
@@ -72,6 +74,47 @@ fn shopify_fn(
   )
 }
 
+fn shopify_fn_with_app_key(
+  id: String,
+  handle: String,
+  api_type: String,
+  app_key: String,
+) -> ShopifyFunctionRecord {
+  ShopifyFunctionRecord(
+    ..shopify_fn(id, handle, api_type),
+    app_key: Some(app_key),
+  )
+}
+
+fn app(id: String, api_key: String) -> AppRecord {
+  AppRecord(
+    id: id,
+    api_key: Some(api_key),
+    handle: Some("test-app"),
+    title: Some("Test app"),
+    developer_name: Some("test-dev"),
+    embedded: Some(True),
+    previously_installed: Some(False),
+    requested_access_scopes: [
+      AccessScopeRecord(handle: "read_products", description: None),
+    ],
+  )
+}
+
+fn installation(id: String, app_id: String) -> AppInstallationRecord {
+  AppInstallationRecord(
+    id: id,
+    app_id: app_id,
+    launch_url: Some("https://example.com/admin/apps/test"),
+    uninstall_url: None,
+    access_scopes: [],
+    active_subscription_ids: [],
+    all_subscription_ids: [],
+    one_time_purchase_ids: [],
+    uninstalled_at: None,
+  )
+}
+
 fn seed_function(
   store_in: store.Store,
   record: ShopifyFunctionRecord,
@@ -85,6 +128,14 @@ fn seed_validation(
   record: ValidationRecord,
 ) -> store.Store {
   let #(_, s) = store.upsert_staged_validation(store_in, record)
+  s
+}
+
+fn seed_cart_transform(
+  store_in: store.Store,
+  record: CartTransformRecord,
+) -> store.Store {
+  let #(_, s) = store.upsert_staged_cart_transform(store_in, record)
   s
 }
 
@@ -294,7 +345,45 @@ pub fn validation_delete_unknown_id_emits_user_error_test() {
       "mutation { validationDelete(id: \"gid://shopify/Validation/missing\") { deletedId userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"validationDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"No function-backed resource exists with id gid://shopify/Validation/missing\",\"code\":\"NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"validationDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Extension not found.\",\"code\":\"NOT_FOUND\"}]}}}"
+}
+
+pub fn validation_delete_bare_id_returns_canonical_deleted_id_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/checkout-validator",
+      "checkout-validator",
+      "VALIDATION",
+    )
+  let v =
+    ValidationRecord(
+      id: "gid://shopify/Validation/88",
+      title: Some("Doomed"),
+      enable: Some(True),
+      block_on_failure: Some(False),
+      function_id: None,
+      function_handle: Some("checkout-validator"),
+      shopify_function_id: Some(fn_record.id),
+      created_at: None,
+      updated_at: None,
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_validation(v)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { validationDelete(id: \"88\") { deletedId userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"validationDelete\":{\"deletedId\":\"gid://shopify/Validation/88\",\"userErrors\":[]}}}"
+  let assert None =
+    store.get_effective_validation_by_id(
+      outcome.store,
+      "gid://shopify/Validation/88",
+    )
+  assert outcome.staged_resource_ids == ["gid://shopify/Validation/88"]
 }
 
 // ----------- cartTransformCreate -----------
@@ -356,7 +445,94 @@ pub fn cart_transform_delete_unknown_id_emits_user_error_test() {
       "mutation { cartTransformDelete(id: \"gid://shopify/CartTransform/missing\") { deletedId userErrors { field message code } } }",
     )
   assert body
-    == "{\"data\":{\"cartTransformDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"No function-backed resource exists with id gid://shopify/CartTransform/missing\",\"code\":\"NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"cartTransformDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Could not find cart transform with id: gid://shopify/CartTransform/missing\",\"code\":\"NOT_FOUND\"}]}}}"
+}
+
+pub fn cart_transform_delete_bare_id_returns_canonical_deleted_id_test() {
+  let fn_record =
+    shopify_fn(
+      "gid://shopify/ShopifyFunction/cart-transformer",
+      "cart-transformer",
+      "CART_TRANSFORM",
+    )
+  let cart_transform =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/01ABC",
+      title: Some("Doomed cart transform"),
+      block_on_failure: Some(False),
+      function_id: None,
+      function_handle: Some("cart-transformer"),
+      shopify_function_id: Some(fn_record.id),
+      created_at: None,
+      updated_at: None,
+    )
+  let s =
+    store.new()
+    |> seed_function(fn_record)
+    |> seed_cart_transform(cart_transform)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformDelete(id: \"01ABC\") { deletedId userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"cartTransformDelete\":{\"deletedId\":\"gid://shopify/CartTransform/01ABC\",\"userErrors\":[]}}}"
+  let assert None =
+    store.get_effective_cart_transform_by_id(
+      outcome.store,
+      "gid://shopify/CartTransform/01ABC",
+    )
+  assert outcome.staged_resource_ids == ["gid://shopify/CartTransform/01ABC"]
+}
+
+pub fn cart_transform_delete_cross_app_function_emits_unauthorized_scope_test() {
+  let current_app = app("gid://shopify/App/current", "current-app-key")
+  let current_installation =
+    installation(
+      "gid://shopify/AppInstallation/current",
+      "gid://shopify/App/current",
+    )
+  let fn_record =
+    shopify_fn_with_app_key(
+      "gid://shopify/ShopifyFunction/cart-transformer",
+      "cart-transformer",
+      "CART_TRANSFORM",
+      "other-app-key",
+    )
+  let cart_transform =
+    CartTransformRecord(
+      id: "gid://shopify/CartTransform/77",
+      title: Some("Other app cart transform"),
+      block_on_failure: Some(False),
+      function_id: None,
+      function_handle: Some("cart-transformer"),
+      shopify_function_id: Some(fn_record.id),
+      created_at: None,
+      updated_at: None,
+    )
+  let s =
+    store.upsert_base_app_installation(
+      store.new(),
+      current_installation,
+      current_app,
+    )
+  let s =
+    s
+    |> seed_function(fn_record)
+    |> seed_cart_transform(cart_transform)
+  let outcome =
+    run_mutation_outcome(
+      s,
+      "mutation { cartTransformDelete(id: \"gid://shopify/CartTransform/77\") { deletedId userErrors { field message code } } }",
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"cartTransformDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"The app is not authorized to access this Function resource.\",\"code\":\"UNAUTHORIZED_APP_SCOPE\"}]}}}"
+  let assert Some(_) =
+    store.get_effective_cart_transform_by_id(
+      outcome.store,
+      "gid://shopify/CartTransform/77",
+    )
+  assert outcome.staged_resource_ids == []
 }
 
 // ----------- taxAppConfigure -----------
