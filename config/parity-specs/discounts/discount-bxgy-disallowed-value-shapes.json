@@ -1,0 +1,26 @@
+{
+  "scenarioId": "discount-bxgy-disallowed-value-shapes",
+  "operationNames": ["discountCodeBxgyCreate", "discountAutomaticBxgyCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/discounts/discount-bxgy-disallowed-value-shapes.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/discounts/discount-bxgy-disallowed-value-shapes.graphql",
+    "variablesCapturePath": "$.validation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 BXGY create validation for disallowed customerGets.value percentage/discountAmount branches and customerGets subscription purchase flags. Shopify rejects automatic BXGY subscription flags too in this version, despite older notes suggesting those fields were automatic-only.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "discount-bxgy-disallowed-value-shapes-user-errors",
+        "capturePath": "$.validation.response.data",
+        "proxyPath": "$.data"
+      }
+    ]
+  }
+}

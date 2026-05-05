@@ -161,6 +161,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-set-validator',
+    scriptPath: 'scripts/capture-product-set-validator-conformance.ts',
+    purpose:
+      'productSet ProductSetShapeValidator guardrails, unknown-product validation, and asynchronous ProductSetOperation polling behavior.',
+    requiredAuthScopes: ['read_products', 'write_products', 'read_locations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-set-shape-validator-parity.json`,
+      `${CAPTURE_ROOT}product-set-async-operation-parity.json`,
+      'config/parity-specs/products/productSet-shape-validator-parity.json',
+      'config/parity-specs/products/productSet-async-operation-parity.json',
+    ],
+    cleanupBehavior:
+      'Validation branches create no products; async productSet creates one disposable product and deletes it in cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-state-mutations',
     scriptPath: 'scripts/capture-product-state-mutation-conformance.mts',
     purpose: 'productChangeStatus/tagsAdd/tagsRemove mutation branches.',
@@ -932,6 +949,17 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
     fixtureOutputs: [`${CAPTURE_ROOT}discount-bxgy-lifecycle.json`],
     cleanupBehavior: 'Deletes created discounts/products/collections in reverse-order cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
+    captureId: 'discount-bxgy-disallowed-value-shapes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-bxgy-disallowed-value-shapes-conformance.ts',
+    purpose: 'Buy-X-get-Y customerGets value and subscription flag validation guardrails.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts', 'read_products', 'write_products'],
+    fixtureOutputs: [`${CAPTURE_ROOT}discount-bxgy-disallowed-value-shapes.json`],
+    cleanupBehavior: 'Deletes temporary products after capturing rejected discount mutations.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

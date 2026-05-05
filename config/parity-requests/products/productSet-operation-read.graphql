@@ -1,0 +1,19 @@
+query ProductSetOperationRead($id: ID!) {
+  productOperation(id: $id) {
+    __typename
+    status
+    product {
+      id
+      title
+      handle
+    }
+    ... on ProductSetOperation {
+      id
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+}
