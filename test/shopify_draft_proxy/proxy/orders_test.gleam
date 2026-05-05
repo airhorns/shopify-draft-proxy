@@ -272,6 +272,7 @@ pub fn orders_abandonment_delivery_status_unknown_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -286,7 +287,7 @@ pub fn orders_abandonment_delivery_status_unknown_test() {
       empty_upstream_context(),
     )
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":null,\"userErrors\":[{\"field\":[\"abandonmentId\"],\"message\":\"abandonment_not_found\"}]}}}"
+    == "{\"data\":{\"abandonmentUpdateActivitiesDeliveryStatuses\":{\"abandonment\":null,\"userErrors\":[{\"field\":[\"abandonmentId\"],\"message\":\"abandonment_not_found\",\"code\":\"NOT_FOUND\"}]}}}"
   assert outcome.staged_resource_ids == []
   assert list.length(outcome.log_drafts) == 1
 }
@@ -443,6 +444,7 @@ pub fn orders_order_edit_begin_existing_order_payload_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -558,6 +560,7 @@ pub fn orders_order_edit_add_variant_payload_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -1249,6 +1252,33 @@ pub fn orders_draft_order_create_payload_validation_matrix_test() {
     == "{\"data\":{\"noLineItems\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\"}]},\"unknownVariant\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Product with ID 999999999999999999 is no longer available.\"}]},\"customMissingTitle\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Merchandise title is empty.\"}]},\"zeroQuantity\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"lineItems\",\"0\",\"quantity\"],\"message\":\"Quantity must be greater than or equal to 1\"}]},\"paymentTerms\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Payment terms template id can not be empty.\"}]},\"negativePrice\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Cannot send negative price for line_item\"}]},\"pastReserve\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Reserve until can't be in the past\"}]},\"badEmail\":{\"draftOrder\":null,\"userErrors\":[{\"field\":[\"email\"],\"message\":\"Email is invalid\"}]}}}"
   assert list.length(outcome.log_drafts) == 8
   assert store.list_effective_draft_orders(outcome.store) == []
+}
+
+pub fn orders_draft_order_create_user_error_code_test() {
+  let mutation =
+    "
+    mutation {
+      draftOrderCreate(input: { lineItems: [] }) {
+        draftOrder { id }
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let outcome =
+    orders.process_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      dict.new(),
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"draftOrderCreate\":{\"draftOrder\":null,\"userErrors\":[{\"field\":null,\"message\":\"Add at least 1 product\",\"code\":\"INVALID\"}]}}}"
 }
 
 pub fn orders_draft_order_complete_validation_guardrails_test() {
@@ -5399,6 +5429,7 @@ pub fn orders_order_update_validation_guardrails_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -5432,7 +5463,7 @@ pub fn orders_order_update_validation_guardrails_test() {
       empty_upstream_context(),
     )
   assert json.to_string(unknown_outcome.data)
-    == "{\"data\":{\"orderUpdate\":{\"order\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Order does not exist\"}]}}}"
+    == "{\"data\":{\"orderUpdate\":{\"order\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
   assert unknown_outcome.staged_resource_ids == []
   assert unknown_outcome.log_drafts == []
   assert store.list_effective_orders(unknown_outcome.store) == []
