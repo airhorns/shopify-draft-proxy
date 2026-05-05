@@ -79,7 +79,12 @@ function extractRequestingApiClientId(captureResult: CapturedRequest): string {
     throw new Error(`Could not derive requesting api_client_id from ${serialized}`);
   }
 
-  return match[1];
+  const apiClientId = match[1];
+  if (!apiClientId) {
+    throw new Error(`Could not derive requesting api_client_id from ${serialized}`);
+  }
+
+  return apiClientId;
 }
 
 function createVariables(uri: string): Record<string, unknown> {
@@ -116,6 +121,15 @@ const createCases = {
   createKafkaRejected: createVariables('kafka://broker/topic'),
 };
 
+function requireCase(cases: Record<string, CapturedRequest>, name: string): CapturedRequest {
+  const captureResult = cases[name];
+  if (!captureResult) {
+    throw new Error(`Missing captured case ${name}`);
+  }
+
+  return captureResult;
+}
+
 let setupCreate: CapturedRequest | null = null;
 let cleanup: CapturedRequest | null = null;
 let setupId: string | null = null;
@@ -129,7 +143,7 @@ try {
     cases[name] = await capture(createRequestPath, variables);
   }
 
-  const requestingApiClientId = extractRequestingApiClientId(cases['createArnWrongApiClientRejected']);
+  const requestingApiClientId = extractRequestingApiClientId(requireCase(cases, 'createArnWrongApiClientRejected'));
   const updateCases = {
     updatePubsubNoTopicRejected: updateVariables(setupId, 'pubsub://my-project'),
     updatePubsubBadProjectRejected: updateVariables(setupId, 'pubsub://-bad:topic'),
