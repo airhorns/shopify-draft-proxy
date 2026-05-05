@@ -1,0 +1,58 @@
+{
+  "scenarioId": "b2b-string-validation",
+  "operationNames": ["companyCreate", "companyLocationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-string-validation.json"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-create.graphql",
+    "variablesCapturePath": "$.setupCompany.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "runtimeTestFiles": ["gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam"],
+  "notes": "Executable parity coverage for the HAR-625 B2B validation branches the current 2026-04 live Admin target reproduces: companyCreate long name, companyCreate long note, and companyLocationCreate long name. The same capture records probe-only mismatches where live Admin currently accepts HTML in company notes/contact titles and accepts 300-character contact titles, so those branches remain covered by runtime tests instead of misleading parity specs.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "company-create-long-name-user-errors",
+        "capturePath": "$.companyCreateLongName.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-create.graphql",
+          "variablesCapturePath": "$.companyCreateLongName.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "company-create-long-note-user-errors",
+        "capturePath": "$.companyCreateLongNote.response.data.companyCreate",
+        "proxyPath": "$.data.companyCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-company-create.graphql",
+          "variablesCapturePath": "$.companyCreateLongNote.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "location-create-long-name-user-errors",
+        "capturePath": "$.locationCreateLongName.response.data.companyLocationCreate",
+        "proxyPath": "$.data.companyLocationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/b2b/b2b-string-validation-location-create.graphql",
+          "variables": {
+            "companyId": {
+              "fromPrimaryProxyPath": "$.data.companyCreate.company.id"
+            },
+            "input": {
+              "fromCapturePath": "$.locationCreateLongName.request.variables.input"
+            }
+          },
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}

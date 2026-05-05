@@ -106,6 +106,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       '`staffMembers(first:)` is access denied for the current conformance token, so staff assignment remains runtime-test-backed rather than live-parity-backed.',
   },
   {
+    domain: 'b2b',
+    captureId: 'b2b-string-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-string-validation-conformance.mts',
+    purpose: 'B2B company/contact/location free-text length and HTML validation branches.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-string-validation.json`,
+      'config/parity-specs/b2b/b2b-string-validation.json',
+      'config/parity-requests/b2b/b2b-string-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one setup company for child mutation validation plus cleanup for any live branch that unexpectedly creates a company.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The capture intentionally records live HTML mismatch probes so reviewers can distinguish executable parity-backed validation branches from current Admin behavior that does not reproduce the internal B2B change rules.',
+  },
+  {
     domain: 'products',
     captureId: 'products',
     scriptPath: 'scripts/capture-product-conformance.mts',

@@ -9,6 +9,53 @@ Newer entries go at the top.
 
 ---
 
+## 2026-05-05 - Pass 208: HAR-625 B2B string validation guardrails
+
+Adds source-driven local validation for B2B free-text fields so supported
+company/contact/location mutations fail before staging values Shopify's B2B
+change layer rejects.
+
+| Module / fixture                                                                                                                                    | Change                                                                                                                                                               |
+| --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gleam/src/shopify_draft_proxy/proxy/b2b.gleam`                                                                                                     | Enforces 255-character `name`/`title` limits, 5000-character notes limits, `CONTAINS_HTML_TAGS` for blocked title/notes fields, and strips name HTML before staging. |
+| `gleam/test/shopify_draft_proxy/proxy/b2b_test.gleam`                                                                                               | Covers company name length/sanitization, company notes HTML+length rejection, contact title/notes rejection, and location name/notes rejection.                      |
+| `config/parity-specs/b2b/b2b-string-validation.json` / `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/b2b/b2b-string-validation.json` | Adds strict executable parity evidence for the live-reproduced B2B long-name and long-note user-error branches.                                                      |
+| `scripts/capture-b2b-string-validation-conformance.mts` / `scripts/conformance-capture-index.ts`                                                    | Registers the B2B validation capture in the aggregate conformance capture index.                                                                                     |
+| `docs/endpoints/b2b.md`                                                                                                                             | Documents the B2B string validation boundary, live-backed length parity evidence, and live mismatches that prevent promoting HTML/title parity fixtures.             |
+| `vitest.config.ts`                                                                                                                                  | Raises Vitest test/hook timeout to 30s so full-suite Gleam JS integration startup paths do not fail while isolated interop checks stay green.                        |
+
+Validation:
+
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm conformance:probe`
+- `SHOPIFY_CONFORMANCE_API_VERSION=2026-04 corepack pnpm exec tsx scripts/capture-b2b-string-validation-conformance.mts`
+- `cd gleam && gleam test --target javascript -- parity_test` (890 passed)
+- 2026-04 live capture against `harry-test-heelo.myshopify.com` confirmed
+  company long-name, company long-note, and location long-name user errors.
+  The same target still accepted HTML title/note values and a 300-character
+  contact title, so HAR-625 remains source-behavior/runtime-test backed for
+  those HTML/title branches.
+- `cd gleam && gleam test --target javascript -- b2b_test` (890 passed)
+
+### Findings
+
+- Current Admin GraphQL schema exposes `CompanyInput.note` and
+  `CompanyLocationInput.note`, but Shopify reports those user-error fields as
+  `notes`.
+- The current 2026-04 conformance store accepts `CompanyContactInput.title`
+  with HTML and has no `note`/`notes` field on `CompanyContactInput`, which
+  conflicts with the internal B2B change behavior described in HAR-625.
+- The current 2026-04 conformance store also accepts 300-character contact
+  titles and returns only `TOO_LONG`, not `CONTAINS_HTML_TAGS`, for
+  HTML-plus-too-long company/location notes.
+
+### Risks / open items
+
+- HTML sanitization is covered by runtime tests rather than a checked-in parity
+  fixture until the live conformance target exhibits the ticketed
+  `CONTAINS_HTML_TAGS` behavior.
+
+---
+
 ## 2026-05-05 - Pass 205: HAR-571 fulfillment service delete transfer contract
 
 Aligns `fulfillmentServiceDelete` local staging with the destination-location
