@@ -1,0 +1,14 @@
+mutation OrderEditLifecycleSetQuantityMissingCalculatedOrder($id: ID!, $lineItemId: ID!, $quantity: Int!) {
+  orderEditSetQuantity(id: $id, lineItemId: $lineItemId, quantity: $quantity) {
+    calculatedOrder {
+      id
+    }
+    calculatedLineItem {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

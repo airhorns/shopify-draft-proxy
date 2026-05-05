@@ -1,0 +1,39 @@
+mutation DiscountCombinesWithValidation(
+  $orderTagStacking: DiscountCodeBasicInput!
+  $tagOverlap: DiscountCodeBasicInput!
+  $freeShippingSelfCombine: DiscountCodeFreeShippingInput!
+) {
+  orderTagStacking: discountCodeBasicCreate(basicCodeDiscount: $orderTagStacking) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  tagOverlap: discountCodeBasicCreate(basicCodeDiscount: $tagOverlap) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  freeShippingSelfCombine: discountCodeFreeShippingCreate(freeShippingCodeDiscount: $freeShippingSelfCombine) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}
