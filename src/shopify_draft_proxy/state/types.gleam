@@ -1460,6 +1460,7 @@ pub type GiftCardRecord {
     legacy_resource_id: String,
     last_characters: String,
     masked_code: String,
+    code: Option(String),
     enabled: Bool,
     notify: Bool,
     deactivated_at: Option(String),
