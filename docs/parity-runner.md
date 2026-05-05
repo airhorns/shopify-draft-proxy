@@ -70,23 +70,13 @@ billing interval and `trialDays`. The executable local-runtime proof is
 `comparison.mode` is the comparison contract for the target payloads. It
 is distinct from proxy runtime read mode, which the runner owns.
 
-`proxyRequest.localSetups` is legacy narrow support for existing high-volume
-validation scenarios such as segment-count caps. Do not add new setup kinds or
-use local setup to create domain lifecycle preconditions for a parity
-comparison. New parity coverage should drive normal proxy requests and recorded
-upstream cassettes; if that cannot create the required precondition, keep the
-gap in Linear instead of injecting proxy state in the runner. This hook is not a
-replacement for cassette playback, and it must not reintroduce `seedX` keys in
-capture files.
-
-```jsonc
-{
-  "proxyRequest": {
-    "documentPath": "config/parity-requests/segments/segment-create-limit-validation.graphql",
-    "localSetups": [{ "kind": "seedSegments", "count": 6000 }],
-  },
-}
-```
+Parity specs must not include `proxyRequest.localSetups` or any other
+runner setup hook that pre-seeds proxy state before the request is
+executed. If the proxy needs existing Shopify state to answer a request,
+the operation handler must model that state from earlier scenario
+requests or from cassette-backed upstream reads. If that is not
+implemented yet, keep the gap out of the checked-in parity spec and
+track the missing fidelity work outside the scenario corpus.
 
 ## Cassette shape
 
@@ -504,9 +494,10 @@ Per-scenario steps:
 ## Seed Keys Are Forbidden
 
 Capture files must not carry top-level `seedProducts`, `seedCustomers`,
-`seedDiscounts`, or similar `seedX` keys. Those keys were inputs to the
-unsupported seed-based runner. The cheating-lint test fails the build if
-they reappear under `fixtures/conformance/**`.
+`seedDiscounts`, `localRuntimeCases`, or similar artificial setup keys.
+Parity specs must not carry `localSetups`. Those keys were inputs to the
+unsupported seed-based runner. Seed-style fixture and spec keys remain
+banned by policy and should be removed rather than expanded.
 
 ## Why we changed
 
