@@ -43,6 +43,7 @@ import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
 }
+import shopify_draft_proxy/state/iso_timestamp
 import shopify_draft_proxy/state/store.{type Store}
 import shopify_draft_proxy/state/synthetic_identity.{
   type SyntheticIdentityRegistry,
@@ -1746,25 +1747,15 @@ fn handle_trial_extend(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let subscription_id = graphql_helpers.read_arg_string(args, "id")
-  let days = option.unwrap(graphql_helpers.read_arg_int(args, "days"), 0)
-  let subscription = case subscription_id {
-    Some(id) -> store.get_effective_app_subscription_by_id(store, id)
-    None -> None
-  }
-  case subscription {
-    None -> {
+  let days = graphql_helpers.read_arg_int(args, "days")
+  case validate_trial_extend_days(days) {
+    Error(user_error) -> {
       let payload =
         project_subscription_payload(
           store,
           None,
           None,
-          [
-            UserError(
-              field: ["id"],
-              message: "Subscription not found",
-              code: None,
-            ),
-          ],
+          [user_error],
           field,
           fragments,
         )
@@ -1780,36 +1771,161 @@ fn handle_trial_extend(
         identity,
       )
     }
-    Some(sub) -> {
-      let extended_days = option.unwrap(sub.trial_days, 0) + days
-      let extended =
-        AppSubscriptionRecord(..sub, trial_days: Some(extended_days))
-      let #(_, store_after) = store.stage_app_subscription(store, extended)
-      let payload =
-        project_subscription_payload(
-          store_after,
-          Some(extended),
-          None,
-          [],
-          field,
-          fragments,
-        )
-      let draft =
-        make_log_draft(
-          "appSubscriptionTrialExtend",
-          [extended.id],
-          store.Staged,
-        )
-      #(
-        MutationFieldResult(
-          key: key,
-          payload: payload,
-          staged_resource_ids: [extended.id],
-          log_drafts: [draft],
-        ),
-        store_after,
-        identity,
-      )
+    Ok(valid_days) -> {
+      let subscription = case subscription_id {
+        Some(id) -> store.get_effective_app_subscription_by_id(store, id)
+        None -> None
+      }
+      case subscription {
+        None -> {
+          let payload =
+            project_subscription_payload(
+              store,
+              None,
+              None,
+              [
+                UserError(
+                  field: ["id"],
+                  message: "The app subscription wasn't found.",
+                  code: Some("SUBSCRIPTION_NOT_FOUND"),
+                ),
+              ],
+              field,
+              fragments,
+            )
+          let draft =
+            make_log_draft("appSubscriptionTrialExtend", [], store.Failed)
+          #(
+            MutationFieldResult(
+              key: key,
+              payload: payload,
+              staged_resource_ids: [],
+              log_drafts: [draft],
+            ),
+            store,
+            identity,
+          )
+        }
+        Some(sub) -> {
+          case validate_trial_extend_subscription(sub) {
+            Error(user_error) -> {
+              let payload =
+                project_subscription_payload(
+                  store,
+                  None,
+                  None,
+                  [user_error],
+                  field,
+                  fragments,
+                )
+              let draft =
+                make_log_draft("appSubscriptionTrialExtend", [], store.Failed)
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [],
+                  log_drafts: [draft],
+                ),
+                store,
+                identity,
+              )
+            }
+            Ok(Nil) -> {
+              let extended_days = option.unwrap(sub.trial_days, 0) + valid_days
+              let extended =
+                AppSubscriptionRecord(..sub, trial_days: Some(extended_days))
+              let #(_, store_after) =
+                store.stage_app_subscription(store, extended)
+              let payload =
+                project_subscription_payload(
+                  store_after,
+                  Some(extended),
+                  None,
+                  [],
+                  field,
+                  fragments,
+                )
+              let draft =
+                make_log_draft(
+                  "appSubscriptionTrialExtend",
+                  [extended.id],
+                  store.Staged,
+                )
+              #(
+                MutationFieldResult(
+                  key: key,
+                  payload: payload,
+                  staged_resource_ids: [extended.id],
+                  log_drafts: [draft],
+                ),
+                store_after,
+                identity,
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+fn validate_trial_extend_days(days: Option(Int)) -> Result(Int, UserError) {
+  case days {
+    Some(value) if value > 0 && value <= 1000 -> Ok(value)
+    Some(value) if value <= 0 ->
+      Error(UserError(
+        field: ["days"],
+        message: "Days must be greater than 0",
+        code: None,
+      ))
+    _ ->
+      Error(UserError(
+        field: ["days"],
+        message: "Days must be less than or equal to 1000",
+        code: None,
+      ))
+  }
+}
+
+fn validate_trial_extend_subscription(
+  subscription: AppSubscriptionRecord,
+) -> Result(Nil, UserError) {
+  case subscription.status {
+    "ACTIVE" -> {
+      case trial_has_expired(subscription) {
+        True ->
+          Error(UserError(
+            field: ["id"],
+            message: "The trial can't be extended after expiration.",
+            code: Some("TRIAL_NOT_ACTIVE"),
+          ))
+        False -> Ok(Nil)
+      }
+    }
+    _ ->
+      Error(UserError(
+        field: ["id"],
+        message: "The trial can't be extended on inactive app subscriptions.",
+        code: Some("SUBSCRIPTION_NOT_ACTIVE"),
+      ))
+  }
+}
+
+fn trial_has_expired(subscription: AppSubscriptionRecord) -> Bool {
+  case subscription.current_period_end {
+    None -> False
+    Some(current_period_end) -> {
+      let trial_days = option.unwrap(subscription.trial_days, 0)
+      case iso_timestamp.parse_iso(current_period_end) {
+        Error(_) -> False
+        Ok(period_end_ms) -> {
+          case iso_timestamp.parse_iso(iso_timestamp.now_iso()) {
+            Error(_) -> False
+            Ok(now_ms) -> now_ms > period_end_ms + trial_days * 86_400_000
+          }
+        }
+      }
     }
   }
 }

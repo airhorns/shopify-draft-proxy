@@ -51,7 +51,8 @@ Current modeled behavior:
 - `appPurchaseOneTimeCreate` stages a pending one-time purchase and returns a synthetic local confirmation URL.
 - `appSubscriptionCreate` stages a pending subscription, usage/recurring line-item pricing details, trial days, and a synthetic local confirmation URL.
 - `appSubscriptionCancel` stages cancellation only for `PENDING`, `ACCEPTED`, and `ACTIVE` subscriptions. `CANCELLED`, `DECLINED`, `EXPIRED`, `FROZEN`, and other non-cancellable statuses return an `id` userError shaped like Shopify's invalid transition payload without mutating local state. Unknown subscription IDs return an `id` userError with a record-not-found message and no error code.
-- `appSubscriptionLineItemUpdate` and `appSubscriptionTrialExtend` mutate staged subscription state and return userErrors for unknown local IDs.
+- `appSubscriptionLineItemUpdate` mutates staged subscription state and returns userErrors for unknown local IDs.
+- `appSubscriptionTrialExtend` validates Shopify's `days` range (`1..1000`), rejects unknown IDs with `SUBSCRIPTION_NOT_FOUND`, rejects non-`ACTIVE` subscriptions with `SUBSCRIPTION_NOT_ACTIVE`, rejects expired active trials with `TRIAL_NOT_ACTIVE`, and only mutates `trialDays` for active subscriptions still inside their trial window.
 - `appUsageRecordCreate` stages usage records under staged usage line items and exposes them through `AppSubscriptionLineItem.usageRecords`.
 - `appRevokeAccessScopes` removes locally granted scopes from the current app installation and returns per-scope errors for requested scopes that are not locally granted.
 - `appUninstall` marks the current staged/hydrated installation uninstalled; downstream `currentAppInstallation` reads return `null`.
@@ -101,5 +102,6 @@ The capture records:
 - `config/parity-specs/apps/app-billing-access-local-staging.json`, including
   app-domain generic Node read targets
 - `config/parity-specs/apps/app-subscription-cancel-status-transitions.json`
+- `config/parity-specs/apps/app-subscription-trial-extend-validation.json`
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:parity`
