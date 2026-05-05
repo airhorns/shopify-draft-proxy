@@ -22,14 +22,7 @@
   "notes": "HAR-582/HAR-744 captured Admin GraphQL 2026-04 fulfillmentEventCreate validation and success behavior against a disposable fulfilled order. Public Admin GraphQL does not expose a code field on this mutation's UserError; selecting userErrors.code returns top-level undefinedField, so executable parity compares public field/message shape while runtime tests assert the ticket's source-backed local code values. Invalid FulfillmentEventStatus variables fail top-level INVALID_VARIABLE coercion and the captured enum includes DELAYED and CARRIER_PICKED_UP; invalid-enum parity compares that GraphQL validation envelope. The fixture also records that public 2026-04 accepted an event after fulfillmentCancel on the sampled fulfillment; the proxy retains the HAR-582 internal-source cancellation guard as the documented public-vs-internal boundary.",
   "comparison": {
     "mode": "strict-json",
-    "expectedDifferences": [
-      {
-        "path": "$.errors[0].locations",
-        "ignore": true,
-        "regrettable": true,
-        "reason": "The local proxy reproduces Shopify's invalid enum variable error message/extensions but does not run full schema validation location tracking."
-      }
-    ],
+    "expectedDifferences": [],
     "targets": [
       {
         "name": "unknown-fulfillment-user-error",
@@ -65,6 +58,7 @@
         "proxyPath": "$",
         "proxyRequest": {
           "documentPath": "config/parity-requests/shipping-fulfillments/fulfillment-event-create-validation.graphql",
+          "documentCapturePath": "$.invalidStatusVariable.query",
           "apiVersion": "2026-04",
           "variablesCapturePath": "$.invalidStatusVariable.variables"
         }
