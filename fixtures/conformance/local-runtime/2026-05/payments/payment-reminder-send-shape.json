@@ -1,0 +1,38 @@
+{
+  "scenarioId": "payment-reminder-send-shape",
+  "storeDomain": "local-runtime",
+  "notes": "HAR-655 executable local-runtime schema-shape fixture. Live paymentReminderSend success and missing-schedule payload parity are covered by payment-reminder-send-eligibility; this shape fixture exercises the negative schema selection branch that must reject customerPaymentMethod before staging.",
+  "cases": {
+    "invalidSelection": {
+      "request": {
+        "variables": {
+          "paymentScheduleId": "gid://shopify/PaymentSchedule/shape"
+        }
+      },
+      "response": {
+        "errors": [
+          {
+            "message": "Field 'customerPaymentMethod' doesn't exist on type 'PaymentReminderSendPayload'",
+            "locations": [
+              {
+                "line": 3,
+                "column": 5
+              }
+            ],
+            "path": [
+              "mutation PaymentReminderSendInvalidField",
+              "paymentReminderSend",
+              "customerPaymentMethod"
+            ],
+            "extensions": {
+              "code": "undefinedField",
+              "typeName": "PaymentReminderSendPayload",
+              "fieldName": "customerPaymentMethod"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "upstreamCalls": []
+}

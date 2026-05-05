@@ -4059,15 +4059,13 @@ fn send_payment_reminder(store, identity, field, fragments, variables) {
                   payment_schedule_id: schedule_id,
                   sent_at: sent_at,
                 )
-              payment_method_result(
+              payment_reminder_result(
                 store.stage_payment_reminder_send(store, record),
                 next_identity,
                 field,
                 fragments,
-                "paymentReminderSend",
-                None,
                 [],
-                [#("success", SrcBool(True))],
+                SrcBool(True),
               )
             }
             Some(error) ->
@@ -4217,15 +4215,30 @@ fn payment_reminder_error_result(
   errors: List(UserError),
   success: SourceValue,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
-  payment_method_result(
+  payment_reminder_result(store, identity, field, fragments, errors, success)
+}
+
+fn payment_reminder_result(
+  store: Store,
+  identity: SyntheticIdentityRegistry,
+  field: Selection,
+  fragments: FragmentMap,
+  errors: List(UserError),
+  success: SourceValue,
+) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
+  mutation_payload_result(
     store,
     identity,
     field,
-    fragments,
+    project_payload(field, fragments, [
+      #("success", success),
+      #("userErrors", user_errors_source(errors)),
+    ]),
+    [],
     "paymentReminderSend",
-    None,
-    errors,
-    [#("success", success)],
+    Some(
+      "Staged a local payment reminder intent only; no customer email is sent at runtime.",
+    ),
   )
 }
 
