@@ -34,6 +34,10 @@ pub const invalid_locale_format: Code = Code("INVALID_LOCALE_FORMAT")
 
 pub const duplicate_external_id: Code = Code("DUPLICATE_EXTERNAL_ID")
 
+pub const duplicate_location_external_id: Code = Code(
+  "DUPLICATE_LOCATION_EXTERNAL_ID",
+)
+
 pub const duplicate_email_address: Code = Code("DUPLICATE_EMAIL_ADDRESS")
 
 pub const duplicate_phone_number: Code = Code("DUPLICATE_PHONE_NUMBER")
@@ -78,6 +82,7 @@ pub fn all() -> List(Code) {
     contains_html_tags,
     invalid_locale_format,
     duplicate_external_id,
+    duplicate_location_external_id,
     duplicate_email_address,
     duplicate_phone_number,
     customer_not_found,

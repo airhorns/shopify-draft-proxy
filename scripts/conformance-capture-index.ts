@@ -125,6 +125,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'b2b',
+    captureId: 'b2b-external-id-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-b2b-external-id-validation-conformance.mts',
+    purpose:
+      'B2B company and company-location externalId charset, length, and uniqueness validation on create and update mutations.',
+    requiredAuthScopes: ['read_companies', 'write_companies'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}b2b-external-id-validation.json`,
+      'config/parity-specs/b2b/external_id_charset.json',
+      'config/parity-specs/b2b/external_id_too_long.json',
+      'config/parity-specs/b2b/external_id_duplicate_company.json',
+      'config/parity-specs/b2b/external_id_duplicate_location.json',
+      'config/parity-requests/b2b/external-id-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable companies plus an extra location, records validation failures, then deletes the companies during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'b2b',
     captureId: 'b2b-contact-input-normalization',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-b2b-contact-input-normalization-conformance.mts',
