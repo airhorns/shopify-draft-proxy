@@ -6,6 +6,7 @@ mutation OrderCreateValidationMatrix($noLineItems: OrderCreateOrderInput!) {
     userErrors {
       field
       message
+      code
     }
   }
 }
