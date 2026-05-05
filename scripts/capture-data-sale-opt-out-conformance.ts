@@ -89,6 +89,17 @@ const downstreamReadQuery = `#graphql
   }
 `;
 
+const whitespaceDownstreamReadQuery = `#graphql
+  query DataSaleOptOutWhitespaceDownstream($id: ID!, $identifier: CustomerIdentifierInput!) {
+    customer(id: $id) {
+      ${customerSlice}
+    }
+    customerByIdentifier(identifier: $identifier) {
+      ${customerSlice}
+    }
+  }
+`;
+
 const newCustomerDefaultsReadQuery = `#graphql
   query DataSaleOptOutNewCustomerDefaultsRead($id: ID!) {
     customer(id: $id) {
@@ -157,6 +168,8 @@ async function main() {
   const stamp = Date.now();
   const emailAddress = `hermes-data-sale-${stamp}@example.com`;
   const unknownEmailAddress = `hermes-data-sale-new-${stamp}@example.com`;
+  const whitespaceEmailAddress = `hermes data sale whitespace ${stamp}@example.com`;
+  const whitespaceSanitizedEmailAddress = whitespaceEmailAddress.replace(/[ \n\r]/g, '');
   const createVariables = {
     input: {
       email: emailAddress,
@@ -174,6 +187,7 @@ async function main() {
   }
 
   let unknownCustomerId = null;
+  let whitespaceCustomerId = null;
   let newDefaultsCustomerId = null;
   try {
     const mutationVariables = { email: emailAddress };
@@ -215,10 +229,36 @@ async function main() {
     const unknownDownstreamReadResult = await runGraphql(downstreamReadQuery, unknownDownstreamReadVariables);
     assertNoTopLevelErrors(unknownDownstreamReadResult, 'dataSaleOptOut unknown email downstream read');
 
+    const whitespaceEmailVariables = { email: whitespaceEmailAddress };
+    const whitespaceEmailResult = await runGraphql(dataSaleOptOutMutation, whitespaceEmailVariables);
+    assertNoTopLevelErrors(whitespaceEmailResult, 'dataSaleOptOut whitespace email');
+    whitespaceCustomerId = whitespaceEmailResult.payload?.data?.dataSaleOptOut?.customerId;
+    if (typeof whitespaceCustomerId !== 'string' || !whitespaceCustomerId) {
+      throw new Error(
+        `dataSaleOptOut whitespace email did not return a customer id: ${JSON.stringify(
+          whitespaceEmailResult.payload,
+          null,
+          2,
+        )}`,
+      );
+    }
+
+    const whitespaceDownstreamReadVariables = {
+      id: whitespaceCustomerId,
+      identifier: { id: whitespaceCustomerId },
+    };
+    const whitespaceDownstreamReadResult = await runGraphql(
+      whitespaceDownstreamReadQuery,
+      whitespaceDownstreamReadVariables,
+    );
+    assertNoTopLevelErrors(whitespaceDownstreamReadResult, 'dataSaleOptOut whitespace email downstream read');
+
     const cleanupExisting = await runGraphql(deleteMutation, { input: { id: customerId } });
     assertNoTopLevelErrors(cleanupExisting, 'dataSaleOptOut existing customer cleanup');
     const cleanupUnknown = await runGraphql(deleteMutation, { input: { id: unknownCustomerId } });
     assertNoTopLevelErrors(cleanupUnknown, 'dataSaleOptOut unknown customer cleanup');
+    const cleanupWhitespace = await runGraphql(deleteMutation, { input: { id: whitespaceCustomerId } });
+    assertNoTopLevelErrors(cleanupWhitespace, 'dataSaleOptOut whitespace customer cleanup');
 
     const newDefaultsEmailAddress = `hermes-data-sale-defaults-${stamp}@example.com`;
     const newDefaultsMutationVariables = { email: newDefaultsEmailAddress };
@@ -321,6 +361,41 @@ async function main() {
       ],
     };
 
+    const whitespaceCapture = {
+      mutation: {
+        variables: whitespaceEmailVariables,
+        response: whitespaceEmailResult.payload,
+      },
+      downstreamRead: {
+        variables: whitespaceDownstreamReadVariables,
+        response: whitespaceDownstreamReadResult.payload,
+      },
+      cleanup: {
+        whitespaceEmailCustomer: {
+          response: cleanupWhitespace.payload,
+        },
+      },
+      upstreamCalls: [
+        {
+          operationName: 'DataSaleOptOutCustomerLookup',
+          variables: {
+            identifier: {
+              emailAddress: whitespaceSanitizedEmailAddress,
+            },
+          },
+          query: 'sha:hand-synthesized-from-data-sale-opt-out-whitespace-email',
+          response: {
+            status: 200,
+            body: {
+              data: {
+                customerByIdentifier: null,
+              },
+            },
+          },
+        },
+      ],
+    };
+
     const newCustomerDefaultsCapture = {
       mutation: {
         variables: newDefaultsMutationVariables,
@@ -367,6 +442,12 @@ async function main() {
     );
 
     await writeFile(
+      path.join(outputDir, 'data-sale-opt-out-whitespace-email.json'),
+      `${JSON.stringify(whitespaceCapture, null, 2)}\n`,
+      'utf8',
+    );
+
+    await writeFile(
       path.join(outputDir, 'data-sale-opt-out-new-customer-defaults.json'),
       `${JSON.stringify(newCustomerDefaultsCapture, null, 2)}\n`,
       'utf8',
@@ -377,9 +458,14 @@ async function main() {
         {
           ok: true,
           outputDir,
-          files: ['data-sale-opt-out-parity.json', 'data-sale-opt-out-new-customer-defaults.json'],
+          files: [
+            'data-sale-opt-out-parity.json',
+            'data-sale-opt-out-whitespace-email.json',
+            'data-sale-opt-out-new-customer-defaults.json',
+          ],
           customerId,
           unknownCustomerId,
+          whitespaceCustomerId,
           newDefaultsCustomerId,
         },
         null,
@@ -389,6 +475,9 @@ async function main() {
   } catch (error) {
     if (newDefaultsCustomerId) {
       await runGraphql(deleteMutation, { input: { id: newDefaultsCustomerId } });
+    }
+    if (whitespaceCustomerId) {
+      await runGraphql(deleteMutation, { input: { id: whitespaceCustomerId } });
     }
     if (unknownCustomerId) {
       await runGraphql(deleteMutation, { input: { id: unknownCustomerId } });

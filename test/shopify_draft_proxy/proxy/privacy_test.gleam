@@ -5,12 +5,16 @@ import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
+  graphql_body(proxy, "{\"query\":\"" <> escape(query) <> "\"}")
+}
+
+fn graphql_body(proxy: draft_proxy.DraftProxy, body: String) {
   let request =
     Request(
       method: "POST",
       path: "/admin/api/2025-01/graphql.json",
       headers: dict.new(),
-      body: "{\"query\":\"" <> escape(query) <> "\"}",
+      body: body,
     )
   draft_proxy.process_request(proxy, request)
 }
@@ -120,6 +124,49 @@ pub fn data_sale_opt_out_unknown_email_creates_opted_out_customer_test() {
   )
 }
 
+pub fn data_sale_opt_out_strips_internal_whitespace_email_test() {
+  let proxy = registry_proxy()
+  let body =
+    "{\"query\":\"mutation DataSaleOptOut($email: String!) { dataSaleOptOut(email: $email) { customerId userErrors { field message code } } }\",\"variables\":{\"email\":\"her mes@example.com\"}}"
+  let #(Response(status: opt_status, body: opt_body, ..), proxy) =
+    graphql_body(proxy, body)
+  assert opt_status == 200
+  assert string.contains(
+    json.to_string(opt_body),
+    "\"dataSaleOptOut\":{\"customerId\":\"gid://shopify/Customer/1\",\"userErrors\":[]}",
+  )
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { customer(id: \"gid://shopify/Customer/1\") { id email dataSaleOptOut defaultEmailAddress { emailAddress } } customerByIdentifier(identifier: { emailAddress: \"hermes@example.com\" }) { id email dataSaleOptOut defaultEmailAddress { emailAddress } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"email\":\"hermes@example.com\"")
+  assert !string.contains(read_json, "her mes@example.com")
+  assert string.contains(
+    read_json,
+    "\"defaultEmailAddress\":{\"emailAddress\":\"hermes@example.com\"}",
+  )
+  assert string.contains(
+    read_json,
+    "\"customerByIdentifier\":{\"id\":\"gid://shopify/Customer/1\",\"email\":\"hermes@example.com\",\"dataSaleOptOut\":true",
+  )
+}
+
+pub fn data_sale_opt_out_tab_email_matches_shopify_error_test() {
+  let proxy = registry_proxy()
+  let body =
+    "{\"query\":\"mutation DataSaleOptOut($email: String!) { dataSaleOptOut(email: $email) { customerId userErrors { field message code } } }\",\"variables\":{\"email\":\"hermes\\t@example.com\"}}"
+  let #(Response(status: opt_status, body: opt_body, ..), _) =
+    graphql_body(proxy, body)
+  assert opt_status == 200
+  let opt_json = json.to_string(opt_body)
+  assert string.contains(opt_json, "\"customerId\":null")
+  assert string.contains(opt_json, "\"code\":\"FAILED\"")
+}
+
 pub fn data_sale_opt_out_invalid_email_matches_shopify_error_test() {
   let proxy = registry_proxy()
   let #(Response(status: opt_status, body: opt_body, ..), proxy) =
@@ -140,6 +187,40 @@ pub fn data_sale_opt_out_invalid_email_matches_shopify_error_test() {
     draft_proxy.process_request(proxy, log_request)
   assert log_status == 200
   assert json.to_string(log_body) == "{\"entries\":[]}"
+}
+
+pub fn data_sale_opt_out_whitespace_only_email_matches_shopify_error_test() {
+  let proxy = registry_proxy()
+  let body =
+    "{\"query\":\"mutation DataSaleOptOut($email: String!) { dataSaleOptOut(email: $email) { customerId userErrors { field message code } } }\",\"variables\":{\"email\":\" \\t\\n \"}}"
+  let #(Response(status: opt_status, body: opt_body, ..), proxy) =
+    graphql_body(proxy, body)
+  assert opt_status == 200
+  let opt_json = json.to_string(opt_body)
+  assert string.contains(opt_json, "\"customerId\":null")
+  assert string.contains(opt_json, "\"field\":null")
+  assert string.contains(opt_json, "\"message\":\"Data sale opt out failed.\"")
+  assert string.contains(opt_json, "\"code\":\"FAILED\"")
+
+  let log_request =
+    Request(method: "GET", path: "/__meta/log", headers: dict.new(), body: "")
+  let #(Response(status: log_status, body: log_body, ..), _) =
+    draft_proxy.process_request(proxy, log_request)
+  assert log_status == 200
+  assert json.to_string(log_body) == "{\"entries\":[]}"
+}
+
+pub fn data_sale_opt_out_domain_without_dot_still_fails_test() {
+  let proxy = registry_proxy()
+  let #(Response(status: opt_status, body: opt_body, ..), _) =
+    graphql(
+      proxy,
+      "mutation { dataSaleOptOut(email: \"user@example\") { customerId userErrors { field message code } } }",
+    )
+  assert opt_status == 200
+  let opt_json = json.to_string(opt_body)
+  assert string.contains(opt_json, "\"customerId\":null")
+  assert string.contains(opt_json, "\"code\":\"FAILED\"")
 }
 
 pub fn unsupported_privacy_roots_stay_without_local_dispatch_test() {

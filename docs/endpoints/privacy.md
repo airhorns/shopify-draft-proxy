@@ -40,6 +40,7 @@ These are customer privacy side-effect roots. The local runtime stages request/c
 - `consentPolicy` and `consentPolicyRegions` are shop consent policy reads. They are separate from customer contact consent fields.
 - `consentPolicyUpdate` and `privacyFeaturesDisable` require `write_privacy_settings` and have real shop side effects. They must remain unsupported at runtime until the proxy can stage the changes locally and replay the original raw mutations during commit.
 - `dataSaleOptOut` requires `write_privacy_settings`, accepts a customer email address, and returns `customerId` plus `userErrors`. Captured evidence shows successful opt-out sets downstream `Customer.dataSaleOptOut` to `true`, repeat calls are idempotent, invalid email strings return `customerId: null` with `code: FAILED`, and an unknown valid email creates an opted-out customer.
+- `dataSaleOptOut` sanitizes the email before validation by stripping the whitespace characters observed in live Admin API capture: internal spaces and newlines are removed. For example, `her mes@example.com` is validated and staged as `hermes@example.com`; if stripping leaves an empty value or the remaining value does not match the email validator approximation, the mutation returns the captured `FAILED` userError and stages nothing. Live 2025-01 capture rejected tab characters with the same `FAILED` shape, so the proxy deliberately preserves that boundary instead of treating tabs as removable whitespace.
 - `dataSaleOptOut` is related to, but distinct from, shop privacy settings fields such as `privacySettings.dataSaleOptOutPage` and consent policy fields such as `dataSaleOptOutRequired`: those reads describe shop configuration and policy requirements, while the mutation records an opt-out action for a customer email.
 - Local staging keeps the operation under the privacy registry domain, but stores its read-after-write effect on the normalized customer record so `customer(id:)` and `customerByIdentifier(...)` can serialize `dataSaleOptOut`.
 - In cassette-backed `LiveHybrid` parity, existing-email `dataSaleOptOut` first reads `customerByIdentifier(identifier: { emailAddress })` from upstream to learn Shopify's authoritative customer ID, then stages the opt-out locally without sending the supported mutation upstream.
@@ -59,12 +60,13 @@ The script uses the canonical conformance auth helper and defaults to Admin Grap
 - `SHOPIFY_CONFORMANCE_PRIVACY_CONSENT_POLICIES_JSON` for `consentPolicyUpdate`
 - `SHOPIFY_CONFORMANCE_PRIVACY_FEATURES_TO_DISABLE_JSON` for `privacyFeaturesDisable`
 
-`dataSaleOptOut` has a dedicated capture entry point: `corepack pnpm conformance:capture-data-sale-opt-out`, backed by `scripts/capture-data-sale-opt-out-conformance.ts`. It creates disposable customers, captures existing-email opt-out, repeat idempotency, invalid-email userErrors, unknown-email customer creation, downstream `Customer.dataSaleOptOut` reads, and cleanup.
+`dataSaleOptOut` has a dedicated capture entry point: `corepack pnpm conformance:capture-data-sale-opt-out`, backed by `scripts/capture-data-sale-opt-out-conformance.ts`. It creates disposable customers, captures existing-email opt-out, repeat idempotency, invalid-email userErrors, unknown-email customer creation, internally-whitespaced email sanitization, downstream `Customer.dataSaleOptOut` reads, and cleanup.
 
 Do not check in planned-only parity specs or parity request placeholders for this group. Add parity specs only after live capture produces fixture evidence and a strict comparison contract can run.
 
 ### Validation anchors
 
 - Fixture-backed parity scenario: `config/parity-specs/privacy/dataSaleOptOut-parity.json`
+- Fixture-backed whitespace sanitization scenario: `config/parity-specs/privacy/data-sale-opt-out-whitespace-email.json`
 - General registry checks: `tests/unit/operation-registry.test.ts`
 - Root inventory fixture: `fixtures/conformance/very-big-test-store.myshopify.com/2025-01/admin-platform/admin-graphql-root-operation-introspection.json`
