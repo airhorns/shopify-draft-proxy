@@ -38,7 +38,8 @@ import shopify_draft_proxy/proxy/graphql_helpers.{
   serialize_connection, src_object,
 }
 import shopify_draft_proxy/proxy/mutation_helpers.{
-  type MutationOutcome, MutationOutcome, respond_to_query, single_root_log_draft,
+  type MutationFieldResult, type MutationOutcome, MutationFieldResult,
+  MutationOutcome, respond_to_query, single_root_log_draft,
 }
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
@@ -1176,14 +1177,6 @@ fn compare_gift_cards(
 /// codes when the selection asks for them; older local guardrails keep `None`.
 pub type UserError {
   UserError(field: List(String), code: Option(String), message: String)
-}
-
-type MutationFieldResult {
-  MutationFieldResult(
-    key: String,
-    payload: Json,
-    staged_resource_ids: List(String),
-  )
 }
 
 type GiftCardPayload {

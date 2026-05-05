@@ -35,6 +35,7 @@ import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response,
 }
 import shopify_draft_proxy/proxy/store_properties
+import shopify_draft_proxy/proxy/upstream_query.{type UpstreamContext}
 import shopify_draft_proxy/search_query_parser.{
   parse_search_query_term, search_query_term_value,
   strip_search_query_value_quotes,
@@ -473,6 +474,7 @@ pub fn process_mutation(
   request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
+  _upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)

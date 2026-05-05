@@ -850,6 +850,7 @@ fn json_get(value: commit.JsonValue, key: String) -> Option(commit.JsonValue) {
 pub fn process_mutation(
   store: Store,
   identity: SyntheticIdentityRegistry,
+  _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
   upstream: UpstreamContext,
