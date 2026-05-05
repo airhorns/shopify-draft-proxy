@@ -1424,12 +1424,15 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   {
     domain: 'customers',
     captureId: 'customer-consent',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-customer-consent-conformance.ts',
     purpose: 'Email/SMS marketing consent update behavior.',
     requiredAuthScopes: ['read_customers', 'write_customers'],
     fixtureOutputs: [
       `${CAPTURE_ROOT}customer-email-marketing-consent-update-parity.json`,
       `${CAPTURE_ROOT}customer-sms-marketing-consent-update-parity.json`,
+      'config/parity-specs/customers/customerEmailMarketingConsentUpdate-disallowed-states-parity.json',
+      'config/parity-specs/customers/customerSmsMarketingConsentUpdate-disallowed-states-parity.json',
     ],
     cleanupBehavior: 'Creates and deletes disposable customers for consent transitions.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
