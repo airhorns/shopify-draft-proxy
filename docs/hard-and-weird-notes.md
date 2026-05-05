@@ -1304,6 +1304,13 @@ HAR-246 live probes against Admin GraphQL 2026-04 added validation details:
 - unknown, stale, or already-deleted IDs for `metaobjectUpdate`, `metaobjectDelete`, `metaobjectDefinitionUpdate`, and `metaobjectDefinitionDelete` return `RECORD_NOT_FOUND` rather than the earlier local `NOT_FOUND` placeholder.
 - 2026-04 `metaobjectBulkDelete` requires `where: MetaobjectBulkDeleteWhereCondition!`; direct `ids` is rejected by the GraphQL layer even though the local harness keeps the legacy direct-ids branch for prior replay evidence.
 
+HAR-673 live capture against Admin GraphQL 2026-04 added definition type validation details:
+
+- `metaobjectDefinitionCreate` resolves `$app:<rest>` to the installed app namespace before validation/storage; the conformance app resolved to `app--347082227713--<rest>`.
+- definition type validation returns `TOO_SHORT`, `TOO_LONG`, or `INVALID` on `["definition", "type"]` after app namespace resolution and lowercasing. The captured invalid-format message is the longer service message: `Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.`
+- uppercase definition types are downcased before storage and duplicate checks; a create with `HAR_673_CASE...` stored `har_673_case...`, and a follow-up lower-case create returned `TAKEN`.
+- Shopify 2026-04 accepted an uppercase field definition key introduced through `metaobjectDefinitionUpdate` field creation during this capture. Keep local field-key guardrails unit-tested, but do not claim live parity for that update branch without a later capture that rejects it.
+
 ## 18a. Staged metafield writes need product-scoped replacement semantics, not id-wise merge
 
 Adding `metafieldsSet` / `metafieldDelete` exposed a subtle state-model trap:

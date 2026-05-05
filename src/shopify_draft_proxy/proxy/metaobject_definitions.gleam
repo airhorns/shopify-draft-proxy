@@ -184,7 +184,10 @@ fn serialize_root_fields(
               case read_string_arg(field, variables, "type") {
                 Some(type_) ->
                   case
-                    find_effective_metaobject_definition_by_type(store, type_)
+                    find_effective_metaobject_definition_by_normalized_type(
+                      store,
+                      normalize_definition_type(type_),
+                    )
                   {
                     Some(definition) ->
                       serialize_definition_selection(
@@ -343,6 +346,33 @@ fn should_passthrough_in_live_hybrid(
   }
 }
 
+fn normalize_definition_type(type_: String) -> String {
+  let resolved = case string.starts_with(type_, "$app:") {
+    True ->
+      "app--"
+      <> default_app_api_client_db_id()
+      <> "--"
+      <> string.drop_start(type_, string.length("$app:"))
+    False -> type_
+  }
+  string.lowercase(resolved)
+}
+
+fn normalized_definition_type_from_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  read_string(input, "type")
+  |> option.map(normalize_definition_type)
+}
+
+fn default_app_api_client_db_id() -> String {
+  "347082227713"
+}
+
+fn is_app_reserved_definition_type_input(type_: String) -> Bool {
+  string.starts_with(type_, "$app:")
+}
+
 fn local_has_metaobject_id(
   proxy: DraftProxy,
   variables: Dict(String, root_field.ResolvedValue),
@@ -398,6 +428,17 @@ fn local_has_metaobject_definitions(proxy: DraftProxy) -> Bool {
   || !list.is_empty(dict.keys(
     proxy.store.staged_state.deleted_metaobject_definition_ids,
   ))
+}
+
+fn find_effective_metaobject_definition_by_normalized_type(
+  store: Store,
+  normalized_type: String,
+) -> Option(MetaobjectDefinitionRecord) {
+  list_effective_metaobject_definitions(store)
+  |> list.find(fn(definition) {
+    string.lowercase(definition.type_) == normalized_type
+  })
+  |> option.from_result
 }
 
 fn resolved_value_strings(value: root_field.ResolvedValue) -> List(String) {
@@ -521,7 +562,14 @@ fn dispatch_mutation_field(
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   case name {
     "metaobjectDefinitionCreate" ->
-      handle_definition_create(store, identity, field, fragments, variables)
+      handle_definition_create(
+        store,
+        identity,
+        field,
+        fragments,
+        variables,
+        upstream,
+      )
     "metaobjectDefinitionUpdate" ->
       handle_definition_update(store, identity, field, fragments, variables)
     "metaobjectDefinitionDelete" ->
@@ -596,11 +644,20 @@ fn handle_definition_create(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let input = read_object_arg(args, "definition")
-  let user_errors = build_create_definition_user_errors(store, input)
+  let validation_errors = build_create_definition_validation_errors(input)
+  let store = case validation_errors {
+    [] -> maybe_hydrate_definition_for_create(store, input, upstream)
+    [_, ..] -> store
+  }
+  let user_errors = case validation_errors {
+    [] -> build_create_definition_uniqueness_errors(store, input)
+    [_, ..] -> validation_errors
+  }
   case user_errors {
     [_, ..] -> {
       let payload = definition_payload(field, fragments, None, user_errors)
@@ -657,6 +714,7 @@ fn handle_definition_update(
             || option.unwrap(read_bool(input, "resetFieldOrder"), False)
           let #(updated, next_identity, user_errors) =
             apply_definition_update(
+              store,
               identity,
               existing,
               input,
@@ -1409,9 +1467,13 @@ fn maybe_hydrate_definition_by_type(
 ) -> Store {
   case type_ {
     None -> store
-    Some(metaobject_type) ->
+    Some(metaobject_type) -> {
+      let normalized_type = normalize_definition_type(metaobject_type)
       case
-        find_effective_metaobject_definition_by_type(store, metaobject_type)
+        find_effective_metaobject_definition_by_normalized_type(
+          store,
+          normalized_type,
+        )
       {
         Some(_) -> store
         None ->
@@ -1420,9 +1482,37 @@ fn maybe_hydrate_definition_by_type(
             upstream,
             "MetaobjectDefinitionHydrateByType",
             metaobject_definition_hydrate_query(),
-            json.object([#("type", json.string(metaobject_type))]),
+            json.object([#("type", json.string(normalized_type))]),
           )
       }
+    }
+  }
+}
+
+fn maybe_hydrate_definition_for_create(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  upstream: UpstreamContext,
+) -> Store {
+  case read_string(input, "type") {
+    None -> store
+    Some(raw_type) -> {
+      let normalized_type = normalize_definition_type(raw_type)
+      case
+        raw_type == normalized_type
+        || is_app_reserved_definition_type_input(raw_type)
+      {
+        True ->
+          fetch_and_hydrate(
+            store,
+            upstream,
+            "MetaobjectDefinitionHydrateByType",
+            metaobject_definition_hydrate_query(),
+            json.object([#("type", json.string(normalized_type))]),
+          )
+        False -> store
+      }
+    }
   }
 }
 
@@ -1978,8 +2068,7 @@ fn default_definition_capabilities() -> MetaobjectDefinitionCapabilitiesRecord {
   )
 }
 
-fn build_create_definition_user_errors(
-  store: Store,
+fn build_create_definition_validation_errors(
   input: Dict(String, root_field.ResolvedValue),
 ) -> List(UserError) {
   let type_ = read_string(input, "type")
@@ -1987,7 +2076,7 @@ fn build_create_definition_user_errors(
   let access = read_object(input, "access")
   []
   |> append_if(
-    option.is_none(type_),
+    is_missing_definition_type(type_),
     UserError(
       Some(["definition", "type"]),
       "Type can't be blank",
@@ -2009,7 +2098,7 @@ fn build_create_definition_user_errors(
   |> append_if(
     case type_, access {
       Some(t), Some(a) ->
-        !string.starts_with(t, "$app:") && dict.has_key(a, "admin")
+        !is_app_reserved_definition_type_input(t) && dict.has_key(a, "admin")
       _, _ -> False
     },
     UserError(
@@ -2020,10 +2109,22 @@ fn build_create_definition_user_errors(
       None,
     ),
   )
+  |> append_definition_type_validation_errors(type_)
+  |> append_create_field_definition_key_errors(read_list(
+    input,
+    "fieldDefinitions",
+  ))
+}
+
+fn build_create_definition_uniqueness_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  []
   |> append_if(
-    case type_ {
+    case normalized_definition_type_from_input(input) {
       Some(t) ->
-        case find_effective_metaobject_definition_by_type(store, t) {
+        case find_effective_metaobject_definition_by_normalized_type(store, t) {
           Some(_) -> True
           None -> False
         }
@@ -2039,6 +2140,138 @@ fn build_create_definition_user_errors(
   )
 }
 
+fn is_missing_definition_type(type_: Option(String)) -> Bool {
+  case type_ {
+    None -> True
+    Some(value) -> string.trim(value) == ""
+  }
+}
+
+fn append_definition_type_validation_errors(
+  errors: List(UserError),
+  type_: Option(String),
+) -> List(UserError) {
+  case type_ {
+    None -> errors
+    Some(raw) ->
+      case string.trim(raw) {
+        "" -> errors
+        _ -> {
+          let type_ = normalize_definition_type(raw)
+          let length = string.length(type_)
+          errors
+          |> append_if(
+            length < 3,
+            UserError(
+              Some(["definition", "type"]),
+              "Type is too short (minimum is 3 characters)",
+              "TOO_SHORT",
+              None,
+              None,
+            ),
+          )
+          |> append_if(
+            length > 255,
+            UserError(
+              Some(["definition", "type"]),
+              "Type is too long (maximum is 255 characters)",
+              "TOO_LONG",
+              None,
+              None,
+            ),
+          )
+          |> append_if(
+            !is_valid_definition_type(type_),
+            UserError(
+              Some(["definition", "type"]),
+              "Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.",
+              "INVALID",
+              None,
+              None,
+            ),
+          )
+        }
+      }
+  }
+}
+
+fn is_valid_definition_type(type_: String) -> Bool {
+  type_ != ""
+  && list.all(string.to_utf_codepoints(type_), fn(char) {
+    is_definition_type_codepoint(string.utf_codepoint_to_int(char))
+  })
+}
+
+fn is_definition_type_codepoint(codepoint: Int) -> Bool {
+  is_ascii_lowercase_letter(codepoint)
+  || is_ascii_uppercase_letter(codepoint)
+  || is_ascii_digit(codepoint)
+  || codepoint == 45
+  || codepoint == 95
+}
+
+fn is_valid_field_key(key: String) -> Bool {
+  key != ""
+  && list.all(string.to_utf_codepoints(key), fn(char) {
+    let codepoint = string.utf_codepoint_to_int(char)
+    is_ascii_lowercase_letter(codepoint)
+    || is_ascii_digit(codepoint)
+    || codepoint == 95
+  })
+}
+
+fn is_ascii_lowercase_letter(codepoint: Int) -> Bool {
+  codepoint >= 97 && codepoint <= 122
+}
+
+fn is_ascii_uppercase_letter(codepoint: Int) -> Bool {
+  codepoint >= 65 && codepoint <= 90
+}
+
+fn is_ascii_digit(codepoint: Int) -> Bool {
+  codepoint >= 48 && codepoint <= 57
+}
+
+fn append_create_field_definition_key_errors(
+  errors: List(UserError),
+  values: List(root_field.ResolvedValue),
+) -> List(UserError) {
+  list.fold(enumerate_values(values), errors, fn(acc, pair) {
+    let #(index, value) = pair
+    case value {
+      root_field.ObjectVal(input) ->
+        append_field_key_validation_error(acc, read_string(input, "key"), index)
+      _ -> acc
+    }
+  })
+}
+
+fn append_field_key_validation_error(
+  errors: List(UserError),
+  key: Option(String),
+  index: Int,
+) -> List(UserError) {
+  case key {
+    Some(k) ->
+      append_if(
+        errors,
+        !is_valid_field_key(k),
+        invalid_field_key_user_error(index, k),
+      )
+    None -> errors
+  }
+}
+
+fn invalid_field_key_user_error(index: Int, key: String) -> UserError {
+  UserError(
+    Some(["definition", "fieldDefinitions", int.to_string(index), "key"]),
+    "is invalid",
+    "INVALID",
+    Some(key),
+    Some(index),
+  )
+}
+
 fn build_definition_from_create_input(
   identity: SyntheticIdentityRegistry,
   input: Dict(String, root_field.ResolvedValue),
@@ -2050,7 +2283,8 @@ fn build_definition_from_create_input(
     )
   let #(now, after_time) = synthetic_identity.make_synthetic_timestamp(after_id)
   let type_ =
-    read_string(input, "type") |> option.unwrap("metaobject_definition")
+    normalized_definition_type_from_input(input)
+    |> option.unwrap("metaobject_definition")
   #(
     MetaobjectDefinitionRecord(
       id: id,
@@ -2081,6 +2315,7 @@ fn build_definition_from_create_input(
 }
 
 fn apply_definition_update(
+  store: Store,
   identity: SyntheticIdentityRegistry,
   existing: MetaobjectDefinitionRecord,
   input: Dict(String, root_field.ResolvedValue),
@@ -2097,9 +2332,16 @@ fn apply_definition_update(
     True -> reorder_field_definitions(fields, ordered_keys)
     False -> fields
   }
+  let type_ =
+    normalized_definition_type_from_input(input)
+    |> option.unwrap(existing.type_)
+  let type_errors =
+    build_update_definition_type_user_errors(store, existing.id, input)
+  let access_errors = build_update_definition_access_user_errors(input, type_)
   let updated =
     MetaobjectDefinitionRecord(
       ..existing,
+      type_: type_,
       name: read_string_if_present(input, "name", existing.name),
       description: read_string_if_present(
         input,
@@ -2126,7 +2368,81 @@ fn apply_definition_update(
       field_definitions: next_fields,
       updated_at: Some(now),
     )
-  #(updated, next_identity, user_errors)
+  #(
+    updated,
+    next_identity,
+    list.flatten([
+      type_errors,
+      access_errors,
+      user_errors,
+    ]),
+  )
+}
+
+fn build_update_definition_type_user_errors(
+  store: Store,
+  existing_id: String,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(UserError) {
+  let type_ = read_string(input, "type")
+  let validation_errors =
+    []
+    |> append_definition_type_validation_errors(type_)
+  case validation_errors, normalized_definition_type_from_input(input) {
+    [], Some(normalized_type) ->
+      []
+      |> append_if(
+        case
+          find_effective_metaobject_definition_by_normalized_type(
+            store,
+            normalized_type,
+          )
+        {
+          Some(definition) -> definition.id != existing_id
+          None -> False
+        },
+        UserError(
+          Some(["definition", "type"]),
+          "Type has already been taken",
+          "TAKEN",
+          None,
+          None,
+        ),
+      )
+    [_, ..], _ -> validation_errors
+    [], None -> []
+  }
+}
+
+fn build_update_definition_access_user_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  next_type: String,
+) -> List(UserError) {
+  []
+  |> append_if(
+    case read_object(input, "access") {
+      Some(access) ->
+        dict.has_key(access, "admin")
+        && !{
+          case read_string(input, "type") {
+            Some(raw_type) -> is_app_reserved_definition_type_input(raw_type)
+            None -> is_app_reserved_resolved_definition_type(next_type)
+          }
+        }
+      None -> False
+    },
+    UserError(
+      Some(["definition", "access", "admin"]),
+      "Admin access can only be specified on metaobject definitions that have an app-reserved type.",
+      "ADMIN_ACCESS_INPUT_NOT_ALLOWED",
+      None,
+      None,
+    ),
+  )
+}
+
+fn is_app_reserved_resolved_definition_type(type_: String) -> Bool {
+  string.starts_with(type_, "app--" <> default_app_api_client_db_id() <> "--")
 }
 
 fn standard_template(
@@ -2264,14 +2580,22 @@ fn apply_field_definition_operations(
             ordered_keys,
           )
           Some(k) ->
-            apply_field_operation(
-              fields,
-              errors,
-              list.append(ordered_keys, [k]),
-              operation,
-              k,
-              index,
-            )
+            case is_valid_field_key(k) {
+              False -> #(
+                fields,
+                list.append(errors, [invalid_field_key_user_error(index, k)]),
+                ordered_keys,
+              )
+              True ->
+                apply_field_operation(
+                  fields,
+                  errors,
+                  list.append(ordered_keys, [k]),
+                  operation,
+                  k,
+                  index,
+                )
+            }
         }
       }
     }
@@ -3197,10 +3521,12 @@ fn serialize_definitions_connection(
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
   let items = case read_string(args, "type") {
-    Some(type_) ->
+    Some(type_) -> {
+      let normalized_type = normalize_definition_type(type_)
       list.filter(list_effective_metaobject_definitions(store), fn(defn) {
-        defn.type_ == type_
+        string.lowercase(defn.type_) == normalized_type
       })
+    }
     None -> list_effective_metaobject_definitions(store)
   }
   let window =
