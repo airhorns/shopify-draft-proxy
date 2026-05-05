@@ -32,9 +32,9 @@ Validation:
 - `cd gleam && gleam test --target javascript -- fulfillment_order_cancel`
   (858 passed after parity refresh)
 - `cd gleam && gleam test --target javascript` (871 passed after merging
-  `origin/main@67e6ce85`)
+  `origin/main@ae66202d`)
 - `docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD":/repo -w /repo/gleam ghcr.io/gleam-lang/gleam:v1.16.0-erlang-alpine sh -lc 'erl -eval "io:format(\"OTP=~s~n\", [erlang:system_info(otp_release)]), halt()." -noshell && gleam clean && gleam test --target erlang'`
-  (OTP 28, 862 passed after merging `origin/main@67e6ce85`)
+  (OTP 28, 862 passed after merging `origin/main@ae66202d`)
 - `corepack pnpm conformance:check`
 - `corepack pnpm conformance:capture:check`
 - `corepack pnpm gleam:format:check`
@@ -43,7 +43,7 @@ Validation:
 - `corepack pnpm typecheck`
 - `corepack pnpm build`
 - `corepack pnpm test` (123 files passed; 2313 passed after merging
-  `origin/main@67e6ce85`)
+  `origin/main@ae66202d`)
 - `git diff --check`
 
 ### Findings
