@@ -1040,6 +1040,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'product-variant-media-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-product-variant-media-validation-conformance.ts',
+    purpose:
+      'productVariantAppendMedia and productVariantDetachMedia validation for cross-product variants, cross-product media, non-ready media, and unattached detach targets.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-variant-media-validation.json`,
+      'config/parity-specs/products/product_variant_append_media_validation.json',
+      'config/parity-requests/products/product-variant-media-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable products plus disposable product media, then deletes both products during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-variant-relationship-bulk-update-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-product-variant-relationship-bulk-update-validation-conformance.ts',

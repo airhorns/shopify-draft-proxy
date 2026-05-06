@@ -15,16 +15,17 @@ import shopify_draft_proxy/state/types.{
   type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
   type InventoryQuantityRecord, type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
-  type MetafieldDefinitionValidationRecord, type ProductRecord,
-  type ProductVariantRecord, type SellingPlanGroupRecord, CollectionRecord,
-  CollectionRuleRecord, CollectionRuleSetRecord, InventoryItemRecord,
-  InventoryLevelRecord, InventoryLocationRecord, InventoryQuantityRecord,
-  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
-  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
-  MetafieldDefinitionValidationRecord, ProductCollectionRecord,
-  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
-  ProductRecord, ProductSeoRecord, ProductVariantRecord,
-  ProductVariantSelectedOptionRecord, SellingPlanGroupRecord,
+  type MetafieldDefinitionValidationRecord, type ProductMediaRecord,
+  type ProductRecord, type ProductVariantRecord, type SellingPlanGroupRecord,
+  CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
+  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
+  InventoryQuantityRecord, MetafieldDefinitionCapabilitiesRecord,
+  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionRecord,
+  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
+  ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
+  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord,
+  SellingPlanGroupRecord,
 }
 
 fn empty_headers() -> dict.Dict(String, String) {
@@ -87,6 +88,63 @@ fn assert_combined_listing_user_error(
   assert string.contains(body, "\"code\":\"" <> code <> "\"")
   let assert [entry] = store.get_log(next_proxy.store)
   assert entry.status == store_types.Failed
+}
+
+fn assert_product_variant_media_user_error(
+  initial_store: store.Store,
+  query: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(initial_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+}
+
+pub fn product_variant_append_media_rejects_variant_from_other_product_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantAppendMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/child\\\", mediaIds: [\\\"gid://shopify/MediaImage/ready\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "PRODUCT_VARIANT_DOES_NOT_EXIST_ON_PRODUCT",
+    "[\"variantMedia\",\"0\",\"variantId\"]",
+    "Variant does not exist on the specified product.",
+  )
+}
+
+pub fn product_variant_append_media_rejects_media_from_other_product_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantAppendMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/default\\\", mediaIds: [\\\"gid://shopify/MediaImage/child\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "MEDIA_DOES_NOT_EXIST_ON_PRODUCT",
+    "[\"variantMedia\",\"0\",\"mediaIds\"]",
+    "Media does not exist on the specified product.",
+  )
+}
+
+pub fn product_variant_append_media_rejects_processing_media_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantAppendMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/default\\\", mediaIds: [\\\"gid://shopify/MediaImage/processing\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "NON_READY_MEDIA",
+    "[\"variantMedia\",\"0\",\"mediaIds\"]",
+    "Non-ready media cannot be attached to variants.",
+  )
+}
+
+pub fn product_variant_detach_media_rejects_unattached_media_test() {
+  assert_product_variant_media_user_error(
+    variant_media_validation_store(),
+    "mutation { productVariantDetachMedia(productId: \\\"gid://shopify/Product/optioned\\\", variantMedia: [{ variantId: \\\"gid://shopify/ProductVariant/default\\\", mediaIds: [\\\"gid://shopify/MediaImage/ready\\\"] }]) { productVariants { id } userErrors { field message code } } }",
+    "MEDIA_IS_NOT_ATTACHED_TO_VARIANT",
+    "[\"variantMedia\",\"0\",\"variantId\"]",
+    "The specified media is not attached to the specified variant.",
+  )
 }
 
 fn assert_selling_plan_group_create_user_error(
@@ -4006,6 +4064,57 @@ fn child_variant() -> ProductVariantRecord {
       ),
     ),
   )
+}
+
+fn product_media_record(
+  id: String,
+  product_id: String,
+  position: Int,
+  status: String,
+) -> ProductMediaRecord {
+  ProductMediaRecord(
+    key: product_id <> ":" <> id,
+    product_id: product_id,
+    position: position,
+    id: Some(id),
+    media_content_type: Some("IMAGE"),
+    alt: None,
+    status: Some(status),
+    product_image_id: None,
+    image_url: None,
+    image_width: None,
+    image_height: None,
+    preview_image_url: None,
+    source_url: None,
+  )
+}
+
+fn variant_media_validation_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_products([default_product(), child_product()])
+  |> store.upsert_base_product_variants([default_variant(), child_variant()])
+  |> store.replace_base_media_for_product("gid://shopify/Product/optioned", [
+    product_media_record(
+      "gid://shopify/MediaImage/ready",
+      "gid://shopify/Product/optioned",
+      0,
+      "READY",
+    ),
+    product_media_record(
+      "gid://shopify/MediaImage/processing",
+      "gid://shopify/Product/optioned",
+      1,
+      "PROCESSING",
+    ),
+  ])
+  |> store.replace_base_media_for_product("gid://shopify/Product/child", [
+    product_media_record(
+      "gid://shopify/MediaImage/child",
+      "gid://shopify/Product/child",
+      0,
+      "READY",
+    ),
+  ])
 }
 
 fn default_variant() -> ProductVariantRecord {
