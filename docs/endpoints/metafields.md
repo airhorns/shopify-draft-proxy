@@ -41,6 +41,8 @@ Create supports the normalized fields represented by `MetafieldDefinitionRecord`
 
 Update resolves the existing definition by immutable identity (`ownerType`, `namespace`, `key`). It preserves `type`, `ownerType`, `namespace`, and `key`, and locally updates `name`, `description`, `validations`, selected `access`, selected `capabilities`, and selected constraint inputs. Public Admin 2026-04 exposes `constraintsUpdates`, which can set the constraint key, create/delete values, and clear all constraints with `key: null, values: []`; the proxy also handles the legacy/internal `constraints` mixed-operation shape and `constraintsSet` replace-all shape for staged update fidelity. The local `validationJob` payload is currently `null`.
 
+Capability handling is type- and owner-aware for the modeled capability slice. `uniqueValues` is eligible only for `id`, `number_integer`, `single_line_text_field`, and `url` definitions; `smartCollectionCondition` is eligible for `PRODUCT` `single_line_text_field` definitions; and `adminFilterable` is eligible only for modeled filterable owner/type combinations. Ineligible capability inputs on create/update return Shopify's captured `INVALID_CAPABILITY` user error without staging. `id` definitions auto-enable `uniqueValues` unless the input explicitly disables it, matching Shopify's required-capability behavior. Enabled `adminFilterable` definitions are capped at 50 per owner type; the 51st PRODUCT definition returns `OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS`. Serialized `capabilities.*.eligible` and `adminFilterable.status` are derived from this same local eligibility model rather than defaulting to eligible.
+
 App-owned namespace forms follow Shopify's canonicalization rule. Mutation inputs, identifier lookups, catalog namespace filters, pin/unpin selectors, and standard-definition namespace selectors resolve `$app:<suffix>` through the request's `x-shopify-draft-proxy-api-client-id` identity before validation, persistence, lookup, and serialization. Stored and returned definitions use the canonical `app--<api_client_id>--<suffix>` namespace. Canonical `app--<other_id>--<suffix>` create/update inputs from another API client return Shopify's top-level `ACCESS_DENIED` error shape instead of staging a definition.
 
 Delete resolves by Shopify's preferred `identifier` input or by global `id`, hides the definition from singular and catalog reads with a staged tombstone, and compacts owner-type pin positions when deleting a pinned definition. When `deleteAllAssociatedMetafields: true`, the local effect conservatively removes matching product-owned metafields from the in-memory graph for `PRODUCT` definitions only; it does not invent broad async job state for other owner families.
@@ -72,6 +74,7 @@ Successful local enablement:
 - creates or replaces a staged `MetafieldDefinition` record without sending the mutation to Shopify
 - supports `id` or `namespace` / `key` template selection for the captured template slice
 - applies `ownerType`, selected `access`, selected `capabilities`, and `pin`
+- rejects ineligible capability inputs before staging, using the same captured `INVALID_CAPABILITY` branch as definition create/update but with standard-enable field paths
 - when `pin: true`, uses the same local pin validation as definition create/pin so constrained templates and owner-type cap violations return `createdDefinition: null` before staging
 - when pin validation passes, assigns the next owner-type pinned position after any existing pinned definitions, matching the local pinning/create rule instead of reusing position `1`
 - returns a Shopify-like `createdDefinition` payload
@@ -109,6 +112,7 @@ Validation entry points:
 
 - `config/parity-specs/metafields/metafield-definition-create-input-validation.json`
 - `config/parity-specs/metafields/metafield-definition-create-with-pin-guards.json`
+- `config/parity-specs/metafields/metafield-definition-capability-eligibility.json`
 - `config/parity-specs/metafields/metafield-definition-update-constraints.json`
 - `config/parity-specs/metafields/metafield-definition-pinning-parity.json`
 - `config/parity-specs/metafields/metafield-definition-pin-limit-and-constraint-guard.json`
