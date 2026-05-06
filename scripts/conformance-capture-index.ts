@@ -497,6 +497,30 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'products',
+    captureId: 'tags-add-multi-resource',
+    scriptPath: 'scripts/capture-tags-add-multi-resource-conformance.ts',
+    purpose:
+      'tagsAdd/tagsRemove polymorphic Product, Order, Customer, Article, DraftOrder, and unsupported-GID behavior.',
+    requiredAuthScopes: [
+      'read_products',
+      'write_products',
+      'read_orders',
+      'write_orders',
+      'read_customers',
+      'write_customers',
+      'read_content',
+      'write_content',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}tags-add-multi-resource.json`,
+      'config/parity-specs/products/tagsAdd-multi-resource.json',
+    ],
+    cleanupBehavior:
+      'Creates disposable product, customer, order, draft order, blog, and article records, tags them, then deletes them in best-effort cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'products',
     captureId: 'product-publications',
     scriptPath: 'scripts/capture-product-publication-conformance.mts',
     purpose: 'Publication aggregate reads plus productPublish/productUnpublish probes.',
@@ -504,6 +528,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [`${CAPTURE_ROOT}product-publication-*.json`, 'publication blocker notes when access is missing'],
     cleanupBehavior: 'Publishes/unpublishes disposable products only after publication target probes pass.',
     expectedStatusChecks: [...DEFAULT_STATUS_CHECKS, 'manual-capture-review'],
+  },
+  {
+    domain: 'products',
+    captureId: 'product-publish-input-validation',
+    scriptPath: 'scripts/capture-product-publish-input-validation-conformance.ts',
+    purpose:
+      'productPublish ProductPublicationInput validation for omitted lists, empty lists, and unknown publication/channel targets.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}productPublish-input-validation.json`,
+      'config/parity-specs/products/productPublish-input-validation.json',
+      'config/parity-requests/products/productPublish-input-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable draft product, records validation branches, captures a hydration cassette while the product exists, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
     domain: 'products',
@@ -910,6 +950,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'product-delete-async',
+    scriptPath: 'scripts/capture-product-delete-async-conformance.ts',
+    purpose: 'Asynchronous productDelete operation payload, duplicate pending-operation guard, and helper reads.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}product-delete-async-operation.json`,
+      'config/parity-specs/products/productDelete-async-operation.json',
+      'config/parity-requests/products/productDelete-async-*.graphql',
+      'config/parity-requests/products/productDelete-operation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product, enqueues async deletion, captures immediate reads, then waits for Shopify to delete it or falls back to best-effort synchronous delete.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'inventory',
     captureId: 'product-inventory-reads',
     scriptPath: 'scripts/capture-product-inventory-read-conformance.mts',
@@ -1306,6 +1362,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Create validation branches create no records; the setup definition used for update validation is deleted during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-definition-update-immutable',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-update-immutable-conformance.ts',
+    purpose:
+      'metaobjectDefinitionUpdate IMMUTABLE guardrails for standard definitions, reserved Shopify prefixes, and definitions linked to product options.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobjectDefinitionUpdate-immutable.json`,
+      'config/parity-specs/metaobjects/metaobjectDefinitionUpdate-immutable.json',
+      'config/parity-requests/metaobjects/metaobjectDefinitionUpdate-immutable-*.graphql',
+    ],
+    cleanupBehavior:
+      'Enables a standard definition, probes reserved-prefix creation, creates disposable linked product-option setup records, captures immutable update responses, then deletes disposable setup records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The linked-product-options branch is captured as live evidence while local runtime support remains limited until product option state tracks linked metafield metadata.',
   },
   {
     domain: 'metaobjects',
@@ -2490,6 +2565,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'orders',
+    captureId: 'order-edit-add-custom-item-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-add-custom-item-validation-conformance.ts',
+    purpose:
+      'orderEditAddCustomItem title, quantity, price, currency, and happy-path custom-item validation against a disposable order-edit session.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderEditAddCustomItem-validation.json`,
+      'config/parity-specs/orders/orderEditAddCustomItem-validation.json',
+      'config/parity-requests/orders/orderEditAddCustomItem-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable CAD test order, begins an order edit, records validation and happy-path branches, then cancels the order with restock.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'shipping-fulfillments',
     captureId: 'fulfillment-detail-events',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
@@ -3219,6 +3311,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates and fulfills a disposable order, records return/reverse-logistics lifecycle evidence, then cancels the order.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'return-status-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-return-status-preconditions-conformance.mts',
+    purpose:
+      'returnClose, returnReopen, and returnCancel status-machine preconditions, idempotent no-op branches, and processed-return cancel rejection.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_returns', 'write_returns', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}returnClose-Reopen-Cancel-state-preconditions.json`,
+      'config/parity-specs/orders/returnClose-Reopen-Cancel-state-preconditions.json',
+      'config/parity-requests/orders/return-*-state-precondition.graphql',
+    ],
+    cleanupBehavior:
+      'Creates and fulfills disposable orders for requested, open/closed, cancelable, declined, and processed return states, records status precondition behavior, then cancels the orders.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

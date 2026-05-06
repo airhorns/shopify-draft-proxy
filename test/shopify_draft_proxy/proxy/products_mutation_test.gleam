@@ -12,22 +12,29 @@ import shopify_draft_proxy/proxy/proxy_state.{
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/types.{
-  type CollectionRecord, type CollectionRuleSetRecord, type InventoryLevelRecord,
-  type InventoryQuantityRecord, type InventoryTransferRecord,
-  type LocationRecord, type MetafieldDefinitionCapabilitiesRecord,
+  type CollectionRecord, type CollectionRuleSetRecord, type CustomerRecord,
+  type InventoryLevelRecord, type InventoryQuantityRecord,
+  type InventoryTransferRecord, type LocationRecord,
+  type MetafieldDefinitionCapabilitiesRecord,
   type MetafieldDefinitionCapabilityRecord, type MetafieldDefinitionRecord,
   type MetafieldDefinitionValidationRecord, type ProductMediaRecord,
   type ProductRecord, type ProductVariantRecord, type SellingPlanGroupRecord,
+  type ShopRecord, CapturedArray, CapturedObject, CapturedString, ChannelRecord,
   CollectionRecord, CollectionRuleRecord, CollectionRuleSetRecord,
-  InventoryItemRecord, InventoryLevelRecord, InventoryLocationRecord,
-  InventoryQuantityRecord, InventoryTransferLineItemRecord,
-  InventoryTransferRecord, LocationRecord, MetafieldDefinitionCapabilitiesRecord,
-  MetafieldDefinitionCapabilityRecord, MetafieldDefinitionRecord,
-  MetafieldDefinitionTypeRecord, MetafieldDefinitionValidationRecord,
-  ProductCollectionRecord, ProductMediaRecord, ProductMetafieldRecord,
-  ProductOptionRecord, ProductOptionValueRecord, ProductRecord, ProductSeoRecord,
-  ProductVariantRecord, ProductVariantSelectedOptionRecord,
-  SellingPlanGroupRecord,
+  CustomerRecord, DraftOrderRecord, InventoryItemRecord, InventoryLevelRecord,
+  InventoryLocationRecord, InventoryQuantityRecord,
+  InventoryTransferLineItemRecord, InventoryTransferRecord, LocationRecord,
+  MetafieldDefinitionCapabilitiesRecord, MetafieldDefinitionCapabilityRecord,
+  MetafieldDefinitionRecord, MetafieldDefinitionTypeRecord,
+  MetafieldDefinitionValidationRecord, OnlineStoreContentRecord, OrderRecord,
+  PaymentSettingsRecord, ProductCollectionRecord, ProductMediaRecord,
+  ProductMetafieldRecord, ProductOptionRecord, ProductOptionValueRecord,
+  ProductRecord, ProductSeoRecord, ProductVariantRecord,
+  ProductVariantSelectedOptionRecord, PublicationRecord, SellingPlanGroupRecord,
+  ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord,
 }
 
 fn empty_headers() -> dict.Dict(String, String) {
@@ -233,6 +240,157 @@ pub fn publication_create_rejects_target_validation_errors_test() {
   )
 }
 
+pub fn product_publish_rejects_product_publication_validation_errors_test() {
+  assert_product_publication_user_error(
+    product_publication_store(),
+    "mutation { productPublish(input: { id: \\\"gid://shopify/Product/optioned\\\" }) { product { id } productPublications { publication { id } } userErrors { field message code } } }",
+    "productPublish",
+    "BLANK",
+    "[\"productPublications\"]",
+    "Product publications can't be blank",
+  )
+  assert_product_publication_user_error(
+    product_publication_store(),
+    "mutation { productPublish(input: { id: \\\"gid://shopify/Product/optioned\\\", productPublications: [] }) { product { id } productPublications { publication { id } } userErrors { field message code } } }",
+    "productPublish",
+    "BLANK",
+    "[\"productPublications\"]",
+    "Product publications can't be blank",
+  )
+  assert_product_publication_user_error(
+    product_publication_store(),
+    "mutation { productPublish(input: { id: \\\"gid://shopify/Product/optioned\\\", productPublications: [{ channelId: \\\"gid://shopify/Channel/999\\\" }] }) { product { id } userErrors { field message code } } }",
+    "productPublish",
+    "NOT_FOUND",
+    "[\"productPublications\",\"0\",\"publicationId\"]",
+    "Channel does not exist or is not publishable",
+  )
+  assert_product_publication_user_error(
+    product_publication_store(),
+    "mutation { productPublish(input: { id: \\\"gid://shopify/Product/optioned\\\", productPublications: [{ publicationId: \\\"gid://shopify/Publication/999\\\" }] }) { product { id } userErrors { field message code } } }",
+    "productPublish",
+    "NOT_FOUND",
+    "[\"productPublications\",\"0\",\"publicationId\"]",
+    "Publication does not exist or is not publishable",
+  )
+  assert_product_publication_user_error(
+    product_publication_store(),
+    "mutation { productPublish(input: { id: \\\"gid://shopify/Product/optioned\\\", productPublications: [{ channelId: \\\"gid://shopify/Channel/1\\\", publicationId: \\\"gid://shopify/Publication/1\\\" }] }) { product { id } userErrors { field message code } } }",
+    "productPublish",
+    "INVALID",
+    "[\"productPublications\",\"0\"]",
+    "Only one of channelId or publicationId can be provided",
+  )
+  assert_product_publication_user_error(
+    product_publication_store_with_product(
+      ProductRecord(..default_product(), status: "SUSPENDED"),
+    ),
+    "mutation { productPublish(input: { id: \\\"gid://shopify/Product/optioned\\\", productPublications: [{ publicationId: \\\"gid://shopify/Publication/1\\\" }] }) { product { id } userErrors { field message code } } }",
+    "productPublish",
+    "",
+    "[\"id\"]",
+    "Product is suspended",
+  )
+}
+
+pub fn product_publish_stages_publication_state_and_payload_test() {
+  let query =
+    "mutation { productPublish(input: { id: \\\"gid://shopify/Product/optioned\\\", productPublications: [{ channelId: \\\"gid://shopify/Channel/1\\\", publishDate: \\\"2026-05-06T00:00:00Z\\\" }] }) { product { id publishedOnPublication(publicationId: \\\"gid://shopify/Publication/1\\\") publishedOnCurrentPublication resourcePublicationsCount { count } resourcePublications(first: 5) { nodes { publication { id } isPublished publishDate } } } shop { id } productPublications { publication { id } isPublished publishDate } userErrors { field message code } } }"
+  let #(status, body, next_proxy) =
+    run_product_mutation(product_publication_store(), query)
+
+  assert status == 200
+  assert string.contains(body, "\"userErrors\":[]")
+  assert string.contains(body, "\"shop\":{\"id\":\"gid://shopify/Shop/1\"}")
+  assert string.contains(body, "\"productPublications\":[")
+  assert string.contains(
+    body,
+    "\"publication\":{\"id\":\"gid://shopify/Publication/1\"}",
+  )
+  assert string.contains(body, "\"isPublished\":true")
+  assert string.contains(body, "\"publishDate\":\"2026-05-06T00:00:00Z\"")
+  assert string.contains(body, "\"publishedOnPublication\":true")
+  assert string.contains(body, "\"publishedOnCurrentPublication\":true")
+  assert string.contains(body, "\"resourcePublicationsCount\":{\"count\":1}")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Staged
+  assert entry.staged_resource_ids == ["gid://shopify/Product/optioned"]
+
+  let downstream_query =
+    "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id publishedOnPublication(publicationId: \\\"gid://shopify/Publication/1\\\") publishedOnCurrentPublication resourcePublications(first: 5) { nodes { publication { id } isPublished } } } publication(id: \\\"gid://shopify/Publication/1\\\") { products(first: 5) { nodes { id } } publishedProductsCount { count } } publishedProductsCount(publicationId: \\\"gid://shopify/Publication/1\\\") { count } }"
+  let #(Response(status: downstream_status, body: downstream_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(downstream_query))
+  let downstream_serialized = json.to_string(downstream_body)
+
+  assert downstream_status == 200
+  assert string.contains(
+    downstream_serialized,
+    "\"publishedOnPublication\":true",
+  )
+  assert string.contains(
+    downstream_serialized,
+    "\"publishedOnCurrentPublication\":true",
+  )
+  assert string.contains(
+    downstream_serialized,
+    "\"publishedProductsCount\":{\"count\":1}",
+  )
+  assert string.contains(
+    downstream_serialized,
+    "\"nodes\":[{\"id\":\"gid://shopify/Product/optioned\"}]",
+  )
+}
+
+pub fn product_unpublish_removes_publication_state_and_payload_test() {
+  let seeded_product =
+    ProductRecord(..default_product(), publication_ids: [
+      "gid://shopify/Publication/1",
+    ])
+  let query =
+    "mutation { productUnpublish(input: { id: \\\"gid://shopify/Product/optioned\\\", productPublications: [{ publicationId: \\\"gid://shopify/Publication/1\\\", publishDate: \\\"2026-05-06T00:00:00Z\\\" }] }) { product { id publishedOnPublication(publicationId: \\\"gid://shopify/Publication/1\\\") publishedOnCurrentPublication resourcePublicationsCount { count } resourcePublications(first: 5) { nodes { publication { id } isPublished publishDate } } } productPublications { publication { id } isPublished publishDate } userErrors { field message code } } }"
+  let #(status, body, next_proxy) =
+    run_product_mutation(
+      product_publication_store_with_product(seeded_product),
+      query,
+    )
+
+  assert status == 200
+  assert string.contains(body, "\"userErrors\":[]")
+  assert string.contains(body, "\"productPublications\":[")
+  assert string.contains(
+    body,
+    "\"publication\":{\"id\":\"gid://shopify/Publication/1\"}",
+  )
+  assert string.contains(body, "\"isPublished\":false")
+  assert string.contains(body, "\"publishDate\":null")
+  assert string.contains(body, "\"publishedOnPublication\":false")
+  assert string.contains(body, "\"publishedOnCurrentPublication\":false")
+  assert string.contains(body, "\"resourcePublicationsCount\":{\"count\":0}")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Staged
+
+  let downstream_query =
+    "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id publishedOnPublication(publicationId: \\\"gid://shopify/Publication/1\\\") publishedOnCurrentPublication resourcePublications(first: 5) { nodes { publication { id } isPublished } } } publication(id: \\\"gid://shopify/Publication/1\\\") { products(first: 5) { nodes { id } } publishedProductsCount { count } } publishedProductsCount(publicationId: \\\"gid://shopify/Publication/1\\\") { count } }"
+  let #(Response(status: downstream_status, body: downstream_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(downstream_query))
+  let downstream_serialized = json.to_string(downstream_body)
+
+  assert downstream_status == 200
+  assert string.contains(
+    downstream_serialized,
+    "\"publishedOnPublication\":false",
+  )
+  assert string.contains(
+    downstream_serialized,
+    "\"publishedOnCurrentPublication\":false",
+  )
+  assert string.contains(downstream_serialized, "\"nodes\":[]")
+  assert string.contains(
+    downstream_serialized,
+    "\"publishedProductsCount\":{\"count\":0",
+  )
+}
+
 pub fn publication_update_rejects_target_validation_errors_test() {
   let create_query =
     "mutation { publicationCreate(input: { name: \\\"Seed\\\" }) { publication { id } userErrors { field message code } } }"
@@ -338,6 +496,32 @@ fn assert_publication_user_error(
   assert string.contains(body, "\"" <> root_name <> "\":{")
   assert string.contains(body, "\"publication\":null")
   assert string.contains(body, "\"code\":\"" <> code <> "\"")
+  assert string.contains(body, "\"field\":" <> field_json)
+  assert string.contains(body, "\"message\":\"" <> message <> "\"")
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.status == store_types.Failed
+  assert entry.staged_resource_ids == []
+}
+
+fn assert_product_publication_user_error(
+  initial_store: store.Store,
+  query: String,
+  root_name: String,
+  code: String,
+  field_json: String,
+  message: String,
+) {
+  let #(status, body, next_proxy) = run_product_mutation(initial_store, query)
+
+  assert status == 200
+  assert string.contains(body, "\"" <> root_name <> "\":{")
+  case code {
+    "" -> Nil
+    _ -> {
+      assert string.contains(body, "\"code\":\"" <> code <> "\"")
+      Nil
+    }
+  }
   assert string.contains(body, "\"field\":" <> field_json)
   assert string.contains(body, "\"message\":\"" <> message <> "\"")
   let assert [entry] = store.get_log(next_proxy.store)
@@ -1768,6 +1952,76 @@ pub fn product_delete_stages_downstream_no_data_test() {
     == 1
 }
 
+pub fn product_delete_async_stages_operation_without_deleting_product_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let mutation =
+    "mutation { productDelete(input: { id: \\\"gid://shopify/Product/optioned\\\" }, synchronous: false) { deletedProductId productDeleteOperation { id status deletedProductId userErrors { field message code } } userErrors { field message code } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"productDelete\":{\"deletedProductId\":null,\"productDeleteOperation\":{\"id\":\"gid://shopify/ProductDeleteOperation/1\",\"status\":\"CREATED\",\"deletedProductId\":null,\"userErrors\":[]},\"userErrors\":[]}}}"
+  let assert [entry] = store.get_log(next_proxy.store)
+  assert entry.operation_name == Some("productDelete")
+  assert entry.status == store_types.Staged
+  assert entry.staged_resource_ids == ["gid://shopify/ProductDeleteOperation/1"]
+
+  let product_read =
+    "query { product(id: \\\"gid://shopify/Product/optioned\\\") { id title } products(first: 10, query: \\\"tag:existing\\\") { nodes { id title } } }"
+  let #(Response(status: product_status, body: product_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(product_read))
+  assert product_status == 200
+  assert json.to_string(product_body)
+    == "{\"data\":{\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\"},\"products\":{\"nodes\":[{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\"}]}}}"
+}
+
+pub fn product_delete_async_operation_resolves_through_helpers_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let mutation =
+    "mutation { productDelete(input: { id: \\\"gid://shopify/Product/optioned\\\" }, synchronous: false) { productDeleteOperation { id } userErrors { field message code } } }"
+
+  let #(Response(status: status, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+  assert status == 200
+
+  let operation_read =
+    "query { productOperation(id: \\\"gid://shopify/ProductDeleteOperation/1\\\") { __typename status product { id title } ... on ProductDeleteOperation { id deletedProductId userErrors { field message code } } } }"
+  let #(Response(status: operation_status, body: operation_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(operation_read))
+  assert operation_status == 200
+  assert json.to_string(operation_body)
+    == "{\"data\":{\"productOperation\":{\"__typename\":\"ProductDeleteOperation\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/optioned\",\"title\":\"Optioned Board\"},\"id\":\"gid://shopify/ProductDeleteOperation/1\",\"deletedProductId\":\"gid://shopify/Product/optioned\",\"userErrors\":[]}}}"
+
+  let node_read =
+    "query { node(id: \\\"gid://shopify/ProductDeleteOperation/1\\\") { __typename ... on ProductDeleteOperation { id status product { id } deletedProductId userErrors { field message code } } } }"
+  let #(Response(status: node_status, body: node_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(node_read))
+  assert node_status == 200
+  assert json.to_string(node_body)
+    == "{\"data\":{\"node\":{\"__typename\":\"ProductDeleteOperation\",\"id\":\"gid://shopify/ProductDeleteOperation/1\",\"status\":\"COMPLETE\",\"product\":{\"id\":\"gid://shopify/Product/optioned\"},\"deletedProductId\":\"gid://shopify/Product/optioned\",\"userErrors\":[]}}}"
+}
+
+pub fn product_delete_async_rejects_duplicate_pending_operation_test() {
+  let proxy = draft_proxy.new()
+  let proxy = proxy_state.DraftProxy(..proxy, store: default_option_store())
+  let mutation =
+    "mutation { productDelete(input: { id: \\\"gid://shopify/Product/optioned\\\" }, synchronous: false) { productDeleteOperation { id status } userErrors { field message } } }"
+
+  let #(Response(status: first_status, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(mutation))
+  assert first_status == 200
+  let #(Response(status: second_status, body: second_body, ..), _) =
+    draft_proxy.process_request(next_proxy, graphql_request(mutation))
+
+  assert second_status == 200
+  assert json.to_string(second_body)
+    == "{\"data\":{\"productDelete\":{\"productDeleteOperation\":null,\"userErrors\":[{\"field\":null,\"message\":\"Another operation already in progress. Please wait until current one is finished.\"}]}}}"
+}
+
 pub fn metafield_delete_stages_product_owned_deletion_test() {
   let proxy = draft_proxy.new()
   let proxy = proxy_state.DraftProxy(..proxy, store: metafield_store())
@@ -2087,6 +2341,126 @@ pub fn tags_add_and_remove_use_shopify_tag_identity_test() {
   assert remove_status == 200
   assert json.to_string(remove_body)
     == "{\"data\":{\"tagsRemove\":{\"node\":{\"id\":\"gid://shopify/Product/optioned\",\"tags\":[\"existing\",\"summer\"]},\"userErrors\":[]}}}"
+}
+
+pub fn tags_add_stages_order_customer_and_article_tags_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: taggable_non_product_store())
+
+  let #(Response(status: order_status, body: order_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { tagsAdd(id: \\\"gid://shopify/Order/1001\\\", tags: [\\\" priority \\\", \\\"base\\\"]) { node { ... on Order { __typename id tags } } userErrors { field message } } }",
+      ),
+    )
+  assert order_status == 200
+  assert json.to_string(order_body)
+    == "{\"data\":{\"tagsAdd\":{\"node\":{\"__typename\":\"Order\",\"id\":\"gid://shopify/Order/1001\",\"tags\":[\"base\",\"priority\"]},\"userErrors\":[]}}}"
+
+  let #(Response(status: customer_status, body: customer_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { tagsAdd(id: \\\"gid://shopify/Customer/2001\\\", tags: [\\\"vip\\\", \\\"Base\\\"]) { node { ... on Customer { __typename id tags } } userErrors { field message } } }",
+      ),
+    )
+  assert customer_status == 200
+  assert json.to_string(customer_body)
+    == "{\"data\":{\"tagsAdd\":{\"node\":{\"__typename\":\"Customer\",\"id\":\"gid://shopify/Customer/2001\",\"tags\":[\"base\",\"vip\"]},\"userErrors\":[]}}}"
+
+  let #(Response(status: article_status, body: article_body, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "mutation { tagsAdd(id: \\\"gid://shopify/Article/3001\\\", tags: [\\\"news\\\"]) { node { ... on Article { __typename id tags title } } userErrors { field message } } }",
+      ),
+    )
+  assert article_status == 200
+  assert json.to_string(article_body)
+    == "{\"data\":{\"tagsAdd\":{\"node\":{\"__typename\":\"Article\",\"id\":\"gid://shopify/Article/3001\",\"tags\":[\"base\",\"news\"],\"title\":\"Launch note\"},\"userErrors\":[]}}}"
+
+  let #(Response(status: order_read_status, body: order_read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { order(id: \\\"gid://shopify/Order/1001\\\") { id tags } }",
+      ),
+    )
+  assert order_read_status == 200
+  assert json.to_string(order_read_body)
+    == "{\"data\":{\"order\":{\"id\":\"gid://shopify/Order/1001\",\"tags\":[\"base\",\"priority\"]}}}"
+
+  let #(Response(status: customer_read_status, body: customer_read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { customer(id: \\\"gid://shopify/Customer/2001\\\") { id tags } }",
+      ),
+    )
+  assert customer_read_status == 200
+  assert json.to_string(customer_read_body)
+    == "{\"data\":{\"customer\":{\"id\":\"gid://shopify/Customer/2001\",\"tags\":[\"base\",\"vip\"]}}}"
+
+  let #(Response(status: article_read_status, body: article_read_body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        "query { article(id: \\\"gid://shopify/Article/3001\\\") { id tags } }",
+      ),
+    )
+  assert article_read_status == 200
+  assert json.to_string(article_read_body)
+    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3001\",\"tags\":[\"base\",\"news\"]}}}"
+}
+
+pub fn tags_remove_stages_draft_order_tags_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: taggable_non_product_store())
+  let query =
+    "mutation { tagsRemove(id: \\\"gid://shopify/DraftOrder/4001\\\", tags: [\\\"remove\\\", \\\"missing\\\"]) { node { ... on DraftOrder { __typename id tags } } userErrors { field message } } }"
+
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    draft_proxy.process_request(proxy, graphql_request(query))
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"tagsRemove\":{\"node\":{\"__typename\":\"DraftOrder\",\"id\":\"gid://shopify/DraftOrder/4001\",\"tags\":[\"base\"]},\"userErrors\":[]}}}"
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    draft_proxy.process_request(
+      next_proxy,
+      graphql_request(
+        "query { draftOrder(id: \\\"gid://shopify/DraftOrder/4001\\\") { id tags } }",
+      ),
+    )
+  assert read_status == 200
+  assert json.to_string(read_body)
+    == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/4001\",\"tags\":[\"base\"]}}}"
+}
+
+pub fn tags_add_rejects_unsupported_gid_type_as_top_level_error_test() {
+  let proxy = draft_proxy.new()
+  let proxy =
+    proxy_state.DraftProxy(..proxy, store: taggable_non_product_store())
+  let query =
+    "mutation TagsAddUnsupported($id: ID!) { tagsAdd(id: $id, tags: [\"x\"]) { node { id } userErrors { field message } } }"
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request_with_variables(
+        query,
+        json.object([
+          #("id", json.string("gid://shopify/SomethingUnsupported/1")),
+        ]),
+      ),
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"invalid id\",\"path\":[\"tagsAdd\"],\"extensions\":{\"code\":\"RESOURCE_NOT_FOUND\"}}],\"data\":{\"tagsAdd\":null}}"
 }
 
 pub fn product_update_stages_fields_and_downstream_reads_test() {
@@ -4775,6 +5149,84 @@ fn tagged_product_store() -> store.Store {
   ])
 }
 
+fn taggable_non_product_store() -> store.Store {
+  store.new()
+  |> store.upsert_base_orders([
+    OrderRecord(
+      id: "gid://shopify/Order/1001",
+      cursor: None,
+      data: CapturedObject([
+        #("__typename", CapturedString("Order")),
+        #("id", CapturedString("gid://shopify/Order/1001")),
+        #("name", CapturedString("#1001")),
+        #("tags", CapturedArray([CapturedString("base")])),
+      ]),
+    ),
+  ])
+  |> store.upsert_base_draft_orders([
+    DraftOrderRecord(
+      id: "gid://shopify/DraftOrder/4001",
+      cursor: None,
+      data: CapturedObject([
+        #("__typename", CapturedString("DraftOrder")),
+        #("id", CapturedString("gid://shopify/DraftOrder/4001")),
+        #("name", CapturedString("#D4001")),
+        #(
+          "tags",
+          CapturedArray([CapturedString("base"), CapturedString("remove")]),
+        ),
+      ]),
+    ),
+  ])
+  |> store.upsert_base_customers([taggable_customer()])
+  |> store.upsert_base_online_store_content([
+    OnlineStoreContentRecord(
+      id: "gid://shopify/Article/3001",
+      kind: "article",
+      cursor: None,
+      parent_id: None,
+      created_at: None,
+      updated_at: None,
+      data: CapturedObject([
+        #("__typename", CapturedString("Article")),
+        #("id", CapturedString("gid://shopify/Article/3001")),
+        #("title", CapturedString("Launch note")),
+        #("tags", CapturedArray([CapturedString("base")])),
+      ]),
+    ),
+  ])
+}
+
+fn taggable_customer() -> CustomerRecord {
+  CustomerRecord(
+    id: "gid://shopify/Customer/2001",
+    first_name: Some("Tag"),
+    last_name: Some("Target"),
+    display_name: Some("Tag Target"),
+    email: Some("tag-target@example.test"),
+    legacy_resource_id: Some("2001"),
+    locale: None,
+    note: None,
+    can_delete: None,
+    verified_email: None,
+    data_sale_opt_out: False,
+    tax_exempt: None,
+    tax_exemptions: [],
+    state: Some("ENABLED"),
+    tags: ["base"],
+    number_of_orders: None,
+    amount_spent: None,
+    default_email_address: None,
+    default_phone_number: None,
+    email_marketing_consent: None,
+    sms_marketing_consent: None,
+    default_address: None,
+    account_activation_token: None,
+    created_at: None,
+    updated_at: None,
+  )
+}
+
 fn metafield_store() -> store.Store {
   default_option_store()
   |> store.replace_base_metafields_for_owner("gid://shopify/Product/optioned", [
@@ -5335,6 +5787,129 @@ fn default_product() -> ProductRecord {
     combined_listing_role: None,
     combined_listing_parent_id: None,
     combined_listing_child_ids: [],
+  )
+}
+
+fn product_publication_store() -> store.Store {
+  product_publication_store_with_product(default_product())
+}
+
+fn product_publication_store_with_product(
+  product: ProductRecord,
+) -> store.Store {
+  store.new()
+  |> store.upsert_base_shop(product_publication_shop())
+  |> store.upsert_base_publications([
+    PublicationRecord(
+      id: "gid://shopify/Publication/1",
+      name: Some("Online Store"),
+      auto_publish: Some(False),
+      supports_future_publishing: Some(True),
+      catalog_id: None,
+      channel_id: Some("gid://shopify/Channel/1"),
+      cursor: None,
+    ),
+  ])
+  |> store.upsert_base_channels([
+    ChannelRecord(
+      id: "gid://shopify/Channel/1",
+      name: Some("Online Store"),
+      handle: Some("online_store"),
+      publication_id: Some("gid://shopify/Publication/1"),
+      cursor: None,
+    ),
+  ])
+  |> store.upsert_base_products([product])
+}
+
+fn product_publication_shop() -> ShopRecord {
+  ShopRecord(
+    id: "gid://shopify/Shop/1",
+    name: "Publication Test Shop",
+    myshopify_domain: "publication-test-shop.myshopify.com",
+    url: "https://publication-test-shop.myshopify.com",
+    primary_domain: ShopDomainRecord(
+      id: "gid://shopify/Domain/1",
+      host: "publication-test-shop.myshopify.com",
+      url: "https://publication-test-shop.myshopify.com",
+      ssl_enabled: True,
+    ),
+    contact_email: "test@example.com",
+    email: "test@example.com",
+    currency_code: "USD",
+    enabled_presentment_currencies: ["USD"],
+    iana_timezone: "Etc/UTC",
+    timezone_abbreviation: "UTC",
+    timezone_offset: "+0000",
+    timezone_offset_minutes: 0,
+    taxes_included: False,
+    tax_shipping: False,
+    unit_system: "METRIC_SYSTEM",
+    weight_unit: "KILOGRAMS",
+    shop_address: ShopAddressRecord(
+      id: "gid://shopify/ShopAddress/1",
+      address1: Some("1 Main St"),
+      address2: None,
+      city: Some("Ottawa"),
+      company: None,
+      coordinates_validated: False,
+      country: Some("Canada"),
+      country_code_v2: Some("CA"),
+      formatted: ["1 Main St", "Ottawa ON", "Canada"],
+      formatted_area: Some("Ottawa ON, Canada"),
+      latitude: None,
+      longitude: None,
+      phone: None,
+      province: Some("Ontario"),
+      province_code: Some("ON"),
+      zip: Some("K1A 0B1"),
+    ),
+    plan: ShopPlanRecord(
+      partner_development: True,
+      public_display_name: "Development",
+      shopify_plus: False,
+    ),
+    resource_limits: ShopResourceLimitsRecord(
+      location_limit: 1000,
+      max_product_options: 3,
+      max_product_variants: 2048,
+      redirect_limit_reached: False,
+    ),
+    features: ShopFeaturesRecord(
+      avalara_avatax: False,
+      branding: "SHOPIFY",
+      bundles: ShopBundlesFeatureRecord(
+        eligible_for_bundles: True,
+        ineligibility_reason: None,
+        sells_bundles: False,
+      ),
+      captcha: True,
+      cart_transform: ShopCartTransformFeatureRecord(
+        eligible_operations: ShopCartTransformEligibleOperationsRecord(
+          expand_operation: True,
+          merge_operation: True,
+          update_operation: True,
+        ),
+      ),
+      dynamic_remarketing: False,
+      eligible_for_subscription_migration: False,
+      eligible_for_subscriptions: False,
+      gift_cards: True,
+      harmonized_system_code: True,
+      legacy_subscription_gateway_enabled: False,
+      live_view: True,
+      paypal_express_subscription_gateway_status: "DISABLED",
+      reports: True,
+      sells_subscriptions: False,
+      show_metrics: True,
+      storefront: True,
+      unified_markets: True,
+    ),
+    payment_settings: PaymentSettingsRecord(
+      supported_digital_wallets: [],
+      payment_gateways: [],
+    ),
+    shop_policies: [],
   )
 }
 

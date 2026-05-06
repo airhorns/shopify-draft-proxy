@@ -572,6 +572,18 @@ fn validate_literal_input_object_fields(
         "LocationAddInput",
         operation_name,
         operation_path,
+        source_body,
+        schema,
+      )
+    "orderEditAddCustomItem" ->
+      validate_direct_literal_input_fields(
+        mutation,
+        arguments,
+        "price",
+        "MoneyInput",
+        operation_name,
+        operation_path,
+        source_body,
         schema,
       )
     _ -> []
@@ -653,10 +665,11 @@ fn validate_direct_literal_input_fields(
   input_object_name: String,
   operation_name: String,
   operation_path: String,
+  source_body: String,
   schema: MutationSchema,
 ) -> List(Json) {
   case find_argument(arguments, argument_name) {
-    Some(Argument(value: ast.ObjectValue(fields: fields, ..), ..)) ->
+    Some(Argument(value: ast.ObjectValue(fields: fields, loc: loc), ..)) ->
       case
         find_schema_arg(mutation.args, argument_name),
         mutation_schema_lookup.get_input_object(schema, input_object_name)
@@ -676,6 +689,8 @@ fn validate_direct_literal_input_fields(
                   mutation_schema.render_signature(input_field.type_),
                   operation_name,
                   operation_path,
+                  loc,
+                  source_body,
                 )
               _, _ -> []
             }
@@ -694,26 +709,32 @@ fn validate_direct_literal_input_field(
   input_field_type: String,
   operation_name: String,
   operation_path: String,
+  loc: Option(Location),
+  source_body: String,
 ) -> List(Json) {
   case find_object_field(fields, input_field_name) {
     None -> [
-      build_missing_required_input_object_attribute_error(
+      build_missing_required_input_object_attribute_error_with_location(
         operation_path,
         operation_name,
         argument_name,
         input_object_name,
         input_field_name,
         input_field_type,
+        loc,
+        source_body,
       ),
     ]
     Some(ast.ObjectField(value: ast.NullValue(..), ..)) -> [
-      build_null_input_object_attribute_error(
+      build_null_input_object_attribute_error_with_location(
         operation_path,
         operation_name,
         argument_name,
         input_object_name,
         input_field_name,
         input_field_type,
+        loc,
+        source_body,
       ),
     ]
     _ -> []
@@ -734,45 +755,6 @@ fn find_object_field(
       }
     }
   }
-}
-
-fn build_missing_required_input_object_attribute_error(
-  operation_path: String,
-  operation_name: String,
-  argument_name: String,
-  input_object_name: String,
-  input_field_name: String,
-  input_field_type: String,
-) -> Json {
-  json.object([
-    #(
-      "message",
-      json.string(
-        "Argument '"
-        <> input_field_name
-        <> "' on InputObject '"
-        <> input_object_name
-        <> "' is required. Expected type "
-        <> input_field_type,
-      ),
-    ),
-    #(
-      "path",
-      json.array(
-        [operation_path, operation_name, argument_name, input_field_name],
-        json.string,
-      ),
-    ),
-    #(
-      "extensions",
-      json.object([
-        #("code", json.string("missingRequiredInputObjectAttribute")),
-        #("argumentName", json.string(input_field_name)),
-        #("argumentType", json.string(input_field_type)),
-        #("inputObjectType", json.string(input_object_name)),
-      ]),
-    ),
-  ])
 }
 
 fn build_missing_required_input_object_attribute_error_with_location(
@@ -824,15 +806,17 @@ fn build_missing_required_input_object_attribute_error_with_location(
   )
 }
 
-fn build_null_input_object_attribute_error(
+fn build_null_input_object_attribute_error_with_location(
   operation_path: String,
   operation_name: String,
   argument_name: String,
   input_object_name: String,
   input_field_name: String,
   input_field_type: String,
+  loc: Option(Location),
+  source_body: String,
 ) -> Json {
-  json.object([
+  let base = [
     #(
       "message",
       json.string(
@@ -845,22 +829,30 @@ fn build_null_input_object_attribute_error(
         <> "'.",
       ),
     ),
-    #(
-      "path",
-      json.array(
-        [operation_path, operation_name, argument_name, input_field_name],
-        json.string,
+  ]
+  let with_locations = case locations_payload(loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #(
+        "path",
+        json.array(
+          [operation_path, operation_name, argument_name, input_field_name],
+          json.string,
+        ),
       ),
-    ),
-    #(
-      "extensions",
-      json.object([
-        #("code", json.string("argumentLiteralsIncompatible")),
-        #("typeName", json.string("InputObject")),
-        #("argumentName", json.string(input_field_name)),
-      ]),
-    ),
-  ])
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("InputObject")),
+          #("argumentName", json.string(input_field_name)),
+        ]),
+      ),
+    ]),
+  )
 }
 
 fn build_invalid_input_object_attribute_error_with_location(

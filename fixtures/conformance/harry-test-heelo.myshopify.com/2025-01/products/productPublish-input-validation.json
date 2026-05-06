@@ -1,0 +1,243 @@
+{
+  "scenarioId": "productPublish-input-validation",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T18:26:53.429Z",
+  "setup": {
+    "product": {
+      "id": "gid://shopify/Product/10178854420786",
+      "title": "Product publish input validation moue2p1r",
+      "status": "DRAFT"
+    }
+  },
+  "cases": {
+    "missingProductPublications": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10178854420786"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "Variable $input of type ProductPublishInput! was provided invalid value for productPublications (Expected value to not be null)",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 42
+                }
+              ],
+              "extensions": {
+                "code": "INVALID_VARIABLE",
+                "value": {
+                  "id": "gid://shopify/Product/10178854420786"
+                },
+                "problems": [
+                  {
+                    "path": ["productPublications"],
+                    "explanation": "Expected value to not be null"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "emptyProductPublications": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10178854420786",
+          "productPublications": []
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productPublish": {
+              "product": {
+                "id": "gid://shopify/Product/10178854420786"
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownPublication": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10178854420786",
+          "productPublications": [
+            {
+              "publicationId": "gid://shopify/Publication/999999999999"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productPublish": {
+              "product": {
+                "id": "gid://shopify/Product/10178854420786"
+              },
+              "userErrors": [
+                {
+                  "field": ["productPublications", "0", "publicationId"],
+                  "message": "Publication does not exist or is not publishable"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "unknownChannel": {
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10178854420786",
+          "productPublications": [
+            {
+              "channelId": "gid://shopify/Channel/999999999999"
+            }
+          ]
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productPublish": {
+              "product": {
+                "id": "gid://shopify/Product/10178854420786"
+              },
+              "userErrors": [
+                {
+                  "field": ["productPublications", "0", "publicationId"],
+                  "message": "Channel does not exist or is not publishable"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "status": 200,
+    "payload": {
+      "data": {
+        "productDelete": {
+          "deletedProductId": "gid://shopify/Product/10178854420786",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notes": [
+    "Live Admin API accepted empty productPublications arrays with userErrors: [] for productPublish on this store/API version.",
+    "Live Admin API returned top-level INVALID_VARIABLE for omitted variable productPublications.",
+    "Live Admin API exposes UserError field/message only on ProductPublishPayload.userErrors for this store/API version."
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "ProductsHydrateNodes",
+      "variables": {
+        "ids": ["gid://shopify/Product/10178854420786"]
+      },
+      "query": "#graphql\n  query ProductsHydrateNodes($ids: [ID!]!) {\n    nodes(ids: $ids) {\n      __typename\n      id\n      ... on Product {\n        legacyResourceId\n        title\n        handle\n        status\n        vendor\n        productType\n        tags\n        totalInventory\n        tracksInventory\n        createdAt\n        updatedAt\n        publishedAt\n        descriptionHtml\n        onlineStorePreviewUrl\n        templateSuffix\n        seo {\n          title\n          description\n        }\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "nodes": [
+              {
+                "__typename": "Product",
+                "id": "gid://shopify/Product/10178854420786",
+                "legacyResourceId": "10178854420786",
+                "title": "Product publish input validation moue2p1r",
+                "handle": "product-publish-input-validation-moue2p1r",
+                "status": "DRAFT",
+                "vendor": "harry-test-heelo",
+                "productType": "",
+                "tags": [],
+                "totalInventory": 0,
+                "tracksInventory": false,
+                "createdAt": "2026-05-06T18:26:51Z",
+                "updatedAt": "2026-05-06T18:26:52Z",
+                "publishedAt": null,
+                "descriptionHtml": "",
+                "onlineStorePreviewUrl": "https://330fqsdqqvpcam4w-92891250994.shopifypreview.com/products_preview?preview_key=8e693d9bdde9758a118e0c9ee7499836&_bt=eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaEpJaU5vWVhKeWVTMTBaWE4wTFdobFpXeHZMbTE1YzJodmNHbG1lUzVqYjIwR09nWkZWQT09IiwiZXhwIjoiMjAyNi0wNS0wNlQxOToyNjo1Mi45NDVaIiwicHVyIjoicGVybWFuZW50X3Bhc3N3b3JkX2J5cGFzcyJ9fQ==--3919d9ca4637c73aa862e566142f6127a4c607d5",
+                "templateSuffix": null,
+                "seo": {
+                  "title": null,
+                  "description": null
+                }
+              }
+            ]
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+query TagsMultiResourceArticleRead($articleId: ID!) {
+  article(id: $articleId) {
+    id
+    title
+    tags
+  }
+}
