@@ -1970,6 +1970,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'online-store',
+    captureId: 'online-store-delete-cascades',
+    scriptPath: 'scripts/capture-online-store-delete-cascade-conformance.ts',
+    purpose:
+      'blogDelete and articleDelete dependent-destroy behavior for child articles and comments, including downstream null/empty reads.',
+    requiredAuthScopes: ['read_content', 'write_content'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}article-delete-cascades-comments.json`,
+      `${CAPTURE_ROOT}blog-delete-cascades-articles-and-comments.json`,
+      'config/parity-specs/online-store/article_delete_cascades_comments.json',
+      'config/parity-specs/online-store/blog_delete_cascades_articles_and_comments.json',
+      'config/parity-requests/online-store/article-delete-cascades-comments*.graphql',
+      'config/parity-requests/online-store/blog-delete-cascades-articles-and-comments*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable blogs/articles and REST article comments, then deletes the article or blog during the scenario; failure cleanup deletes any remaining article/blog records.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
     captureId: 'online-store-theme-update-role-not-an-input',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-online-store-theme-update-validation-conformance.ts',

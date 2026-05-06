@@ -1,0 +1,13 @@
+query ArticleDeleteCascadesCommentsRead($articleId: ID!, $commentQuery: String!) {
+  article(id: $articleId) {
+    id
+  }
+  comments(first: 10, query: $commentQuery) {
+    nodes {
+      id
+      article {
+        id
+      }
+    }
+  }
+}
