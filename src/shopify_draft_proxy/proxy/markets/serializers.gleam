@@ -108,6 +108,22 @@ pub fn price_list_fixed_prices_by_product_user_error(
 }
 
 @internal
+pub fn price_list_fixed_prices_by_product_user_error_null_field(
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "__typename",
+      CapturedString(price_list_fixed_prices_by_product_user_error_typename),
+    ),
+    #("field", CapturedNull),
+    #("message", CapturedString(message)),
+    #("code", CapturedString(code)),
+  ])
+}
+
+@internal
 pub fn markets_log_draft(
   root_name: String,
   staged_ids: List(String),
@@ -1127,9 +1143,8 @@ pub fn product_level_fixed_price_errors(
 ) -> List(CapturedJsonValue) {
   let no_op_errors = case price_inputs, delete_product_ids {
     [], [] -> [
-      price_list_fixed_prices_by_product_user_error(
-        [],
-        "No update operations specified.",
+      price_list_fixed_prices_by_product_user_error_null_field(
+        "No update operations are specified. `pricesToAdd` and `pricesToDeleteByProductIds` are empty.",
         "NO_UPDATE_OPERATIONS_SPECIFIED",
       ),
     ]
@@ -1227,8 +1242,12 @@ fn money_currency_mismatch_error(
         True -> []
         False -> [
           price_list_fixed_prices_by_product_user_error(
-            ["pricesToAdd", int.to_string(index), field_name],
-            "Currency code must match the price list currency.",
+            ["pricesToAdd", int.to_string(index), field_name, "currencyCode"],
+            "The currency specified in `pricesToAdd` for product ID "
+              <> product_id_for_price_input(input)
+              <> " does not match the price list's currency of "
+              <> currency
+              <> ".",
             "PRICES_TO_ADD_CURRENCY_MISMATCH",
           ),
         ]
@@ -1250,7 +1269,7 @@ fn duplicate_price_input_errors(
             True -> #(seen, [
               price_list_fixed_prices_by_product_user_error(
                 ["pricesToAdd"],
-                "Input contains duplicate product IDs.",
+                "Duplicate ID exists in `pricesToAdd`.",
                 "DUPLICATE_ID_IN_INPUT",
               ),
               ..errors
@@ -1274,7 +1293,7 @@ fn duplicate_delete_product_errors(
         True -> #(seen, [
           price_list_fixed_prices_by_product_user_error(
             ["pricesToDeleteByProductIds"],
-            "Input contains duplicate product IDs.",
+            "Duplicate ID exists in `pricesToDeleteByProductIds`.",
             "DUPLICATE_ID_IN_INPUT",
           ),
           ..errors
@@ -1292,14 +1311,13 @@ fn mutually_exclusive_product_errors(
   price_inputs
   |> enumerate_dicts
   |> list.filter_map(fn(entry) {
-    let #(input, index) = entry
+    let #(input, _) = entry
     case graphql_helpers.read_arg_string_nonempty(input, "productId") {
       Some(product_id) ->
         case list.contains(delete_product_ids, product_id) {
           True ->
-            Ok(price_list_fixed_prices_by_product_user_error(
-              ["pricesToAdd", int.to_string(index), "productId"],
-              "Product ID must be mutually exclusive between add and delete inputs.",
+            Ok(price_list_fixed_prices_by_product_user_error_null_field(
+              "IDs specified in `pricesToAdd` and `pricesToDeleteByProductIds` must be mutually exclusive.",
               "ID_MUST_BE_MUTUALLY_EXCLUSIVE",
             ))
           False -> Error(Nil)
@@ -1307,6 +1325,13 @@ fn mutually_exclusive_product_errors(
       None -> Error(Nil)
     }
   })
+}
+
+fn product_id_for_price_input(
+  input: Dict(String, root_field.ResolvedValue),
+) -> String {
+  graphql_helpers.read_arg_string_nonempty(input, "productId")
+  |> option.unwrap("")
 }
 
 fn price_list_fixed_price_limit_errors(

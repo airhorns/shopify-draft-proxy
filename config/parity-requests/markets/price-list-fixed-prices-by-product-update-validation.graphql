@@ -1,0 +1,32 @@
+mutation PriceListFixedPricesByProductUpdateValidation(
+  $priceListId: ID!
+  $pricesToAdd: [PriceListProductPriceInput!]!
+  $pricesToDeleteByProductIds: [ID!]!
+) {
+  priceListFixedPricesByProductUpdate(
+    priceListId: $priceListId
+    pricesToAdd: $pricesToAdd
+    pricesToDeleteByProductIds: $pricesToDeleteByProductIds
+  ) {
+    priceList {
+      id
+      name
+      currency
+      fixedPricesCount
+    }
+    pricesToAddProducts {
+      id
+      title
+    }
+    pricesToDeleteProducts {
+      id
+      title
+    }
+    userErrors {
+      __typename
+      field
+      message
+      code
+    }
+  }
+}

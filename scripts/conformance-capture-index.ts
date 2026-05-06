@@ -1674,6 +1674,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'price-list-fixed-prices-by-product-update-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-price-list-fixed-prices-by-product-update-validation-conformance.ts',
+    purpose:
+      'priceListFixedPricesByProductUpdate validation branches for no-op input, currency mismatch, duplicate product IDs, and add/delete mutual exclusivity.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}price-list-fixed-prices-by-product-update-validation.json`,
+      'config/parity-specs/markets/price-list-fixed-prices-by-product-update-validation.json',
+      'config/parity-requests/markets/price-list-fixed-prices-by-product-update-validation.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only mutations reject before changing price-list fixed prices; no setup or cleanup records are created.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'product-contextual-pricing',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-contextual-pricing-conformance.ts',

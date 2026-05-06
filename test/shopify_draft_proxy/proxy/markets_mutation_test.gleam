@@ -108,7 +108,7 @@ pub fn price_list_fixed_prices_by_product_update_rejects_noop_test() {
   )
   assert string.contains(
     serialized,
-    "\"field\":[],\"code\":\"NO_UPDATE_OPERATIONS_SPECIFIED\"",
+    "\"field\":null,\"code\":\"NO_UPDATE_OPERATIONS_SPECIFIED\"",
   )
   assert read_status == 200
   assert json.to_string(read_body)
@@ -132,11 +132,11 @@ pub fn price_list_fixed_prices_by_product_update_validates_input_sets_test() {
   assert string.contains(serialized, "\"priceList\":null")
   assert string.contains(
     serialized,
-    "\"field\":[\"pricesToAdd\",\"0\",\"price\"],\"code\":\"PRICES_TO_ADD_CURRENCY_MISMATCH\"",
+    "\"field\":[\"pricesToAdd\",\"0\",\"price\",\"currencyCode\"],\"code\":\"PRICES_TO_ADD_CURRENCY_MISMATCH\"",
   )
   assert string.contains(
     serialized,
-    "\"field\":[\"pricesToAdd\",\"0\",\"compareAtPrice\"],\"code\":\"PRICES_TO_ADD_CURRENCY_MISMATCH\"",
+    "\"field\":[\"pricesToAdd\",\"0\",\"compareAtPrice\",\"currencyCode\"],\"code\":\"PRICES_TO_ADD_CURRENCY_MISMATCH\"",
   )
   assert string.contains(
     serialized,
@@ -148,7 +148,7 @@ pub fn price_list_fixed_prices_by_product_update_validates_input_sets_test() {
   )
   assert string.contains(
     serialized,
-    "\"field\":[\"pricesToAdd\",\"0\",\"productId\"],\"code\":\"ID_MUST_BE_MUTUALLY_EXCLUSIVE\"",
+    "\"field\":null,\"code\":\"ID_MUST_BE_MUTUALLY_EXCLUSIVE\"",
   )
   assert string.contains(
     serialized,
