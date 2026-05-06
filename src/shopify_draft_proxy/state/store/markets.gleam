@@ -122,6 +122,50 @@ pub fn list_effective_market_localizations(
   })
 }
 
+pub fn remove_staged_market_localizations(
+  store: Store,
+  resource_id: String,
+  keys: List(String),
+  market_ids: Option(List(String)),
+) -> #(List(MarketLocalizationRecord), Store) {
+  let staged = store.staged_state
+  let removed =
+    staged.market_localizations
+    |> dict.values
+    |> list.filter(fn(record) {
+      record.resource_id == resource_id
+      && list.contains(keys, record.key)
+      && case market_ids {
+        Some(ids) -> list.contains(ids, record.market_id)
+        None -> True
+      }
+    })
+    |> list.sort(fn(left, right) {
+      case string.compare(left.market_id, right.market_id) {
+        order.Eq -> string.compare(left.key, right.key)
+        other -> other
+      }
+    })
+  let next_bucket =
+    list.fold(removed, staged.market_localizations, fn(acc, record) {
+      dict.delete(
+        acc,
+        market_localization_key(
+          record.resource_id,
+          record.market_id,
+          record.key,
+        ),
+      )
+    })
+  #(
+    removed,
+    Store(
+      ..store,
+      staged_state: StagedState(..staged, market_localizations: next_bucket),
+    ),
+  )
+}
+
 pub fn upsert_staged_market(
   store: Store,
   record: MarketRecord,

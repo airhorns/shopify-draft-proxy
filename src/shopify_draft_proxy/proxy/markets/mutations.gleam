@@ -1703,13 +1703,48 @@ fn handle_market_localizations_remove(
   let key = get_field_response_key(field)
   let args = graphql_helpers.field_args(field, variables)
   let resource_id = graphql_helpers.read_arg_string_nonempty(args, "resourceId")
-  let errors = case resource_id {
-    Some(id) ->
+  let keys =
+    read_arg_string_array(args, "marketLocalizationKeys")
+    |> option.unwrap([])
+  let market_ids = read_arg_string_array(args, "marketIds")
+  let #(errors, removed, next_store) = case resource_id {
+    Some(id) -> {
       case store.find_effective_metafield_by_id(store, id) {
-        Some(_) -> []
-        None -> [resource_not_found_error(id)]
+        Some(metafield) -> {
+          let validation_errors =
+            market_localizations_remove_errors(
+              store,
+              metafield,
+              keys,
+              market_ids,
+            )
+          case validation_errors {
+            [] -> {
+              let #(removed, updated_store) =
+                store.remove_staged_market_localizations(
+                  store,
+                  id,
+                  keys,
+                  market_ids,
+                )
+              #([], removed, updated_store)
+            }
+            _ -> #(validation_errors, [], store)
+          }
+        }
+        None -> #([resource_not_found_error(id)], [], store)
       }
-    None -> [resource_not_found_error("")]
+    }
+    None -> #([resource_not_found_error("")], [], store)
+  }
+  let localization_payload = case removed {
+    [] -> CapturedNull
+    _ ->
+      CapturedArray(
+        list.map(removed, fn(record) {
+          market_localization_payload(next_store, record)
+        }),
+      )
   }
   mutation_payload_result(
     key,
@@ -1717,13 +1752,79 @@ fn handle_market_localizations_remove(
     fragments,
     "marketLocalizationsRemove",
     CapturedObject([
-      #("marketLocalizations", CapturedNull),
+      #("marketLocalizations", localization_payload),
       #("userErrors", CapturedArray(errors)),
     ]),
-    store,
+    next_store,
     identity,
-    [],
+    case removed {
+      [] -> []
+      _ ->
+        resource_id
+        |> option.map(fn(id) { [id] })
+        |> option.unwrap([])
+    },
   )
+}
+
+fn market_localizations_remove_errors(
+  store: Store,
+  metafield: ProductMetafieldRecord,
+  keys: List(String),
+  market_ids: Option(List(String)),
+) -> List(CapturedJsonValue) {
+  let key_errors = case keys {
+    [] -> [
+      translation_user_error(
+        ["marketLocalizationKeys"],
+        "Market localization keys can't be blank",
+        "KEY_NOT_FOUND",
+      ),
+    ]
+    _ -> {
+      case metafield.market_localizable_content {
+        [] -> []
+        _ ->
+          keys
+          |> list.index_map(fn(key, index) {
+            case market_localizable_content_for_key(metafield, key) {
+              Some(_) -> []
+              None -> [
+                translation_user_error(
+                  ["marketLocalizationKeys", int.to_string(index)],
+                  "Key " <> key <> " does not exist",
+                  "KEY_NOT_FOUND",
+                ),
+              ]
+            }
+          })
+          |> list.flatten
+      }
+    }
+  }
+  let market_errors = case metafield.market_localizable_content {
+    [] -> []
+    _ ->
+      case market_ids {
+        Some(ids) ->
+          ids
+          |> list.index_map(fn(id, index) {
+            case store.get_effective_market_by_id(store, id) {
+              Some(_) -> []
+              None -> [
+                translation_user_error(
+                  ["marketIds", int.to_string(index)],
+                  "Market does not exist",
+                  "MARKET_NOT_FOUND",
+                ),
+              ]
+            }
+          })
+          |> list.flatten
+        None -> []
+      }
+  }
+  list.append(key_errors, market_errors)
 }
 
 fn resource_not_found_error(resource_id: String) -> CapturedJsonValue {
