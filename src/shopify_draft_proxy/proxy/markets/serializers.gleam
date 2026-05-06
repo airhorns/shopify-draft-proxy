@@ -89,6 +89,24 @@ pub fn user_error_with_typename(
   )
 }
 
+const price_list_fixed_prices_by_product_user_error_typename = "PriceListFixedPricesByProductBulkUpdateUserError"
+
+const price_list_fixed_prices_by_product_fixed_price_limit = 10_000
+
+@internal
+pub fn price_list_fixed_prices_by_product_user_error(
+  field: List(String),
+  message: String,
+  code: String,
+) -> CapturedJsonValue {
+  user_error_with_typename(
+    field,
+    message,
+    code,
+    Some(price_list_fixed_prices_by_product_user_error_typename),
+  )
+}
+
 @internal
 pub fn markets_log_draft(
   root_name: String,
@@ -1103,9 +1121,20 @@ pub fn read_price_list_adjustment_value(
 @internal
 pub fn product_level_fixed_price_errors(
   store: Store,
+  price_list: Option(PriceListRecord),
   price_inputs: List(Dict(String, root_field.ResolvedValue)),
   delete_product_ids: List(String),
 ) -> List(CapturedJsonValue) {
+  let no_op_errors = case price_inputs, delete_product_ids {
+    [], [] -> [
+      price_list_fixed_prices_by_product_user_error(
+        [],
+        "No update operations specified.",
+        "NO_UPDATE_OPERATIONS_SPECIFIED",
+      ),
+    ]
+    _, _ -> []
+  }
   let add_errors =
     price_inputs
     |> enumerate_dicts
@@ -1117,7 +1146,7 @@ pub fn product_level_fixed_price_errors(
       case store.get_effective_product_by_id(store, product_id) {
         Some(_) -> Error(Nil)
         None ->
-          Ok(user_error(
+          Ok(price_list_fixed_prices_by_product_user_error(
             ["pricesToAdd", int.to_string(index), "productId"],
             "Product " <> product_id <> " in `pricesToAdd` does not exist.",
             "PRODUCT_DOES_NOT_EXIST",
@@ -1132,7 +1161,7 @@ pub fn product_level_fixed_price_errors(
       case store.get_effective_product_by_id(store, product_id) {
         Some(_) -> Error(Nil)
         None ->
-          Ok(user_error(
+          Ok(price_list_fixed_prices_by_product_user_error(
             ["pricesToDeleteByProductIds", int.to_string(index)],
             "Product "
               <> product_id
@@ -1141,7 +1170,224 @@ pub fn product_level_fixed_price_errors(
           ))
       }
     })
-  list.append(add_errors, delete_errors)
+  no_op_errors
+  |> list.append(add_errors)
+  |> list.append(delete_errors)
+  |> list.append(price_currency_mismatch_errors(price_list, price_inputs))
+  |> list.append(duplicate_price_input_errors(price_inputs))
+  |> list.append(duplicate_delete_product_errors(delete_product_ids))
+  |> list.append(mutually_exclusive_product_errors(
+    price_inputs,
+    delete_product_ids,
+  ))
+  |> list.append(price_list_fixed_price_limit_errors(
+    store,
+    price_list,
+    price_inputs,
+    delete_product_ids,
+  ))
+}
+
+fn price_currency_mismatch_errors(
+  price_list: Option(PriceListRecord),
+  price_inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(CapturedJsonValue) {
+  case price_list {
+    Some(existing) -> {
+      let currency = price_list_currency(existing)
+      price_inputs
+      |> enumerate_dicts
+      |> list.flat_map(fn(entry) {
+        let #(input, index) = entry
+        money_currency_mismatch_error(input, index, "price", currency)
+        |> list.append(money_currency_mismatch_error(
+          input,
+          index,
+          "compareAtPrice",
+          currency,
+        ))
+      })
+    }
+    None -> []
+  }
+}
+
+fn money_currency_mismatch_error(
+  input: Dict(String, root_field.ResolvedValue),
+  index: Int,
+  field_name: String,
+  currency: String,
+) -> List(CapturedJsonValue) {
+  case
+    graphql_helpers.read_arg_object(input, field_name)
+    |> option.then(graphql_helpers.read_arg_string_nonempty(_, "currencyCode"))
+  {
+    Some(input_currency) ->
+      case input_currency == currency {
+        True -> []
+        False -> [
+          price_list_fixed_prices_by_product_user_error(
+            ["pricesToAdd", int.to_string(index), field_name],
+            "Currency code must match the price list currency.",
+            "PRICES_TO_ADD_CURRENCY_MISMATCH",
+          ),
+        ]
+      }
+    None -> []
+  }
+}
+
+fn duplicate_price_input_errors(
+  price_inputs: List(Dict(String, root_field.ResolvedValue)),
+) -> List(CapturedJsonValue) {
+  let #(_, errors) =
+    price_inputs
+    |> list.fold(#([], []), fn(acc, input) {
+      let #(seen, errors) = acc
+      case graphql_helpers.read_arg_string_nonempty(input, "productId") {
+        Some(product_id) ->
+          case list.contains(seen, product_id) {
+            True -> #(seen, [
+              price_list_fixed_prices_by_product_user_error(
+                ["pricesToAdd"],
+                "Input contains duplicate product IDs.",
+                "DUPLICATE_ID_IN_INPUT",
+              ),
+              ..errors
+            ])
+            False -> #([product_id, ..seen], errors)
+          }
+        None -> #(seen, errors)
+      }
+    })
+  errors |> list.reverse
+}
+
+fn duplicate_delete_product_errors(
+  delete_product_ids: List(String),
+) -> List(CapturedJsonValue) {
+  let #(_, errors) =
+    delete_product_ids
+    |> list.fold(#([], []), fn(acc, product_id) {
+      let #(seen, errors) = acc
+      case list.contains(seen, product_id) {
+        True -> #(seen, [
+          price_list_fixed_prices_by_product_user_error(
+            ["pricesToDeleteByProductIds"],
+            "Input contains duplicate product IDs.",
+            "DUPLICATE_ID_IN_INPUT",
+          ),
+          ..errors
+        ])
+        False -> #([product_id, ..seen], errors)
+      }
+    })
+  errors |> list.reverse
+}
+
+fn mutually_exclusive_product_errors(
+  price_inputs: List(Dict(String, root_field.ResolvedValue)),
+  delete_product_ids: List(String),
+) -> List(CapturedJsonValue) {
+  price_inputs
+  |> enumerate_dicts
+  |> list.filter_map(fn(entry) {
+    let #(input, index) = entry
+    case graphql_helpers.read_arg_string_nonempty(input, "productId") {
+      Some(product_id) ->
+        case list.contains(delete_product_ids, product_id) {
+          True ->
+            Ok(price_list_fixed_prices_by_product_user_error(
+              ["pricesToAdd", int.to_string(index), "productId"],
+              "Product ID must be mutually exclusive between add and delete inputs.",
+              "ID_MUST_BE_MUTUALLY_EXCLUSIVE",
+            ))
+          False -> Error(Nil)
+        }
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn price_list_fixed_price_limit_errors(
+  store: Store,
+  price_list: Option(PriceListRecord),
+  price_inputs: List(Dict(String, root_field.ResolvedValue)),
+  delete_product_ids: List(String),
+) -> List(CapturedJsonValue) {
+  case price_list {
+    Some(existing) ->
+      case
+        list.length(resulting_fixed_price_variant_ids(
+          store,
+          existing,
+          price_inputs,
+          delete_product_ids,
+        ))
+        >= price_list_fixed_prices_by_product_fixed_price_limit
+      {
+        True -> [
+          price_list_fixed_prices_by_product_user_error(
+            ["pricesToAdd"],
+            "The maximum number of fixed prices allowed for the price list has been exceeded.",
+            "PRICE_LIMIT_EXCEEDED",
+          ),
+        ]
+        False -> []
+      }
+    None -> []
+  }
+}
+
+fn resulting_fixed_price_variant_ids(
+  store: Store,
+  price_list: PriceListRecord,
+  price_inputs: List(Dict(String, root_field.ResolvedValue)),
+  delete_product_ids: List(String),
+) -> List(String) {
+  let delete_variant_ids =
+    delete_product_ids
+    |> list.flat_map(fn(product_id) {
+      store.get_effective_variants_by_product_id(store, product_id)
+      |> list.map(fn(variant) { variant.id })
+    })
+  let retained =
+    price_edges(price_list.data)
+    |> list.filter_map(fixed_price_edge_variant_id_for_limit)
+    |> list.filter(fn(variant_id) {
+      !list.contains(delete_variant_ids, variant_id)
+    })
+  let add_variant_ids =
+    price_inputs
+    |> list.flat_map(fn(input) {
+      case graphql_helpers.read_arg_string_nonempty(input, "productId") {
+        Some(product_id) ->
+          store.get_effective_variants_by_product_id(store, product_id)
+          |> list.map(fn(variant) { variant.id })
+        None -> []
+      }
+    })
+  list.fold(add_variant_ids, retained, append_unique_string)
+}
+
+fn fixed_price_edge_variant_id_for_limit(
+  edge: CapturedJsonValue,
+) -> Result(String, Nil) {
+  case captured_edge_node(edge) {
+    Some(node) ->
+      case captured_string_field(node, "originType") {
+        Some("FIXED") -> fixed_price_edge_variant_id(edge) |> option_to_result
+        _ -> Error(Nil)
+      }
+    None -> Error(Nil)
+  }
+}
+
+fn append_unique_string(values: List(String), value: String) -> List(String) {
+  case list.contains(values, value) {
+    True -> values
+    False -> list.append(values, [value])
+  }
 }
 
 @internal

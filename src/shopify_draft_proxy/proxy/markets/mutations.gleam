@@ -20,7 +20,8 @@ import shopify_draft_proxy/proxy/markets/serializers.{
   delete_quantity_rule_nodes, enumerate_dicts, market_connection_from_ids,
   market_data, market_handle_in_use, market_localization_payload,
   market_name_in_use, markets_log_draft, mutation_variant_ids, option_to_result,
-  optional_captured_string, price_list_data, price_list_input_errors,
+  optional_captured_string, price_list_data,
+  price_list_fixed_prices_by_product_user_error, price_list_input_errors,
   product_level_fixed_price_errors, product_payloads, project_record,
   quantity_pricing_input_errors, quantity_rule_delete_errors,
   quantity_rule_payloads, quantity_rules_input_errors, read_arg_object_array,
@@ -1084,7 +1085,7 @@ fn handle_price_list_fixed_prices_by_product_update(
     case price_list_id, price_list {
       Some(_), Some(_) -> []
       _, _ -> [
-        user_error(
+        price_list_fixed_prices_by_product_user_error(
           ["priceListId"],
           "Price list does not exist.",
           "PRICE_LIST_DOES_NOT_EXIST",
@@ -1093,6 +1094,7 @@ fn handle_price_list_fixed_prices_by_product_update(
     }
     |> list.append(product_level_fixed_price_errors(
       store,
+      price_list,
       price_inputs,
       delete_product_ids,
     ))
