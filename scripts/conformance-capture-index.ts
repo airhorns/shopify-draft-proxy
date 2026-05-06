@@ -3028,11 +3028,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     captureId: 'location-add',
     scriptPath: 'scripts/capture-location-add-conformance.mts',
     purpose:
-      'locationAdd required-address validation, address/default staging, and immediate read-after-write behavior.',
+      'locationAdd required-address/country-code validation, unsupported capabilities validation, address/default staging, and immediate read-after-write behavior.',
     requiredAuthScopes: ['read_locations', 'write_locations'],
     fixtureOutputs: [
-      `${CAPTURE_ROOT}location-add-required-address-and-defaults.json`,
-      'config/parity-specs/store-properties/location-add-required-address-and-defaults.json',
+      `${CAPTURE_ROOT}location-add-validation-and-defaults.json`,
+      'config/parity-specs/store-properties/location-add-validation-and-defaults.json',
+      'config/parity-requests/store-properties/location-add-blank-name-code.graphql',
+      'config/parity-requests/store-properties/location-add-capabilities-variable.graphql',
+      'config/parity-requests/store-properties/location-add-inline-capabilities.graphql',
+      'config/parity-requests/store-properties/location-add-inline-missing-country-code.graphql',
+      'config/parity-requests/store-properties/location-add-invalid-country-code.graphql',
+      'config/parity-requests/store-properties/location-add-missing-address.graphql',
+      'config/parity-requests/store-properties/location-add-missing-country-code.graphql',
+      'config/parity-requests/store-properties/location-add-read-after-add.graphql',
+      'config/parity-requests/store-properties/location-add-validation-and-defaults.graphql',
     ],
     cleanupBehavior:
       'Creates disposable locations for default and explicit non-online fulfillment branches, then deactivates and deletes them.',

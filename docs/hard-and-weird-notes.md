@@ -3251,9 +3251,9 @@ Practical rule:
 
 - model async delete with an initial `ProductDeleteOperation` response, keep the product visible immediately, reject duplicate pending operations with the nullable-field public userError shape, and expose completed readback through `productOperation(id:)` / `node(id:)` without runtime Shopify writes
 
-## 76. `locationAdd` required input errors are parser-level, but country validation is topology-sensitive
+## 76. `locationAdd` required input errors are parser-level, but country validation is schema-sensitive
 
-HAR-654 captured `locationAdd` on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
+The `location-add-validation-and-defaults` scenario captures `locationAdd` on Admin GraphQL 2026-04 against `harry-test-heelo.myshopify.com`.
 
 Captured facts:
 
@@ -3262,7 +3262,7 @@ Captured facts:
 - blank `input.name` returns a mutation-scoped userError with `field: ["input", "name"]` and `code: "BLANK"`
 - omitting `fulfillsOnlineOrders` creates a location whose mutation payload and immediate `location(id:)` read both show `fulfillsOnlineOrders: true`
 - explicitly passing `fulfillsOnlineOrders: false` is reflected in both the mutation payload and immediate read
-- a probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError; the location was deactivated and deleted immediately after capture
+- invalid `address.countryCode: "QQ"` variables are rejected by enum coercion before the resolver; a separate probe with only `address.countryCode: "ZZ"` created a disposable location on this store instead of returning a country-code userError because `ZZ` is a public enum member
 - current 2026-04 schema does not expose `LocationAddInput.capabilities`, `capabilitiesToAdd`, `capabilitiesToRemove`, or `Location.capabilities`; inline unknown input fields return `argumentNotAccepted`, variable unknown input fields return `INVALID_VARIABLE`, and selecting `Location.capabilities` returns `undefinedField`
 
 Practical rule:
