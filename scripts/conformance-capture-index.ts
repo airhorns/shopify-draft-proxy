@@ -2514,6 +2514,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'marketing',
+    captureId: 'marketing-external-activity-url-scheme-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-marketing-external-activity-url-scheme-validation-conformance.mts',
+    purpose:
+      'External marketing activity create/update/upsert remoteUrl and remotePreviewImageUrl URL scheme validation.',
+    requiredAuthScopes: ['read_marketing_events', 'write_marketing_events'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}marketing-external-activity-url-scheme-validation.json`,
+      'config/parity-specs/marketing/marketing-external-activity-url-scheme-validation.json',
+      'config/parity-requests/marketing/marketing-external-activity-url-scheme-create.graphql',
+      'config/parity-requests/marketing/marketing-external-activity-url-scheme-update.graphql',
+      'config/parity-requests/marketing/marketing-external-activity-url-scheme-upsert.graphql',
+      'config/parity-requests/marketing/marketing-external-activity-url-scheme-read.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable valid external marketing activity for update/read probes, captures invalid URL scheme branches, then deletes every disposable remote ID.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'marketing',
     captureId: 'marketing-engagement-currency-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-marketing-engagement-currency-validation-conformance.mts',

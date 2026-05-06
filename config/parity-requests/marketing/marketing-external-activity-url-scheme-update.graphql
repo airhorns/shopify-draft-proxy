@@ -1,0 +1,21 @@
+mutation MarketingExternalActivityUrlSchemeUpdate(
+  $remoteId: String
+  $input: MarketingActivityUpdateExternalInput!
+) {
+  marketingActivityUpdateExternal(remoteId: $remoteId, input: $input) {
+    marketingActivity {
+      id
+      title
+      marketingEvent {
+        remoteId
+        manageUrl
+        previewUrl
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

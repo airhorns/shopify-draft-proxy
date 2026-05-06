@@ -1555,9 +1555,27 @@ fn url_value_problems(
             "" -> [invalid_url_problem(value, "missing host", path)]
             _ -> []
           }
-        Error(_) -> [invalid_url_problem(value, "missing scheme", path)]
+        Error(_) ->
+          case string.split_once(value, ":") {
+            Ok(#("", _)) -> [invalid_url_problem(value, "empty scheme", path)]
+            Ok(#(scheme, _)) ->
+              case url_scalar_hostless_scheme_allowed(scheme) {
+                True -> []
+                False -> [invalid_url_problem(value, "missing host", path)]
+              }
+            Error(_) -> [invalid_url_problem(value, "missing scheme", path)]
+          }
       }
     _ -> []
+  }
+}
+
+fn url_scalar_hostless_scheme_allowed(scheme: String) -> Bool {
+  case string.lowercase(scheme) {
+    "mailto" -> True
+    "sms" -> True
+    "tel" -> True
+    _ -> False
   }
 }
 

@@ -1,0 +1,18 @@
+mutation MarketingExternalActivityUrlSchemeUpsert($input: MarketingActivityUpsertExternalInput!) {
+  marketingActivityUpsertExternal(input: $input) {
+    marketingActivity {
+      id
+      title
+      marketingEvent {
+        remoteId
+        manageUrl
+        previewUrl
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
