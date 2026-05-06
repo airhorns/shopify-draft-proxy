@@ -1,0 +1,950 @@
+{
+  "capturedAt": "2026-05-06T21:57:28.825Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "disposableProductHandle": "market-localization-money-93e8ygz8",
+  "disposableMetafieldDefinition": {
+    "namespace": "codex_market_93e8ygz8",
+    "key": "money"
+  },
+  "scope": "Money metafield market localization register/remove parity",
+  "setup": {
+    "definitionCreate": {
+      "query": "#graphql\n  mutation MarketLocalizationMoneyDefinitionCreate($definition: MetafieldDefinitionInput!) {\n    metafieldDefinitionCreate(definition: $definition) {\n      createdDefinition {\n        id\n        namespace\n        key\n        ownerType\n        type {\n          name\n          category\n        }\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "definition": {
+          "name": "Market localization money 93e8ygz8",
+          "namespace": "codex_market_93e8ygz8",
+          "key": "money",
+          "ownerType": "PRODUCT",
+          "type": "money",
+          "description": "Disposable market localization money metafield capture."
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "metafieldDefinitionCreate": {
+              "createdDefinition": {
+                "id": "gid://shopify/MetafieldDefinition/207060173106",
+                "namespace": "codex_market_93e8ygz8",
+                "key": "money",
+                "ownerType": "PRODUCT",
+                "type": {
+                  "name": "money",
+                  "category": "MONEY"
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productCreate": {
+      "query": "#graphql\n  mutation MarketLocalizationMoneyProductCreate($product: ProductCreateInput!, $namespace: String!) {\n    productCreate(product: $product) {\n      product {\n        id\n        handle\n        title\n        status\n        metafields(first: 5, namespace: $namespace) {\n          nodes {\n            id\n            namespace\n            key\n            type\n            value\n            compareDigest\n            ownerType\n          }\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "product": {
+          "title": "Market localization money 93e8ygz8",
+          "handle": "market-localization-money-93e8ygz8",
+          "status": "DRAFT",
+          "metafields": [
+            {
+              "namespace": "codex_market_93e8ygz8",
+              "key": "money",
+              "type": "money",
+              "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}"
+            }
+          ]
+        },
+        "namespace": "codex_market_93e8ygz8"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productCreate": {
+              "product": {
+                "id": "gid://shopify/Product/10178954395954",
+                "handle": "market-localization-money-93e8ygz8",
+                "title": "Market localization money 93e8ygz8",
+                "status": "DRAFT",
+                "metafields": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/Metafield/43116049203506",
+                      "namespace": "codex_market_93e8ygz8",
+                      "key": "money",
+                      "type": "money",
+                      "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                      "compareDigest": "d778dda5bb3a99f1c87ca9c80d7bca003f5152a61c8f0afda295b3f6f99c7192",
+                      "ownerType": "PRODUCT"
+                    }
+                  ]
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 15,
+              "actualQueryCost": 13,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1987,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "productRead": {
+      "query": "#graphql\n  query MarketLocalizationMoneyProductRead($id: ID!, $namespace: String!) {\n    product(id: $id) {\n      id\n      handle\n      title\n      status\n      metafields(first: 5, namespace: $namespace) {\n        nodes {\n          id\n          namespace\n          key\n          type\n          value\n          compareDigest\n          ownerType\n        }\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Product/10178954395954",
+        "namespace": "codex_market_93e8ygz8"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "product": {
+              "id": "gid://shopify/Product/10178954395954",
+              "handle": "market-localization-money-93e8ygz8",
+              "title": "Market localization money 93e8ygz8",
+              "status": "DRAFT",
+              "metafields": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/Metafield/43116049203506",
+                    "namespace": "codex_market_93e8ygz8",
+                    "key": "money",
+                    "type": "money",
+                    "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                    "compareDigest": "d778dda5bb3a99f1c87ca9c80d7bca003f5152a61c8f0afda295b3f6f99c7192",
+                    "ownerType": "PRODUCT"
+                  }
+                ]
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 6,
+              "actualQueryCost": 4,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1996,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "marketsRead": {
+      "query": "#graphql\n  query MarketLocalizationMoneyMetafieldRead($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n    markets(first: $marketsFirst) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketId": "gid://shopify/Market/0",
+        "marketsFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43116049203506",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                  "digest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+                }
+              ],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "moneyMetafieldReadBeforeRegister",
+      "query": "#graphql\n  query MarketLocalizationMoneyMetafieldRead($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n    markets(first: $marketsFirst) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketId": "gid://shopify/Market/92276785458",
+        "marketsFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43116049203506",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                  "digest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+                }
+              ],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "moneyMetafieldRegisterTwoMarkets",
+      "query": "#graphql\n  mutation MarketLocalizationMoneyMetafieldRegister(\n    $resourceId: ID!\n    $marketLocalizations: [MarketLocalizationRegisterInput!]!\n  ) {\n    marketLocalizationsRegister(resourceId: $resourceId, marketLocalizations: $marketLocalizations) {\n      marketLocalizations {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        __typename\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketLocalizations": [
+          {
+            "key": "value",
+            "value": "{\"amount\":\"6.99\",\"currency_code\":\"CAD\"}",
+            "marketId": "gid://shopify/Market/92276785458",
+            "marketLocalizableContentDigest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+          },
+          {
+            "key": "value",
+            "value": "{\"amount\":\"7.99\",\"currency_code\":\"MXN\"}",
+            "marketId": "gid://shopify/Market/92276818226",
+            "marketLocalizableContentDigest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+          }
+        ]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRegister": {
+              "marketLocalizations": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"6.99\",\"currency_code\":\"CAD\"}",
+                  "updatedAt": "2026-05-06T21:57:27Z",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276785458",
+                    "name": "International"
+                  }
+                },
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"7.99\",\"currency_code\":\"MXN\"}",
+                  "updatedAt": "2026-05-06T21:57:27Z",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276818226",
+                    "name": "Mexico"
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "moneyMetafieldReadFirstAfterRegister",
+      "query": "#graphql\n  query MarketLocalizationMoneyMetafieldRead($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n    markets(first: $marketsFirst) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketId": "gid://shopify/Market/92276785458",
+        "marketsFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43116049203506",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                  "digest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+                }
+              ],
+              "marketLocalizations": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"6.99\",\"currency_code\":\"CAD\"}",
+                  "updatedAt": "2026-05-06T21:57:27Z",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276785458",
+                    "name": "International"
+                  }
+                }
+              ]
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "moneyMetafieldReadSecondAfterRegister",
+      "query": "#graphql\n  query MarketLocalizationMoneyMetafieldRead($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n    markets(first: $marketsFirst) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketId": "gid://shopify/Market/92276818226",
+        "marketsFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43116049203506",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                  "digest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+                }
+              ],
+              "marketLocalizations": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"7.99\",\"currency_code\":\"MXN\"}",
+                  "updatedAt": "2026-05-06T21:57:27Z",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276818226",
+                    "name": "Mexico"
+                  }
+                }
+              ]
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "moneyMetafieldRemoveFirstMarket",
+      "query": "#graphql\n  mutation MarketLocalizationMoneyMetafieldRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {\n    marketLocalizationsRemove(\n      resourceId: $resourceId\n      marketLocalizationKeys: $keys\n      marketIds: $marketIds\n    ) {\n      marketLocalizations {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        __typename\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276785458"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRemove": {
+              "marketLocalizations": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"6.99\",\"currency_code\":\"CAD\"}",
+                  "updatedAt": "2026-05-06T21:57:27Z",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276785458",
+                    "name": "International"
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "moneyMetafieldReadFirstAfterPartialRemove",
+      "query": "#graphql\n  query MarketLocalizationMoneyMetafieldRead($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n    markets(first: $marketsFirst) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketId": "gid://shopify/Market/92276785458",
+        "marketsFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43116049203506",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                  "digest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+                }
+              ],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "moneyMetafieldReadSecondAfterPartialRemove",
+      "query": "#graphql\n  query MarketLocalizationMoneyMetafieldRead($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n    markets(first: $marketsFirst) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketId": "gid://shopify/Market/92276818226",
+        "marketsFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43116049203506",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                  "digest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+                }
+              ],
+              "marketLocalizations": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"7.99\",\"currency_code\":\"MXN\"}",
+                  "updatedAt": "2026-05-06T21:57:27Z",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276818226",
+                    "name": "Mexico"
+                  }
+                }
+              ]
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 7,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1993,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "moneyMetafieldRemoveSecondMarket",
+      "query": "#graphql\n  mutation MarketLocalizationMoneyMetafieldRemove($resourceId: ID!, $keys: [String!]!, $marketIds: [ID!]!) {\n    marketLocalizationsRemove(\n      resourceId: $resourceId\n      marketLocalizationKeys: $keys\n      marketIds: $marketIds\n    ) {\n      marketLocalizations {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n      userErrors {\n        __typename\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276818226"]
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizationsRemove": {
+              "marketLocalizations": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"7.99\",\"currency_code\":\"MXN\"}",
+                  "updatedAt": "2026-05-06T21:57:28Z",
+                  "outdated": false,
+                  "market": {
+                    "id": "gid://shopify/Market/92276818226",
+                    "name": "Mexico"
+                  }
+                }
+              ],
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 11,
+              "actualQueryCost": 11,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1989,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "moneyMetafieldReadSecondAfterFinalRemove",
+      "query": "#graphql\n  query MarketLocalizationMoneyMetafieldRead($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n    markets(first: $marketsFirst) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketId": "gid://shopify/Market/92276818226",
+        "marketsFirst": 2
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43116049203506",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                  "digest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+                }
+              ],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": {
+    "productDelete": {
+      "query": "#graphql\n  mutation MarketLocalizationMoneyProductDelete($input: ProductDeleteInput!) {\n    productDelete(input: $input) {\n      deletedProductId\n      userErrors {\n        field\n        message\n      }\n    }\n  }\n",
+      "variables": {
+        "input": {
+          "id": "gid://shopify/Product/10178954395954"
+        }
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "productDelete": {
+              "deletedProductId": "gid://shopify/Product/10178954395954",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    "definitionDelete": {
+      "query": "#graphql\n  mutation MarketLocalizationMoneyDefinitionDelete($id: ID!, $deleteAllAssociatedMetafields: Boolean!) {\n    metafieldDefinitionDelete(id: $id, deleteAllAssociatedMetafields: $deleteAllAssociatedMetafields) {\n      deletedDefinitionId\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/MetafieldDefinition/207060173106",
+        "deleteAllAssociatedMetafields": true
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "data": {
+            "metafieldDefinitionDelete": {
+              "deletedDefinitionId": "gid://shopify/MetafieldDefinition/207060173106",
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "MarketLocalizationMoneyMetafieldRead",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketId": "gid://shopify/Market/92276785458",
+        "marketsFirst": 2
+      },
+      "query": "#graphql\n  query MarketLocalizationMoneyMetafieldRead($resourceId: ID!, $marketId: ID!, $marketsFirst: Int!) {\n    marketLocalizableResource(resourceId: $resourceId) {\n      resourceId\n      marketLocalizableContent {\n        key\n        value\n        digest\n      }\n      marketLocalizations(marketId: $marketId) {\n        key\n        value\n        updatedAt\n        outdated\n        market {\n          id\n          name\n        }\n      }\n    }\n    markets(first: $marketsFirst) {\n      nodes {\n        id\n        name\n        handle\n        status\n        type\n      }\n    }\n  }\n",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "marketLocalizableResource": {
+              "resourceId": "gid://shopify/Metafield/43116049203506",
+              "marketLocalizableContent": [
+                {
+                  "key": "value",
+                  "value": "{\"amount\":\"5.99\",\"currency_code\":\"CAD\"}",
+                  "digest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+                }
+              ],
+              "marketLocalizations": []
+            },
+            "markets": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Market/92276785458",
+                  "name": "International",
+                  "handle": "international",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                },
+                {
+                  "id": "gid://shopify/Market/92276818226",
+                  "name": "Mexico",
+                  "handle": "mexico",
+                  "status": "ACTIVE",
+                  "type": "REGION"
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 7,
+              "actualQueryCost": 6,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1994,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "marketLocalizations": [
+          {
+            "key": "value",
+            "value": "{\"amount\":\"6.99\",\"currency_code\":\"CAD\"}",
+            "marketId": "gid://shopify/Market/92276785458",
+            "marketLocalizableContentDigest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+          },
+          {
+            "key": "value",
+            "value": "{\"amount\":\"7.99\",\"currency_code\":\"MXN\"}",
+            "marketId": "gid://shopify/Market/92276818226",
+            "marketLocalizableContentDigest": "81a95d2ef1d0b2e556a53d267b772008b5c6bff7a01960a54bd14efff7159b2b"
+          }
+        ]
+      },
+      "query": "query MarketsMutationPreflightHydrate { __typename }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "__typename": "QueryRoot"
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276785458"]
+      },
+      "query": "query MarketsMutationPreflightHydrate { __typename }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "__typename": "QueryRoot"
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "resourceId": "gid://shopify/Metafield/43116049203506",
+        "keys": ["value"],
+        "marketIds": ["gid://shopify/Market/92276818226"]
+      },
+      "query": "query MarketsMutationPreflightHydrate { __typename }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "__typename": "QueryRoot"
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 1,
+              "actualQueryCost": 1,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1999,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "notes": "Live Admin GraphQL capture creates a disposable money metafield definition and product metafield. Shopify exposes only the money metafield value as market-localizable content; the capture registers two market-specific money values, removes one market tuple, verifies the other remains visible, then removes the remaining tuple."
+}
