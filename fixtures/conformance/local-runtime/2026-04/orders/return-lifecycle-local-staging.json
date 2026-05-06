@@ -504,6 +504,190 @@
         }
       }
     },
+    "statePreconditionErrors": {
+      "approveOpen": {
+        "data": {
+          "returnApproveRequest": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "return_request_status_invalid",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      },
+      "declineOpen": {
+        "data": {
+          "returnDeclineRequest": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "return_request_status_invalid",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      },
+      "approveCanceled": {
+        "data": {
+          "returnApproveRequest": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "return_request_status_invalid",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      },
+      "declineCanceled": {
+        "data": {
+          "returnDeclineRequest": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "return_request_status_invalid",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      },
+      "approveDeclined": {
+        "data": {
+          "returnApproveRequest": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "return_request_status_invalid",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      },
+      "declineDeclined": {
+        "data": {
+          "returnDeclineRequest": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "return_request_status_invalid",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      },
+      "approveClosed": {
+        "data": {
+          "returnApproveRequest": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "return_request_status_invalid",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      },
+      "declineClosed": {
+        "data": {
+          "returnDeclineRequest": {
+            "return": null,
+            "userErrors": [
+              {
+                "field": ["id"],
+                "message": "return_request_status_invalid",
+                "code": "INVALID"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "statePreconditionReads": {
+      "open": {
+        "return": {
+          "status": "OPEN",
+          "reverseFulfillmentOrders": {
+            "nodes": [
+              {
+                "status": "OPEN",
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "canceled": {
+        "return": {
+          "status": "CANCELED",
+          "reverseFulfillmentOrders": {
+            "nodes": [
+              {
+                "status": "OPEN",
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "declined": {
+        "return": {
+          "status": "DECLINED",
+          "reverseFulfillmentOrders": {
+            "nodes": []
+          }
+        }
+      },
+      "closed": {
+        "return": {
+          "status": "CLOSED",
+          "reverseFulfillmentOrders": {
+            "nodes": [
+              {
+                "status": "OPEN",
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
     "remove": {
       "data": {
         "removeFromReturn": {

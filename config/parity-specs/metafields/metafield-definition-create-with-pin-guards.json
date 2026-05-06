@@ -1,0 +1,59 @@
+{
+  "scenarioId": "metafield-definition-create-with-pin-guards",
+  "operationNames": ["metafieldDefinitionCreate", "standardMetafieldDefinitionEnable", "metafieldDefinition"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-create-with-pin-guards.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-create-with-pin-guards.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-with-pin-reaches-position-20",
+        "capturePath": "$.primary.response.data.create20",
+        "proxyPath": "$.data.create20",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "create-with-pin-limit-userErrors",
+        "capturePath": "$.primary.response.data.overCapCreate",
+        "proxyPath": "$.data.overCapCreate"
+      },
+      {
+        "name": "create-with-pin-constrained-userErrors",
+        "capturePath": "$.primary.response.data.constrainedCreate",
+        "proxyPath": "$.data.constrainedCreate"
+      },
+      {
+        "name": "standard-enable-constrained-with-pin-userErrors",
+        "capturePath": "$.primary.response.data.standardConstrainedEnable",
+        "proxyPath": "$.data.standardConstrainedEnable"
+      },
+      {
+        "name": "failed-create-and-enable-readback-empty",
+        "capturePath": "$.readAfter.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-create-with-pin-guards-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 Shopify behavior for create-with-pin guard branches. The scenario temporarily unpins existing PRODUCT definitions, creates 20 disposable pinned PRODUCT definitions through `metafieldDefinitionCreate(pin: true)`, observes `PINNED_LIMIT_REACHED` on the next pinned create, observes `UNSUPPORTED_PINNING` for a constrained pinned create and a constrained standard template enable, verifies the failed definitions are absent on follow-up reads, deletes disposable definitions, and restores the baseline pins."
+}

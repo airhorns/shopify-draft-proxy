@@ -579,6 +579,9 @@ pub type ProductRecord {
     publication_ids: List(String),
     contextual_pricing: Option(CapturedJsonValue),
     cursor: Option(String),
+    combined_listing_role: Option(String),
+    combined_listing_parent_id: Option(String),
+    combined_listing_child_ids: List(String),
   )
 }
 

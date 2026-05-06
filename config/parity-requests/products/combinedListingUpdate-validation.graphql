@@ -1,0 +1,28 @@
+mutation CombinedListingUpdateValidation(
+  $parentProductId: ID!
+  $title: String
+  $productsAdded: [ChildProductRelationInput!]
+  $productsEdited: [ChildProductRelationInput!]
+  $productsRemovedIds: [ID!]
+  $optionsAndValues: [OptionAndValueInput!]
+) {
+  combinedListingUpdate(
+    parentProductId: $parentProductId
+    title: $title
+    productsAdded: $productsAdded
+    productsEdited: $productsEdited
+    productsRemovedIds: $productsRemovedIds
+    optionsAndValues: $optionsAndValues
+  ) {
+    product {
+      id
+      title
+      combinedListingRole
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

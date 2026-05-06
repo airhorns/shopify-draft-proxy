@@ -1124,6 +1124,252 @@ pub fn location_deactivate_only_online_fulfilling_location_returns_user_error_te
   )
 }
 
+pub fn location_deactivate_validates_destination_location_test() {
+  let source_id = "gid://shopify/Location/deactivate-source"
+  let inactive_destination_id = "gid://shopify/Location/deactivate-inactive"
+  let fulfillment_service_id = "gid://shopify/Location/deactivate-fs"
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_store_property_location(make_location(
+      source_id,
+      "Deactivate source",
+      True,
+      False,
+      True,
+      False,
+    ))
+    |> store.upsert_base_store_property_location(make_location(
+      inactive_destination_id,
+      "Inactive destination",
+      False,
+      True,
+      True,
+      False,
+    ))
+    |> store.upsert_base_store_property_location(
+      StorePropertyRecord(
+        ..make_location(
+          fulfillment_service_id,
+          "Fulfillment-service destination",
+          True,
+          False,
+          True,
+          False,
+        ),
+        data: dict.insert(
+          make_location(
+            fulfillment_service_id,
+            "Fulfillment-service destination",
+            True,
+            False,
+            True,
+            False,
+          ).data,
+          "isFulfillmentService",
+          StorePropertyBool(True),
+        ),
+      ),
+    )
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+  let mutation_prefix =
+    "{\"query\":\"mutation($destinationLocationId: ID!) { locationDeactivate(locationId: \\\""
+    <> source_id
+    <> "\\\", destinationLocationId: $destinationLocationId) @idempotent(key: \\\"deactivate-destination\\\") { location { id isActive } locationDeactivateUserErrors { field code message } } }\",\"variables\":{\"destinationLocationId\":\""
+  let mutation_suffix = "\"}}"
+
+  let #(proxy_state.Response(body: same_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> source_id <> mutation_suffix),
+    )
+  let same_serialized = json.to_string(same_json)
+  assert string.contains(same_serialized, "\"isActive\":true")
+  assert string.contains(
+    same_serialized,
+    "\"field\":[\"destinationLocationId\"]",
+  )
+  assert string.contains(
+    same_serialized,
+    "\"code\":\"DESTINATION_LOCATION_IS_THE_SAME_LOCATION\"",
+  )
+
+  let #(proxy_state.Response(body: inactive_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        mutation_prefix <> inactive_destination_id <> mutation_suffix,
+      ),
+    )
+  let inactive_serialized = json.to_string(inactive_json)
+  assert string.contains(inactive_serialized, "\"isActive\":true")
+  assert string.contains(
+    inactive_serialized,
+    "\"code\":\"DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE\"",
+  )
+
+  let #(proxy_state.Response(body: missing_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        mutation_prefix <> "gid://shopify/Location/missing" <> mutation_suffix,
+      ),
+    )
+  assert string.contains(
+    json.to_string(missing_json),
+    "\"code\":\"DESTINATION_LOCATION_NOT_FOUND_OR_INACTIVE\"",
+  )
+
+  let #(proxy_state.Response(body: service_json, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(
+        mutation_prefix <> fulfillment_service_id <> mutation_suffix,
+      ),
+    )
+  assert string.contains(
+    json.to_string(service_json),
+    "\"code\":\"DESTINATION_LOCATION_NOT_SHOPIFY_MANAGED\"",
+  )
+}
+
+pub fn location_deactivate_uses_source_state_machine_guards_test() {
+  let inventory_id = "gid://shopify/Location/deactivate-inventory"
+  let purchase_order_id = "gid://shopify/Location/deactivate-purchase-order"
+  let transfer_id = "gid://shopify/Location/deactivate-transfer"
+  let permanent_id = "gid://shopify/Location/deactivate-permanent"
+  let temporary_id = "gid://shopify/Location/deactivate-temporary"
+  let retail_id = "gid://shopify/Location/deactivate-retail"
+  let external_id = "gid://shopify/Location/deactivate-external"
+  let proxy = draft_proxy.new()
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_store_property_location(location_with_bool(
+      inventory_id,
+      "hasActiveInventory",
+      True,
+    ))
+    |> store.upsert_base_store_property_location(location_with_bool(
+      purchase_order_id,
+      "hasOpenPurchaseOrders",
+      True,
+    ))
+    |> store.upsert_base_store_property_location(location_with_bool(
+      transfer_id,
+      "hasActiveTransfers",
+      True,
+    ))
+    |> store.upsert_base_store_property_location(location_with_bool(
+      permanent_id,
+      "permanentlyBlockedFromDeactivation",
+      True,
+    ))
+    |> store.upsert_base_store_property_location(location_with_bool(
+      temporary_id,
+      "temporarilyBlockedFromDeactivation",
+      True,
+    ))
+    |> store.upsert_base_store_property_location(location_with_bool(
+      retail_id,
+      "hasActiveRetailSubscription",
+      True,
+    ))
+    |> store.upsert_base_store_property_location(location_with_bool(
+      external_id,
+      "hasIncomingFromExternalDocumentSources",
+      True,
+    ))
+  let proxy = proxy_state.DraftProxy(..proxy, store: seeded_store)
+  let mutation_prefix =
+    "{\"query\":\"mutation { locationDeactivate(locationId: \\\""
+  let mutation_suffix =
+    "\\\") @idempotent(key: \\\"deactivate-guard\\\") { location { id isActive hasActiveInventory } locationDeactivateUserErrors { field code message } } }\"}"
+
+  let #(proxy_state.Response(body: inventory_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> inventory_id <> mutation_suffix),
+    )
+  let inventory_serialized = json.to_string(inventory_json)
+  assert string.contains(inventory_serialized, "\"isActive\":true")
+  assert string.contains(
+    inventory_serialized,
+    "\"code\":\"HAS_ACTIVE_INVENTORY_ERROR\"",
+  )
+
+  let #(proxy_state.Response(body: purchase_order_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> purchase_order_id <> mutation_suffix),
+    )
+  assert string.contains(
+    json.to_string(purchase_order_json),
+    "\"code\":\"HAS_OPEN_PURCHASE_ORDERS_ERROR\"",
+  )
+
+  let #(proxy_state.Response(body: transfer_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> transfer_id <> mutation_suffix),
+    )
+  assert string.contains(
+    json.to_string(transfer_json),
+    "\"code\":\"HAS_ACTIVE_TRANSFERS_ERROR\"",
+  )
+
+  let #(proxy_state.Response(body: permanent_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> permanent_id <> mutation_suffix),
+    )
+  assert string.contains(
+    json.to_string(permanent_json),
+    "\"code\":\"PERMANENTLY_BLOCKED_FROM_DEACTIVATION_ERROR\"",
+  )
+
+  let #(proxy_state.Response(body: temporary_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> temporary_id <> mutation_suffix),
+    )
+  assert string.contains(
+    json.to_string(temporary_json),
+    "\"code\":\"TEMPORARILY_BLOCKED_FROM_DEACTIVATION_ERROR\"",
+  )
+
+  let #(proxy_state.Response(body: retail_json, ..), proxy) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> retail_id <> mutation_suffix),
+    )
+  assert string.contains(
+    json.to_string(retail_json),
+    "\"code\":\"HAS_ACTIVE_RETAIL_SUBSCRIPTIONS\"",
+  )
+
+  let #(proxy_state.Response(body: external_json, ..), _) =
+    draft_proxy.process_request(
+      proxy,
+      graphql_request(mutation_prefix <> external_id <> mutation_suffix),
+    )
+  assert string.contains(
+    json.to_string(external_json),
+    "\"code\":\"HAS_INCOMING_FROM_EXTERNAL_DOCUMENT_SOURCES\"",
+  )
+}
+
+fn location_with_bool(
+  id: String,
+  field: String,
+  value: Bool,
+) -> StorePropertyRecord {
+  let location = make_location(id, id, True, False, True, False)
+  StorePropertyRecord(
+    ..location,
+    data: dict.insert(location.data, field, StorePropertyBool(value)),
+  )
+}
+
 pub fn location_delete_uses_location_state_guards_and_read_back_test() {
   let success_id = "gid://shopify/Location/delete-success"
   let active_id = "gid://shopify/Location/delete-active"
