@@ -1,0 +1,44 @@
+{
+  "scenarioId": "online-store/theme-update-role-not-an-input",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T12:15:11.252Z",
+  "captures": {
+    "roleInput": {
+      "variables": {
+        "id": "gid://shopify/OnlineStoreTheme/0"
+      },
+      "response": {
+        "status": 200,
+        "payload": {
+          "errors": [
+            {
+              "message": "InputObject 'OnlineStoreThemeInput' doesn't accept argument 'role'",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 33
+                }
+              ],
+              "path": ["mutation ThemeUpdateRoleNotInput", "themeUpdate", "input", "role"],
+              "extensions": {
+                "code": "argumentNotAccepted",
+                "name": "OnlineStoreThemeInput",
+                "typeName": "InputObject",
+                "argumentName": "role"
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "live-shopify",
+    "notes": [
+      "Captured against harry-test-heelo.myshopify.com using API 2025-01.",
+      "The invalid input-object field fails at GraphQL schema validation before resolver auth or theme state is consulted, so the probe uses a harmless dummy theme ID."
+    ]
+  },
+  "upstreamCalls": []
+}

@@ -1,0 +1,27 @@
+{
+  "scenarioId": "online-store/theme-update-role-not-an-input",
+  "operationNames": ["themeUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["schema-validation", "live-shopify-evidence", "side-effect-boundary"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/online-store/theme-update-role-not-an-input.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/theme-update-role-not-an-input.graphql",
+    "variablesCapturePath": "$.captures.roleInput.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "role-input-schema-error",
+        "capturePath": "$.captures.roleInput.response.payload",
+        "proxyPath": "$"
+      }
+    ]
+  },
+  "notes": "Live Shopify 2025-01 rejects `role` on OnlineStoreThemeInput before resolver execution with argumentNotAccepted. The proxy must reject this at schema validation instead of allowing the themeUpdate resolver to mutate theme role."
+}

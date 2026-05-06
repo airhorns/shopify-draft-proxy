@@ -1,0 +1,14 @@
+mutation ThemeUpdateValidationCreateLocked($source: URL!, $name: String) {
+  themeCreate(source: $source, name: $name, role: LOCKED) {
+    theme {
+      id
+      name
+      role
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

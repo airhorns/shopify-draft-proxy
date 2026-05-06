@@ -1,0 +1,14 @@
+mutation ThemeUpdateValidRename($id: ID!) {
+  themeUpdate(id: $id, input: { name: "Renamed fixture" }) {
+    theme {
+      id
+      name
+      role
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

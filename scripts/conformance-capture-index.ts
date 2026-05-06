@@ -1365,6 +1365,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-handle-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-handle-validation-conformance.ts',
+    purpose:
+      'metaobjectCreate, metaobjectUpdate, and metaobjectUpsert explicit handle format, length, and blank validation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject_handle_validation.json`,
+      'config/parity-specs/metaobjects/metaobject_handle_validation.json',
+      'config/parity-requests/metaobjects/metaobject_handle_validation_*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and one valid row; rejected validation branches create no rows, then cleanup deletes the row and definition.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-upsert-recovery-and-prefixes',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-upsert-recovery-and-prefixes-conformance.ts',
@@ -1955,6 +1972,24 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates disposable blogs/articles and REST article comments, then deletes the article or blog during the scenario; failure cleanup deletes any remaining article/blog records.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'online-store',
+    captureId: 'online-store-theme-update-role-not-an-input',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-online-store-theme-update-validation-conformance.ts',
+    purpose: 'themeUpdate rejects fields that are not exposed by OnlineStoreThemeInput before resolver execution.',
+    requiredAuthScopes: ['authenticated_admin_graphql'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}theme-update-role-not-an-input.json`,
+      'config/parity-specs/online-store/theme_update_role_not_an_input.json',
+      'config/parity-requests/online-store/theme-update-role-not-an-input.graphql',
+    ],
+    cleanupBehavior:
+      'Validation-only schema capture; the dummy theme ID is never resolved and no live theme state is modified.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'The current conformance app is blocked from themeUpdate resolver writes by Shopify write_themes exemption requirements, so blank-name, valid-rename, and locked-theme resolver branches are covered by executable local-runtime parity.',
   },
   {
     domain: 'online-store',

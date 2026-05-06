@@ -687,12 +687,16 @@ pub fn fulfillment_hold_value(
   handle: Option(String),
   reason: Option(String),
   reason_notes: Option(String),
+  external_id: Option(String),
+  notify_merchant: Bool,
 ) -> CapturedJsonValue {
   CapturedObject([
     #("id", CapturedString(id)),
     #("handle", option_to_captured_string(handle)),
     #("reason", option_to_captured_string(reason)),
     #("reasonNotes", option_to_captured_string(reason_notes)),
+    #("externalId", option_to_captured_string(external_id)),
+    #("__draftProxyNotifyMerchant", CapturedBool(notify_merchant)),
     #("displayReason", CapturedString("Other")),
     #("heldByApp", CapturedNull),
     #("heldByRequestingApp", CapturedBool(True)),
