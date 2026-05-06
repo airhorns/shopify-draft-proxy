@@ -961,6 +961,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'saved-searches',
+    captureId: 'saved-search-unknown-filter-field',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-saved-search-unknown-filter-field-conformance.ts',
+    purpose:
+      'SavedSearch per-resource unknown-filter validation for PRODUCT create plus known-filter positive control.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}saved-search-unknown-filter-field.json`,
+      'config/parity-specs/saved-searches/saved-search-unknown-filter-field.json',
+      'config/parity-requests/saved-searches/saved-search-unknown-filter-field.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable product saved search for positive-control validation and deletes it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'saved-searches',
     captureId: 'saved-search-delete-shop-payload',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
     scriptPath: 'scripts/capture-saved-search-delete-shop-payload-conformance.ts',
@@ -1701,6 +1717,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'segments',
+    captureId: 'segment-update-delete-malformed-gid',
+    scriptPath: 'scripts/capture-segment-update-delete-malformed-gid-conformance.ts',
+    purpose:
+      'segmentUpdate/segmentDelete malformed, empty, wrong-resource, and unknown Segment id validation response envelopes.',
+    requiredAuthScopes: ['read_customers', 'write_customers', 'customer segment access'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}segment-update-delete-malformed-gid.json`,
+      'config/parity-specs/segments/segment-update-delete-malformed-gid.json',
+      'config/parity-requests/segments/segment-*-malformed-gid.graphql',
+    ],
+    cleanupBehavior: 'Validation-only capture; no live segment setup or cleanup expected.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'segments',
     captureId: 'customer-segment-members-query-create-validation-and-shape',
     scriptPath: 'scripts/capture-customer-segment-members-query-create-conformance.ts',
     purpose:
@@ -2049,6 +2080,25 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     cleanupBehavior:
       'Creates disposable test orders, reopens the closed-order probe after capture, and cancels both orders in best-effort cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'orders',
+    captureId: 'fulfillment-create-preconditions',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-fulfillment-create-preconditions-conformance.ts',
+    purpose:
+      'fulfillmentCreate cancelled/closed fulfillment order, over-quantity, in-progress, and happy-path public Admin API behavior.',
+    requiredAuthScopes: ['read_orders', 'write_orders', 'read_fulfillments', 'write_fulfillments'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}fulfillment-create-preconditions.json`,
+      'config/parity-specs/orders/fulfillmentCreate-preconditions.json',
+      'config/parity-requests/orders/fulfillmentCreate-preconditions.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable test orders, cancels/deletes where possible, and deletes fulfilled orders after capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+    notes:
+      'Public fulfillmentCreate userErrors expose field/message only; Admin 2026-04 accepts fulfillmentCreate after fulfillmentOrderReportProgress leaves the fulfillment order IN_PROGRESS.',
   },
   {
     domain: 'orders',

@@ -1,0 +1,42 @@
+{
+  "scenarioId": "saved-search-unknown-filter-field",
+  "operationNames": ["savedSearchCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "query-validation-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/saved-searches/saved-search-unknown-filter-field.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/draft_proxy_test.gleam", "test/parity_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/saved-searches/saved-search-unknown-filter-field.graphql",
+    "variablesCapturePath": "$.savedSearchUnknownFilterField.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live evidence that savedSearchCreate rejects unknown PRODUCT filter fields with savedSearch: null and field [\"input\", \"query\"], while a known PRODUCT vendor filter remains valid.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "unknown-product-filter-create",
+        "capturePath": "$.savedSearchUnknownFilterField.payload.data.unknownProduct",
+        "proxyPath": "$.data.unknownProduct",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "product-vendor-positive-control",
+        "capturePath": "$.savedSearchUnknownFilterField.payload.data.productPositive",
+        "proxyPath": "$.data.productPositive",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.savedSearch.id",
+            "matcher": "shopify-gid:SavedSearch",
+            "reason": "The proxy creates a deterministic local SavedSearch id while Shopify returned a live store id."
+          }
+        ]
+      }
+    ]
+  }
+}

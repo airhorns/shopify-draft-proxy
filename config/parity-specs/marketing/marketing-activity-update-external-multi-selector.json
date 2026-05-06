@@ -1,0 +1,66 @@
+{
+  "scenarioId": "marketing-activity-update-external-multi-selector",
+  "scenarioStatus": "draft",
+  "assertionKinds": ["user-errors-parity", "payload-shape"],
+  "operationNames": [
+    "marketingActivityCreateExternal",
+    "marketingActivityUpdateExternal"
+  ],
+  "liveCaptureFiles": [],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/marketing/marketing-activity-update-external-multi-selector.graphql",
+    "variables": {
+      "activityAInput": {
+        "title": "Activity A",
+        "remoteId": "remote-a",
+        "status": "ACTIVE",
+        "remoteUrl": "https://example.com/a",
+        "tactic": "NEWSLETTER",
+        "marketingChannelType": "EMAIL",
+        "utm": { "campaign": "camp-a", "source": "src-a", "medium": "med-a" }
+      },
+      "activityBInput": {
+        "title": "Activity B",
+        "remoteId": "remote-b",
+        "status": "ACTIVE",
+        "remoteUrl": "https://example.com/b",
+        "tactic": "NEWSLETTER",
+        "marketingChannelType": "EMAIL",
+        "utm": { "campaign": "camp-b", "source": "src-b", "medium": "med-b" }
+      },
+      "conflictingUpdate": {
+        "remoteId": "remote-a",
+        "utm": { "campaign": "camp-b", "source": "src-b", "medium": "med-b" },
+        "input": { "title": "Should fail to find" }
+      }
+    }
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "MarketingActivityExternalHelper.find_marketing_activity chains a where on every supplied selector — marketingActivityId, remoteId (joined through marketing_event), and utm (joined through marketing_event) — and only returns the activity if all selectors match the same row. When the caller supplies remoteId for activity A and utm for activity B, no row matches and the helper raises MARKETING_ACTIVITY_DOES_NOT_EXIST. The proxy's marketing_activity_update_external (`marketing.gleam:954-1052`) reads selectors with an if/else cascade — remoteId wins, then marketingActivityId, then utm — and silently ignores the other selectors. With the conflicting input above the proxy resolves activity A by remoteId and applies the update there, while Shopify rejects the call.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "conflicting-selectors-userErrors",
+        "capturePath": null,
+        "proxyPath": "$.data.conflictingUpdate.userErrors",
+        "expected": [
+          { "field": null, "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST" }
+        ]
+      },
+      {
+        "name": "conflicting-selectors-marketingActivity-null",
+        "capturePath": null,
+        "proxyPath": "$.data.conflictingUpdate.marketingActivity",
+        "expected": null
+      },
+      {
+        "name": "activity-a-title-unchanged",
+        "capturePath": null,
+        "proxyPath": "$.data.readActivityA.marketingActivity.title",
+        "expected": "Activity A"
+      }
+    ]
+  }
+}

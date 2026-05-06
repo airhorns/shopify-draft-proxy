@@ -1,0 +1,114 @@
+{
+  "scenarioId": "segment-update-delete-malformed-gid",
+  "operationNames": ["segmentUpdate", "segmentDelete"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "top-level-errors-parity", "user-errors-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/segments/segment-update-delete-malformed-gid.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/segments_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/segments/segment-update-malformed-gid.graphql",
+    "variablesCapturePath": "$.cases[0].request.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Live Shopify evidence for segmentUpdate/segmentDelete id validation: malformed and empty global IDs are top-level variable errors, wrong-resource GIDs are top-level resource-not-found errors with null mutation data, and well-formed unknown Segment GIDs keep the payload-level UserError shape.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "segment-update-malformed-gid-errors",
+        "capturePath": "$.cases[0].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"]
+      },
+      {
+        "name": "segment-update-empty-gid-errors",
+        "capturePath": "$.cases[1].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-update-malformed-gid.graphql",
+          "variablesCapturePath": "$.cases[1].request.variables"
+        }
+      },
+      {
+        "name": "segment-update-wrong-type-gid-errors",
+        "capturePath": "$.cases[2].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-update-malformed-gid.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        }
+      },
+      {
+        "name": "segment-update-wrong-type-gid-data",
+        "capturePath": "$.cases[2].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-update-malformed-gid.graphql",
+          "variablesCapturePath": "$.cases[2].request.variables"
+        }
+      },
+      {
+        "name": "segment-update-unknown-segment-user-errors",
+        "capturePath": "$.cases[3].response.payload.data.segmentUpdate",
+        "proxyPath": "$.data.segmentUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-update-malformed-gid.graphql",
+          "variablesCapturePath": "$.cases[3].request.variables"
+        }
+      },
+      {
+        "name": "segment-delete-malformed-gid-errors",
+        "capturePath": "$.cases[4].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-delete-malformed-gid.graphql",
+          "variablesCapturePath": "$.cases[4].request.variables"
+        }
+      },
+      {
+        "name": "segment-delete-empty-gid-errors",
+        "capturePath": "$.cases[5].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-delete-malformed-gid.graphql",
+          "variablesCapturePath": "$.cases[5].request.variables"
+        }
+      },
+      {
+        "name": "segment-delete-wrong-type-gid-errors",
+        "capturePath": "$.cases[6].response.payload.errors",
+        "proxyPath": "$.errors",
+        "selectedPaths": ["$[0].message", "$[0].path", "$[0].extensions"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-delete-malformed-gid.graphql",
+          "variablesCapturePath": "$.cases[6].request.variables"
+        }
+      },
+      {
+        "name": "segment-delete-wrong-type-gid-data",
+        "capturePath": "$.cases[6].response.payload.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-delete-malformed-gid.graphql",
+          "variablesCapturePath": "$.cases[6].request.variables"
+        }
+      },
+      {
+        "name": "segment-delete-unknown-segment-user-errors",
+        "capturePath": "$.cases[7].response.payload.data.segmentDelete",
+        "proxyPath": "$.data.segmentDelete",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/segments/segment-delete-malformed-gid.graphql",
+          "variablesCapturePath": "$.cases[7].request.variables"
+        }
+      }
+    ]
+  }
+}
