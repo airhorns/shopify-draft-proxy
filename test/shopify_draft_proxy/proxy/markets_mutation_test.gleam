@@ -571,7 +571,7 @@ pub fn market_localizations_register_stages_seeded_content_test() {
     == "{\"data\":{\"marketLocalizableResource\":{\"marketLocalizableContent\":[{\"key\":\"title\",\"value\":\"Title\",\"digest\":\"digest-title\"}],\"marketLocalizations\":[{\"key\":\"title\",\"value\":\"Titre\",\"market\":{\"id\":\"gid://shopify/Market/ca\",\"name\":\"Canada\"}}]}}}"
 }
 
-pub fn market_localizations_remove_validates_keys_and_markets_test() {
+pub fn market_localizations_remove_unmatched_filters_noop_test() {
   let proxy = market_localization_proxy()
   let #(Response(status: empty_status, body: empty_body, ..), _) =
     graphql_with_proxy(
@@ -591,13 +591,13 @@ pub fn market_localizations_remove_validates_keys_and_markets_test() {
 
   assert empty_status == 200
   assert json.to_string(empty_body)
-    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"marketLocalizationKeys\"],\"code\":\"KEY_NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
   assert key_status == 200
   assert json.to_string(key_body)
-    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"marketLocalizationKeys\",\"0\"],\"code\":\"KEY_NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
   assert market_status == 200
   assert json.to_string(market_body)
-    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[{\"__typename\":\"TranslationUserError\",\"field\":[\"marketIds\",\"0\"],\"code\":\"MARKET_NOT_FOUND\"}]}}}"
+    == "{\"data\":{\"marketLocalizationsRemove\":{\"marketLocalizations\":null,\"userErrors\":[]}}}"
 }
 
 pub fn market_localizations_remove_returns_removed_staged_rows_test() {

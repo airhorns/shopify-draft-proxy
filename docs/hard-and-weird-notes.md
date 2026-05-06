@@ -3323,3 +3323,29 @@ Practical rule:
   same-location inputs, unknown or origin-unstocked items, duplicate item rows,
   and negative quantities, but should not invent zero-quantity or
   over-available draft-create rejections without newer live evidence
+
+## 80. `marketLocalizationsRemove` treats unmatched filters as no-op removals
+
+Admin GraphQL 2026-04 live probes against `harry-test-heelo.myshopify.com`
+found a disposable success path by creating a product-owned `money` metafield
+definition, setting a CAD money metafield, registering a market localization,
+then removing it.
+
+Observed behavior:
+
+- `single_line_text_field` product metafields and translatable metaobjects can
+  still return empty `marketLocalizableContent`; a definition-backed `money`
+  metafield exposed `marketLocalizableContent: [{ key: "value", ... }]`
+- successful remove returned a non-null `marketLocalizations` array containing
+  the removed `key`, `value`, `outdated`, and `market` payload
+- remove with `marketLocalizationKeys: []` returned `marketLocalizations: null`
+  and `userErrors: []`
+- remove with an unknown key or an unknown `marketIds` filter also returned
+  `marketLocalizations: null` and `userErrors: []` when no staged Shopify
+  localization matched that filter
+
+Practical rule:
+
+- model `marketLocalizationsRemove` as a filter/removal operation after
+  resource existence is established; do not invent resolver-level key or market
+  validation errors for unmatched filters without newer live evidence

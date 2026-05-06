@@ -1708,7 +1708,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-localization-lifecycle-conformance.mts',
     purpose:
-      'MarketLocalizableResource default product-metafield behavior plus marketLocalizationsRegister/remove validation.',
+      'MarketLocalizableResource default text-metafield behavior plus definition-backed money-metafield marketLocalizationsRegister/remove lifecycle parity.',
     requiredAuthScopes: [
       'read_markets',
       'write_markets',
@@ -1722,7 +1722,7 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/markets/market-localization-metafield-lifecycle.json',
     ],
     cleanupBehavior:
-      'Creates one disposable draft product with a product metafield, probes market localization behavior, then deletes the product.',
+      'Creates one disposable draft product with a text metafield, creates a disposable money metafield definition and metafield, probes market localization behavior, deletes the definition with associated metafields, then deletes the product.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

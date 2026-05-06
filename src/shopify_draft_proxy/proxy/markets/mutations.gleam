@@ -1710,27 +1710,15 @@ fn handle_market_localizations_remove(
   let #(errors, removed, next_store) = case resource_id {
     Some(id) -> {
       case store.find_effective_metafield_by_id(store, id) {
-        Some(metafield) -> {
-          let validation_errors =
-            market_localizations_remove_errors(
+        Some(_) -> {
+          let #(removed, updated_store) =
+            store.remove_staged_market_localizations(
               store,
-              metafield,
+              id,
               keys,
               market_ids,
             )
-          case validation_errors {
-            [] -> {
-              let #(removed, updated_store) =
-                store.remove_staged_market_localizations(
-                  store,
-                  id,
-                  keys,
-                  market_ids,
-                )
-              #([], removed, updated_store)
-            }
-            _ -> #(validation_errors, [], store)
-          }
+          #([], removed, updated_store)
         }
         None -> #([resource_not_found_error(id)], [], store)
       }
@@ -1765,66 +1753,6 @@ fn handle_market_localizations_remove(
         |> option.unwrap([])
     },
   )
-}
-
-fn market_localizations_remove_errors(
-  store: Store,
-  metafield: ProductMetafieldRecord,
-  keys: List(String),
-  market_ids: Option(List(String)),
-) -> List(CapturedJsonValue) {
-  let key_errors = case keys {
-    [] -> [
-      translation_user_error(
-        ["marketLocalizationKeys"],
-        "Market localization keys can't be blank",
-        "KEY_NOT_FOUND",
-      ),
-    ]
-    _ -> {
-      case metafield.market_localizable_content {
-        [] -> []
-        _ ->
-          keys
-          |> list.index_map(fn(key, index) {
-            case market_localizable_content_for_key(metafield, key) {
-              Some(_) -> []
-              None -> [
-                translation_user_error(
-                  ["marketLocalizationKeys", int.to_string(index)],
-                  "Key " <> key <> " does not exist",
-                  "KEY_NOT_FOUND",
-                ),
-              ]
-            }
-          })
-          |> list.flatten
-      }
-    }
-  }
-  let market_errors = case metafield.market_localizable_content {
-    [] -> []
-    _ ->
-      case market_ids {
-        Some(ids) ->
-          ids
-          |> list.index_map(fn(id, index) {
-            case store.get_effective_market_by_id(store, id) {
-              Some(_) -> []
-              None -> [
-                translation_user_error(
-                  ["marketIds", int.to_string(index)],
-                  "Market does not exist",
-                  "MARKET_NOT_FOUND",
-                ),
-              ]
-            }
-          })
-          |> list.flatten
-        None -> []
-      }
-  }
-  list.append(key_errors, market_errors)
 }
 
 fn resource_not_found_error(resource_id: String) -> CapturedJsonValue {

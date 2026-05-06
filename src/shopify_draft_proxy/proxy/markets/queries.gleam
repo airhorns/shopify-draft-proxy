@@ -130,7 +130,7 @@ fn should_fetch_upstream_in_live_hybrid(
     | parse_operation.QueryOperation, "marketLocalizableResourcesByIds"
     -> !has_local_markets_query_state(proxy)
     parse_operation.QueryOperation, "marketLocalizableResource" ->
-      !has_local_markets_query_state(proxy)
+      !local_has_metafield_id(proxy, variables)
     _, _ -> False
   }
 }
@@ -181,6 +181,24 @@ fn local_has_price_list_id(
       root_field.StringVal(id) ->
         is_proxy_synthetic_gid(id)
         || case store.get_effective_price_list_by_id(proxy.store, id) {
+          Some(_) -> True
+          None -> False
+        }
+      _ -> False
+    }
+  })
+}
+
+fn local_has_metafield_id(
+  proxy: DraftProxy,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Bool {
+  dict.values(variables)
+  |> list.any(fn(value) {
+    case value {
+      root_field.StringVal(id) ->
+        is_proxy_synthetic_gid(id)
+        || case store.find_effective_metafield_by_id(proxy.store, id) {
           Some(_) -> True
           None -> False
         }
@@ -325,7 +343,7 @@ pub fn hydrate_mutation_preconditions(
           upstream.transport,
           upstream.headers,
           "MarketsMutationPreflightHydrate",
-          "query MarketsMutationPreflightHydrate { __typename }",
+          mutation_preflight_query(fields),
           variables_to_json(variables),
         )
       {
@@ -356,6 +374,85 @@ fn mutation_needs_preflight(fields: List(Selection)) -> Bool {
   })
 }
 
+fn mutation_uses_market_localizations(fields: List(Selection)) -> Bool {
+  fields
+  |> list.any(fn(selection) {
+    case selection {
+      Field(name: name, ..) ->
+        case name.value {
+          "marketLocalizationsRegister" | "marketLocalizationsRemove" -> True
+          _ -> False
+        }
+      _ -> False
+    }
+  })
+}
+
+fn mutation_preflight_query(fields: List(Selection)) -> String {
+  case mutation_uses_market_localizations(fields) {
+    True -> market_localization_preflight_query
+    False -> "query MarketsMutationPreflightHydrate { __typename }"
+  }
+}
+
+const market_localization_preflight_query = "
+  query MarketsMutationPreflightHydrate($resourceId: ID!) {
+    resource: node(id: $resourceId) {
+      __typename
+      ... on Metafield {
+        id
+        namespace
+        key
+        type
+        value
+        compareDigest
+        createdAt
+        updatedAt
+        ownerType
+        owner {
+          __typename
+          ... on Product {
+            id
+            handle
+            title
+            status
+            metafields(first: 50) {
+              nodes {
+                id
+                namespace
+                key
+                type
+                value
+                compareDigest
+                createdAt
+                updatedAt
+                ownerType
+              }
+            }
+          }
+        }
+      }
+    }
+    marketLocalizableResource(resourceId: $resourceId) {
+      resourceId
+      marketLocalizableContent {
+        key
+        value
+        digest
+      }
+    }
+    markets(first: 250) {
+      nodes {
+        id
+        name
+        handle
+        status
+        type
+      }
+    }
+  }
+"
+
 fn hydrate_from_upstream_response(
   store_in: Store,
   value: commit.JsonValue,
@@ -369,6 +466,7 @@ fn hydrate_from_upstream_response(
       |> hydrate_web_presence_records(data)
       |> hydrate_product_records(data)
       |> hydrate_market_localizable_metafields(data)
+      |> hydrate_market_localizable_resource_content(data)
       |> hydrate_markets_root_payloads(data)
     None -> store_in
   }
@@ -459,7 +557,10 @@ fn hydrate_web_presence_records(
 fn hydrate_product_records(store_in: Store, data: commit.JsonValue) -> Store {
   let product_nodes =
     list.append(
-      record_json_nodes_from_field(data, "products"),
+      list.append(
+        record_json_nodes_from_field(data, "products"),
+        nested_product_json_nodes(data),
+      ),
       case json_get(data, "product") {
         Some(commit.JsonNull) | None -> []
         Some(value) -> [value]
@@ -490,10 +591,17 @@ fn hydrate_market_localizable_metafields(
   store_in: Store,
   data: commit.JsonValue,
 ) -> Store {
-  case json_get(data, "product") {
-    Some(product) -> hydrate_product_metafields_from_product(store_in, product)
-    _ -> store_in
-  }
+  let product_nodes =
+    list.append(
+      nested_product_json_nodes(data),
+      case json_get(data, "product") {
+        Some(commit.JsonNull) | None -> []
+        Some(value) -> [value]
+      },
+    )
+  let with_products =
+    list.fold(product_nodes, store_in, hydrate_product_metafields_from_product)
+  hydrate_direct_metafield_node(with_products, data)
 }
 
 fn hydrate_product_metafields_from_product(
@@ -517,6 +625,78 @@ fn hydrate_product_metafields_from_product(
     }
     None -> store_in
   }
+}
+
+fn nested_product_json_nodes(data: commit.JsonValue) -> List(commit.JsonValue) {
+  collect_objects(data)
+  |> list.filter(fn(value) {
+    case json_get_string(value, "id") {
+      Some(id) -> string.contains(id, "gid://shopify/Product/")
+      None -> False
+    }
+  })
+}
+
+fn hydrate_direct_metafield_node(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  case json_get(data, "resource") {
+    Some(resource) ->
+      case json_get(resource, "owner") {
+        Some(owner) ->
+          case json_get_string(owner, "id") {
+            Some(owner_id) ->
+              case product_metafield_record_from_json(resource, owner_id) {
+                Ok(metafield) -> upsert_base_metafield(store_in, metafield)
+                Error(_) -> store_in
+              }
+            None -> store_in
+          }
+        None -> store_in
+      }
+    None -> store_in
+  }
+}
+
+fn hydrate_market_localizable_resource_content(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  case json_get(data, "marketLocalizableResource") {
+    Some(resource) -> {
+      let content = market_localizable_content_from_json(resource)
+      case json_get_string(resource, "resourceId"), content {
+        Some(resource_id), [_, ..] ->
+          case store.find_effective_metafield_by_id(store_in, resource_id) {
+            Some(metafield) ->
+              upsert_base_metafield(
+                store_in,
+                ProductMetafieldRecord(
+                  ..metafield,
+                  market_localizable_content: content,
+                ),
+              )
+            None -> store_in
+          }
+        _, _ -> store_in
+      }
+    }
+    None -> store_in
+  }
+}
+
+fn upsert_base_metafield(
+  store_in: Store,
+  metafield: ProductMetafieldRecord,
+) -> Store {
+  let existing =
+    store.get_effective_metafields_by_owner_id(store_in, metafield.owner_id)
+  let next =
+    existing
+    |> list.filter(fn(record) { record.id != metafield.id })
+    |> list.append([metafield])
+  store.replace_base_metafields_for_owner(store_in, metafield.owner_id, next)
 }
 
 fn hydrate_markets_root_payloads(
