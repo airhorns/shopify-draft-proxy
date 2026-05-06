@@ -1,0 +1,86 @@
+{
+  "scenarioId": "online-store-blog-commentable-local-staging",
+  "operationNames": ["blog", "blogCreate", "blogUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["runtime-staging", "payload-shape", "user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/online-store-blog-commentable-local-staging.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/online-store-blog-commentable-create.graphql",
+    "variablesCapturePath": "$.primary.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blogCreate establishes closed comment policy",
+        "capturePath": "$.expected.create.response.data.blogCreate",
+        "proxyPath": "$.data.blogCreate"
+      },
+      {
+        "name": "blogUpdate commentable maps to commentPolicy",
+        "capturePath": "$.expected.update.response.data.blogUpdate",
+        "proxyPath": "$.data.blogUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-blog-commentable-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "blog": {
+              "commentable": "MODERATE"
+            }
+          }
+        }
+      },
+      {
+        "name": "updated comment policy is readable downstream",
+        "capturePath": "$.expected.readAfterUpdate.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-blog-commentable-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" }
+          }
+        }
+      },
+      {
+        "name": "invalid commentable reports commentable field error",
+        "capturePath": "$.expected.invalidUpdate.response.data.blogUpdate",
+        "proxyPath": "$.data.blogUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-blog-commentable-update.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" },
+            "blog": {
+              "commentable": "INVALID_VALUE"
+            }
+          }
+        }
+      },
+      {
+        "name": "invalid commentable does not alter staged comment policy",
+        "capturePath": "$.expected.readAfterInvalid.response.data",
+        "proxyPath": "$.data",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/online-store-blog-commentable-read.graphql",
+          "apiVersion": "2026-04",
+          "variables": {
+            "id": { "fromPrimaryProxyPath": "$.data.blogCreate.blog.id" }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime scenario for BlogUpdateInput.commentable handling described by Shopify Core resolver behavior. Public Admin API 2025-01 and 2026-04 live probes on the configured conformance store reject `commentable` as an unknown BlogUpdateInput field, so this scenario records the proxy's supported local staging contract without upstream calls while the Gleam unit tests cover the same behavior."
+}

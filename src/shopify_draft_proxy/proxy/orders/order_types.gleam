@@ -113,7 +113,7 @@ pub type UserErrorFieldSegment {
 @internal
 pub type OrderMutationUserError {
   OrderMutationUserError(
-    field_path: List(UserErrorFieldSegment),
+    field_path: Option(List(UserErrorFieldSegment)),
     message: String,
     code: Option(String),
   )

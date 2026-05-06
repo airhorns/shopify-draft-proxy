@@ -1,0 +1,26 @@
+mutation CollectionMembershipJobCollectionCreate($input: CollectionInput!) {
+  collectionCreate(input: $input) {
+    collection {
+      id
+      title
+      handle
+      sortOrder
+      ruleSet {
+        appliedDisjunctively
+        rules {
+          column
+          relation
+          condition
+        }
+      }
+      productsCount {
+        count
+        precision
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

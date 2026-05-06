@@ -11,6 +11,7 @@ import gleam/string
 import shopify_draft_proxy/graphql/ast.{type Selection, Field, SelectionSet}
 import shopify_draft_proxy/graphql/parse_operation
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type ConnectionPageInfoOptions, type FragmentMap, type SourceValue,
   ConnectionPageInfoOptions, ConnectionWindow, SerializeConnectionConfig,
@@ -39,9 +40,25 @@ pub fn handle_marketing_query(
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
 ) -> Result(Json, root_field.RootFieldError) {
+  handle_marketing_query_for_app(store, document, variables, None)
+}
+
+@internal
+pub fn handle_marketing_query_for_app(
+  store: Store,
+  document: String,
+  variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Result(Json, root_field.RootFieldError) {
   use fields <- result.try(root_field.get_root_fields(document))
   let fragments = get_document_fragments(document)
-  Ok(serialize_root_fields(store, fields, fragments, variables))
+  Ok(serialize_root_fields(
+    store,
+    fields,
+    fragments,
+    variables,
+    requesting_api_client_id,
+  ))
 }
 
 @internal
@@ -58,7 +75,7 @@ pub fn process(
 @internal
 pub fn handle_query_request(
   proxy: DraftProxy,
-  _request: Request,
+  request: Request,
   _parsed: parse_operation.ParsedOperation,
   _primary_root_field: String,
   document: String,
@@ -66,7 +83,13 @@ pub fn handle_query_request(
 ) -> #(Response, DraftProxy) {
   respond_to_query(
     proxy,
-    process(proxy.store, document, variables),
+    handle_marketing_query_for_app(
+      proxy.store,
+      document,
+      variables,
+      app_identity.read_requesting_api_client_id(request.headers),
+    )
+      |> result.map(graphql_helpers.wrap_data),
     "Failed to handle marketing query",
   )
 }
@@ -123,6 +146,7 @@ fn collect_marketing_object(
             MarketingRecord(
               id: id,
               cursor: cursor,
+              api_client_id: None,
               data: source_object_to_marketing_data(fields),
             ),
             ..collected.activities
@@ -134,6 +158,7 @@ fn collect_marketing_object(
                 MarketingRecord(
                   id: id,
                   cursor: cursor,
+                  api_client_id: None,
                   data: source_object_to_marketing_data(fields),
                 ),
                 ..collected.events
@@ -200,11 +225,21 @@ fn serialize_root_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Json {
   let entries =
     list.map(fields, fn(field) {
       let key = get_field_response_key(field)
-      #(key, root_payload_for_field(store, field, fragments, variables))
+      #(
+        key,
+        root_payload_for_field(
+          store,
+          field,
+          fragments,
+          variables,
+          requesting_api_client_id,
+        ),
+      )
     })
   json.object(entries)
 }
@@ -214,25 +249,44 @@ fn root_payload_for_field(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Json {
   case field {
     Field(name: name, ..) ->
       case name.value {
         "marketingActivity" ->
-          serialize_marketing_activity_by_id(store, field, fragments, variables)
+          serialize_marketing_activity_by_id(
+            store,
+            field,
+            fragments,
+            variables,
+            requesting_api_client_id,
+          )
         "marketingActivities" ->
           serialize_marketing_connection(
-            store.list_effective_marketing_activities(store),
+            store.list_effective_marketing_activities_for_app(
+              store,
+              requesting_api_client_id,
+            ),
             field,
             fragments,
             variables,
             marketing_types.ActivityKind,
           )
         "marketingEvent" ->
-          serialize_marketing_event_by_id(store, field, fragments, variables)
+          serialize_marketing_event_by_id(
+            store,
+            field,
+            fragments,
+            variables,
+            requesting_api_client_id,
+          )
         "marketingEvents" ->
           serialize_marketing_connection(
-            store.list_effective_marketing_events(store),
+            store.list_effective_marketing_events_for_app(
+              store,
+              requesting_api_client_id,
+            ),
             field,
             fragments,
             variables,
@@ -249,11 +303,18 @@ fn serialize_marketing_activity_by_id(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
   case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
-      case store.get_effective_marketing_activity_record_by_id(store, id) {
+      case
+        store.get_effective_marketing_activity_record_by_id_for_app(
+          store,
+          id,
+          requesting_api_client_id,
+        )
+      {
         Some(record) -> project_marketing_record(record, field, fragments)
         None -> json.null()
       }
@@ -266,11 +327,18 @@ fn serialize_marketing_event_by_id(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> Json {
   let args = graphql_helpers.field_args(field, variables)
   case graphql_helpers.read_arg_string_nonempty(args, "id") {
     Some(id) ->
-      case store.get_effective_marketing_event_record_by_id(store, id) {
+      case
+        store.get_effective_marketing_event_record_by_id_for_app(
+          store,
+          id,
+          requesting_api_client_id,
+        )
+      {
         Some(record) -> project_marketing_record(record, field, fragments)
         None -> json.null()
       }

@@ -1,0 +1,61 @@
+{
+  "scenarioId": "marketing-activity-per-app-scoping",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T04:10:00.000Z",
+  "notes": "Executable local-runtime evidence for app-owned marketing activity scoping. The scenario stages App A's external activity locally, then drives App B's selectors and delete-all through request headers so no upstream write or artificial state seeding is required.",
+  "expected": {
+    "data": {
+      "createExternal": {
+        "marketingActivity": {
+          "title": "Per App Campaign",
+          "remoteId": "campaign-1"
+        },
+        "userErrors": []
+      },
+      "updateExternal": {
+        "marketingActivity": null,
+        "userErrors": [
+          {
+            "field": null,
+            "message": "Marketing activity does not exist.",
+            "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+          }
+        ]
+      },
+      "deleteExternal": {
+        "deletedMarketingActivityId": null,
+        "userErrors": [
+          {
+            "field": null,
+            "message": "Marketing activity does not exist.",
+            "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+          }
+        ]
+      },
+      "engagementCreate": {
+        "marketingEngagement": null,
+        "userErrors": [
+          {
+            "field": null,
+            "message": "Marketing activity does not exist.",
+            "code": "MARKETING_ACTIVITY_DOES_NOT_EXIST"
+          }
+        ]
+      },
+      "deleteAllExternal": {
+        "job": {
+          "done": false
+        },
+        "userErrors": []
+      },
+      "appAReadAfterDeleteAll": {
+        "marketingActivity": {
+          "title": "Per App Campaign",
+          "remoteId": "campaign-1"
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

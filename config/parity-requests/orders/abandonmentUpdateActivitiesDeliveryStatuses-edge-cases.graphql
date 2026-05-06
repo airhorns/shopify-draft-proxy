@@ -1,0 +1,26 @@
+mutation AbandonmentUpdateActivitiesDeliveryStatusesEdgeCases(
+  $abandonmentId: ID!
+  $marketingActivityId: ID!
+  $deliveryStatus: AbandonmentDeliveryState!
+  $deliveredAt: DateTime
+  $deliveryStatusChangeReason: String
+) {
+  abandonmentUpdateActivitiesDeliveryStatuses(
+    abandonmentId: $abandonmentId
+    marketingActivityId: $marketingActivityId
+    deliveryStatus: $deliveryStatus
+    deliveredAt: $deliveredAt
+    deliveryStatusChangeReason: $deliveryStatusChangeReason
+  ) {
+    abandonment {
+      id
+      emailState
+      emailSentAt
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
