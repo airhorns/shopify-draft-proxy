@@ -1,0 +1,26 @@
+mutation {
+  eventBridge: eventBridgeServerPixelUpdate(arn: "arn:aws:events:us-east-1:123456789012:event-bus/missing") {
+    serverPixel {
+      id
+      webhookEndpointAddress
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+  pubsub: pubSubServerPixelUpdate(pubSubProject: "project", pubSubTopic: "topic") {
+    serverPixel {
+      id
+      webhookEndpointAddress
+    }
+    userErrors {
+      __typename
+      code
+      field
+      message
+    }
+  }
+}
