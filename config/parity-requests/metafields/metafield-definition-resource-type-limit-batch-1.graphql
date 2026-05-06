@@ -1,0 +1,1002 @@
+mutation ResourceTypeLimitBatch1($namespace: String!) {
+  create001: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 001"
+      namespace: $namespace
+      key: "limit_001"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create002: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 002"
+      namespace: $namespace
+      key: "limit_002"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create003: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 003"
+      namespace: $namespace
+      key: "limit_003"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create004: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 004"
+      namespace: $namespace
+      key: "limit_004"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create005: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 005"
+      namespace: $namespace
+      key: "limit_005"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create006: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 006"
+      namespace: $namespace
+      key: "limit_006"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create007: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 007"
+      namespace: $namespace
+      key: "limit_007"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create008: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 008"
+      namespace: $namespace
+      key: "limit_008"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create009: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 009"
+      namespace: $namespace
+      key: "limit_009"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create010: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 010"
+      namespace: $namespace
+      key: "limit_010"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create011: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 011"
+      namespace: $namespace
+      key: "limit_011"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create012: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 012"
+      namespace: $namespace
+      key: "limit_012"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create013: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 013"
+      namespace: $namespace
+      key: "limit_013"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create014: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 014"
+      namespace: $namespace
+      key: "limit_014"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create015: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 015"
+      namespace: $namespace
+      key: "limit_015"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create016: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 016"
+      namespace: $namespace
+      key: "limit_016"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create017: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 017"
+      namespace: $namespace
+      key: "limit_017"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create018: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 018"
+      namespace: $namespace
+      key: "limit_018"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create019: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 019"
+      namespace: $namespace
+      key: "limit_019"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create020: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 020"
+      namespace: $namespace
+      key: "limit_020"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create021: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 021"
+      namespace: $namespace
+      key: "limit_021"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create022: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 022"
+      namespace: $namespace
+      key: "limit_022"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create023: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 023"
+      namespace: $namespace
+      key: "limit_023"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create024: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 024"
+      namespace: $namespace
+      key: "limit_024"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create025: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 025"
+      namespace: $namespace
+      key: "limit_025"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create026: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 026"
+      namespace: $namespace
+      key: "limit_026"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create027: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 027"
+      namespace: $namespace
+      key: "limit_027"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create028: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 028"
+      namespace: $namespace
+      key: "limit_028"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create029: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 029"
+      namespace: $namespace
+      key: "limit_029"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create030: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 030"
+      namespace: $namespace
+      key: "limit_030"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create031: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 031"
+      namespace: $namespace
+      key: "limit_031"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create032: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 032"
+      namespace: $namespace
+      key: "limit_032"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create033: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 033"
+      namespace: $namespace
+      key: "limit_033"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create034: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 034"
+      namespace: $namespace
+      key: "limit_034"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create035: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 035"
+      namespace: $namespace
+      key: "limit_035"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create036: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 036"
+      namespace: $namespace
+      key: "limit_036"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create037: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 037"
+      namespace: $namespace
+      key: "limit_037"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create038: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 038"
+      namespace: $namespace
+      key: "limit_038"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create039: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 039"
+      namespace: $namespace
+      key: "limit_039"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create040: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 040"
+      namespace: $namespace
+      key: "limit_040"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create041: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 041"
+      namespace: $namespace
+      key: "limit_041"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create042: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 042"
+      namespace: $namespace
+      key: "limit_042"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create043: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 043"
+      namespace: $namespace
+      key: "limit_043"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create044: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 044"
+      namespace: $namespace
+      key: "limit_044"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create045: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 045"
+      namespace: $namespace
+      key: "limit_045"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create046: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 046"
+      namespace: $namespace
+      key: "limit_046"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create047: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 047"
+      namespace: $namespace
+      key: "limit_047"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create048: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 048"
+      namespace: $namespace
+      key: "limit_048"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create049: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 049"
+      namespace: $namespace
+      key: "limit_049"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create050: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 050"
+      namespace: $namespace
+      key: "limit_050"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

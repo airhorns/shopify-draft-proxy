@@ -1,0 +1,119 @@
+{
+  "scenarioId": "metafield-definition-resource-type-limit",
+  "operationNames": ["metafieldDefinitionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "runtime-staging", "no-upstream-passthrough"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/metafields/metafield-definition-resource-type-limit.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/metafield_definitions_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-resource-type-limit-batch-1.graphql",
+    "documentCapturePath": "$.batches[0].request.query",
+    "variablesCapturePath": "$.batches[0].request.variables",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "batch-1-create-050",
+        "capturePath": "$.batches[0].response.data.create050",
+        "proxyPath": "$.data.create050",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "batch-2-create-100",
+        "capturePath": "$.batches[1].response.data.create100",
+        "proxyPath": "$.data.create100",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-resource-type-limit-batch-2.graphql",
+          "documentCapturePath": "$.batches[1].request.query",
+          "variablesCapturePath": "$.batches[1].request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "batch-3-create-150",
+        "capturePath": "$.batches[2].response.data.create150",
+        "proxyPath": "$.data.create150",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-resource-type-limit-batch-3.graphql",
+          "documentCapturePath": "$.batches[2].request.query",
+          "variablesCapturePath": "$.batches[2].request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "batch-4-create-200",
+        "capturePath": "$.batches[3].response.data.create200",
+        "proxyPath": "$.data.create200",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-resource-type-limit-batch-4.graphql",
+          "documentCapturePath": "$.batches[3].request.query",
+          "variablesCapturePath": "$.batches[3].request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "batch-5-create-250",
+        "capturePath": "$.batches[4].response.data.create250",
+        "proxyPath": "$.data.create250",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-resource-type-limit-batch-5.graphql",
+          "documentCapturePath": "$.batches[4].request.query",
+          "variablesCapturePath": "$.batches[4].request.variables",
+          "apiVersion": "2025-01"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "batch-6-resource-type-limit-error",
+        "capturePath": "$.batches[5].response.data.create257",
+        "proxyPath": "$.data.create257",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-resource-type-limit-batch-6.graphql",
+          "documentCapturePath": "$.batches[5].request.query",
+          "variablesCapturePath": "$.batches[5].request.variables",
+          "apiVersion": "2025-01"
+        }
+      }
+    ]
+  },
+  "notes": "Live evidence records Shopify's non-standard PRODUCT metafieldDefinitionCreate resource-type cap. The capture replays disposable create batches, then compares the final over-limit create error without pre-seeding parity runner state."
+}

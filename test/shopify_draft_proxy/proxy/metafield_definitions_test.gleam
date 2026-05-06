@@ -6,6 +6,7 @@ import gleam/string
 import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/draft_proxy
 import shopify_draft_proxy/proxy/metafield_definitions
+import shopify_draft_proxy/proxy/metafield_definitions/mutations as metafield_definition_mutations
 import shopify_draft_proxy/proxy/mutation_helpers.{type MutationOutcome}
 import shopify_draft_proxy/proxy/proxy_state.{Request, Response}
 import shopify_draft_proxy/proxy/upstream_query.{empty_upstream_context}
@@ -53,6 +54,23 @@ fn run_mutation(
   )
 }
 
+fn run_mutation_with_api_client(
+  s: store.Store,
+  identity: synthetic_identity.SyntheticIdentityRegistry,
+  query: String,
+  api_client_id: String,
+) -> MutationOutcome {
+  metafield_definition_mutations.process_mutation_with_headers(
+    s,
+    identity,
+    path,
+    query,
+    dict.new(),
+    empty_upstream_context(),
+    dict.from_list([#(app_identity.api_client_id_header, api_client_id)]),
+  )
+}
+
 fn run_query(s: store.Store, query: String) -> String {
   let assert Ok(data) = metafield_definitions.process(s, query, dict.new())
   json.to_string(data)
@@ -68,6 +86,21 @@ fn create_definition_query(key: String) -> String {
       type: \"single_line_text_field\"
     }) {
       createdDefinition { id key pinnedPosition }
+      userErrors { field message code }
+    }
+  }"
+}
+
+fn create_app_definition_query(key: String) -> String {
+  "mutation {
+    metafieldDefinitionCreate(definition: {
+      name: \"App Limit " <> key <> "\",
+      namespace: \"$app:resource_limit\",
+      key: \"" <> key <> "\",
+      ownerType: PRODUCT,
+      type: \"single_line_text_field\"
+    }) {
+      createdDefinition { id namespace key }
       userErrors { field message code }
     }
   }"
@@ -640,6 +673,22 @@ fn create_definition_only(
   let key = "limit_" <> int.to_string(i)
   let created =
     run_mutation(current_store, current_identity, create_definition_query(key))
+  #(created.store, created.identity, json.to_string(created.data))
+}
+
+fn create_app_definition_only(
+  acc: #(store.Store, synthetic_identity.SyntheticIdentityRegistry, String),
+  i: Int,
+) {
+  let #(current_store, current_identity, _) = acc
+  let key = "limit_" <> int.to_string(i)
+  let created =
+    run_mutation_with_api_client(
+      current_store,
+      current_identity,
+      create_app_definition_query(key),
+      "999001",
+    )
   #(created.store, created.identity, json.to_string(created.data))
 }
 
@@ -1282,10 +1331,71 @@ pub fn standard_metafield_definition_enable_translates_deprecated_access_and_fil
     == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":{\"access\":{\"storefront\":\"NONE\"},\"capabilities\":{\"adminFilterable\":{\"enabled\":true,\"eligible\":true,\"status\":\"FILTERABLE\"}}},\"userErrors\":[]}}}"
 }
 
-pub fn standard_metafield_definition_enable_rejects_owner_type_definition_limit_test() {
+pub fn metafield_definition_create_rejects_resource_type_limit_test() {
   let #(full_store, full_identity, _) =
     list.fold(
-      int_range(from: 1, to: 250),
+      int_range(from: 1, to: 256),
+      #(store.new(), synthetic_identity.new(), ""),
+      create_definition_only,
+    )
+  let result =
+    run_mutation(
+      full_store,
+      full_identity,
+      create_definition_query("limit_257"),
+    )
+
+  assert result.staged_resource_ids == []
+  assert json.to_string(result.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Stores can only have 256 definitions for each store resource.\",\"code\":\"RESOURCE_TYPE_LIMIT_EXCEEDED\"}]}}}"
+
+  let listing =
+    run_query(
+      full_store,
+      "{ metafieldDefinitions(ownerType: PRODUCT, first: 300, namespace: \"har699\") { nodes { key } } }",
+    )
+  assert string.contains(listing, "\"key\":\"limit_256\"")
+  assert !string.contains(listing, "\"key\":\"limit_257\"")
+}
+
+pub fn metafield_definition_create_counts_app_namespace_limit_per_api_client_test() {
+  let #(full_store, full_identity, _) =
+    list.fold(
+      int_range(from: 1, to: 256),
+      #(store.new(), synthetic_identity.new(), ""),
+      create_app_definition_only,
+    )
+  let over_limit =
+    run_mutation_with_api_client(
+      full_store,
+      full_identity,
+      create_app_definition_query("limit_257"),
+      "999001",
+    )
+
+  assert over_limit.staged_resource_ids == []
+  assert json.to_string(over_limit.data)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Stores can only have 256 definitions for each store resource.\",\"code\":\"RESOURCE_TYPE_LIMIT_EXCEEDED\"}]}}}"
+
+  let other_app =
+    run_mutation_with_api_client(
+      full_store,
+      full_identity,
+      create_app_definition_query("other_app_1"),
+      "999002",
+    )
+  let other_app_json = json.to_string(other_app.data)
+  assert string.contains(
+    other_app_json,
+    "\"namespace\":\"app--999002--resource_limit\"",
+  )
+  assert string.contains(other_app_json, "\"userErrors\":[]")
+}
+
+pub fn standard_metafield_definition_enable_ignores_custom_definition_resource_type_limit_test() {
+  let #(full_store, full_identity, _) =
+    list.fold(
+      int_range(from: 1, to: 256),
       #(store.new(), synthetic_identity.new(), ""),
       create_definition_only,
     )
@@ -1299,9 +1409,9 @@ pub fn standard_metafield_definition_enable_rejects_owner_type_definition_limit_
       ),
     )
 
-  assert result.staged_resource_ids == []
+  assert result.staged_resource_ids == ["gid://shopify/MetafieldDefinition/257"]
   assert json.to_string(result.data)
-    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Definition limit reached for owner type.\",\"code\":\"LIMIT_EXCEEDED\"}]}}}"
+    == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":{\"id\":\"gid://shopify/MetafieldDefinition/257\",\"namespace\":\"descriptors\",\"key\":\"subtitle\",\"ownerType\":\"PRODUCT\",\"pinnedPosition\":null},\"userErrors\":[]}}}"
 }
 
 pub fn non_product_owner_definition_lifecycle_test() {

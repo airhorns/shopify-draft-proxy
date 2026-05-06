@@ -1,0 +1,142 @@
+mutation ResourceTypeLimitBatch6($namespace: String!) {
+  create251: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 251"
+      namespace: $namespace
+      key: "limit_251"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create252: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 252"
+      namespace: $namespace
+      key: "limit_252"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create253: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 253"
+      namespace: $namespace
+      key: "limit_253"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create254: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 254"
+      namespace: $namespace
+      key: "limit_254"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create255: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 255"
+      namespace: $namespace
+      key: "limit_255"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create256: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 256"
+      namespace: $namespace
+      key: "limit_256"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  create257: metafieldDefinitionCreate(
+    definition: {
+      name: "Resource type limit 257"
+      namespace: $namespace
+      key: "limit_257"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

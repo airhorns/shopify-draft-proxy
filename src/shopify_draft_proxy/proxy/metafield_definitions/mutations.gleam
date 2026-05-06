@@ -1,6 +1,7 @@
 //// Mutation handling for the metafield definitions domain.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -34,7 +35,7 @@ import shopify_draft_proxy/state/types.{
   MetafieldDefinitionValidationRecord,
 }
 
-const metafield_definition_owner_type_limit = 250
+const metafield_definition_resource_type_limit = 256
 
 pub fn is_metafield_definitions_mutation_root(name: String) -> Bool {
   case name {
@@ -722,11 +723,6 @@ pub fn validate_standard_enable_input(
 ) -> Result(Nil, List(definition_types.UserError)) {
   let errors =
     validate_standard_admin_access(raw_args, template)
-    |> list.append(validate_standard_owner_definition_limit(
-      store_in,
-      definition,
-      existing_definition,
-    ))
     |> list.append(validate_standard_unstructured_metafields(
       store_in,
       args,
@@ -770,34 +766,6 @@ fn standard_template_allows_admin_access(
   template: definition_types.StandardMetafieldDefinitionTemplate,
 ) -> Bool {
   string.starts_with(template.namespace, "app--")
-}
-
-fn validate_standard_owner_definition_limit(
-  store_in: Store,
-  definition: MetafieldDefinitionRecord,
-  existing_definition: Option(MetafieldDefinitionRecord),
-) -> List(definition_types.UserError) {
-  case existing_definition {
-    Some(_) -> []
-    None -> {
-      let count =
-        store.list_effective_metafield_definitions(store_in)
-        |> list.filter(fn(existing) {
-          existing.owner_type == definition.owner_type
-        })
-        |> list.length
-      case count >= metafield_definition_owner_type_limit {
-        True -> [
-          definition_types.UserError(
-            field: None,
-            message: "Definition limit reached for owner type.",
-            code: "LIMIT_EXCEEDED",
-          ),
-        ]
-        False -> []
-      }
-    }
-  }
 }
 
 fn validate_standard_unstructured_metafields(
@@ -1305,19 +1273,13 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
         None -> {
           let #(definition, next_identity) =
             build_definition_from_input(store_in, identity, input)
-          case
-            validate_and_maybe_pin_definition(
-              store_in,
-              definition,
-              definition_types.read_optional_bool(input, "pin"),
-            )
-          {
-            Error(user_errors) -> #(
+          case validate_definition_resource_type_limit(store_in, definition) {
+            [_, ..] as user_errors -> #(
               serializers.serialize_definition_mutation_payload(
                 store_in,
                 "createdDefinition",
                 None,
-                definition_input_user_errors(user_errors),
+                user_errors,
                 field,
                 variables,
               ),
@@ -1325,30 +1287,105 @@ pub fn serialize_definition_create_root_with_requesting_api_client_id(
               identity,
               [],
             )
-            Ok(definition) -> {
-              let next_store =
-                store.upsert_staged_metafield_definitions(store_in, [
-                  definition,
-                ])
-              #(
-                serializers.serialize_definition_mutation_payload(
+            [] ->
+              case
+                validate_and_maybe_pin_definition(
                   store_in,
-                  "createdDefinition",
-                  Some(definition),
+                  definition,
+                  definition_types.read_optional_bool(input, "pin"),
+                )
+              {
+                Error(user_errors) -> #(
+                  serializers.serialize_definition_mutation_payload(
+                    store_in,
+                    "createdDefinition",
+                    None,
+                    definition_input_user_errors(user_errors),
+                    field,
+                    variables,
+                  ),
+                  store_in,
+                  identity,
                   [],
-                  field,
-                  variables,
-                ),
-                next_store,
-                next_identity,
-                [definition.id],
-              )
-            }
+                )
+                Ok(definition) -> {
+                  let next_store =
+                    store.upsert_staged_metafield_definitions(store_in, [
+                      definition,
+                    ])
+                  #(
+                    serializers.serialize_definition_mutation_payload(
+                      store_in,
+                      "createdDefinition",
+                      Some(definition),
+                      [],
+                      field,
+                      variables,
+                    ),
+                    next_store,
+                    next_identity,
+                    [definition.id],
+                  )
+                }
+              }
           }
         }
       }
     }
   }
+}
+
+fn validate_definition_resource_type_limit(
+  store_in: Store,
+  definition: MetafieldDefinitionRecord,
+) -> List(definition_types.UserError) {
+  let count =
+    store.list_effective_metafield_definitions(store_in)
+    |> list.filter(fn(existing) {
+      existing.owner_type == definition.owner_type
+      && !definition_is_standard_template(existing)
+      && definition_limit_scope_matches(existing, definition)
+    })
+    |> list.length
+  case count >= metafield_definition_resource_type_limit {
+    True -> [
+      definition_types.UserError(
+        field: Some(["definition"]),
+        message: "Stores can only have "
+          <> int.to_string(metafield_definition_resource_type_limit)
+          <> " definitions for each store resource.",
+        code: "RESOURCE_TYPE_LIMIT_EXCEEDED",
+      ),
+    ]
+    False -> []
+  }
+}
+
+fn definition_limit_scope_matches(
+  existing: MetafieldDefinitionRecord,
+  candidate: MetafieldDefinitionRecord,
+) -> Bool {
+  case
+    definition_types.namespace_api_client_id(existing.namespace),
+    definition_types.namespace_api_client_id(candidate.namespace)
+  {
+    Some(existing_api_client_id), Some(candidate_api_client_id) ->
+      existing_api_client_id == candidate_api_client_id
+    None, None -> True
+    _, _ -> False
+  }
+}
+
+fn definition_is_standard_template(
+  definition: MetafieldDefinitionRecord,
+) -> Bool {
+  standard_templates()
+  |> list.any(fn(template) {
+    list.contains(template.owner_types, definition.owner_type)
+    && template.namespace == definition.namespace
+    && template.key == definition.key
+    && template.type_.name == definition.type_.name
+  })
 }
 
 @internal

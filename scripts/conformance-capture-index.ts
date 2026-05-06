@@ -1249,6 +1249,21 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-resource-type-limit',
+    scriptPath: 'scripts/capture-metafield-definition-resource-type-limit-conformance.mts',
+    purpose: 'Metafield definition per-resource-type create limit behavior.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-resource-type-limit.json`,
+      'config/parity-specs/metafield-definitions/metafield-definition-resource-type-limit.json',
+      'config/parity-requests/metafields/metafield-definition-resource-type-limit-batch-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable PRODUCT metafield definitions in one namespace until the resource-type limit branch is reached, then deletes created definitions during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-non-product-owner-types',
     scriptPath: 'scripts/capture-metafield-definition-non-product-owner-types-conformance.mts',
     purpose:
