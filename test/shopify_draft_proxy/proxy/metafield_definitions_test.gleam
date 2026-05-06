@@ -25,12 +25,20 @@ fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
 }
 
 fn graphql_with_api_client(proxy: draft_proxy.DraftProxy, query: String) {
+  graphql_with_api_client_id(proxy, query, "999001")
+}
+
+fn graphql_with_api_client_id(
+  proxy: draft_proxy.DraftProxy,
+  query: String,
+  api_client_id: String,
+) {
   let request =
     Request(
       method: "POST",
       path: "/admin/api/2026-04/graphql.json",
       headers: dict.from_list([
-        #(app_identity.api_client_id_header, "999001"),
+        #(app_identity.api_client_id_header, api_client_id),
       ]),
       body: "{\"query\":" <> json.to_string(json.string(query)) <> "}",
     )
@@ -690,6 +698,32 @@ fn create_app_definition_only(
       "999001",
     )
   #(created.store, created.identity, json.to_string(created.data))
+}
+
+fn create_proxy_definition(
+  proxy: draft_proxy.DraftProxy,
+  index: Int,
+) -> draft_proxy.DraftProxy {
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql(proxy, create_definition_query("limit_" <> int.to_string(index)))
+  assert status == 200
+  assert string.contains(json.to_string(body), "\"userErrors\":[]")
+  next_proxy
+}
+
+fn create_proxy_app_definition(
+  proxy: draft_proxy.DraftProxy,
+  index: Int,
+) -> draft_proxy.DraftProxy {
+  let #(Response(status: status, body: body, ..), next_proxy) =
+    graphql_with_api_client_id(
+      proxy,
+      create_app_definition_query("limit_" <> int.to_string(index)),
+      "999001",
+    )
+  assert status == 200
+  assert string.contains(json.to_string(body), "\"userErrors\":[]")
+  next_proxy
 }
 
 fn int_range(from start: Int, to stop: Int) -> List(Int) {
@@ -1412,6 +1446,71 @@ pub fn standard_metafield_definition_enable_ignores_custom_definition_resource_t
   assert result.staged_resource_ids == ["gid://shopify/MetafieldDefinition/257"]
   assert json.to_string(result.data)
     == "{\"data\":{\"standardMetafieldDefinitionEnable\":{\"createdDefinition\":{\"id\":\"gid://shopify/MetafieldDefinition/257\",\"namespace\":\"descriptors\",\"key\":\"subtitle\",\"ownerType\":\"PRODUCT\",\"pinnedPosition\":null},\"userErrors\":[]}}}"
+}
+
+pub fn metafield_definition_resource_type_limit_integration_test() {
+  let full_proxy =
+    list.fold(
+      int_range(from: 1, to: 256),
+      draft_proxy.new(),
+      create_proxy_definition,
+    )
+  let #(Response(status: create_status, body: create_body, ..), full_proxy) =
+    graphql(full_proxy, create_definition_query("limit_257"))
+  assert create_status == 200
+  assert json.to_string(create_body)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Stores can only have 256 definitions for each store resource.\",\"code\":\"RESOURCE_TYPE_LIMIT_EXCEEDED\"}]}}}"
+
+  let #(Response(status: list_status, body: list_body, ..), full_proxy) =
+    graphql(
+      full_proxy,
+      "{ metafieldDefinitions(ownerType: PRODUCT, first: 300, namespace: \"har699\") { nodes { key } } }",
+    )
+  assert list_status == 200
+  let list_json = json.to_string(list_body)
+  assert string.contains(list_json, "\"key\":\"limit_256\"")
+  assert !string.contains(list_json, "\"key\":\"limit_257\"")
+
+  let #(Response(status: standard_status, body: standard_body, ..), _) =
+    graphql(
+      full_proxy,
+      standard_enable_query(
+        "gid://shopify/StandardMetafieldDefinitionTemplate/1",
+        "",
+      ),
+    )
+  assert standard_status == 200
+  assert string.contains(json.to_string(standard_body), "\"userErrors\":[]")
+
+  let app_full_proxy =
+    list.fold(
+      int_range(from: 1, to: 256),
+      draft_proxy.new(),
+      create_proxy_app_definition,
+    )
+  let #(Response(status: app_status, body: app_body, ..), app_full_proxy) =
+    graphql_with_api_client_id(
+      app_full_proxy,
+      create_app_definition_query("limit_257"),
+      "999001",
+    )
+  assert app_status == 200
+  assert json.to_string(app_body)
+    == "{\"data\":{\"metafieldDefinitionCreate\":{\"createdDefinition\":null,\"userErrors\":[{\"field\":[\"definition\"],\"message\":\"Stores can only have 256 definitions for each store resource.\",\"code\":\"RESOURCE_TYPE_LIMIT_EXCEEDED\"}]}}}"
+
+  let #(Response(status: other_status, body: other_body, ..), _) =
+    graphql_with_api_client_id(
+      app_full_proxy,
+      create_app_definition_query("other_app_1"),
+      "999002",
+    )
+  assert other_status == 200
+  let other_json = json.to_string(other_body)
+  assert string.contains(
+    other_json,
+    "\"namespace\":\"app--999002--resource_limit\"",
+  )
+  assert string.contains(other_json, "\"userErrors\":[]")
 }
 
 pub fn non_product_owner_definition_lifecycle_test() {
