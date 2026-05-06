@@ -1,0 +1,44 @@
+{
+  "scenarioId": "shop-policy-update-subscription-blank-body",
+  "operationNames": ["shopPolicyUpdate", "shop"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/store-properties/shop-policy-update-subscription-blank-body.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body.graphql",
+    "variablesCapturePath": "$.blankMutation.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for Shopify subscription policy blank-body validation. The capture records empty and whitespace-only SUBSCRIPTION_POLICY bodies returning shopPolicy:null with the Purchase options cancellation policy required userError, plus an immediate downstream shop.shopPolicies read proving the rejected attempts did not create a blank subscription policy.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "blank-body-validation-data",
+        "capturePath": "$.blankMutation.response.data",
+        "proxyPath": "$.data"
+      },
+      {
+        "name": "whitespace-body-validation-data",
+        "capturePath": "$.whitespaceMutation.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body.graphql",
+          "variablesCapturePath": "$.whitespaceMutation.variables"
+        }
+      },
+      {
+        "name": "downstream-read-data",
+        "capturePath": "$.downstreamRead.response.data",
+        "proxyPath": "$.data",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/store-properties/shopPolicyUpdate-subscription-blank-body-downstream-read.graphql",
+          "variables": {}
+        }
+      }
+    ]
+  }
+}

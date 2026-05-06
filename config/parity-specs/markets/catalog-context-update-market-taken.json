@@ -1,0 +1,101 @@
+{
+  "scenarioId": "catalog-context-update-market-taken",
+  "operationNames": ["marketCreate", "catalogCreate", "catalogContextUpdate", "catalog"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "downstream-read-parity", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/catalog-context-update-lifecycle.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
+    "variablesCapturePath": "$.cases[8].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "setup-target-market",
+        "capturePath": "$.cases[9].response.payload.data.marketCreate.userErrors",
+        "proxyPath": "$.data.marketCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-market-create.graphql",
+          "variablesCapturePath": "$.cases[9].variables"
+        }
+      },
+      {
+        "name": "setup-holder-catalog",
+        "capturePath": "$.cases[10].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-catalog-create.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[10].variables.input.title" },
+              "status": "ACTIVE",
+              "context": {
+                "marketIds": [{ "fromPrimaryProxyPath": "$.data.marketCreate.market.id" }]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "setup-target-catalog",
+        "capturePath": "$.cases[11].response.payload.data.catalogCreate.userErrors",
+        "proxyPath": "$.data.catalogCreate.userErrors",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-catalog-create.graphql",
+          "variables": {
+            "input": {
+              "title": { "fromCapturePath": "$.cases[11].variables.input.title" },
+              "status": "ACTIVE",
+              "context": {
+                "marketIds": [
+                  {
+                    "fromProxyResponse": "setup-target-market",
+                    "path": "$.data.marketCreate.market.id"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "name": "duplicate-add-payload",
+        "capturePath": "$.cases[12].response.payload.data.catalogContextUpdate",
+        "proxyPath": "$.data.catalogContextUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-market-taken.graphql",
+          "variables": {
+            "catalogId": {
+              "fromProxyResponse": "setup-target-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            },
+            "contextsToAdd": {
+              "marketIds": [{ "fromPrimaryProxyPath": "$.data.marketCreate.market.id" }]
+            }
+          }
+        }
+      },
+      {
+        "name": "read-after-duplicate-add",
+        "capturePath": "$.cases[13].response.payload.data.catalog",
+        "proxyPath": "$.data.catalog",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/markets/catalog-context-update-read.graphql",
+          "variables": {
+            "id": {
+              "fromProxyResponse": "setup-target-catalog",
+              "path": "$.data.catalogCreate.catalog.id"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live Shopify Admin 2026-04 capture covers the reviewed MARKET_TAKEN scenario shape and proves the public API currently accepts adding a Market already referenced by another MarketCatalog. The response has empty userErrors, the target catalog gains the added Market, and both catalogs can reference the same Market. The replay builds both catalogs locally before the update."
+}

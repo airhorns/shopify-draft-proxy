@@ -1,0 +1,45 @@
+mutation MetaobjectDefinitionUpdateCapabilityInvariantsDefinitionCreate($definition: MetaobjectDefinitionCreateInput!) {
+  metaobjectDefinitionCreate(definition: $definition) {
+    metaobjectDefinition {
+      id
+      type
+      name
+      displayNameKey
+      access {
+        admin
+        storefront
+      }
+      capabilities {
+        publishable {
+          enabled
+        }
+        translatable {
+          enabled
+        }
+        renderable {
+          enabled
+        }
+        onlineStore {
+          enabled
+        }
+      }
+      fieldDefinitions {
+        key
+        name
+        required
+        type {
+          name
+          category
+        }
+      }
+      metaobjectsCount
+    }
+    userErrors {
+      field
+      message
+      code
+      elementKey
+      elementIndex
+    }
+  }
+}
