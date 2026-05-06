@@ -1,0 +1,34 @@
+{
+  "scenarioId": "web-presence-create-invalid-alternates-combined",
+  "operationNames": ["webPresenceCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "market-web-presence-validation", "local-staging"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/markets/market-web-presence-lifecycle-parity.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/markets_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/markets/web-presence-lifecycle-create.graphql",
+    "variablesCapturePath": "$.cases[9].variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "invalid-alternates-collapse-to-one-field-error",
+        "capturePath": "$.cases[9].response.payload.data.webPresenceCreate",
+        "proxyPath": "$.data.webPresenceCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.userErrors[0].message",
+            "matcher": "any-string",
+            "reason": "Live 2026-04 currently joins two invalid locales without an Oxford comma, while this ticket requires the proxy message to use the documented final separator."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves two invalid alternate locales return one MarketUserError on field [\"input\", \"alternateLocales\"] with code INVALID and no webPresence. The runtime test covers the ticket-specific message separator."
+}
