@@ -1,0 +1,2321 @@
+mutation MetafieldDefinitionCapabilityEligibility($namespace: String!) {
+  uniqueJson: metafieldDefinitionCreate(
+    definition: {
+      name: "JSON Unique"
+      namespace: $namespace
+      key: "json_unique"
+      ownerType: PRODUCT
+      type: "json"
+      capabilities: { uniqueValues: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  smartCustomer: metafieldDefinitionCreate(
+    definition: {
+      name: "Customer Smart"
+      namespace: $namespace
+      key: "customer_smart"
+      ownerType: CUSTOMER
+      type: "single_line_text_field"
+      capabilities: { smartCollectionCondition: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  idCreate: metafieldDefinitionCreate(
+    definition: { name: "External ID", namespace: $namespace, key: "external_id", ownerType: PRODUCT, type: "id" }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  jsonBase: metafieldDefinitionCreate(
+    definition: { name: "JSON Payload", namespace: $namespace, key: "json_payload", ownerType: PRODUCT, type: "json" }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  jsonUpdateUnique: metafieldDefinitionUpdate(
+    definition: {
+      namespace: $namespace
+      key: "json_payload"
+      ownerType: PRODUCT
+      capabilities: { uniqueValues: { enabled: true } }
+    }
+  ) {
+    updatedDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+    validationJob {
+      id
+    }
+  }
+  admin01: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 01"
+      namespace: $namespace
+      key: "admin_01"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin02: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 02"
+      namespace: $namespace
+      key: "admin_02"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin03: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 03"
+      namespace: $namespace
+      key: "admin_03"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin04: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 04"
+      namespace: $namespace
+      key: "admin_04"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin05: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 05"
+      namespace: $namespace
+      key: "admin_05"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin06: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 06"
+      namespace: $namespace
+      key: "admin_06"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin07: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 07"
+      namespace: $namespace
+      key: "admin_07"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin08: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 08"
+      namespace: $namespace
+      key: "admin_08"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin09: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 09"
+      namespace: $namespace
+      key: "admin_09"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin10: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 10"
+      namespace: $namespace
+      key: "admin_10"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin11: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 11"
+      namespace: $namespace
+      key: "admin_11"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin12: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 12"
+      namespace: $namespace
+      key: "admin_12"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin13: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 13"
+      namespace: $namespace
+      key: "admin_13"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin14: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 14"
+      namespace: $namespace
+      key: "admin_14"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin15: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 15"
+      namespace: $namespace
+      key: "admin_15"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin16: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 16"
+      namespace: $namespace
+      key: "admin_16"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin17: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 17"
+      namespace: $namespace
+      key: "admin_17"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin18: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 18"
+      namespace: $namespace
+      key: "admin_18"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin19: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 19"
+      namespace: $namespace
+      key: "admin_19"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin20: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 20"
+      namespace: $namespace
+      key: "admin_20"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin21: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 21"
+      namespace: $namespace
+      key: "admin_21"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin22: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 22"
+      namespace: $namespace
+      key: "admin_22"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin23: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 23"
+      namespace: $namespace
+      key: "admin_23"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin24: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 24"
+      namespace: $namespace
+      key: "admin_24"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin25: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 25"
+      namespace: $namespace
+      key: "admin_25"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin26: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 26"
+      namespace: $namespace
+      key: "admin_26"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin27: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 27"
+      namespace: $namespace
+      key: "admin_27"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin28: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 28"
+      namespace: $namespace
+      key: "admin_28"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin29: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 29"
+      namespace: $namespace
+      key: "admin_29"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin30: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 30"
+      namespace: $namespace
+      key: "admin_30"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin31: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 31"
+      namespace: $namespace
+      key: "admin_31"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin32: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 32"
+      namespace: $namespace
+      key: "admin_32"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin33: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 33"
+      namespace: $namespace
+      key: "admin_33"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin34: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 34"
+      namespace: $namespace
+      key: "admin_34"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin35: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 35"
+      namespace: $namespace
+      key: "admin_35"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin36: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 36"
+      namespace: $namespace
+      key: "admin_36"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin37: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 37"
+      namespace: $namespace
+      key: "admin_37"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin38: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 38"
+      namespace: $namespace
+      key: "admin_38"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin39: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 39"
+      namespace: $namespace
+      key: "admin_39"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin40: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 40"
+      namespace: $namespace
+      key: "admin_40"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin41: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 41"
+      namespace: $namespace
+      key: "admin_41"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin42: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 42"
+      namespace: $namespace
+      key: "admin_42"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin43: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 43"
+      namespace: $namespace
+      key: "admin_43"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin44: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 44"
+      namespace: $namespace
+      key: "admin_44"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin45: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 45"
+      namespace: $namespace
+      key: "admin_45"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin46: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 46"
+      namespace: $namespace
+      key: "admin_46"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin47: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 47"
+      namespace: $namespace
+      key: "admin_47"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin48: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 48"
+      namespace: $namespace
+      key: "admin_48"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin49: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 49"
+      namespace: $namespace
+      key: "admin_49"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  admin50: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 50"
+      namespace: $namespace
+      key: "admin_50"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  adminLimit: metafieldDefinitionCreate(
+    definition: {
+      name: "Admin Filter 51"
+      namespace: $namespace
+      key: "admin_51"
+      ownerType: PRODUCT
+      type: "single_line_text_field"
+      capabilities: { adminFilterable: { enabled: true } }
+    }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+  standardUniqueReference: standardMetafieldDefinitionEnable(
+    ownerType: PRODUCT
+    id: "gid://shopify/StandardMetafieldDefinitionTemplate/10004"
+    capabilities: { uniqueValues: { enabled: true } }
+  ) {
+    createdDefinition {
+      id
+      namespace
+      key
+      ownerType
+      type {
+        name
+        category
+      }
+      capabilities {
+        adminFilterable {
+          enabled
+          eligible
+          status
+        }
+        smartCollectionCondition {
+          enabled
+          eligible
+        }
+        uniqueValues {
+          enabled
+          eligible
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
