@@ -3,7 +3,7 @@
   "operationNames": ["orderCancel"],
   "scenarioStatus": "captured",
   "assertionKinds": ["payload-shape", "downstream-read-parity"],
-  "liveCaptureFiles": ["fixtures/conformance/very-big-test-store.myshopify.com/2026-04/orders/orderCancel-parity.json"],
+  "liveCaptureFiles": ["fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/orders/orderCancel-parity.json"],
   "proxyRequest": {
     "documentPath": "config/parity-requests/orders/orderCancel-parity.graphql",
     "variablesCapturePath": "$.variables"
@@ -25,9 +25,7 @@
         "proxyPath": "$.data.order.closed",
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/order-management-downstream-read.graphql",
-          "variables": {
-            "id": "gid://shopify/Order/6830646329577"
-          }
+          "variablesCapturePath": "$.downstreamRead.variables"
         }
       },
       {
@@ -36,9 +34,7 @@
         "proxyPath": "$.data.order.cancelReason",
         "proxyRequest": {
           "documentPath": "config/parity-requests/orders/order-management-downstream-read.graphql",
-          "variables": {
-            "id": "gid://shopify/Order/6830646329577"
-          }
+          "variablesCapturePath": "$.downstreamRead.variables"
         }
       }
     ]

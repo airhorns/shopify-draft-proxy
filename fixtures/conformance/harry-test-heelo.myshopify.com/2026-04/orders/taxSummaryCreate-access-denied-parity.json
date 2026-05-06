@@ -1,14 +1,20 @@
 {
   "variables": {
-    "orderId": "gid://shopify/Order/6830646296809",
-    "startTime": "2026-04-22T22:29:03.293Z",
-    "endTime": "2026-04-22T23:29:03.293Z"
+    "orderId": "gid://shopify/Order/0",
+    "startTime": "2026-05-06T21:09:03.590Z",
+    "endTime": "2026-05-06T22:09:03.590Z"
   },
   "mutation": {
     "response": {
       "errors": [
         {
           "message": "Access denied for taxSummaryCreate field. Required access: `write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on.",
+          "locations": [
+            {
+              "line": 2,
+              "column": 3
+            }
+          ],
           "extensions": {
             "code": "ACCESS_DENIED",
             "documentation": "https://shopify.dev/api/usage/access-scopes",
@@ -19,6 +25,17 @@
       ],
       "data": {
         "taxSummaryCreate": null
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
       }
     }
   },
@@ -26,17 +43,23 @@
     {
       "operationName": "TaxSummaryCreateAccessDenied",
       "variables": {
-        "orderId": "gid://shopify/Order/6830646296809",
-        "startTime": "2026-04-22T22:29:03.293Z",
-        "endTime": "2026-04-22T23:29:03.293Z"
+        "orderId": "gid://shopify/Order/0",
+        "startTime": "2026-05-06T21:09:03.590Z",
+        "endTime": "2026-05-06T22:09:03.590Z"
       },
-      "query": "hand-synthesized from checked-in capture response for HAR-538 orders Pattern 1 passthrough",
+      "query": "mutation TaxSummaryCreateAccessDenied($orderId: ID, $startTime: DateTime, $endTime: DateTime) {\n  taxSummaryCreate(orderId: $orderId, startTime: $startTime, endTime: $endTime) {\n    enqueuedOrders {\n      id\n    }\n    userErrors {\n      field\n      message\n    }\n  }\n}",
       "response": {
         "status": 200,
         "body": {
           "errors": [
             {
               "message": "Access denied for taxSummaryCreate field. Required access: `write_taxes` access scope. Also: The caller must be a tax calculations app and the relevant feature must be on.",
+              "locations": [
+                {
+                  "line": 2,
+                  "column": 3
+                }
+              ],
               "extensions": {
                 "code": "ACCESS_DENIED",
                 "documentation": "https://shopify.dev/api/usage/access-scopes",
@@ -47,6 +70,17 @@
           ],
           "data": {
             "taxSummaryCreate": null
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1990,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }

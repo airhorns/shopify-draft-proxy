@@ -1,8 +1,8 @@
 {
-  "capturedAt": "2026-04-28T02:40:59.276Z",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2026-04",
-  "disposableSubfolderSuffix": "harcodexzizpzojr",
+  "disposableSubfolderSuffix": "harcodexmounbooq",
   "data": {
     "webPresences": {
       "nodes": [
@@ -38,7 +38,7 @@
   "cases": [
     {
       "name": "webPresenceDeleteUnknownId",
-      "query": "#graphql\nmutation WebPresenceDeleteParityDelete($id: ID!) { webPresenceDelete(id: $id) { deletedId userErrors { field message code } } }",
+      "query": "mutation WebPresenceDeleteParityDelete($id: ID!) {\n  webPresenceDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "id": "gid://shopify/MarketWebPresence/999999999999"
       },
@@ -56,18 +56,29 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1966,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "webPresenceCreateDisposableForDelete",
-      "query": "#graphql\nmutation WebPresenceDeleteParityCreate($input: WebPresenceCreateInput!) { webPresenceCreate(input: $input) { webPresence { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } userErrors { field message code } } }",
+      "query": "mutation WebPresenceDeleteParityCreate($input: WebPresenceCreateInput!) {\n  webPresenceCreate(input: $input) {\n    webPresence {\n      id\n      subfolderSuffix\n      domain {\n        id\n        host\n        url\n        sslEnabled\n      }\n      rootUrls {\n        locale\n        url\n      }\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      alternateLocales {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        nodes {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
         "input": {
           "defaultLocale": "en",
           "alternateLocales": [],
-          "subfolderSuffix": "harcodexzizpzojr"
+          "subfolderSuffix": "harcodexmounbooq"
         }
       },
       "response": {
@@ -76,13 +87,13 @@
           "data": {
             "webPresenceCreate": {
               "webPresence": {
-                "id": "gid://shopify/MarketWebPresence/69531304242",
-                "subfolderSuffix": "harcodexzizpzojr",
+                "id": "gid://shopify/MarketWebPresence/69693374770",
+                "subfolderSuffix": "harcodexmounbooq",
                 "domain": null,
                 "rootUrls": [
                   {
                     "locale": "en",
-                    "url": "https://harry-test-heelo.myshopify.com/en-harcodexzizpzojr/"
+                    "url": "https://harry-test-heelo.myshopify.com/en-harcodexmounbooq/"
                   }
                 ],
                 "defaultLocale": {
@@ -98,23 +109,45 @@
               },
               "userErrors": []
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1958,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "webPresenceDeleteSuccess",
-      "query": "#graphql\nmutation WebPresenceDeleteParityDelete($id: ID!) { webPresenceDelete(id: $id) { deletedId userErrors { field message code } } }",
+      "query": "mutation WebPresenceDeleteParityDelete($id: ID!) {\n  webPresenceDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69531304242"
+        "id": "gid://shopify/MarketWebPresence/69693374770"
       },
       "response": {
         "status": 200,
         "payload": {
           "data": {
             "webPresenceDelete": {
-              "deletedId": "gid://shopify/MarketWebPresence/69531304242",
+              "deletedId": "gid://shopify/MarketWebPresence/69693374770",
               "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1965,
+                "restoreRate": 100
+              }
             }
           }
         }
@@ -122,9 +155,9 @@
     },
     {
       "name": "webPresenceDeleteAlreadyDeleted",
-      "query": "#graphql\nmutation WebPresenceDeleteParityDelete($id: ID!) { webPresenceDelete(id: $id) { deletedId userErrors { field message code } } }",
+      "query": "mutation WebPresenceDeleteParityDelete($id: ID!) {\n  webPresenceDelete(id: $id) {\n    deletedId\n    userErrors {\n      field\n      message\n      code\n    }\n  }\n}\n",
       "variables": {
-        "id": "gid://shopify/MarketWebPresence/69531304242"
+        "id": "gid://shopify/MarketWebPresence/69693374770"
       },
       "response": {
         "status": 200,
@@ -140,13 +173,24 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 10,
+              "actualQueryCost": 10,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1974,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
     },
     {
       "name": "webPresenceReadAfterDelete",
-      "query": "#graphql\nquery WebPresenceDeleteParityRead($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }",
+      "query": "query WebPresenceDeleteParityRead($first: Int!) {\n  webPresences(first: $first) {\n    nodes {\n      id\n      subfolderSuffix\n      domain {\n        id\n        host\n        url\n        sslEnabled\n      }\n      rootUrls {\n        locale\n        url\n      }\n      defaultLocale {\n        locale\n        name\n        primary\n        published\n      }\n      alternateLocales {\n        locale\n        name\n        primary\n        published\n      }\n      markets(first: 5) {\n        nodes {\n          id\n          name\n          handle\n          status\n          type\n        }\n      }\n    }\n  }\n}\n",
       "variables": {
         "first": 20
       },
@@ -184,6 +228,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 52,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -191,15 +246,64 @@
   ],
   "upstreamCalls": [
     {
-      "operationName": "MarketsMutationPreflightHydrate",
+      "operationName": "MarketWebPresenceHydrate",
       "variables": {
         "input": {
           "defaultLocale": "en",
           "alternateLocales": [],
-          "subfolderSuffix": "harcodexzizpzojr"
+          "subfolderSuffix": "harcodexmounbooq"
         }
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "captured live webPresenceCreate setup for delete parity",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "webPresenceCreate": {
+              "webPresence": {
+                "id": "gid://shopify/MarketWebPresence/69693374770",
+                "subfolderSuffix": "harcodexmounbooq",
+                "domain": null,
+                "rootUrls": [
+                  {
+                    "locale": "en",
+                    "url": "https://harry-test-heelo.myshopify.com/en-harcodexmounbooq/"
+                  }
+                ],
+                "defaultLocale": {
+                  "locale": "en",
+                  "name": "English",
+                  "primary": true,
+                  "published": true
+                },
+                "alternateLocales": [],
+                "markets": {
+                  "nodes": []
+                }
+              },
+              "userErrors": []
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 19,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1958,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "WebPresenceDeleteParityRead",
+      "variables": {
+        "first": 20
+      },
+      "query": "query WebPresenceDeleteParityRead($first: Int!) { webPresences(first: $first) { nodes { id subfolderSuffix domain { id host url sslEnabled } rootUrls { locale url } defaultLocale { locale name primary published } alternateLocales { locale name primary published } markets(first: 5) { nodes { id name handle status type } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -233,6 +337,17 @@
                   }
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 52,
+              "actualQueryCost": 5,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1981,
+                "restoreRate": 100
+              }
             }
           }
         }

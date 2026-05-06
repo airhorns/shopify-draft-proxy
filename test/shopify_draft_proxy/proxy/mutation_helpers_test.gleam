@@ -618,16 +618,15 @@ pub fn schema_validator_list_multiple_elements_paths_indexed_test() {
   assert string.contains(s, "\"path\":[1,\"ownerId\"]")
 }
 
-pub fn schema_validator_top_level_object_missing_field_lenient_test() {
-  // PriceListCreateInput.parent is NON_NULL in the schema, but real
-  // Shopify accepts the variable without it (the resolver surfaces the
-  // problem via `userErrors`). Validator must NOT flag it.
+pub fn schema_validator_price_list_parent_missing_invalid_variable_test() {
+  // Current Shopify 2026-04 rejects variable-bound PriceListCreateInput
+  // without parent before resolver execution.
   let input =
     root_field.ObjectVal(
       dict.from_list([
         #("name", root_field.StringVal("Wholesale")),
         #("currency", root_field.StringVal("USD")),
-        // `parent` deliberately missing — this should NOT be an error.
+        // `parent` deliberately missing.
       ]),
     )
   let errors =
@@ -636,7 +635,10 @@ pub fn schema_validator_top_level_object_missing_field_lenient_test() {
       [#("input", input)],
       "priceListCreate",
     )
-  assert errors == []
+  let assert [s] = rendered(errors)
+  assert string.contains(s, "PriceListCreateInput!")
+  assert string.contains(s, "\"path\":[\"parent\"]")
+  assert string.contains(s, "Expected value to not be null")
 }
 
 pub fn schema_validator_well_formed_variable_no_errors_test() {

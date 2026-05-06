@@ -465,7 +465,7 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
         }
       }
     }
-    prices(first: 20) {
+    prices(first: 20, originType: FIXED) {
       edges {
         cursor
         node {
@@ -479,6 +479,7 @@ query MarketsMutationPreflightHydrate($priceListId: ID!) {
               node {
                 minimumQuantity
                 price { amount currencyCode }
+                variant { id }
               }
             }
           }
