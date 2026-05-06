@@ -114,7 +114,7 @@ function dataRoot(result: ConformanceGraphqlResult, root: string): GraphqlPayloa
 }
 
 function orderFromRoot(result: ConformanceGraphqlResult, root: string): GraphqlPayload {
-  const order = dataRoot(result, root).order;
+  const order = dataRoot(result, root)['order'];
   if (typeof order !== 'object' || order === null) {
     throw new Error(`Missing ${root}.order payload: ${JSON.stringify(result.payload, null, 2)}`);
   }
@@ -123,7 +123,7 @@ function orderFromRoot(result: ConformanceGraphqlResult, root: string): GraphqlP
 
 function orderFromRead(result: ConformanceGraphqlResult): GraphqlPayload {
   const data = result.payload.data;
-  const order = typeof data === 'object' && data !== null ? (data as GraphqlPayload).order : null;
+  const order = typeof data === 'object' && data !== null ? (data as GraphqlPayload)['order'] : null;
   if (typeof order !== 'object' || order === null) {
     throw new Error(`Missing order read payload: ${JSON.stringify(result.payload, null, 2)}`);
   }
@@ -131,7 +131,7 @@ function orderFromRead(result: ConformanceGraphqlResult): GraphqlPayload {
 }
 
 function userErrors(result: ConformanceGraphqlResult): unknown[] {
-  const value = dataRoot(result, 'orderInvoiceSend').userErrors;
+  const value = dataRoot(result, 'orderInvoiceSend')['userErrors'];
   return Array.isArray(value) ? value : [];
 }
 
@@ -146,9 +146,9 @@ function assertUserErrors(
     errors.length !== 1 ||
     typeof errors[0] !== 'object' ||
     errors[0] === null ||
-    (errors[0] as GraphqlPayload).message !== expectedMessage ||
-    (errors[0] as GraphqlPayload).code !== 'ORDER_INVOICE_SEND_UNSUCCESSFUL' ||
-    JSON.stringify((errors[0] as GraphqlPayload).field ?? null) !== JSON.stringify(expectedField)
+    (errors[0] as GraphqlPayload)['message'] !== expectedMessage ||
+    (errors[0] as GraphqlPayload)['code'] !== 'ORDER_INVOICE_SEND_UNSUCCESSFUL' ||
+    JSON.stringify((errors[0] as GraphqlPayload)['field'] ?? null) !== JSON.stringify(expectedField)
   ) {
     throw new Error(`${label} unexpected userErrors: ${JSON.stringify(errors, null, 2)}`);
   }
@@ -184,7 +184,7 @@ function orderCreateVariables(label: string, stamp: number, email?: string): Rec
     ],
   };
   if (email) {
-    order.email = email;
+    order['email'] = email;
   }
   return {
     order,
@@ -215,7 +215,7 @@ function hydrateCallFromOrder(order: GraphqlPayload, note: string): unknown {
   return {
     operationName: 'OrdersOrderHydrate',
     variables: {
-      id: order.id,
+      id: order['id'],
     },
     query: note,
     response: {
@@ -240,13 +240,13 @@ async function main(): Promise<void> {
     const noEmailCreate = await runGraphqlRequest(orderCreateMutation, noEmailCreateVariables);
     assertHttpOk('no-recipient orderCreate', noEmailCreate);
     const noEmailOrder = orderFromRoot(noEmailCreate, 'orderCreate');
-    const noEmailOrderId = String(noEmailOrder.id);
+    const noEmailOrderId = String(noEmailOrder['id']);
     cleanupOrderIds.push(noEmailOrderId);
 
     const happyCreate = await runGraphqlRequest(orderCreateMutation, happyCreateVariables);
     assertHttpOk('order-email orderCreate', happyCreate);
     const happyOrder = orderFromRoot(happyCreate, 'orderCreate');
-    const happyOrderId = String(happyOrder.id);
+    const happyOrderId = String(happyOrder['id']);
     cleanupOrderIds.push(happyOrderId);
 
     const noEmailRead = await runGraphqlRequest(orderReadQuery, { id: noEmailOrderId });
