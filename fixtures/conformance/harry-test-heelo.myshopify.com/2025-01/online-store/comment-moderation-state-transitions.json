@@ -1,0 +1,543 @@
+{
+  "scenarioId": "comment-moderation-state-transitions",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T20:42:04.703Z",
+  "setup": {
+    "blogCreate": {
+      "request": {
+        "query": "#graphql\n  mutation CommentModerationStateBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle commentPolicy }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Comment Moderation State Blog 20260506204202",
+            "commentPolicy": "MODERATED"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120990990642",
+              "title": "Comment Moderation State Blog 20260506204202",
+              "handle": "comment-moderation-state-blog-20260506204202",
+              "commentPolicy": "MODERATED"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "articleCreate": {
+      "request": {
+        "query": "#graphql\n  mutation CommentModerationStateArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "Comment Moderation State Article 20260506204202",
+            "body": "<p>Comment Moderation State Article 20260506204202</p>",
+            "blogId": "gid://shopify/Blog/120990990642",
+            "author": {
+              "name": "Comment Moderation Author"
+            },
+            "isPublished": true
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683155882290",
+              "title": "Comment Moderation State Article 20260506204202",
+              "handle": "comment-moderation-state-article-20260506204202"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "restComments": [
+      {
+        "id": 134990364978,
+        "body": "comment moderation published 20260506204202",
+        "body_html": "<p>comment moderation published 20260506204202</p>",
+        "author": "Comment Moderation Fixture",
+        "email": "comment-moderation@example.com",
+        "status": "pending",
+        "article_id": 683155882290,
+        "blog_id": 120990990642,
+        "created_at": "2026-05-06T16:42:02-04:00",
+        "updated_at": "2026-05-06T16:42:02-04:00",
+        "ip": "127.0.0.1",
+        "user_agent": null,
+        "published_at": null
+      },
+      {
+        "id": 134990397746,
+        "body": "comment moderation spam 20260506204202",
+        "body_html": "<p>comment moderation spam 20260506204202</p>",
+        "author": "Comment Moderation Fixture",
+        "email": "comment-moderation@example.com",
+        "status": "pending",
+        "article_id": 683155882290,
+        "blog_id": 120990990642,
+        "created_at": "2026-05-06T16:42:03-04:00",
+        "updated_at": "2026-05-06T16:42:03-04:00",
+        "ip": "127.0.0.1",
+        "user_agent": null,
+        "published_at": null
+      },
+      {
+        "id": 134990430514,
+        "body": "comment moderation unapproved 20260506204202",
+        "body_html": "<p>comment moderation unapproved 20260506204202</p>",
+        "author": "Comment Moderation Fixture",
+        "email": "comment-moderation@example.com",
+        "status": "pending",
+        "article_id": 683155882290,
+        "blog_id": 120990990642,
+        "created_at": "2026-05-06T16:42:04-04:00",
+        "updated_at": "2026-05-06T16:42:04-04:00",
+        "ip": "127.0.0.1",
+        "user_agent": null,
+        "published_at": null
+      }
+    ],
+    "approvePublishedSetup": {
+      "request": {
+        "query": "#graphql\n  mutation CommentModerationStateApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Comment/134990364978"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "commentApprove": {
+            "comment": {
+              "id": "gid://shopify/Comment/134990364978",
+              "status": "PUBLISHED",
+              "isPublished": true,
+              "publishedAt": "2026-05-06T20:42:03Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "spamSetupTransition": {
+      "request": {
+        "query": "#graphql\n  mutation CommentModerationStateSpam($id: ID!) {\n    commentSpam(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Comment/134990397746"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "commentSpam": {
+            "comment": {
+              "id": "gid://shopify/Comment/134990397746",
+              "status": "SPAM",
+              "isPublished": false,
+              "publishedAt": null
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "variables": {
+    "publishedId": "gid://shopify/Comment/134990364978",
+    "spamId": "gid://shopify/Comment/134990397746",
+    "unapprovedId": "gid://shopify/Comment/134990430514"
+  },
+  "approvePublished": {
+    "request": {
+      "query": "#graphql\n  mutation CommentModerationStateApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Comment/134990364978"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "commentApprove": {
+          "comment": {
+            "id": "gid://shopify/Comment/134990364978",
+            "status": "PUBLISHED",
+            "isPublished": true,
+            "publishedAt": "2026-05-06T20:42:03Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notSpamPublished": {
+    "request": {
+      "query": "#graphql\n  mutation CommentModerationStateNotSpam($id: ID!) {\n    commentNotSpam(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Comment/134990364978"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "commentNotSpam": {
+          "comment": {
+            "id": "gid://shopify/Comment/134990364978",
+            "status": "PUBLISHED",
+            "isPublished": true,
+            "publishedAt": "2026-05-06T20:42:03Z"
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "spamSpam": {
+    "request": {
+      "query": "#graphql\n  mutation CommentModerationStateSpam($id: ID!) {\n    commentSpam(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Comment/134990397746"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "commentSpam": {
+          "comment": {
+            "id": "gid://shopify/Comment/134990397746",
+            "status": "SPAM",
+            "isPublished": false,
+            "publishedAt": null
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "approveSpam": {
+    "request": {
+      "query": "#graphql\n  mutation CommentModerationStateApprove($id: ID!) {\n    commentApprove(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Comment/134990397746"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "commentApprove": {
+          "comment": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Status cannot transition via \"approve\"",
+              "code": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "notSpamUnapproved": {
+    "request": {
+      "query": "#graphql\n  mutation CommentModerationStateNotSpam($id: ID!) {\n    commentNotSpam(id: $id) {\n      comment {\n        id\n        status\n        isPublished\n        publishedAt\n      }\n      userErrors {\n        field\n        message\n        code\n      }\n    }\n  }\n",
+      "variables": {
+        "id": "gid://shopify/Comment/134990430514"
+      }
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "commentNotSpam": {
+          "comment": null,
+          "userErrors": [
+            {
+              "field": ["id"],
+              "message": "Status cannot transition via \"not spam\"",
+              "code": null
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": [
+    {
+      "request": {
+        "query": "#graphql\n  mutation CommentModerationStateArticleDelete($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683155882290"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683155882290",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "request": {
+        "query": "#graphql\n  mutation CommentModerationStateBlogDelete($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/120990990642"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/120990990642",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": [
+    {
+      "operationName": "OnlineStoreCommentHydrate",
+      "variables": {
+        "id": "gid://shopify/Comment/134990364978"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "comment": {
+              "__typename": "Comment",
+              "id": "gid://shopify/Comment/134990364978",
+              "status": "PUBLISHED",
+              "body": "comment moderation published 20260506204202",
+              "bodyHtml": "<p>comment moderation published 20260506204202</p>",
+              "isPublished": true,
+              "publishedAt": "2026-05-06T20:42:03Z",
+              "createdAt": "2026-05-06T20:42:02Z",
+              "updatedAt": "2026-05-06T20:42:03Z",
+              "article": {
+                "id": "gid://shopify/Article/683155882290"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreCommentHydrate",
+      "variables": {
+        "id": "gid://shopify/Comment/134990397746"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "comment": {
+              "__typename": "Comment",
+              "id": "gid://shopify/Comment/134990397746",
+              "status": "SPAM",
+              "body": "comment moderation spam 20260506204202",
+              "bodyHtml": "<p>comment moderation spam 20260506204202</p>",
+              "isPublished": false,
+              "publishedAt": null,
+              "createdAt": "2026-05-06T20:42:03Z",
+              "updatedAt": "2026-05-06T20:42:03Z",
+              "article": {
+                "id": "gid://shopify/Article/683155882290"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "OnlineStoreCommentHydrate",
+      "variables": {
+        "id": "gid://shopify/Comment/134990430514"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "comment": {
+              "__typename": "Comment",
+              "id": "gid://shopify/Comment/134990430514",
+              "status": "UNAPPROVED",
+              "body": "comment moderation unapproved 20260506204202",
+              "bodyHtml": "<p>comment moderation unapproved 20260506204202</p>",
+              "isPublished": false,
+              "publishedAt": null,
+              "createdAt": "2026-05-06T20:42:04Z",
+              "updatedAt": "2026-05-06T20:42:04Z",
+              "article": {
+                "id": "gid://shopify/Article/683155882290"
+              }
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 2,
+              "actualQueryCost": 2,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1998,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
