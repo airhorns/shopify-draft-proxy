@@ -14,11 +14,12 @@ import shopify_draft_proxy/state/synthetic_identity
 import shopify_draft_proxy/state/types.{
   type CustomerPaymentMethodRecord,
   type CustomerPaymentMethodSubscriptionContractRecord, type CustomerRecord,
-  type DraftOrderRecord, type OrderRecord, type PaymentScheduleRecord,
-  type PaymentTermsRecord, type ShopRecord, CapturedBool, CapturedNull,
-  CapturedObject, CapturedString, CustomerPaymentMethodInstrumentRecord,
-  CustomerPaymentMethodRecord, CustomerPaymentMethodSubscriptionContractRecord,
-  CustomerRecord, DraftOrderRecord, Money, OrderRecord, PaymentScheduleRecord,
+  type DraftOrderRecord, type Money, type OrderRecord,
+  type PaymentScheduleRecord, type PaymentTermsRecord, type ShopRecord,
+  CapturedArray, CapturedBool, CapturedNull, CapturedObject, CapturedString,
+  CustomerPaymentMethodInstrumentRecord, CustomerPaymentMethodRecord,
+  CustomerPaymentMethodSubscriptionContractRecord, CustomerRecord,
+  DraftOrderRecord, Money, OrderRecord, PaymentScheduleRecord,
   PaymentSettingsRecord, PaymentTermsRecord, ShopAddressRecord,
   ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
   ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
@@ -1248,10 +1249,136 @@ pub fn payment_terms_update_and_delete_missing_ids_use_shopify_codes_test() {
   )
   assert string.contains(
     delete_body,
-    "\"code\":\"PAYMENT_TERMS_DELETE_UNSUCCESSFUL\"",
+    "\"code\":\"payment_terms_deletion_unsuccessful\"",
   )
   assert !string.contains(update_body, "PAYMENT_TERMS_NOT_FOUND")
   assert !string.contains(delete_body, "PAYMENT_TERMS_NOT_FOUND")
+}
+
+pub fn payment_terms_delete_clears_stale_order_owner_read_test() {
+  let terms_id = "gid://shopify/PaymentTerms/order-owner-cascade"
+  let schedule_id = "gid://shopify/PaymentSchedule/order-owner-cascade"
+  let money = Money(amount: "57.00", currency_code: "CAD")
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_orders([
+      OrderRecord(
+        id: order_id,
+        cursor: None,
+        data: CapturedObject([
+          #("id", CapturedString(order_id)),
+          #("name", CapturedString("#637")),
+          #("paymentTerms", stale_payment_terms_node(terms_id)),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_payment_terms(payment_terms_with_schedule(
+      terms_id,
+      order_id,
+      schedule_id,
+      money,
+    ))
+  let proxy = DraftProxy(..draft_proxy.new(), store: seeded_store)
+  let delete =
+    "mutation {
+      paymentTermsDelete(input: {
+        paymentTermsId: \"gid://shopify/PaymentTerms/order-owner-cascade\"
+      }) {
+        deletedId
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(proxy, delete)
+  let read =
+    "query {
+      order(id: \"gid://shopify/Order/637\") {
+        id
+        paymentTerms { id paymentTermsName }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), proxy) =
+    graphql(proxy, read)
+  let reminder =
+    "mutation {
+      paymentReminderSend(paymentScheduleId: \"gid://shopify/PaymentSchedule/order-owner-cascade\") {
+        success
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: reminder_status, body: reminder_body, ..), _) =
+    graphql(proxy, reminder)
+  let delete_body = json.to_string(delete_body)
+  let read_body = json.to_string(read_body)
+  let reminder_body = json.to_string(reminder_body)
+
+  assert delete_status == 200
+  assert string.contains(delete_body, "\"userErrors\":[]")
+  assert read_status == 200
+  assert string.contains(read_body, "\"paymentTerms\":null")
+  assert !string.contains(read_body, "order-owner-cascade")
+  assert reminder_status == 200
+  assert string.contains(reminder_body, "\"success\":null")
+  assert string.contains(
+    reminder_body,
+    "\"code\":\"PAYMENT_REMINDER_SEND_UNSUCCESSFUL\"",
+  )
+}
+
+pub fn payment_terms_delete_clears_stale_draft_order_owner_read_test() {
+  let draft_order_id = "gid://shopify/DraftOrder/delete-cascade"
+  let terms_id = "gid://shopify/PaymentTerms/draft-owner-cascade"
+  let schedule_id = "gid://shopify/PaymentSchedule/draft-owner-cascade"
+  let money = Money(amount: "57.00", currency_code: "CAD")
+  let seeded_store =
+    store.new()
+    |> store.upsert_base_draft_orders([
+      DraftOrderRecord(
+        id: draft_order_id,
+        cursor: None,
+        data: CapturedObject([
+          #("id", CapturedString(draft_order_id)),
+          #("name", CapturedString("#D1")),
+          #("paymentTerms", stale_payment_terms_node(terms_id)),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_payment_terms(payment_terms_with_schedule(
+      terms_id,
+      draft_order_id,
+      schedule_id,
+      money,
+    ))
+  let proxy = DraftProxy(..draft_proxy.new(), store: seeded_store)
+  let delete =
+    "mutation {
+      paymentTermsDelete(input: {
+        paymentTermsId: \"gid://shopify/PaymentTerms/draft-owner-cascade\"
+      }) {
+        deletedId
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: delete_status, body: delete_body, ..), proxy) =
+    graphql(proxy, delete)
+  let read =
+    "query {
+      draftOrder(id: \"gid://shopify/DraftOrder/delete-cascade\") {
+        id
+        name
+        paymentTerms { id paymentTermsName }
+      }
+    }"
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, read)
+  let delete_body = json.to_string(delete_body)
+  let read_body = json.to_string(read_body)
+
+  assert delete_status == 200
+  assert string.contains(delete_body, "\"userErrors\":[]")
+  assert read_status == 200
+  assert string.contains(read_body, "\"paymentTerms\":null")
+  assert !string.contains(read_body, "draft-owner-cascade")
 }
 
 pub fn payment_terms_update_uses_update_code_for_invalid_attributes_test() {
@@ -1356,6 +1483,46 @@ pub fn payment_terms_delete_normalizes_numeric_input_to_gid_test() {
     "\"deletedId\":\"gid://shopify/PaymentTerms/123\"",
   )
   assert string.contains(body, "\"userErrors\":[]")
+}
+
+fn stale_payment_terms_node(terms_id: String) {
+  CapturedObject([
+    #("id", CapturedString(terms_id)),
+    #("paymentTermsName", CapturedString("Net 30")),
+    #("paymentTermsType", CapturedString("NET")),
+    #("translatedName", CapturedString("Net 30")),
+    #("paymentSchedules", CapturedObject([#("nodes", CapturedArray([]))])),
+  ])
+}
+
+fn payment_terms_with_schedule(
+  terms_id: String,
+  owner_id: String,
+  schedule_id: String,
+  money: Money,
+) {
+  PaymentTermsRecord(
+    id: terms_id,
+    owner_id: owner_id,
+    due: False,
+    overdue: False,
+    due_in_days: Some(30),
+    payment_terms_name: "Net 30",
+    payment_terms_type: "NET",
+    translated_name: "Net 30",
+    payment_schedules: [
+      PaymentScheduleRecord(
+        id: schedule_id,
+        due_at: Some("2026-06-04T00:00:00Z"),
+        issued_at: Some("2026-05-05T00:00:00Z"),
+        completed_at: None,
+        due: Some(False),
+        amount: Some(money),
+        balance_due: Some(money),
+        total_balance: Some(money),
+      ),
+    ],
+  )
 }
 
 pub fn customer_payment_method_revoke_active_contract_does_not_mutate_test() {
