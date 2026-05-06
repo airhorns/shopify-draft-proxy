@@ -23,7 +23,7 @@
 ////     '
 
 @target(erlang)
-pub fn javascript_only_module() -> Nil {
+pub fn draft_proxy_async_js_only_placeholder_test() {
   Nil
 }
 

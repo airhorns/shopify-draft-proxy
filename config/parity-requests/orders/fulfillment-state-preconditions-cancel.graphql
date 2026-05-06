@@ -1,0 +1,19 @@
+mutation FulfillmentStatePreconditionsCancel($id: ID!) {
+  fulfillmentCancel(id: $id) {
+    fulfillment {
+      id
+      status
+      displayStatus
+      trackingInfo {
+        number
+        url
+        company
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

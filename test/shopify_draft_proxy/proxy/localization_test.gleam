@@ -6,6 +6,7 @@
 import gleam/dict
 import gleam/json
 import gleam/option.{None, Some}
+import gleam/string
 import shopify_draft_proxy/proxy/localization
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
@@ -44,18 +45,11 @@ pub fn is_localization_mutation_root_test() {
 
 pub fn available_locales_default_catalog_test() {
   let result = run(store.new(), "{ availableLocales { isoCode name } }")
-  // Default catalog is the eight ISO codes seeded in localization.gleam.
-  assert result
-    == "{\"availableLocales\":["
-    <> "{\"isoCode\":\"en\",\"name\":\"English\"},"
-    <> "{\"isoCode\":\"fr\",\"name\":\"French\"},"
-    <> "{\"isoCode\":\"de\",\"name\":\"German\"},"
-    <> "{\"isoCode\":\"es\",\"name\":\"Spanish\"},"
-    <> "{\"isoCode\":\"it\",\"name\":\"Italian\"},"
-    <> "{\"isoCode\":\"pt-BR\",\"name\":\"Portuguese (Brazil)\"},"
-    <> "{\"isoCode\":\"ja\",\"name\":\"Japanese\"},"
-    <> "{\"isoCode\":\"zh-CN\",\"name\":\"Chinese (Simplified)\"}"
-    <> "]}"
+  // Default catalog mirrors Shopify's broad alternate-locale catalog.
+  assert string.contains(result, "{\"isoCode\":\"af\",\"name\":\"Afrikaans\"}")
+  assert string.contains(result, "{\"isoCode\":\"fr\",\"name\":\"French\"}")
+  assert string.contains(result, "{\"isoCode\":\"tr\",\"name\":\"Turkish\"}")
+  assert string.contains(result, "{\"isoCode\":\"zu\",\"name\":\"Zulu\"}")
 }
 
 pub fn available_locales_overridden_by_store_test() {

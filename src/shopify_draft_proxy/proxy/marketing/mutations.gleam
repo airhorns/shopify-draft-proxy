@@ -9,6 +9,7 @@ import gleam/option.{type Option, None, Some}
 import shopify_draft_proxy/graphql/ast.{type Selection, Field}
 import shopify_draft_proxy/graphql/root_field
 
+import shopify_draft_proxy/proxy/app_identity
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcBool, SrcList, SrcNull, SrcString,
   get_document_fragments, get_field_response_key, src_object,
@@ -61,13 +62,20 @@ pub fn process_mutation(
   _request_path: String,
   document: String,
   variables: Dict(String, root_field.ResolvedValue),
-  _upstream: UpstreamContext,
+  upstream: UpstreamContext,
 ) -> MutationOutcome {
   case root_field.get_root_fields(document) {
     Error(err) -> mutation_helpers.parse_failed_outcome(store, identity, err)
     Ok(fields) -> {
       let fragments = get_document_fragments(document)
-      handle_mutation_fields(store, identity, fields, fragments, variables)
+      handle_mutation_fields(
+        store,
+        identity,
+        fields,
+        fragments,
+        variables,
+        app_identity.read_requesting_api_client_id(upstream.headers),
+      )
     }
   }
 }
@@ -78,6 +86,7 @@ fn handle_mutation_fields(
   fields: List(Selection),
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> MutationOutcome {
   let initial = #([], store, identity, [], False)
   let #(entries, final_store, final_identity, staged_ids, should_log) =
@@ -96,6 +105,7 @@ fn handle_mutation_fields(
                   field,
                   fragments,
                   variables,
+                  requesting_api_client_id,
                 )
               #(
                 list.append(entries, [
@@ -157,6 +167,7 @@ fn handle_marketing_mutation_root(
   field: Selection,
   fragments: FragmentMap,
   variables: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let _ = fragments
   let key = get_field_response_key(field)
@@ -169,11 +180,23 @@ fn handle_marketing_mutation_root(
         "marketingActivityUpdate" ->
           marketing_activity_update(store, identity, key, args)
         "marketingActivityCreateExternal" ->
-          marketing_activity_create_external(store, identity, key, args)
+          marketing_activity_create_external(
+            store,
+            identity,
+            key,
+            args,
+            requesting_api_client_id,
+          )
         "marketingActivityUpdateExternal" ->
           marketing_activity_update_external(store, identity, key, args)
         "marketingActivityUpsertExternal" ->
-          marketing_activity_upsert_external(store, identity, key, args)
+          marketing_activity_upsert_external(
+            store,
+            identity,
+            key,
+            args,
+            requesting_api_client_id,
+          )
         "marketingActivityDeleteExternal" ->
           marketing_activity_delete_external(store, identity, key, args)
         "marketingActivitiesDeleteAllExternal" ->
@@ -284,6 +307,7 @@ fn marketing_activity_create_external(
   identity: SyntheticIdentityRegistry,
   key: String,
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
@@ -307,25 +331,21 @@ fn marketing_activity_create_external(
             identity,
           )
         True ->
-          case serializers.read_value_string(input, "remoteId") {
-            Some(remote_id) ->
-              case
-                store.get_effective_marketing_activity_by_remote_id(
-                  store,
-                  remote_id,
-                )
-              {
-                Some(_) ->
-                  validation_result(
-                    key,
-                    "marketingActivityCreateExternal",
-                    [duplicate_external_activity_error()],
-                    store,
-                    identity,
-                  )
-                None ->
-                  create_external_activity_success(store, identity, key, input)
-              }
+          case
+            validate_external_activity_create_input(
+              store,
+              input,
+              requesting_api_client_id,
+            )
+          {
+            Some(error) ->
+              validation_result(
+                key,
+                "marketingActivityCreateExternal",
+                [error],
+                store,
+                identity,
+              )
             None ->
               create_external_activity_success(store, identity, key, input)
           }
@@ -443,6 +463,7 @@ fn marketing_activity_upsert_external(
   identity: SyntheticIdentityRegistry,
   key: String,
   args: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
 ) -> #(MutationFieldResult, Store, SyntheticIdentityRegistry) {
   let input =
     graphql_helpers.read_arg_object(args, "input") |> option.unwrap(dict.new())
@@ -473,7 +494,24 @@ fn marketing_activity_upsert_external(
                 identity,
               )
             True ->
-              create_external_activity_success(store, identity, key, input)
+              case
+                validate_external_activity_create_input(
+                  store,
+                  input,
+                  requesting_api_client_id,
+                )
+              {
+                Some(error) ->
+                  validation_result(
+                    key,
+                    "marketingActivityUpsertExternal",
+                    [error],
+                    store,
+                    identity,
+                  )
+                None ->
+                  create_external_activity_success(store, identity, key, input)
+              }
           }
         Some(activity) ->
           case
@@ -505,6 +543,115 @@ fn marketing_activity_upsert_external(
       }
     }
   }
+}
+
+fn validate_external_activity_create_input(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Option(UserError) {
+  case
+    validate_external_activity_channel_handle(
+      store,
+      input,
+      requesting_api_client_id,
+    )
+  {
+    Some(error) -> Some(error)
+    None ->
+      case validate_external_activity_currency(input) {
+        Some(error) -> Some(error)
+        None -> validate_external_activity_uniqueness(store, input)
+      }
+  }
+}
+
+fn validate_external_activity_channel_handle(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+  requesting_api_client_id: Option(String),
+) -> Option(UserError) {
+  case serializers.read_value_string(input, "channelHandle") {
+    None -> None
+    Some(handle) ->
+      case
+        store.has_known_marketing_channel_handle_for_app(
+          store,
+          handle,
+          requesting_api_client_id,
+        )
+      {
+        True -> None
+        False -> Some(invalid_channel_handle_input_error())
+      }
+  }
+}
+
+fn validate_external_activity_currency(
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(UserError) {
+  case budget_total_currency(input), money_input_currency(input, "adSpend") {
+    Some(budget_currency), Some(ad_spend_currency)
+      if budget_currency != ad_spend_currency
+    -> Some(activity_currency_mismatch_error())
+    _, _ -> None
+  }
+}
+
+fn validate_external_activity_uniqueness(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(UserError) {
+  case serializers.read_value_string(input, "remoteId") {
+    Some(remote_id) ->
+      case
+        store.get_effective_marketing_activity_by_remote_id(store, remote_id)
+      {
+        Some(_) -> Some(duplicate_remote_id_error())
+        None -> validate_external_activity_utm_uniqueness(store, input)
+      }
+    None -> validate_external_activity_utm_uniqueness(store, input)
+  }
+}
+
+fn validate_external_activity_utm_uniqueness(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(UserError) {
+  case
+    serializers.find_marketing_activity_by_utm(
+      store,
+      serializers.read_utm(input),
+    )
+  {
+    Some(_) -> Some(duplicate_utm_campaign_error())
+    None -> validate_external_activity_url_parameter_uniqueness(store, input)
+  }
+}
+
+fn validate_external_activity_url_parameter_uniqueness(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> Option(UserError) {
+  case serializers.read_value_string(input, "urlParameterValue") {
+    Some(value) ->
+      case find_marketing_activity_by_url_parameter_value(store, value) {
+        Some(_) -> Some(duplicate_url_parameter_value_error())
+        None -> None
+      }
+    None -> None
+  }
+}
+
+fn find_marketing_activity_by_url_parameter_value(
+  store: Store,
+  value: String,
+) -> Option(MarketingRecord) {
+  list.find(store.list_effective_marketing_activities(store), fn(activity) {
+    serializers.read_marketing_string(activity.data, "urlParameterValue")
+    == Some(value)
+  })
+  |> option.from_result
 }
 
 fn validate_external_activity_update(
@@ -1241,10 +1388,34 @@ fn immutable_hierarchy_level_error() -> UserError {
   )
 }
 
-fn duplicate_external_activity_error() -> UserError {
+fn activity_currency_mismatch_error() -> UserError {
   UserError(
     field: Some(["input"]),
-    message: "Validation failed: Remote ID has already been taken, Utm campaign has already been taken",
+    message: "Currency code is not matching between budget and ad spend",
+    code: None,
+  )
+}
+
+fn duplicate_remote_id_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Validation failed: Remote ID has already been taken",
+    code: None,
+  )
+}
+
+fn duplicate_utm_campaign_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Validation failed: Utm campaign has already been taken",
+    code: None,
+  )
+}
+
+fn duplicate_url_parameter_value_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
+    message: "Validation failed: Url parameter value has already been taken",
     code: None,
   )
 }
@@ -1276,6 +1447,14 @@ fn engagement_invalid_identifier_error() -> UserError {
 fn invalid_channel_handle_error() -> UserError {
   UserError(
     field: Some(["channelHandle"]),
+    message: "The channel handle is not recognized. Please contact your partner manager for more information.",
+    code: Some("INVALID_CHANNEL_HANDLE"),
+  )
+}
+
+fn invalid_channel_handle_input_error() -> UserError {
+  UserError(
+    field: Some(["input"]),
     message: "The channel handle is not recognized. Please contact your partner manager for more information.",
     code: Some("INVALID_CHANNEL_HANDLE"),
   )

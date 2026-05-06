@@ -1,0 +1,536 @@
+{
+  "capturedAt": "2026-05-06T01:44:28.506Z",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "query": "mutation FulfillmentCancelParityPlan($id: ID!) {\n    fulfillmentCancel(id: $id) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        trackingInfo {\n          number\n          url\n          company\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+  "variables": {
+    "id": "gid://shopify/Fulfillment/7879285309746"
+  },
+  "setup": {
+    "orderCreate": {
+      "query": "mutation FulfillmentStatePreconditionsOrderCreate($order: OrderCreateOrderInput!, $options: OrderCreateOptionsInput) {\n    orderCreate(order: $order, options: $options) {\n      order {\n        id\n        name\n        displayFulfillmentStatus\n        fulfillmentOrders(first: 5) {\n          nodes {\n            id\n            status\n            requestStatus\n            lineItems(first: 5) {\n              nodes {\n                id\n                totalQuantity\n                remainingQuantity\n                lineItem { id title }\n              }\n            }\n          }\n        }\n      }\n      userErrors { field message }\n    }\n  }",
+      "variables": {
+        "order": {
+          "email": "fulfillment-state-cancel-parity-1778031863779@example.com",
+          "note": "Fulfillment state precondition capture cancel-parity",
+          "tags": ["parity-probe", "fulfillment-state-preconditions", "cancel-parity"],
+          "test": true,
+          "lineItems": [
+            {
+              "title": "Fulfillment state item cancel-parity",
+              "quantity": 1,
+              "priceSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              },
+              "requiresShipping": true,
+              "taxable": false,
+              "sku": "FULFILLMENT-STATE-cancel-parity-1778031863779"
+            }
+          ],
+          "transactions": [
+            {
+              "kind": "SALE",
+              "status": "SUCCESS",
+              "gateway": "manual",
+              "test": true,
+              "amountSet": {
+                "shopMoney": {
+                  "amount": "10.00",
+                  "currencyCode": "CAD"
+                }
+              }
+            }
+          ]
+        },
+        "options": null
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "orderCreate": {
+            "order": {
+              "id": "gid://shopify/Order/8731439890738",
+              "name": "#1167",
+              "displayFulfillmentStatus": "UNFULFILLED",
+              "fulfillmentOrders": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentOrder/9654847471922",
+                    "status": "OPEN",
+                    "requestStatus": "UNSUBMITTED",
+                    "lineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentOrderLineItem/19454320935218",
+                          "totalQuantity": 1,
+                          "remainingQuantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19305079374130",
+                            "title": "Fulfillment state item cancel-parity"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 39,
+            "actualQueryCost": 16,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1984,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentCreate": {
+      "query": "mutation FulfillmentStatePreconditionsFulfillmentCreate($fulfillment: FulfillmentInput!, $message: String) {\n    fulfillmentCreate(fulfillment: $fulfillment, message: $message) {\n      fulfillment {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo {\n          number\n          url\n          company\n        }\n      }\n      userErrors { field message }\n    }\n  }",
+      "variables": {
+        "fulfillment": {
+          "notifyCustomer": false,
+          "trackingInfo": {
+            "number": "STATE-cancel-parity-1778031864534",
+            "url": "https://example.com/track/STATE-cancel-parity-1778031864534",
+            "company": "Hermes"
+          },
+          "lineItemsByFulfillmentOrder": [
+            {
+              "fulfillmentOrderId": "gid://shopify/FulfillmentOrder/9654847471922"
+            }
+          ]
+        },
+        "message": "Fulfillment state precondition capture cancel-parity"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "fulfillmentCreate": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/7879285309746",
+              "status": "SUCCESS",
+              "displayStatus": "FULFILLED",
+              "createdAt": "2026-05-06T01:44:24Z",
+              "updatedAt": "2026-05-06T01:44:24Z",
+              "trackingInfo": [
+                {
+                  "number": "STATE-cancel-parity-1778031864534",
+                  "url": "https://example.com/track/STATE-cancel-parity-1778031864534",
+                  "company": "Hermes"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "fulfillmentTrackingInfoUpdate": {
+      "query": "mutation FulfillmentTrackingInfoUpdateParityPlan(\n    $fulfillmentId: ID!\n    $trackingInfoInput: FulfillmentTrackingInput!\n    $notifyCustomer: Boolean\n  ) {\n    fulfillmentTrackingInfoUpdate(\n      fulfillmentId: $fulfillmentId\n      trackingInfoInput: $trackingInfoInput\n      notifyCustomer: $notifyCustomer\n    ) {\n      fulfillment {\n        id\n        status\n        trackingInfo {\n          number\n          url\n          company\n        }\n      }\n      userErrors {\n        field\n        message\n      }\n    }\n  }",
+      "variables": {
+        "fulfillmentId": "gid://shopify/Fulfillment/7879285309746",
+        "notifyCustomer": false,
+        "trackingInfoInput": {
+          "number": "CANCEL-PARITY-UPDATED-1778031860965",
+          "url": "https://example.com/track/CANCEL-PARITY-UPDATED-1778031860965",
+          "company": "Hermes"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "fulfillmentTrackingInfoUpdate": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/7879285309746",
+              "status": "SUCCESS",
+              "trackingInfo": [
+                {
+                  "number": "CANCEL-PARITY-UPDATED-1778031860965",
+                  "url": "https://example.com/track/CANCEL-PARITY-UPDATED-1778031860965",
+                  "company": "Hermes"
+                }
+              ]
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 11,
+            "actualQueryCost": 11,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    "hydrateBeforeCancel": {
+      "query": "query OrderFulfillmentLifecycleRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo {\n          number\n          url\n          company\n        }\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      fulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n              }\n            }\n          }\n        }\n      }\n    }\n  }",
+      "variables": {
+        "id": "gid://shopify/Order/8731439890738"
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/8731439890738",
+            "name": "#1167",
+            "email": "fulfillment-state-cancel-parity-1778031863779@example.com",
+            "phone": null,
+            "createdAt": "2026-05-06T01:44:23Z",
+            "updatedAt": "2026-05-06T01:44:25Z",
+            "closed": true,
+            "closedAt": "2026-05-06T01:44:25Z",
+            "cancelledAt": null,
+            "cancelReason": null,
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "FULFILLED",
+            "note": "Fulfillment state precondition capture cancel-parity",
+            "tags": ["cancel-parity", "fulfillment-state-preconditions", "parity-probe"],
+            "fulfillments": [
+              {
+                "id": "gid://shopify/Fulfillment/7879285309746",
+                "status": "SUCCESS",
+                "displayStatus": "FULFILLED",
+                "createdAt": "2026-05-06T01:44:24Z",
+                "updatedAt": "2026-05-06T01:44:25Z",
+                "trackingInfo": [
+                  {
+                    "number": "CANCEL-PARITY-UPDATED-1778031860965",
+                    "url": "https://example.com/track/CANCEL-PARITY-UPDATED-1778031860965",
+                    "company": "Hermes"
+                  }
+                ],
+                "fulfillmentLineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentLineItem/17084747579698",
+                      "quantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19305079374130",
+                        "title": "Fulfillment state item cancel-parity"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "fulfillmentOrders": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/FulfillmentOrder/9654847471922",
+                  "status": "CLOSED",
+                  "requestStatus": "UNSUBMITTED",
+                  "lineItems": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/FulfillmentOrderLineItem/19454320935218",
+                        "totalQuantity": 1,
+                        "remainingQuantity": 0,
+                        "lineItem": {
+                          "id": "gid://shopify/LineItem/19305079374130",
+                          "title": "Fulfillment state item cancel-parity"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 40,
+            "actualQueryCost": 13,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1987,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  },
+  "mutation": {
+    "response": {
+      "data": {
+        "fulfillmentCancel": {
+          "fulfillment": {
+            "id": "gid://shopify/Fulfillment/7879285309746",
+            "status": "CANCELLED",
+            "displayStatus": "CANCELED",
+            "trackingInfo": [
+              {
+                "number": "CANCEL-PARITY-UPDATED-1778031860965",
+                "url": "https://example.com/track/CANCEL-PARITY-UPDATED-1778031860965",
+                "company": "Hermes"
+              }
+            ]
+          },
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 11,
+          "actualQueryCost": 11,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1989,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "downstreamRead": {
+    "query": "query OrderFulfillmentLifecycleRead($id: ID!) {\n    order(id: $id) {\n      id\n      name\n      email\n      phone\n      createdAt\n      updatedAt\n      closed\n      closedAt\n      cancelledAt\n      cancelReason\n      displayFinancialStatus\n      displayFulfillmentStatus\n      note\n      tags\n      fulfillments(first: 5) {\n        id\n        status\n        displayStatus\n        createdAt\n        updatedAt\n        trackingInfo {\n          number\n          url\n          company\n        }\n        fulfillmentLineItems(first: 5) {\n          nodes {\n            id\n            quantity\n            lineItem {\n              id\n              title\n            }\n          }\n        }\n      }\n      fulfillmentOrders(first: 5) {\n        nodes {\n          id\n          status\n          requestStatus\n          lineItems(first: 5) {\n            nodes {\n              id\n              totalQuantity\n              remainingQuantity\n              lineItem {\n                id\n                title\n              }\n            }\n          }\n        }\n      }\n    }\n  }",
+    "variables": {
+      "id": "gid://shopify/Order/8731439890738"
+    },
+    "response": {
+      "data": {
+        "order": {
+          "id": "gid://shopify/Order/8731439890738",
+          "name": "#1167",
+          "email": "fulfillment-state-cancel-parity-1778031863779@example.com",
+          "phone": null,
+          "createdAt": "2026-05-06T01:44:23Z",
+          "updatedAt": "2026-05-06T01:44:25Z",
+          "closed": false,
+          "closedAt": null,
+          "cancelledAt": null,
+          "cancelReason": null,
+          "displayFinancialStatus": "PAID",
+          "displayFulfillmentStatus": "UNFULFILLED",
+          "note": "Fulfillment state precondition capture cancel-parity",
+          "tags": ["cancel-parity", "fulfillment-state-preconditions", "parity-probe"],
+          "fulfillments": [
+            {
+              "id": "gid://shopify/Fulfillment/7879285309746",
+              "status": "CANCELLED",
+              "displayStatus": "CANCELED",
+              "createdAt": "2026-05-06T01:44:24Z",
+              "updatedAt": "2026-05-06T01:44:25Z",
+              "trackingInfo": [
+                {
+                  "number": "CANCEL-PARITY-UPDATED-1778031860965",
+                  "url": "https://example.com/track/CANCEL-PARITY-UPDATED-1778031860965",
+                  "company": "Hermes"
+                }
+              ],
+              "fulfillmentLineItems": {
+                "nodes": [
+                  {
+                    "id": "gid://shopify/FulfillmentLineItem/17084747579698",
+                    "quantity": 1,
+                    "lineItem": {
+                      "id": "gid://shopify/LineItem/19305079374130",
+                      "title": "Fulfillment state item cancel-parity"
+                    }
+                  }
+                ]
+              }
+            }
+          ],
+          "fulfillmentOrders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/FulfillmentOrder/9654847471922",
+                "status": "CLOSED",
+                "requestStatus": "UNSUBMITTED",
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19454320935218",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19305079374130",
+                        "title": "Fulfillment state item cancel-parity"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "gid://shopify/FulfillmentOrder/9654847504690",
+                "status": "OPEN",
+                "requestStatus": "UNSUBMITTED",
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrderLineItem/19454320967986",
+                      "totalQuantity": 1,
+                      "remainingQuantity": 1,
+                      "lineItem": {
+                        "id": "gid://shopify/LineItem/19305079374130",
+                        "title": "Fulfillment state item cancel-parity"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 40,
+          "actualQueryCost": 16,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1984,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "cleanup": {
+    "query": "mutation FulfillmentStatePreconditionsCleanup(\n    $orderId: ID!\n    $notifyCustomer: Boolean\n    $reason: OrderCancelReason!\n    $refund: Boolean!\n    $restock: Boolean!\n  ) {\n    orderCancel(\n      orderId: $orderId\n      notifyCustomer: $notifyCustomer\n      reason: $reason\n      refund: $refund\n      restock: $restock\n    ) {\n      job { id done }\n      orderCancelUserErrors { field message code }\n      userErrors { field message }\n    }\n  }",
+    "variables": {
+      "orderId": "gid://shopify/Order/8731439890738",
+      "notifyCustomer": false,
+      "reason": "OTHER",
+      "refund": true,
+      "restock": true
+    },
+    "status": 200,
+    "response": {
+      "data": {
+        "orderCancel": {
+          "job": {
+            "id": "gid://shopify/Job/ed73fb88-d5c6-45dc-870e-d8ca74bebe46",
+            "done": false
+          },
+          "orderCancelUserErrors": [],
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1990,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": [
+    {
+      "operationName": "OrdersFulfillmentHydrate",
+      "variables": {
+        "id": "gid://shopify/Fulfillment/7879285309746"
+      },
+      "query": "query OrdersFulfillmentHydrate($id: ID!) { fulfillment(id: $id) { id order { id name email phone createdAt updatedAt closed closedAt cancelledAt cancelReason displayFinancialStatus displayFulfillmentStatus note tags fulfillments { id status displayStatus createdAt updatedAt trackingInfo { number url company } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "fulfillment": {
+              "id": "gid://shopify/Fulfillment/7879285309746",
+              "order": {
+                "id": "gid://shopify/Order/8731439890738",
+                "name": "#1167",
+                "email": "fulfillment-state-cancel-parity-1778031863779@example.com",
+                "phone": null,
+                "createdAt": "2026-05-06T01:44:23Z",
+                "updatedAt": "2026-05-06T01:44:25Z",
+                "closed": true,
+                "closedAt": "2026-05-06T01:44:25Z",
+                "cancelledAt": null,
+                "cancelReason": null,
+                "displayFinancialStatus": "PAID",
+                "displayFulfillmentStatus": "FULFILLED",
+                "note": "Fulfillment state precondition capture cancel-parity",
+                "tags": ["cancel-parity", "fulfillment-state-preconditions", "parity-probe"],
+                "fulfillments": [
+                  {
+                    "id": "gid://shopify/Fulfillment/7879285309746",
+                    "status": "SUCCESS",
+                    "displayStatus": "FULFILLED",
+                    "createdAt": "2026-05-06T01:44:24Z",
+                    "updatedAt": "2026-05-06T01:44:25Z",
+                    "trackingInfo": [
+                      {
+                        "number": "CANCEL-PARITY-UPDATED-1778031860965",
+                        "url": "https://example.com/track/CANCEL-PARITY-UPDATED-1778031860965",
+                        "company": "Hermes"
+                      }
+                    ],
+                    "fulfillmentLineItems": {
+                      "nodes": [
+                        {
+                          "id": "gid://shopify/FulfillmentLineItem/17084747579698",
+                          "quantity": 1,
+                          "lineItem": {
+                            "id": "gid://shopify/LineItem/19305079374130",
+                            "title": "Fulfillment state item cancel-parity"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "fulfillmentOrders": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/FulfillmentOrder/9654847471922",
+                      "status": "CLOSED",
+                      "requestStatus": "UNSUBMITTED",
+                      "lineItems": {
+                        "nodes": [
+                          {
+                            "id": "gid://shopify/FulfillmentOrderLineItem/19454320935218",
+                            "totalQuantity": 1,
+                            "remainingQuantity": 0,
+                            "lineItem": {
+                              "id": "gid://shopify/LineItem/19305079374130",
+                              "title": "Fulfillment state item cancel-parity"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

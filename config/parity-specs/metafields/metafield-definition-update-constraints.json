@@ -1,0 +1,119 @@
+{
+  "scenarioId": "metafield-definition-update-constraints",
+  "operationNames": [
+    "metafieldDefinitionCreate",
+    "metafieldDefinitionUpdate",
+    "metafieldDefinitionPin",
+    "metafieldDefinition"
+  ],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "validation-errors", "read-after-write"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metafields/metafield-definition-update-constraints.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metafields/metafield-definition-update-constraints.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-definition-starts-unconstrained",
+        "capturePath": "$.primary.response.data.createDefinition",
+        "proxyPath": "$.data.createDefinition",
+        "expectedDifferences": [
+          {
+            "path": "$.createdDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy stages a deterministic synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "constraints-updates-set-values",
+        "capturePath": "$.primary.response.data.setConstraints",
+        "proxyPath": "$.data.setConstraints",
+        "expectedDifferences": [
+          {
+            "path": "$.updatedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy updates the staged synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "pin-constrained-user-error",
+        "capturePath": "$.primary.response.data.pinConstrained",
+        "proxyPath": "$.data.pinConstrained"
+      },
+      {
+        "name": "constraints-updates-delete-and-create-values",
+        "capturePath": "$.primary.response.data.updateConstraints",
+        "proxyPath": "$.data.updateConstraints",
+        "expectedDifferences": [
+          {
+            "path": "$.updatedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy updates the staged synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "constraints-updates-unconstrain",
+        "capturePath": "$.primary.response.data.unconstrain",
+        "proxyPath": "$.data.unconstrain",
+        "expectedDifferences": [
+          {
+            "path": "$.updatedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy updates the staged synthetic definition ID while Shopify returned the live-store definition ID."
+          }
+        ]
+      },
+      {
+        "name": "pin-after-unconstrain-succeeds",
+        "capturePath": "$.primary.response.data.pinUnconstrained",
+        "proxyPath": "$.data.pinUnconstrained",
+        "expectedDifferences": [
+          {
+            "path": "$.pinnedDefinition.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy pins the staged synthetic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.pinnedDefinition.pinnedPosition",
+            "matcher": "any-number",
+            "reason": "The live shop already had pinned product definitions, while the local parity harness starts from the scenario fixture state only."
+          }
+        ]
+      },
+      {
+        "name": "read-after-unconstrain-and-pin",
+        "capturePath": "$.readAfter.response.data.definition",
+        "proxyPath": "$.data.definition",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metafields/metafield-definition-update-constraints-read.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.variables"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.id",
+            "matcher": "shopify-gid:MetafieldDefinition",
+            "reason": "The proxy reads back its staged synthetic definition ID while Shopify returned the live-store definition ID."
+          },
+          {
+            "path": "$.pinnedPosition",
+            "matcher": "any-number",
+            "reason": "The live shop already had pinned product definitions, while the local parity harness starts from the scenario fixture state only."
+          }
+        ]
+      }
+    ]
+  },
+  "notes": "Captured 2026-04 Shopify behavior for public `constraintsUpdates` on `metafieldDefinitionUpdate`: setting constraint values, enforcing the constrained-definition pin guard, deleting and creating values, clearing constraints with `key: null, values: []`, and pinning after unconstrain. Live 2026-04 introspection rejects legacy `constraints` and `constraintsSet` on `MetafieldDefinitionUpdateInput`, so those internal legacy branches are covered by runtime tests rather than this public Admin API capture."
+}
