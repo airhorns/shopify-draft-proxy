@@ -44,6 +44,20 @@ fn proxy_with_comment(status: String) -> DraftProxy {
   proxy_state.DraftProxy(..proxy, store: seeded_store)
 }
 
+fn seed_staff_member(proxy: DraftProxy, staff_member_id: String) -> DraftProxy {
+  let record =
+    types.AdminPlatformGenericNodeRecord(
+      id: staff_member_id,
+      typename: "StaffMember",
+      data: types.CapturedObject([
+        #("id", types.CapturedString(staff_member_id)),
+      ]),
+    )
+  let seeded_store =
+    store.upsert_base_admin_platform_generic_nodes(proxy.store, [record])
+  proxy_state.DraftProxy(..proxy, store: seeded_store)
+}
+
 fn graphql_request(query: String) -> Request {
   Request(
     method: "POST",
@@ -68,6 +82,25 @@ fn run_graphql(proxy: DraftProxy, query: String) -> #(String, DraftProxy) {
     draft_proxy.process_request(proxy, graphql_request(query))
   assert status == 200
   #(json.to_string(body), proxy)
+}
+
+fn proxy_with_basic_article() -> DraftProxy {
+  let #(blog_body, proxy) =
+    run_graphql(
+      proxy(),
+      "mutation { blogCreate(blog: { title: \"Article Validation Blog\" }) { blog { id title } userErrors { field message code } } }",
+    )
+  assert blog_body
+    == "{\"data\":{\"blogCreate\":{\"blog\":{\"id\":\"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation Blog\"},\"userErrors\":[]}}}"
+
+  let #(article_body, proxy) =
+    run_graphql(
+      proxy,
+      "mutation { articleCreate(article: { title: \"Article Validation\", body: \"<p>Body</p>\", blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", author: { name: \"Author Name\" } }) { article { id title author { name } image } userErrors { field message code } } }",
+    )
+  assert article_body
+    == "{\"data\":{\"articleCreate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation\",\"author\":{\"name\":\"Author Name\"},\"image\":null},\"userErrors\":[]}}}"
+  proxy
 }
 
 pub fn comment_moderation_uses_core_status_enum_values_test() {
@@ -883,6 +916,56 @@ pub fn article_create_with_blog_id_and_author_name_still_stages_test() {
   assert article_log.status == store_types.Staged
   assert article_log.staged_resource_ids
     == ["gid://shopify/Article/3?shopify-draft-proxy=synthetic"]
+}
+
+pub fn article_update_validates_author_blog_and_image_before_staging_test() {
+  let proxy = proxy_with_basic_article()
+  let ambiguous_author =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { author: { name: \"Alice\" }, authorV2: { userId: \"gid://shopify/StaffMember/1\" } }) { article { id title } userErrors { field message code } } }"
+  let #(ambiguous_author_body, proxy) = run_graphql(proxy, ambiguous_author)
+  assert ambiguous_author_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"author\"],\"message\":\"You must specify either an author name or an author user, not both.\",\"code\":\"AMBIGUOUS_AUTHOR\"},{\"field\":[\"article\",\"authorV2\"],\"message\":\"You must specify either an author name or an author user, not both.\",\"code\":\"AMBIGUOUS_AUTHOR\"}]}}}"
+
+  let unknown_author =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { authorV2: { userId: \"gid://shopify/StaffMember/9999\" } }) { article { id title } userErrors { field message code } } }"
+  let #(unknown_author_body, proxy) = run_graphql(proxy, unknown_author)
+  assert unknown_author_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"authorV2\",\"userId\"],\"message\":\"Author must exist\",\"code\":\"NOT_FOUND\"}]}}}"
+
+  let ambiguous_blog =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { blogId: \"gid://shopify/Blog/1?shopify-draft-proxy=synthetic\", blog: { title: \"Inline Blog\" } }) { article { id title } userErrors { field message code } } }"
+  let #(ambiguous_blog_body, proxy) = run_graphql(proxy, ambiguous_blog)
+  assert ambiguous_blog_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"blogId\"],\"message\":\"You must specify either a blogId or a blog, not both.\",\"code\":\"AMBIGUOUS_BLOG\"},{\"field\":[\"article\",\"blog\"],\"message\":\"You must specify either a blogId or a blog, not both.\",\"code\":\"AMBIGUOUS_BLOG\"}]}}}"
+
+  let missing_image_url =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { image: { altText: \"Alt only\" } }) { article { id title image } userErrors { field message code } } }"
+  let #(missing_image_url_body, proxy) = run_graphql(proxy, missing_image_url)
+  assert missing_image_url_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":null,\"userErrors\":[{\"field\":[\"article\",\"image\",\"url\"],\"message\":\"Image URL can't be blank\",\"code\":\"BLANK\"}]}}}"
+
+  let #(article_body, _) =
+    run_graphql(
+      proxy,
+      "query { article(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\") { id title author { name } image } }",
+    )
+  assert article_body
+    == "{\"data\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation\",\"author\":{\"name\":\"Author Name\"},\"image\":null}}}"
+}
+
+pub fn article_update_accepts_existing_staff_author_user_test() {
+  let staff_id = "gid://shopify/StaffMember/1"
+  let proxy = proxy_with_basic_article() |> seed_staff_member(staff_id)
+  let update =
+    "mutation { articleUpdate(id: \"gid://shopify/Article/3?shopify-draft-proxy=synthetic\", article: { title: \"Article Validation Updated\", authorV2: { userId: \""
+    <> staff_id
+    <> "\" } }) { article { id title } userErrors { field message code } } }"
+  let #(update_body, proxy) = run_graphql(proxy, update)
+  assert update_body
+    == "{\"data\":{\"articleUpdate\":{\"article\":{\"id\":\"gid://shopify/Article/3?shopify-draft-proxy=synthetic\",\"title\":\"Article Validation Updated\"},\"userErrors\":[]}}}"
+  assert store.list_effective_online_store_content(proxy.store, "article")
+    |> list.length
+    == 1
 }
 
 pub fn theme_publish_demotes_previous_main_and_filters_main_reads_test() {

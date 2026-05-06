@@ -642,58 +642,84 @@ fn update_content(
       case store.get_effective_online_store_content_by_id(outcome.store, id) {
         Some(existing) -> {
           case
-            serializers.resolve_content_handle(
+            article_update_validation_errors(
               outcome.store,
               kind,
               input,
-              existing.parent_id,
-              Some(existing),
+              existing,
             )
           {
-            Error(error) ->
-              serializers.content_validation_error_payload(
+            [_, ..] as errors ->
+              serializers.content_validation_errors_payload(
                 outcome,
                 field,
                 fragments,
                 root,
                 payload_key,
-                error,
+                errors,
               )
-            Ok(handle) -> {
-              let #(record, identity) =
-                serializers.make_content(
-                  outcome.identity,
+            [] ->
+              case
+                serializers.resolve_content_handle(
+                  outcome.store,
                   kind,
                   input,
                   existing.parent_id,
                   Some(existing),
-                  handle,
                 )
-              let #(_, store) =
-                store.upsert_staged_online_store_content(outcome.store, record)
-              let payload =
-                serializers.mutation_payload(
-                  field,
-                  fragments,
-                  payload_key,
-                  serializers.project_content_payload(
-                    store,
-                    record,
+              {
+                Error(error) ->
+                  serializers.content_validation_error_payload(
+                    outcome,
                     field,
                     fragments,
-                    variables,
+                    root,
                     payload_key,
-                  ),
-                  [],
-                )
-              #(
-                key,
-                payload,
-                serializers.mutation_outcome(outcome, store, identity, root, [
-                  id,
-                ]),
-              )
-            }
+                    error,
+                  )
+                Ok(handle) -> {
+                  let #(record, identity) =
+                    serializers.make_content(
+                      outcome.identity,
+                      kind,
+                      input,
+                      existing.parent_id,
+                      Some(existing),
+                      handle,
+                    )
+                  let #(_, store) =
+                    store.upsert_staged_online_store_content(
+                      outcome.store,
+                      record,
+                    )
+                  let payload =
+                    serializers.mutation_payload(
+                      field,
+                      fragments,
+                      payload_key,
+                      serializers.project_content_payload(
+                        store,
+                        record,
+                        field,
+                        fragments,
+                        variables,
+                        payload_key,
+                      ),
+                      [],
+                    )
+                  #(
+                    key,
+                    payload,
+                    serializers.mutation_outcome(
+                      outcome,
+                      store,
+                      identity,
+                      root,
+                      [id],
+                    ),
+                  )
+                }
+              }
           }
         }
         None ->
@@ -713,6 +739,130 @@ fn update_content(
         payload_key,
         "Content does not exist",
       )
+  }
+}
+
+fn article_update_validation_errors(
+  store: Store,
+  kind: String,
+  input: Dict(String, root_field.ResolvedValue),
+  existing: OnlineStoreContentRecord,
+) -> List(graphql_helpers.SourceValue) {
+  case kind {
+    "article" ->
+      list.append(
+        article_update_author_errors(store, input),
+        list.append(
+          article_update_blog_errors(input),
+          article_update_image_errors(input, existing),
+        ),
+      )
+    _ -> []
+  }
+}
+
+fn article_update_author_errors(
+  store: Store,
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(graphql_helpers.SourceValue) {
+  let has_author = case dict.get(input, "author") {
+    Ok(root_field.ObjectVal(_)) -> True
+    _ -> False
+  }
+  let author_v2 = graphql_helpers.read_arg_object(input, "authorV2")
+  case has_author, author_v2 {
+    True, Some(_) -> [
+      serializers.user_error_with_code(
+        ["article", "author"],
+        "You must specify either an author name or an author user, not both.",
+        "AMBIGUOUS_AUTHOR",
+      ),
+      serializers.user_error_with_code(
+        ["article", "authorV2"],
+        "You must specify either an author name or an author user, not both.",
+        "AMBIGUOUS_AUTHOR",
+      ),
+    ]
+    _, Some(author) ->
+      case serializers.input_non_blank_string(author, "userId") {
+        Some(user_id) ->
+          case staff_member_exists(store, user_id) {
+            True -> []
+            False -> [
+              serializers.user_error_with_code(
+                ["article", "authorV2", "userId"],
+                "Author must exist",
+                "NOT_FOUND",
+              ),
+            ]
+          }
+        None -> []
+      }
+    _, _ -> []
+  }
+}
+
+fn staff_member_exists(store: Store, staff_id: String) -> Bool {
+  case store.get_effective_admin_platform_generic_node_by_id(store, staff_id) {
+    Some(record) -> record.typename == "StaffMember"
+    None -> False
+  }
+}
+
+fn article_update_blog_errors(
+  input: Dict(String, root_field.ResolvedValue),
+) -> List(graphql_helpers.SourceValue) {
+  let has_blog_id = option.is_some(serializers.input_string(input, "blogId"))
+  let has_inline_blog =
+    option.is_some(graphql_helpers.read_arg_object(input, "blog"))
+  case has_blog_id, has_inline_blog {
+    True, True -> [
+      serializers.user_error_with_code(
+        ["article", "blogId"],
+        "You must specify either a blogId or a blog, not both.",
+        "AMBIGUOUS_BLOG",
+      ),
+      serializers.user_error_with_code(
+        ["article", "blog"],
+        "You must specify either a blogId or a blog, not both.",
+        "AMBIGUOUS_BLOG",
+      ),
+    ]
+    _, _ -> []
+  }
+}
+
+fn article_update_image_errors(
+  input: Dict(String, root_field.ResolvedValue),
+  existing: OnlineStoreContentRecord,
+) -> List(graphql_helpers.SourceValue) {
+  case graphql_helpers.read_arg_object(input, "image") {
+    Some(image) -> {
+      let has_alt = option.is_some(serializers.input_string(image, "altText"))
+      let has_url =
+        option.is_some(serializers.input_non_blank_string(image, "url"))
+      let existing_has_image = case
+        serializers.source_field(
+          serializers.captured_to_source(existing.data),
+          "image",
+          SrcNull,
+        )
+      {
+        SrcNull -> False
+        _ -> True
+      }
+      case has_alt, has_url, existing_has_image {
+        True, False, False -> [
+          serializers.user_error_with_code(
+            ["article", "image", "url"],
+            "Image URL can't be blank",
+            "BLANK",
+          ),
+        ]
+        _, _, _ -> []
+      }
+    }
+    None -> []
   }
 }
 
