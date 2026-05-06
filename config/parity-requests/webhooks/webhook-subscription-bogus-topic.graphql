@@ -1,0 +1,15 @@
+mutation WebhookSubscriptionBogusTopic {
+  webhookSubscriptionCreate(
+    topic: NOT_A_REAL_TOPIC
+    webhookSubscription: { uri: "https://example.com/webhook-topic-enum-bogus" }
+  ) {
+    webhookSubscription {
+      id
+      topic
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

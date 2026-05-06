@@ -1,0 +1,20 @@
+mutation SellingPlanGroupCreateInputValidation(
+  $input: SellingPlanGroupInput!
+  $resources: SellingPlanGroupResourceInput
+) {
+  sellingPlanGroupCreate(input: $input, resources: $resources) {
+    sellingPlanGroup {
+      id
+      sellingPlans(first: 5) {
+        nodes {
+          id
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}

@@ -37,9 +37,10 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
 import shopify_draft_proxy/proxy/orders/common.{
   captured_json_source, captured_object_field, captured_string_field,
   draft_order_gid_tail, field_arguments, inferred_nullable_user_error,
-  inferred_user_error, read_bool, read_object, read_string, read_string_arg,
+  inferred_user_error, order_fulfillment_orders, order_fulfillments,
+  order_transactions, read_bool, read_object, read_string, read_string_arg,
   read_string_list, replace_captured_object_fields, selection_children,
-  serialize_job, serialize_nullable_user_error, serialize_user_error,
+  serialize_job, serialize_nullable_user_error, serialize_user_error, user_error,
   user_error_source,
 }
 import shopify_draft_proxy/proxy/orders/draft_order_builders.{
@@ -54,7 +55,9 @@ import shopify_draft_proxy/proxy/orders/hydration.{
   maybe_hydrate_draft_order_by_id, maybe_hydrate_draft_order_customer_from_input,
   maybe_hydrate_draft_order_variant_catalog_from_input,
 }
-import shopify_draft_proxy/proxy/orders/serializers.{serialize_draft_order_node}
+import shopify_draft_proxy/proxy/orders/serializers.{
+  order_returns, serialize_draft_order_node,
+}
 import shopify_draft_proxy/proxy/passthrough
 import shopify_draft_proxy/proxy/proxy_state.{
   type DraftProxy, type Request, type Response, LiveHybrid, Response,
@@ -142,7 +145,7 @@ pub fn handle_draft_order_complete(
                       read_bool(args, "paymentPending", False),
                     )
                   let next_store =
-                    store.stage_draft_order(
+                    stage_completed_draft_order_graph(
                       hydrated_store,
                       completed_draft_order,
                     )
@@ -191,6 +194,56 @@ pub fn handle_draft_order_complete(
         None -> #(key, json.null(), store, identity, [], [], [])
       }
     }
+  }
+}
+
+fn stage_completed_draft_order_graph(
+  store_in: Store,
+  completed_draft_order: DraftOrderRecord,
+) -> Store {
+  let draft_store = store.stage_draft_order(store_in, completed_draft_order)
+  case captured_object_field(completed_draft_order.data, "order") {
+    Some(order_data) ->
+      case captured_string_field(order_data, "id") {
+        Some(order_id) -> {
+          let order = OrderRecord(id: order_id, cursor: None, data: order_data)
+          store.stage_order(draft_store, order)
+          |> stage_completed_order_customer_summary(order)
+        }
+        None -> draft_store
+      }
+    None -> draft_store
+  }
+}
+
+fn stage_completed_order_customer_summary(
+  store_in: Store,
+  order: OrderRecord,
+) -> Store {
+  case completed_order_customer_id(order.data) {
+    Some(customer_id) ->
+      store.stage_customer_order_summary(
+        store_in,
+        CustomerOrderSummaryRecord(
+          id: order.id,
+          customer_id: Some(customer_id),
+          cursor: None,
+          name: captured_string_field(order.data, "name"),
+          email: captured_string_field(order.data, "email"),
+          created_at: captured_string_field(order.data, "createdAt"),
+          current_total_price: None,
+        ),
+      )
+    None -> store_in
+  }
+}
+
+fn completed_order_customer_id(
+  order_data: CapturedJsonValue,
+) -> Option(String) {
+  case captured_object_field(order_data, "customer") {
+    Some(customer) -> captured_string_field(customer, "id")
+    None -> None
   }
 }
 
@@ -313,25 +366,44 @@ pub fn handle_order_delete_mutation(
   case order_id {
     Some(order_id) ->
       case store.get_order_by_id(store, order_id) {
-        Some(_) -> {
-          let next_store = store.delete_staged_order(store, order_id)
-          let payload =
-            serialize_order_delete_payload(field, Some(order_id), [])
-          let draft =
-            single_root_log_draft(
-              "orderDelete",
-              [order_id],
-              store_types.Staged,
-              "orders",
-              "stage-locally",
-              Some("Locally staged orderDelete in shopify-draft-proxy."),
-            )
-          #(key, payload, next_store, [order_id], [draft])
+        Some(order) -> {
+          case order_is_deletable(order) {
+            True -> {
+              let next_store = cascade_order_delete(store, order_id)
+              let payload =
+                serialize_order_delete_payload(field, Some(order_id), [])
+              let draft =
+                single_root_log_draft(
+                  "orderDelete",
+                  [order_id],
+                  store_types.Staged,
+                  "orders",
+                  "stage-locally",
+                  Some("Locally staged orderDelete in shopify-draft-proxy."),
+                )
+              #(key, payload, next_store, [order_id], [draft])
+            }
+            False -> {
+              let payload =
+                serialize_order_delete_payload(field, None, [
+                  user_error(
+                    ["orderId"],
+                    "order_cannot_be_deleted",
+                    Some(user_error_codes.invalid),
+                  ),
+                ])
+              #(key, payload, store, [], [])
+            }
+          }
         }
         None -> {
           let payload =
             serialize_order_delete_payload(field, None, [
-              inferred_user_error(["orderId"], "Order does not exist"),
+              user_error(
+                ["orderId"],
+                "Order does not exist",
+                Some(user_error_codes.not_found),
+              ),
             ])
           #(key, payload, store, [], [])
         }
@@ -339,10 +411,86 @@ pub fn handle_order_delete_mutation(
     None -> {
       let payload =
         serialize_order_delete_payload(field, None, [
-          inferred_user_error(["orderId"], "Order does not exist"),
+          user_error(
+            ["orderId"],
+            "Order does not exist",
+            Some(user_error_codes.not_found),
+          ),
         ])
       #(key, payload, store, [], [])
     }
+  }
+}
+
+fn cascade_order_delete(store: Store, order_id: String) -> Store {
+  let without_order = store.delete_staged_order(store, order_id)
+  let without_payment_terms = case
+    store.get_effective_payment_terms_by_owner_id(without_order, order_id)
+  {
+    Some(payment_terms) ->
+      store.delete_staged_payment_terms(without_order, payment_terms.id)
+    None -> without_order
+  }
+  store.unassociate_abandoned_checkouts_from_order(
+    without_payment_terms,
+    order_id,
+  )
+}
+
+fn order_is_deletable(order: OrderRecord) -> Bool {
+  !order_has_financial_state(order)
+  && !order_has_fulfillment_state(order)
+  && !order_has_open_returns(order)
+  && !order_has_open_fulfillment_orders(order)
+}
+
+fn order_has_financial_state(order: OrderRecord) -> Bool {
+  case captured_string_field(order.data, "displayFinancialStatus") {
+    Some("PENDING") | None -> {
+      !list.is_empty(order_transactions(order))
+      || !list.is_empty(captured_list_field(order.data, "refunds"))
+    }
+    Some(_) -> True
+  }
+}
+
+fn order_has_fulfillment_state(order: OrderRecord) -> Bool {
+  case captured_string_field(order.data, "displayFulfillmentStatus") {
+    Some("UNFULFILLED") | None -> !list.is_empty(order_fulfillments(order.data))
+    Some(_) -> True
+  }
+}
+
+fn order_has_open_returns(order: OrderRecord) -> Bool {
+  order_returns(order.data)
+  |> list.any(fn(order_return) {
+    case captured_string_field(order_return, "status") {
+      Some("CLOSED")
+      | Some("CANCELED")
+      | Some("CANCELLED")
+      | Some("DECLINED") -> False
+      _ -> True
+    }
+  })
+}
+
+fn order_has_open_fulfillment_orders(order: OrderRecord) -> Bool {
+  order_fulfillment_orders(order.data)
+  |> list.any(fn(fulfillment_order) {
+    case captured_string_field(fulfillment_order, "status") {
+      Some("CLOSED") | Some("CANCELLED") -> False
+      _ -> True
+    }
+  })
+}
+
+fn captured_list_field(
+  value: CapturedJsonValue,
+  name: String,
+) -> List(CapturedJsonValue) {
+  case captured_object_field(value, name) {
+    Some(CapturedArray(values)) -> values
+    _ -> []
   }
 }
 

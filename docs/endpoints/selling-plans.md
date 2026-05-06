@@ -33,6 +33,8 @@ Generic Admin `node(id:)` / `nodes(ids:)` dispatch resolves nested `SellingPlan`
 
 `sellingPlanGroupCreate` creates a synthetic `SellingPlanGroup` and synthetic nested `SellingPlan` IDs. `resources.productIds` and `resources.productVariantIds` seed the initial memberships. `sellingPlanGroupUpdate` updates group scalar fields, stages nested selling-plan create/update/delete inputs, and returns `deletedSellingPlanIds` for locally known removed plans. Delete marks the group absent from subsequent detail, catalog, product, and variant reads.
 
+Create/update inputs reject Shopify-captured selling-plan guardrails before staging: group `options` lists are limited to three entries, group and nested plan `position` values must fit signed int32, nested plan `options` lists are limited to three entries, nested plan `pricingPolicies` lists are limited to two entries, and every `sellingPlansToUpdate` entry must include an `id`. Billing and delivery policy kinds must remain compatible; create requests with recurring billing plus fixed delivery return `BILLING_AND_DELIVERY_POLICY_TYPES_MUST_BE_THE_SAME`, while update requests that replace only the delivery policy kind on an existing recurring plan return Shopify's `ONLY_ONE_OF_FIXED_OR_RECURRING_DELIVERY` guardrail.
+
 Product membership and product-variant membership are tracked independently, matching the captured Shopify behavior where creating a group with `resources.productIds` applies to the product but does not automatically make `appliesToProductVariant` or `ProductVariant.sellingPlanGroupsCount` true for the product's default variant. `ProductVariant.sellingPlanGroups` still includes product-level group memberships visible through the variant, and direct product-variant add/remove mutations update the variant count and `appliesToProductVariant` fields.
 
 HAR-299 also supports Shopify's product-centric membership roots. `productJoinSellingPlanGroups` / `productLeaveSellingPlanGroups` mutate the selected groups' `productIds` membership lists and return the selected `Product` payload. `productVariantJoinSellingPlanGroups` / `productVariantLeaveSellingPlanGroups` mutate `productVariantIds` and return the selected `ProductVariant` payload. These roots share the same normalized membership model as the group-centric add/remove mutations, so downstream product, variant, and selling-plan group reads stay consistent without runtime Shopify writes.
@@ -47,7 +49,8 @@ The checked-in 2026-04 captures cover lifecycle, group-centric association updat
 updates, variant-centric association updates, unknown-group validation branches, and downstream read-after-write
 behavior for staged products and variants. Broader Shopify
 validation semantics are not yet exhaustively modeled: invalid nested selling-plan policy combinations, app ownership
-or permission failures, and `sellingPlanGroups(query:, sortKey:, reverse:)` filtering/sorting beyond the staged
+or permission failures outside the captured option/pricing-policy/position/policy-kind guardrails, and
+`sellingPlanGroups(query:, sortKey:, reverse:)` filtering/sorting beyond the staged
 catalog shape should be treated as unsupported fidelity gaps until live conformance evidence is added. Do not expand
 the supported contract for those branches without a capture or a focused runtime test that models the downstream
 behavior.
@@ -58,10 +61,14 @@ behavior.
 
 `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/products/selling-plan-group-lifecycle.json` captures the live 2026-04 lifecycle against a disposable product and selling-plan group, including cleanup. The capture records create/update/delete payloads, product and variant membership add/remove payloads, unknown-id userErrors, and downstream read-after-write effects.
 
+`fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/selling-plan-group-input-validation.json` captures live 2025-01 create/update input validation branches for group option/position limits, nested plan option/pricing-policy/position limits, required update IDs, and policy kind guardrails. The parity replay creates one local seed group through the primary request, then replays strict invalid create/update targets without pre-seeding state.
+
 Validation entry points:
 
 - `corepack pnpm conformance:capture -- --run selling-plan-groups`
+- `corepack pnpm conformance:capture -- --run selling-plan-group-input-validation`
 - `config/parity-specs/admin-platform/admin-platform-selling-plan-node-reads.json`
+- `config/parity-specs/products/sellingPlanGroupCreate-input-validation.json`
 - `config/parity-specs/products/selling-plan-product-variant-associations.json`
 - `config/parity-specs/products/selling-plan-group-lifecycle.json`
 - `corepack pnpm conformance:check`

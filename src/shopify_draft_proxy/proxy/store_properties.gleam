@@ -84,6 +84,13 @@ pub fn process_mutation(
   )
 }
 
+pub fn hydrate_shop_baseline_if_needed(
+  store: Store,
+  upstream: UpstreamContext,
+) -> Store {
+  mutations.hydrate_shop_baseline_if_needed(store, upstream)
+}
+
 pub fn serialize_location_node_by_id(
   store: Store,
   id: String,

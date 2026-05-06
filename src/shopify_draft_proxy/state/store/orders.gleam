@@ -418,6 +418,27 @@ pub fn list_effective_abandonments(store: Store) -> List(AbandonmentRecord) {
   |> list.sort(by: compare_abandonments)
 }
 
+pub fn unassociate_abandoned_checkouts_from_order(
+  store: Store,
+  order_id: String,
+) -> Store {
+  list_effective_abandoned_checkouts(store)
+  |> list.filter(fn(record) {
+    abandoned_checkout_references_order(record.data, order_id)
+  })
+  |> list.fold(store, fn(acc, record) {
+    stage_abandoned_checkout(
+      acc,
+      types_mod.AbandonedCheckoutRecord(
+        ..record,
+        data: record.data
+          |> captured_object_upsert("orderId", types_mod.CapturedNull)
+          |> captured_object_upsert("order", types_mod.CapturedNull),
+      ),
+    )
+  })
+}
+
 pub fn stage_abandonment_delivery_activity(
   store: Store,
   abandonment_id: String,
@@ -462,6 +483,51 @@ pub fn stage_abandonment_delivery_activity(
         Some(updated),
       )
     }
+  }
+}
+
+fn stage_abandoned_checkout(
+  store: Store,
+  record: AbandonedCheckoutRecord,
+) -> Store {
+  let staged = store.staged_state
+  Store(
+    ..store,
+    staged_state: StagedState(
+      ..staged,
+      abandoned_checkouts: dict.insert(
+        staged.abandoned_checkouts,
+        record.id,
+        record,
+      ),
+      abandoned_checkout_order: append_unique_id(
+        staged.abandoned_checkout_order,
+        record.id,
+      ),
+    ),
+  )
+}
+
+fn abandoned_checkout_references_order(
+  data: types_mod.CapturedJsonValue,
+  order_id: String,
+) -> Bool {
+  captured_string_field(data, "orderId") == order_id
+  || captured_nested_order_id(data, "order") == order_id
+}
+
+fn captured_nested_order_id(
+  value: types_mod.CapturedJsonValue,
+  key: String,
+) -> String {
+  case value {
+    types_mod.CapturedObject(fields) -> {
+      case list.find(fields, fn(pair) { pair.0 == key }) {
+        Ok(#(_, nested)) -> captured_string_field(nested, "id")
+        _ -> ""
+      }
+    }
+    _ -> ""
   }
 }
 

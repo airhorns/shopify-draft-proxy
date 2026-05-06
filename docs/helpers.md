@@ -22,6 +22,15 @@ Shared helper for request-owned app identity.
 
 Use this module when local Shopify behavior depends on the requesting app's API client ID, such as `$app:` namespace resolution or app-scoped callback validation. Do not hardcode a conformance app ID in domain code.
 
+## `src/shopify_draft_proxy/proxy/admin_api_versions.gleam`
+
+Shared helper for versioned Shopify Admin API route parsing.
+
+- extracts year/month API versions from Shopify-like `/admin/api/<version>/graphql.json` request paths
+- compares a request path version against a minimum Admin API version
+
+Use this module when local behavior needs to follow an API-version-specific Shopify contract. Do not add resource-local request-path parsers for Admin API version checks.
+
 ## `src/shopify_draft_proxy/proxy/metafields.gleam`
 
 Shared helpers for owner-scoped metafield serializers and staging input handling.

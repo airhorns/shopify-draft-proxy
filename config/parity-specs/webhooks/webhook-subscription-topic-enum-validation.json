@@ -1,0 +1,77 @@
+{
+  "scenarioId": "webhook-subscription-topic-enum-validation",
+  "operationNames": ["webhookSubscriptionCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["graphql-validation-parity", "payload-shape"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/webhooks/webhook-subscription-topic-enum-validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/webhooks_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/webhooks/webhook-subscription-bogus-topic.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Strict parity for Shopify 2026-04 WebhookSubscriptionTopic enum coercion. Unknown inline topics, hidden inline topics such as CUSTOMER_INTERACTIONS, and unknown variable values fail before resolver side effects; the valid SHOP_UPDATE control still stages locally without upstream writes during proxy replay.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "create-bogus-topic-rejected",
+        "capturePath": "$.validation.createBogusTopicRejected.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "create-hidden-topic-rejected",
+        "capturePath": "$.validation.createHiddenTopicRejected.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhook-subscription-hidden-topic.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-bogus-variable-topic-rejected",
+        "capturePath": "$.validation.createBogusVariableTopicRejected.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.validation.createBogusVariableTopicRejected.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "create-known-topic-accepted",
+        "capturePath": "$.validation.createKnownTopicAccepted.response.payload.data.webhookSubscriptionCreate",
+        "proxyPath": "$.data.webhookSubscriptionCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/webhooks/webhookSubscriptionCreate-parity.graphql",
+          "variablesCapturePath": "$.validation.createKnownTopicAccepted.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.webhookSubscription.id",
+            "matcher": "shopify-gid:WebhookSubscription",
+            "reason": "The proxy creates a stable synthetic webhook subscription ID instead of Shopify's live ID."
+          },
+          {
+            "path": "$.webhookSubscription.createdAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          },
+          {
+            "path": "$.webhookSubscription.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The proxy uses its deterministic synthetic clock for locally staged webhook subscriptions."
+          }
+        ]
+      }
+    ]
+  }
+}

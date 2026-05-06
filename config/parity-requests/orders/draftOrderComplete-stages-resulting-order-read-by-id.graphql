@@ -1,0 +1,23 @@
+query DraftOrderCompleteStagesResultingOrderReadById($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    sourceName
+    displayFinancialStatus
+    displayFulfillmentStatus
+    currentTotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    lineItems {
+      nodes {
+        id
+        title
+        quantity
+        sku
+      }
+    }
+  }
+}
