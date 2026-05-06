@@ -1104,6 +1104,208 @@ pub fn b2b_location_create_rejects_name_and_note_validation_test() {
   assert string.contains(location_json, "\"code\":\"TOO_LONG\"")
 }
 
+pub fn b2b_location_create_rejects_invalid_address_inputs_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Address Validation\" }, companyLocation: { name: \"HQ\", shippingAddress: { address1: \"1 Pine\", countryCode: US, zoneCode: \"CA\", zip: \"94105\" } } }) { company { id } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let invalid_cases = [
+    #(
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Invalid Country\", shippingAddress: { address1: \"1 Pine\", countryCode: ZZ } }) { companyLocation { id name shippingAddress { countryCode } } userErrors { field message code } } }",
+      [
+        #(
+          "\"field\":[\"input\",\"shippingAddress\",\"countryCode\"]",
+          "\"message\":\"Country code is invalid\"",
+        ),
+      ],
+    ),
+    #(
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Invalid Zone\", shippingAddress: { address1: \"1 Pine\", countryCode: US, zoneCode: \"ZZ\" } }) { companyLocation { id name shippingAddress { zoneCode } } userErrors { field message code } } }",
+      [
+        #(
+          "\"field\":[\"input\",\"shippingAddress\",\"zoneCode\"]",
+          "\"message\":\"Zone code is invalid\"",
+        ),
+      ],
+    ),
+    #(
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Invalid Zip\", shippingAddress: { address1: \"1 Pine\", countryCode: US, zoneCode: \"CA\", zip: \"abcde\" } }) { companyLocation { id name shippingAddress { zip } } userErrors { field message code } } }",
+      [
+        #(
+          "\"field\":[\"input\",\"shippingAddress\",\"zip\"]",
+          "\"message\":\"Zip is invalid\"",
+        ),
+      ],
+    ),
+    #(
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"HTML\", shippingAddress: { address1: \"<b>1 Pine</b>\", countryCode: US, zoneCode: \"CA\", zip: \"94105\" } }) { companyLocation { id name shippingAddress { address1 } } userErrors { field message code detail } } }",
+      [
+        #(
+          "\"field\":[\"input\",\"shippingAddress\",\"address1\"]",
+          "\"message\":\"Address1 is invalid\"",
+        ),
+      ],
+    ),
+    #(
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"Emoji\", shippingAddress: { address1: \"1 Pine\", countryCode: US, zoneCode: \"CA\", zip: \"94105\", firstName: \"👋\" } }) { companyLocation { id name shippingAddress { firstName } } userErrors { field message code } } }",
+      [
+        #(
+          "\"field\":[\"input\",\"shippingAddress\",\"firstName\"]",
+          "\"message\":\"First name is invalid\"",
+        ),
+      ],
+    ),
+    #(
+      "mutation { companyLocationCreate(companyId: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\", input: { name: \"More Free Text\", billingAddress: { address1: \"1 Pine\", address2: \"<i>Suite</i>\", city: \"Ottawa 👋\", recipient: \"<b>Buyer</b>\", firstName: \"Valid\", lastName: \"https://example.com\", countryCode: CA, zoneCode: \"ON\", zip: \"K1A 0B1\" } }) { companyLocation { id name billingAddress { address2 city recipient lastName } } userErrors { field message code } } }",
+      [
+        #(
+          "\"field\":[\"input\",\"billingAddress\",\"recipient\"]",
+          "\"message\":\"Recipient is invalid\"",
+        ),
+        #(
+          "\"field\":[\"input\",\"billingAddress\",\"address2\"]",
+          "\"message\":\"Address2 is invalid\"",
+        ),
+        #(
+          "\"field\":[\"input\",\"billingAddress\",\"city\"]",
+          "\"message\":\"City is invalid\"",
+        ),
+        #(
+          "\"field\":[\"input\",\"billingAddress\",\"lastName\"]",
+          "\"message\":\"Last name is invalid\"",
+        ),
+      ],
+    ),
+  ]
+  let proxy =
+    list.fold(invalid_cases, proxy, fn(proxy, invalid_case) {
+      let #(query, expected_errors) = invalid_case
+      let #(Response(status: status, body: body, ..), proxy) =
+        graphql(proxy, query)
+      assert status == 200
+      let body_json = json.to_string(body)
+      assert string.contains(body_json, "\"companyLocation\":null")
+      list.each(expected_errors, fn(expected_error) {
+        let #(expected_field, expected_message) = expected_error
+        assert string.contains(body_json, expected_field)
+        assert string.contains(body_json, expected_message)
+      })
+      assert string.contains(body_json, "\"code\":\"INVALID\"")
+      proxy
+    })
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { company(id: \"gid://shopify/Company/1?shopify-draft-proxy=synthetic\") { locations(first: 10) { nodes { id name shippingAddress { countryCode zoneCode zip address1 firstName } } } } companyLocation(id: \"gid://shopify/CompanyLocation/5?shopify-draft-proxy=synthetic\") { id } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"name\":\"HQ\"")
+  assert !string.contains(read_json, "Invalid Country")
+  assert !string.contains(read_json, "Invalid Zone")
+  assert !string.contains(read_json, "Invalid Zip")
+  assert !string.contains(read_json, "<b>1 Pine</b>")
+  assert !string.contains(read_json, "\"firstName\":\"👋\"")
+  assert !string.contains(read_json, "More Free Text")
+  assert string.contains(read_json, "\"companyLocation\":null")
+}
+
+pub fn b2b_location_update_rejects_invalid_address_input_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Update Address\" }, companyLocation: { name: \"HQ\", shippingAddress: { address1: \"1 Pine\", countryCode: US, zoneCode: \"CA\", zip: \"94105\" } } }) { company { id locations(first: 5) { nodes { id name } } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationUpdate(companyLocationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", input: { name: \"Should Not Stage\", shippingAddress: { address1: \"2 Pine\", countryCode: US, zoneCode: \"CA\", zip: \"abcde\" } }) { companyLocation { id name shippingAddress { zip } } userErrors { field message code } } }",
+    )
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"companyLocation\":null")
+  assert string.contains(
+    update_json,
+    "\"field\":[\"input\",\"shippingAddress\",\"zip\"]",
+  )
+  assert string.contains(update_json, "\"message\":\"Zip is invalid\"")
+  assert string.contains(update_json, "\"code\":\"INVALID\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { id name shippingAddress { address1 zip } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"name\":\"HQ\"")
+  assert string.contains(read_json, "\"zip\":\"94105\"")
+  assert !string.contains(read_json, "Should Not Stage")
+  assert !string.contains(read_json, "\"zip\":\"abcde\"")
+}
+
+pub fn b2b_company_create_rejects_nested_address_validation_test() {
+  let #(Response(status: status, body: body, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Nested Invalid\" }, companyLocation: { shippingAddress: { address1: \"1 Pine\", countryCode: ZZ } } }) { company { id } userErrors { field message code } } }",
+    )
+  assert status == 200
+  let body_json = json.to_string(body)
+  assert string.contains(body_json, "\"company\":null")
+  assert string.contains(
+    body_json,
+    "\"field\":[\"input\",\"companyLocation\",\"shippingAddress\",\"countryCode\"]",
+  )
+  assert string.contains(body_json, "\"message\":\"Country code is invalid\"")
+  assert string.contains(body_json, "\"code\":\"INVALID\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(proxy, "query { companies(first: 5) { nodes { id name } } }")
+  assert read_status == 200
+  assert string.contains(json.to_string(read_body), "\"nodes\":[]")
+}
+
+pub fn b2b_location_assign_address_rejects_invalid_address_input_test() {
+  let #(Response(status: create_status, ..), proxy) =
+    graphql(
+      draft_proxy.new(),
+      "mutation { companyCreate(input: { company: { name: \"B2B Assign Address\" }, companyLocation: { name: \"HQ\", shippingAddress: { address1: \"1 Pine\", countryCode: US, zoneCode: \"CA\", zip: \"94105\" } } }) { company { id locations(first: 5) { nodes { id } } } userErrors { field message code } } }",
+    )
+  assert create_status == 200
+
+  let #(Response(status: assign_status, body: assign_body, ..), proxy) =
+    graphql(
+      proxy,
+      "mutation { companyLocationAssignAddress(locationId: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\", address: { address1: \"1 Pine\", countryCode: ZZ }, addressTypes: [BILLING]) { addresses { id countryCode } userErrors { field message code } } }",
+    )
+  assert assign_status == 200
+  let assign_json = json.to_string(assign_body)
+  assert string.contains(assign_json, "\"addresses\":null")
+  assert string.contains(assign_json, "\"field\":[\"address\",\"countryCode\"]")
+  assert string.contains(assign_json, "\"message\":\"Country code is invalid\"")
+  assert string.contains(assign_json, "\"code\":\"INVALID\"")
+
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql(
+      proxy,
+      "query { companyLocation(id: \"gid://shopify/CompanyLocation/4?shopify-draft-proxy=synthetic\") { id billingAddress { countryCode } shippingAddress { countryCode } } }",
+    )
+  assert read_status == 200
+  let read_json = json.to_string(read_body)
+  assert string.contains(read_json, "\"billingAddress\":null")
+  assert string.contains(
+    read_json,
+    "\"shippingAddress\":{\"countryCode\":\"US\"}",
+  )
+}
+
 pub fn b2b_location_create_and_update_validates_external_id_test() {
   let proxy = draft_proxy.new()
   let #(Response(status: create_status, body: create_body, ..), proxy) =

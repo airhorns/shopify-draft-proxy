@@ -4,6 +4,7 @@
 //// the broader order return/edit domains as captured-state slices.
 
 import gleam/dict.{type Dict}
+import gleam/int
 import gleam/json.{type Json}
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -542,6 +543,230 @@ pub fn blank_carrier_service_name_errors() -> List(
       code: "CARRIER_SERVICE_CREATE_FAILED",
     ),
   ]
+}
+
+@internal
+pub fn validate_carrier_service_create_callback_url(
+  callback_url: Option(String),
+) -> List(shipping_types.CarrierServiceUserError) {
+  validate_carrier_service_callback_url(
+    callback_url,
+    "CARRIER_SERVICE_CREATE_FAILED",
+    enforce_https: True,
+  )
+}
+
+@internal
+pub fn validate_carrier_service_update_callback_url(
+  callback_url: Option(String),
+  existing_callback_url: Option(String),
+) -> List(shipping_types.CarrierServiceUserError) {
+  validate_carrier_service_callback_url(
+    callback_url,
+    "CARRIER_SERVICE_UPDATE_FAILED",
+    enforce_https: carrier_service_callback_url_meaningfully_changed(
+      callback_url,
+      existing_callback_url,
+    ),
+  )
+}
+
+fn validate_carrier_service_callback_url(
+  callback_url: Option(String),
+  code: String,
+  enforce_https enforce_https: Bool,
+) -> List(shipping_types.CarrierServiceUserError) {
+  case callback_url {
+    None -> []
+    Some(raw_url) -> {
+      let url = string.trim(raw_url)
+      let scheme = carrier_service_callback_url_scheme(url)
+      let host = carrier_service_callback_url_host(url)
+      case host == "" {
+        True -> []
+        False ->
+          case carrier_service_callback_url_host_is_banned(host) {
+            True -> [carrier_service_callback_url_invalid_host_error(code)]
+            False ->
+              case enforce_https && scheme != "https" {
+                True -> [carrier_service_callback_url_https_error(code)]
+                False -> []
+              }
+          }
+      }
+    }
+  }
+}
+
+fn carrier_service_callback_url_meaningfully_changed(
+  callback_url: Option(String),
+  existing_callback_url: Option(String),
+) -> Bool {
+  case callback_url, existing_callback_url {
+    Some(next), Some(existing) ->
+      normalize_carrier_service_callback_url(next)
+      != normalize_carrier_service_callback_url(existing)
+    Some(_), None -> True
+    None, Some(_) -> True
+    None, None -> False
+  }
+}
+
+fn normalize_carrier_service_callback_url(url: String) -> String {
+  let trimmed = string.trim(url)
+  let lower = string.lowercase(trimmed)
+  let scheme = carrier_service_callback_url_scheme(lower)
+  case scheme {
+    "http" -> remove_default_port(lower, "http://", ":80")
+    "https" -> remove_default_port(lower, "https://", ":443")
+    _ -> lower
+  }
+}
+
+fn remove_default_port(url: String, prefix: String, port: String) -> String {
+  let after_scheme = string.drop_start(url, string.length(prefix))
+  let authority = carrier_service_callback_url_authority(after_scheme)
+  case string.ends_with(authority, port) {
+    True ->
+      prefix
+      <> string.drop_end(authority, string.length(port))
+      <> string.drop_start(after_scheme, string.length(authority))
+    False -> url
+  }
+}
+
+fn carrier_service_callback_url_scheme(url: String) -> String {
+  case string.split_once(url, "://") {
+    Ok(#(scheme, _)) -> string.lowercase(scheme)
+    Error(_) -> ""
+  }
+}
+
+fn carrier_service_callback_url_host(url: String) -> String {
+  case string.split_once(url, "://") {
+    Ok(#(_, after_scheme)) ->
+      after_scheme
+      |> carrier_service_callback_url_authority
+      |> carrier_service_callback_url_host_without_userinfo
+      |> carrier_service_callback_url_host_without_port
+      |> carrier_service_callback_url_trim_trailing_dot
+      |> string.lowercase
+    Error(_) -> ""
+  }
+}
+
+fn carrier_service_callback_url_authority(after_scheme: String) -> String {
+  after_scheme
+  |> string_before("/")
+  |> string_before("?")
+  |> string_before("#")
+}
+
+fn string_before(value: String, delimiter: String) -> String {
+  case string.split(value, on: delimiter) {
+    [head, ..] -> head
+    [] -> value
+  }
+}
+
+fn carrier_service_callback_url_host_without_userinfo(
+  authority: String,
+) -> String {
+  case string.split(authority, on: "@") |> list.last {
+    Ok(host) -> host
+    Error(_) -> authority
+  }
+}
+
+fn carrier_service_callback_url_host_without_port(host_port: String) -> String {
+  case string.starts_with(host_port, "[") {
+    True ->
+      case string.drop_start(host_port, 1) |> string.split_once("]") {
+        Ok(#(host, _)) -> host
+        Error(_) -> host_port
+      }
+    False -> string_before(host_port, ":")
+  }
+}
+
+fn carrier_service_callback_url_trim_trailing_dot(host: String) -> String {
+  case string.ends_with(host, ".") {
+    True ->
+      carrier_service_callback_url_trim_trailing_dot(string.drop_end(host, 1))
+    False -> host
+  }
+}
+
+fn carrier_service_callback_url_host_is_banned(host: String) -> Bool {
+  host == "localhost"
+  || carrier_service_callback_url_domain_matches(host, "shopify.com")
+  || carrier_service_callback_url_domain_matches(host, "myshopify.com")
+  || carrier_service_callback_url_domain_matches(host, "shopifypreview.com")
+  || carrier_service_callback_url_domain_matches(host, "myshopify.dev")
+  || carrier_service_callback_url_is_banned_ipv4(host)
+}
+
+fn carrier_service_callback_url_domain_matches(
+  host: String,
+  domain: String,
+) -> Bool {
+  host == domain || string.ends_with(host, "." <> domain)
+}
+
+fn carrier_service_callback_url_is_banned_ipv4(host: String) -> Bool {
+  case parse_ipv4(host) {
+    Some(#(first, second, _, _)) ->
+      first == 0
+      || first == 10
+      || first == 127
+      || { first == 192 && second == 168 }
+      || { first == 172 && second >= 16 && second <= 31 }
+    None -> False
+  }
+}
+
+fn parse_ipv4(host: String) -> Option(#(Int, Int, Int, Int)) {
+  case string.split(host, on: ".") {
+    [a, b, c, d] ->
+      case int.parse(a), int.parse(b), int.parse(c), int.parse(d) {
+        Ok(first), Ok(second), Ok(third), Ok(fourth) ->
+          case
+            valid_ipv4_octet(first)
+            && valid_ipv4_octet(second)
+            && valid_ipv4_octet(third)
+            && valid_ipv4_octet(fourth)
+          {
+            True -> Some(#(first, second, third, fourth))
+            False -> None
+          }
+        _, _, _, _ -> None
+      }
+    _ -> None
+  }
+}
+
+fn valid_ipv4_octet(value: Int) -> Bool {
+  value >= 0 && value <= 255
+}
+
+fn carrier_service_callback_url_https_error(
+  code: String,
+) -> shipping_types.CarrierServiceUserError {
+  shipping_types.CarrierServiceUserError(
+    field: None,
+    message: "Shipping rate provider callback url must use HTTPS",
+    code: code,
+  )
+}
+
+fn carrier_service_callback_url_invalid_host_error(
+  code: String,
+) -> shipping_types.CarrierServiceUserError {
+  shipping_types.CarrierServiceUserError(
+    field: None,
+    message: "Shipping rate provider callback url invalid host",
+    code: code,
+  )
 }
 
 @internal

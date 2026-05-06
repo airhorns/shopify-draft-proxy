@@ -1,0 +1,116 @@
+{
+  "scenarioId": "carrier-service-callback-url-validation",
+  "operationNames": ["carrierServiceCreate", "carrierServiceUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "downstream-read-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/shipping-fulfillments/carrier-service-callback-url-validation.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation.graphql",
+    "variablesCapturePath": "$.primary.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured Admin GraphQL 2026-04 DeliveryCarrierService callback URL validation. Missing/blank/unparseable callbackUrl inputs are captured as top-level GraphQL INVALID_VARIABLE responses in the fixture because the Admin schema exposes callbackUrl as URL!, while http:// and banned-host URLs reach carrier-service resolver userErrors with typed create/update codes. The successful create in the scenario exists only to target update validation and is deleted by the capture cleanup.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "valid-create-payload",
+        "capturePath": "$.primary.response.payload.data.validCreate",
+        "proxyPath": "$.data.validCreate",
+        "upstreamCapturePath": null,
+        "expectedDifferences": [
+          {
+            "path": "$.carrierService.id",
+            "matcher": "shopify-gid:DeliveryCarrierService",
+            "reason": "The proxy creates a stable synthetic carrier-service ID instead of Shopify's live ID."
+          }
+        ]
+      },
+      {
+        "name": "http-create-user-errors",
+        "capturePath": "$.primary.response.payload.data.httpCreate",
+        "proxyPath": "$.data.httpCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "banned-create-user-errors",
+        "capturePath": "$.primary.response.payload.data.bannedCreate",
+        "proxyPath": "$.data.bannedCreate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "http-update-user-errors",
+        "capturePath": "$.updateHttp.response.payload.data.carrierServiceUpdate",
+        "proxyPath": "$.data.carrierServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation-update-http.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.validCreate.carrierService.id"
+              },
+              "callbackUrl": "http://example.com/rates"
+            }
+          }
+        }
+      },
+      {
+        "name": "banned-update-user-errors",
+        "capturePath": "$.updateBanned.response.payload.data.carrierServiceUpdate",
+        "proxyPath": "$.data.carrierServiceUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation-update-banned.graphql",
+          "variables": {
+            "input": {
+              "id": {
+                "fromPrimaryProxyPath": "$.data.validCreate.carrierService.id"
+              },
+              "callbackUrl": "https://shopify.com/rates"
+            }
+          }
+        }
+      },
+      {
+        "name": "missing-create-invalid-variable",
+        "capturePath": "$.invalidVariableCreates.missingCreate.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation.graphql",
+          "documentCapturePath": "$.invalidVariableCreates.missingCreate.query",
+          "variablesCapturePath": "$.invalidVariableCreates.missingCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "blank-create-invalid-variable",
+        "capturePath": "$.invalidVariableCreates.blankCreate.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation.graphql",
+          "documentCapturePath": "$.invalidVariableCreates.blankCreate.query",
+          "variablesCapturePath": "$.invalidVariableCreates.blankCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "unparseable-create-invalid-variable",
+        "capturePath": "$.invalidVariableCreates.unparseableCreate.response.payload.errors",
+        "proxyPath": "$.errors",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/shipping-fulfillments/carrier-service-callback-url-validation.graphql",
+          "documentCapturePath": "$.invalidVariableCreates.unparseableCreate.query",
+          "variablesCapturePath": "$.invalidVariableCreates.unparseableCreate.variables",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  }
+}
