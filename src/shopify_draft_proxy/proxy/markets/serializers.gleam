@@ -1143,6 +1143,80 @@ pub fn market_connection_from_ids(
 }
 
 @internal
+pub fn catalog_connection_from_ids(
+  store: Store,
+  catalog_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(catalog_ids, fn(id) {
+          CapturedObject([
+            #("cursor", CapturedString(id)),
+            #("node", catalog_node_for_id(store, id)),
+          ])
+        }),
+      ),
+    ),
+    #(
+      "nodes",
+      CapturedArray(list.map(catalog_ids, catalog_node_for_id(store, _))),
+    ),
+    #("pageInfo", page_info_for_cursors(catalog_ids)),
+  ])
+}
+
+fn catalog_node_for_id(store: Store, id: String) -> CapturedJsonValue {
+  case store.get_effective_catalog_by_id(store, id) {
+    Some(record) -> record.data
+    None ->
+      CapturedObject([
+        #("__typename", CapturedString("MarketCatalog")),
+        #("id", CapturedString(id)),
+      ])
+  }
+}
+
+@internal
+pub fn web_presence_connection_from_ids(
+  store: Store,
+  web_presence_ids: List(String),
+) -> CapturedJsonValue {
+  CapturedObject([
+    #(
+      "edges",
+      CapturedArray(
+        list.map(web_presence_ids, fn(id) {
+          CapturedObject([
+            #("cursor", CapturedString(id)),
+            #("node", web_presence_node_for_id(store, id)),
+          ])
+        }),
+      ),
+    ),
+    #(
+      "nodes",
+      CapturedArray(
+        list.map(web_presence_ids, web_presence_node_for_id(store, _)),
+      ),
+    ),
+    #("pageInfo", page_info_for_cursors(web_presence_ids)),
+  ])
+}
+
+fn web_presence_node_for_id(store: Store, id: String) -> CapturedJsonValue {
+  case store.get_effective_web_presence_by_id(store, id) {
+    Some(record) -> record.data
+    None ->
+      CapturedObject([
+        #("__typename", CapturedString("MarketWebPresence")),
+        #("id", CapturedString(id)),
+      ])
+  }
+}
+
+@internal
 pub fn market_node_for_id(store: Store, id: String) -> CapturedJsonValue {
   case store.get_effective_market_by_id(store, id) {
     Some(record) -> record.data
@@ -2666,6 +2740,7 @@ pub fn empty_price_connection() -> CapturedJsonValue {
 pub fn market_localizable_resource_payload(
   store: Store,
   resource_id: String,
+  market_id: Option(String),
 ) -> CapturedJsonValue {
   case store.find_effective_metafield_by_id(store, resource_id) {
     Some(metafield) ->
@@ -2682,6 +2757,12 @@ pub fn market_localizable_resource_payload(
           "marketLocalizations",
           CapturedArray(
             store.list_effective_market_localizations(store, resource_id)
+            |> list.filter(fn(record) {
+              case market_id {
+                Some(id) -> record.market_id == id
+                None -> True
+              }
+            })
             |> list.map(fn(record) {
               market_localization_payload(store, record)
             }),
@@ -2976,15 +3057,19 @@ pub fn root_payload_for_field(
         "marketLocalizableResource" -> {
           let args = graphql_helpers.field_args(field, variables)
           case graphql_helpers.read_arg_string_nonempty(args, "resourceId") {
-            Some(resource_id) ->
+            Some(resource_id) -> {
+              let market_id =
+                market_localizations_market_id_arg(field, variables)
               project_record(
                 field,
                 fragments,
                 captured_json_source(market_localizable_resource_payload(
                   store,
                   resource_id,
+                  market_id,
                 )),
               )
+            }
             None -> json.null()
           }
         }
@@ -2993,6 +3078,30 @@ pub fn root_payload_for_field(
         _ -> json.null()
       }
     _ -> json.null()
+  }
+}
+
+fn market_localizations_market_id_arg(
+  field: Selection,
+  variables: Dict(String, root_field.ResolvedValue),
+) -> Option(String) {
+  case
+    get_selected_child_fields(field, default_selected_field_options())
+    |> list.find_map(fn(child) {
+      case child {
+        Field(name: name, ..) if name.value == "marketLocalizations" -> {
+          let args = graphql_helpers.field_args(child, variables)
+          case graphql_helpers.read_arg_string_nonempty(args, "marketId") {
+            Some(id) -> Ok(id)
+            None -> Error(Nil)
+          }
+        }
+        _ -> Error(Nil)
+      }
+    })
+  {
+    Ok(id) -> Some(id)
+    Error(_) -> None
   }
 }
 

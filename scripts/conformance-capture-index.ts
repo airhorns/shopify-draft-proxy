@@ -2118,6 +2118,27 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'market-update-linkage',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-market-update-linkage-conformance.mts',
+    purpose:
+      'marketUpdate catalogsToAdd linkage lifecycle, downstream Market.catalogs and MarketCatalog.markets readback, and unknown catalog/web-presence add validation.',
+    requiredAuthScopes: ['read_markets', 'write_markets'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-update-linkage.json`,
+      'config/parity-specs/markets/market-update-linkage.json',
+      'config/parity-requests/markets/market-update-linkage-catalog-create.graphql',
+      'config/parity-requests/markets/market-update-linkage-catalog-read.graphql',
+      'config/parity-requests/markets/market-update-linkage-market-create.graphql',
+      'config/parity-requests/markets/market-update-linkage-market-read.graphql',
+      'config/parity-requests/markets/market-update-linkage-update.graphql',
+    ],
+    cleanupBehavior:
+      'Creates two disposable markets and one disposable market catalog, links the catalog to the target market, captures readback and validation branches, then removes the link and deletes the catalog and markets.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'product-contextual-pricing',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-product-contextual-pricing-conformance.ts',
@@ -2234,6 +2255,32 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable draft product with a product metafield, probes market localization behavior, then deletes the product.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
+    captureId: 'market-localization-money-metafield-remove',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-market-localization-money-metafield-remove-conformance.mts',
+    purpose:
+      'Definition-backed money metafield marketLocalizationsRegister/remove success, returned deleted rows, and read-after-remove behavior.',
+    requiredAuthScopes: [
+      'read_markets',
+      'write_markets',
+      'read_products',
+      'write_products',
+      'read_translations',
+      'write_translations',
+    ],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}market-localization-money-metafield-remove-parity.json`,
+      'config/parity-specs/markets/market-localization-money-metafield-remove.json',
+      'config/parity-requests/markets/market-localization-money-metafield-read.graphql',
+      'config/parity-requests/markets/market-localization-money-metafield-register.graphql',
+      'config/parity-requests/markets/market-localization-money-metafield-remove.graphql',
+    ],
+    cleanupBehavior:
+      'Creates a disposable product-owned money metafield definition and product metafield, registers localizations for two markets, removes each tuple, then deletes the product and definition.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
@@ -4283,6 +4330,20 @@ export const conformanceCaptureIndex = defineCaptureIndex([
       'config/parity-specs/bulk-operations/bulk-operation-status-catalog-cancel.json',
     ],
     cleanupBehavior: 'Starts/cancels safe bulk operations where the harness allows it.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'bulk-operations',
+    captureId: 'bulk-operations-read-arg-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-bulk-operations-read-arg-validation-conformance.ts',
+    purpose: 'bulkOperations connection/search argument and bulkOperation id validation errors.',
+    requiredAuthScopes: ['bulk operation access through active Admin token'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}bulk-operations-read-arg-validation.json`,
+      'config/parity-specs/bulk-operations/bulk-operations-read-arg-validation.json',
+    ],
+    cleanupBehavior: 'Validation-only capture; no Shopify data is created or mutated.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

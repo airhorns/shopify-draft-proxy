@@ -1,0 +1,8 @@
+#graphql
+query BulkOperationsMissingWindowValidation {
+  bulkOperations {
+    nodes {
+      id
+    }
+  }
+}

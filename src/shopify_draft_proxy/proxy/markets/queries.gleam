@@ -551,6 +551,7 @@ fn hydrate_from_upstream_response(
       |> hydrate_web_presence_records(data)
       |> hydrate_product_records(data)
       |> hydrate_market_localizable_metafields(data)
+      |> hydrate_market_localizable_resource_records(data)
       |> hydrate_markets_root_payloads(data)
     None -> store_in
   }
@@ -701,6 +702,72 @@ fn hydrate_product_metafields_from_product(
       }
     }
     None -> store_in
+  }
+}
+
+fn hydrate_market_localizable_resource_records(
+  store_in: Store,
+  data: commit.JsonValue,
+) -> Store {
+  let records =
+    list.append(
+      case json_get(data, "marketLocalizableResource") {
+        Some(commit.JsonNull) | None -> []
+        Some(value) ->
+          case market_localizable_metafield_record_from_resource(value) {
+            Ok(record) -> [record]
+            Error(_) -> []
+          }
+      },
+      record_json_nodes_from_field(data, "marketLocalizableResources")
+        |> list.filter_map(market_localizable_metafield_record_from_resource),
+    )
+  case records {
+    [] -> store_in
+    _ ->
+      records
+      |> list.fold(store_in, fn(current_store, record) {
+        store.replace_base_metafields_for_owner(current_store, record.id, [
+          record,
+        ])
+      })
+  }
+}
+
+fn market_localizable_metafield_record_from_resource(
+  value: commit.JsonValue,
+) -> Result(ProductMetafieldRecord, Nil) {
+  use resource_id <- result.try(
+    json_get_string(value, "resourceId") |> option_to_result,
+  )
+  case string.starts_with(resource_id, "gid://shopify/Metafield/") {
+    False -> Error(Nil)
+    True -> {
+      let content = market_localizable_content_from_json(value)
+      Ok(ProductMetafieldRecord(
+        id: resource_id,
+        owner_id: "",
+        namespace: "",
+        key: "",
+        type_: None,
+        value: content_value(content),
+        compare_digest: None,
+        json_value: None,
+        created_at: None,
+        updated_at: None,
+        owner_type: Some("PRODUCT"),
+        market_localizable_content: content,
+      ))
+    }
+  }
+}
+
+fn content_value(
+  content: List(MarketLocalizableContentRecord),
+) -> Option(String) {
+  case list.find(content, fn(item) { item.key == "value" }) {
+    Ok(item) -> Some(item.value)
+    Error(_) -> None
   }
 }
 
