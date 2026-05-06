@@ -2488,7 +2488,9 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     fixtureOutputs: [
       `${CAPTURE_ROOT}comment-moderation-state-transitions.json`,
       'config/parity-specs/online-store/comment-moderation-state-transitions.json',
-      'config/parity-requests/online-store/comment-moderation-state-transition-*.graphql',
+      'config/parity-requests/online-store/comment-moderation-state-transition-approve.graphql',
+      'config/parity-requests/online-store/comment-moderation-state-transition-not-spam.graphql',
+      'config/parity-requests/online-store/comment-moderation-state-transition-spam.graphql',
     ],
     cleanupBehavior:
       'Creates one disposable moderated blog/article and REST article comments, prepares PUBLISHED and SPAM source states with Admin GraphQL moderation roots, then deletes the article and blog during cleanup.',
