@@ -116,25 +116,40 @@ Two nearby 2026-04 traps from the same capture:
 
 ## Current: B2B bulk-size limit evidence differs between internal guardrails and public 2026-04 Admin
 
-HAR-755 is implemented from the Business Customers package guardrail that caps
-bulk action inputs at 50 entries before per-entry processing. A live feasibility
-probe against `harry-test-heelo.myshopify.com` on Admin GraphQL 2026-04 did not
-produce one clean parity fixture for that contract:
+The local runtime has focused tests for the Business Customers package guardrail
+that caps selected B2B bulk action inputs at 50 entries before per-entry
+processing. Live probes against `harry-test-heelo.myshopify.com` show the public
+Admin API does not expose one uniform version of that contract. Admin GraphQL
+2025-01 and 2026-04 behaved the same in the latest probes:
 
-- `companiesDelete(companyIds: <51 missing-style gids>)` returned
-  `LIMIT_REACHED`, but with message
+- `companiesDelete(companyIds: <51 ids>)` returned request-level
+  `LIMIT_REACHED` at `["companyIds"]`, but with message
   `Exceeded max input size of 50. Consider using BulkOperation.` and
   `deletedCompanyIds: null`.
-- `companyContactAssignRoles(rolesToAssign: <51 valid role specs>)` accepted
-  the request and created 51 role assignments on a disposable company.
+- `companyContactsDelete(companyContactIds: <51 valid ids>)` and
+  `companyLocationsDelete(companyLocationIds: <51 valid ids>)` accepted all 51
+  deletes. With 51 missing IDs, both roots processed every input and returned
+  51 indexed `RESOURCE_NOT_FOUND` errors instead of a request-size limit.
+- `companyContactAssignRoles(rolesToAssign: <51 valid location-role specs>)`
+  accepted the request and returned 51 role assignments.
+- `companyContactRevokeRoles(roleAssignmentIds: <51 valid ids>)` returned
+  request-level `LIMIT_REACHED` at `["roleAssignmentIds"]`, with the public
+  max-input message and `revokedRoleAssignmentIds: null`.
+- `companyLocationAssignRoles(rolesToAssign: <51 valid contact-role specs>)`
+  returned request-level `LIMIT_REACHED` at `["rolesToAssign"]`, with the public
+  max-input message and `roleAssignments: null`; at 50 valid specs the same
+  store hit the location customer-assignment cap after 49 successes, returning
+  indexed `LIMIT_REACHED` at `["rolesToAssign", "49"]`.
 - `currentStaffMember` and `staffMembers` remain access denied for the current
-  conformance token, so valid staff-assignment bulk limit evidence cannot be
-  captured on this host.
+  conformance token. Missing staff-member and staff-assignment IDs are processed
+  per entry, so valid staff-assignment bulk-limit evidence is still blocked by
+  staff catalog access on this host.
 
-Practical rule: keep HAR-755 runtime coverage focused on the internal B2B
-request guard contract and avoid adding a checked-in parity spec for the public
-2026-04 probe until a future live target reproduces the intended branch across
-the affected roots.
+Practical rule: treat the internal package guard and the public Admin behavior
+as root-specific evidence surfaces. Do not add a broad parity fixture for the
+internal guard. Add checked-in parity only when a specific root is deliberately
+aligned to a captured public branch with matching message, payload nullability,
+and mutation/no-mutation behavior.
 
 ## Current: Selling-plan product membership guardrails can diverge from public Admin probes
 
@@ -150,7 +165,7 @@ A live public Admin probe against `harry-test-heelo.myshopify.com` on 2025-01,
 2026-04, and `unstable` did not expose the same branches: duplicate joins,
 leave-non-member requests, and 32-group joins returned empty `userErrors`, and
 the public `SellingPlanGroupUserErrorCode` enum lacked `DUPLICATE`,
-`NOT_A_MEMBER`, and `TOO_MANY_SELLING_PLAN_GROUPS`. Treat the checked-in
+`NOT_A_MEMBER`, and `SELLING_PLAN_GROUPS_TOO_MANY`. Treat the checked-in
 local-runtime parity fixture as the current internal guardrail contract, and
 re-capture against a target that reproduces the internal package behavior before
 changing those codes/messages or replacing the fixture with live evidence.
@@ -360,7 +375,7 @@ Current and historical live findings on this host:
   - default completion stages the regular order as `displayFinancialStatus: PAID`
   - deprecated `paymentPending: true` stages it as `displayFinancialStatus: PENDING`
   - non-null `sourceName` is normalized to the captured installed app/channel identifier (`347082227713`) on the staged order instead of echoing the requested input string
-  - non-null `paymentGatewayId` returns the captured `Invalid payment gateway` userError because the proxy has no local payment-gateway catalog yet
+  - non-null `paymentGatewayId` now consults the opt-in synthetic shop payment gateway catalog. Active fixture gateways produce a synthetic `SALE` or `AUTHORIZATION` transaction depending on `paymentPending`; missing/disabled fixture gateways return `payment_gateway_not_found` / `payment_gateway_disabled` on `["paymentGatewayId"]`.
 - superseded consequence: this was the right warning before the draft-to-order
   bridge had current evidence. Do not reintroduce speculative completion code,
   but do not treat this as a current blocker either; `docs/endpoints/orders.md`
@@ -2694,11 +2709,21 @@ Captured GraphQL-validation branches:
 
 - omitting required `$input` for `discountCodeBasicCreate` returns a top-level `INVALID_VARIABLE` error before resolver execution
 - inline `discountCodeBasicCreate(basicCodeDiscount: null)` returns top-level `argumentLiteralsIncompatible`, not mutation-scoped `userErrors`
+- non-numeric Decimal variables inside `customerGets.value.discountAmount.amount`
+  return a top-level `INVALID_VARIABLE` error with problem path
+  `['customerGets', 'value', 'discountAmount', 'amount']` before resolver
+  execution
 
 Captured mutation-scoped `DiscountUserError` branches:
 
 - duplicate native code discounts return `field: ['basicCodeDiscount', 'code']`, `code: 'TAKEN'`, and message `Code must be unique. Please try a different code.`
 - invalid automatic basic date ranges return `field: ['automaticBasicDiscount', 'endsAt']` and message `Ends at needs to be after starts_at`
+- basic discount `customerGets.value.percentage` values below `0.0` or above `1.0` return `field: ['basicCodeDiscount', 'customerGets', 'value', 'percentage']`, `code: 'VALUE_OUTSIDE_RANGE'`, and message `Value must be between 0.0 and 1.0`
+- basic discount fixed `discountAmount.amount` values below `0` return `field: ['basicCodeDiscount', 'customerGets', 'value', 'discountAmount', 'amount']`, `code: 'LESS_THAN_OR_EQUAL_TO'`, and message `Value must be less than or equal to 0`
+- the same 2026-04 value-bounds capture accepted `percentage: 0` and
+  `discountAmount.amount: "0"` by creating native code discounts, so do
+  not reject zero values locally without a newer capture proving Shopify
+  changed that behavior
 - combining collection entitlements with product/product-variant entitlements returns a `CONFLICT` error on `['basicCodeDiscount', 'customerGets', 'items', 'collections', 'add']`, while invalid product and variant GIDs also return separate `INVALID` entries
 - BXGY roots reject all-items customer-get/customer-buy payloads and blank titles with root-specific field prefixes (`bxgyCodeDiscount` vs `automaticBxgyDiscount`)
 - free-shipping roots reject all discount-class combinesWith flags; code free shipping also reported blank title, while the captured automatic free-shipping branch only reported invalid combinesWith for the same blank-title payload

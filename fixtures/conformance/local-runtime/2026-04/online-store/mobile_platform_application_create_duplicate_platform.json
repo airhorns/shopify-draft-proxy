@@ -1,0 +1,73 @@
+{
+  "fixtureKind": "local-runtime-mobile-platform-application-create-duplicate-platform",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T00:00:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for mobilePlatformApplicationCreate duplicate platform validation.",
+  "androidCreate": {
+    "response": {
+      "data": {
+        "mobilePlatformApplicationCreate": {
+          "mobilePlatformApplication": {
+            "__typename": "AndroidApplication",
+            "applicationId": "com.example.app",
+            "appLinksEnabled": true
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "androidDuplicate": {
+    "response": {
+      "data": {
+        "mobilePlatformApplicationCreate": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "TAKEN",
+              "field": ["mobilePlatformApplication", "android"],
+              "message": "Android has already been taken"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "appleCreate": {
+    "response": {
+      "data": {
+        "mobilePlatformApplicationCreate": {
+          "mobilePlatformApplication": {
+            "__typename": "AppleApplication",
+            "appId": "1234567890.com.example.app"
+          },
+          "userErrors": []
+        }
+      }
+    }
+  },
+  "appleDuplicate": {
+    "response": {
+      "data": {
+        "mobilePlatformApplicationCreate": {
+          "mobilePlatformApplication": null,
+          "userErrors": [
+            {
+              "code": "TAKEN",
+              "field": ["mobilePlatformApplication", "apple"],
+              "message": "Apple has already been taken"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "Core mobile platform application create behavior",
+    "notes": [
+      "The supported proxy mutation must enforce at most one Android and one Apple mobile platform application in local staged state."
+    ]
+  },
+  "upstreamCalls": []
+}

@@ -511,6 +511,19 @@ pub fn graphql_validation_update_rejects_enabled_alias_input_test() {
   )
 }
 
+pub fn graphql_order_create_mandate_payment_missing_mandate_id_errors_test() {
+  let proxy = draft_proxy.new()
+  let request =
+    graphql_request(
+      "{\"query\":\"mutation { orderCreateMandatePayment(id: \\\"gid://shopify/Order/1\\\", idempotencyKey: \\\"abc123\\\") { paymentReferenceId userErrors { field message } } }\"}",
+    )
+  let #(Response(status: status, body: body, ..), _) =
+    draft_proxy.process_request(proxy, request)
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"errors\":[{\"message\":\"Field 'orderCreateMandatePayment' is missing required arguments: mandateId\",\"locations\":[{\"line\":1,\"column\":12}],\"path\":[\"mutation\",\"orderCreateMandatePayment\"],\"extensions\":{\"code\":\"missingRequiredArguments\",\"className\":\"Field\",\"name\":\"orderCreateMandatePayment\",\"arguments\":\"mandateId\"}}]}"
+}
+
 pub fn graphql_saved_search_create_missing_required_input_fields_test() {
   let proxy = draft_proxy.new()
   let request =

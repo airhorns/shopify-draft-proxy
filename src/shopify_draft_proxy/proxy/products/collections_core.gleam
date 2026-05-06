@@ -36,7 +36,7 @@ import shopify_draft_proxy/proxy/products/products_core.{
 }
 import shopify_draft_proxy/proxy/products/products_records.{product_source}
 import shopify_draft_proxy/proxy/products/shared.{
-  connection_page_info_source, count_source, dedupe_preserving_order, job_source,
+  connection_page_info_source, count_source, dedupe_preserving_order,
   mutation_error_result, mutation_result, parse_unsigned_int_string,
   read_arg_object_list, read_arg_string_list, read_bool_argument,
   read_bool_field, read_non_empty_string_field, read_object_field,
@@ -463,6 +463,14 @@ fn stage_collection_job(store: Store, job_id: String) -> Store {
   ])
 }
 
+fn collection_job_payload_source(id: String, done: Bool) -> SourceValue {
+  src_object([
+    #("__typename", SrcString("Job")),
+    #("id", SrcString(id)),
+    #("done", SrcBool(done)),
+  ])
+}
+
 @internal
 pub fn remove_products_from_collection(
   store: Store,
@@ -657,7 +665,7 @@ pub fn collection_add_products_v2_payload(
   fragments: FragmentMap,
 ) -> Json {
   let job_value = case job_id {
-    Some(id) -> job_source(id, False)
+    Some(id) -> collection_job_payload_source(id, False)
     None -> SrcNull
   }
   project_graphql_value(
@@ -701,7 +709,7 @@ pub fn collection_remove_products_payload(
   fragments: FragmentMap,
 ) -> Json {
   let job_value = case job_id {
-    Some(id) -> job_source(id, False)
+    Some(id) -> collection_job_payload_source(id, False)
     None -> SrcNull
   }
   project_graphql_value(
@@ -723,7 +731,7 @@ pub fn collection_reorder_products_payload(
   fragments: FragmentMap,
 ) -> Json {
   let job_value = case job_id {
-    Some(id) -> job_source(id, False)
+    Some(id) -> collection_job_payload_source(id, False)
     None -> SrcNull
   }
   project_graphql_value(

@@ -791,14 +791,23 @@ fn serialize_node_by_id(
         None -> serialize_generic_node_by_id(store, id, selections, fragments)
       }
     "Job" ->
-      case store.get_customer_merge_request(store, id) {
-        Some(_) ->
+      case is_local_product_full_sync_job(store, id) {
+        True ->
           project_graphql_value(
-            job_source(id),
+            job_source(id, False),
             admin_node_selected_fields(selections, "Job", fragments),
             fragments,
           )
-        None -> json.null()
+        False ->
+          case store.get_customer_merge_request(store, id) {
+            Some(_) ->
+              project_graphql_value(
+                job_source(id, True),
+                admin_node_selected_fields(selections, "Job", fragments),
+                fragments,
+              )
+            None -> json.null()
+          }
       }
     "Location" ->
       case store.get_effective_store_property_location_by_id(store, id) {
@@ -1075,20 +1084,37 @@ fn serialize_job(
                     selection_children(field),
                     fragments,
                   )
-                _ -> project_selection(job_source(id), field, fragments)
+                _ ->
+                  project_selection(
+                    job_source(id, !is_local_product_full_sync_job(store, id)),
+                    field,
+                    fragments,
+                  )
               }
-            None -> project_selection(job_source(id), field, fragments)
+            None ->
+              project_selection(
+                job_source(id, !is_local_product_full_sync_job(store, id)),
+                field,
+                fragments,
+              )
           }
       }
     _ -> json.null()
   }
 }
 
-fn job_source(id: String) -> SourceValue {
+fn is_local_product_full_sync_job(store: Store, id: String) -> Bool {
+  list.any(store.get_log(store), fn(entry) {
+    entry.interpreted.primary_root_field == Some("productFullSync")
+    && list.contains(entry.staged_resource_ids, id)
+  })
+}
+
+fn job_source(id: String, done: Bool) -> SourceValue {
   src_object([
     #("__typename", SrcString("Job")),
     #("id", SrcString(id)),
-    #("done", SrcBool(True)),
+    #("done", SrcBool(done)),
     #("query", src_object([#("__typename", SrcString("QueryRoot"))])),
   ])
 }

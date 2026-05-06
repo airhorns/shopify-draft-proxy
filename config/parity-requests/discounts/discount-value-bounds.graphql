@@ -1,0 +1,63 @@
+mutation DiscountValueBounds(
+  $percentageHigh: DiscountCodeBasicInput!
+  $percentageNegative: DiscountCodeBasicInput!
+  $percentageZero: DiscountCodeBasicInput!
+  $amountNegative: DiscountCodeBasicInput!
+  $amountZero: DiscountCodeBasicInput!
+) {
+  percentageHigh: discountCodeBasicCreate(basicCodeDiscount: $percentageHigh) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  percentageNegative: discountCodeBasicCreate(basicCodeDiscount: $percentageNegative) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  percentageZero: discountCodeBasicCreate(basicCodeDiscount: $percentageZero) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  amountNegative: discountCodeBasicCreate(basicCodeDiscount: $amountNegative) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+  amountZero: discountCodeBasicCreate(basicCodeDiscount: $amountZero) {
+    codeDiscountNode {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+      extraInfo
+    }
+  }
+}

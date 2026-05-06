@@ -221,6 +221,48 @@ pub fn shop_sells_subscriptions(store: Store) -> Bool {
   }
 }
 
+pub fn payment_gateway_by_id(
+  store: Store,
+  id: String,
+) -> Option(types_mod.PaymentGatewayRecord) {
+  case get_effective_shop(store) {
+    Some(shop) ->
+      case
+        shop.payment_settings.payment_gateways
+        |> list.find(fn(gateway) { gateway.id == id })
+      {
+        Ok(gateway) -> Some(gateway)
+        Error(_) -> None
+      }
+    None -> None
+  }
+}
+
+pub fn set_shop_payment_gateways(
+  store: Store,
+  payment_gateways: List(types_mod.PaymentGatewayRecord),
+) -> Store {
+  case store.staged_state.shop {
+    Some(shop) -> {
+      let shop = shop_with_payment_gateways(shop, payment_gateways)
+      Store(
+        ..store,
+        staged_state: StagedState(..store.staged_state, shop: Some(shop)),
+      )
+    }
+    None -> {
+      let shop =
+        store.base_state.shop
+        |> option.unwrap(default_synthetic_shop())
+        |> shop_with_payment_gateways(payment_gateways)
+      Store(
+        ..store,
+        base_state: BaseState(..store.base_state, shop: Some(shop)),
+      )
+    }
+  }
+}
+
 pub fn set_shop_sells_subscriptions(
   store: Store,
   sells_subscriptions: Bool,
@@ -256,6 +298,20 @@ fn shop_with_sells_subscriptions(
     features: types_mod.ShopFeaturesRecord(
       ..features,
       sells_subscriptions: sells_subscriptions,
+    ),
+  )
+}
+
+fn shop_with_payment_gateways(
+  shop: ShopRecord,
+  payment_gateways: List(types_mod.PaymentGatewayRecord),
+) -> ShopRecord {
+  let payment_settings = shop.payment_settings
+  types_mod.ShopRecord(
+    ..shop,
+    payment_settings: types_mod.PaymentSettingsRecord(
+      ..payment_settings,
+      payment_gateways: payment_gateways,
     ),
   )
 }
@@ -316,6 +372,7 @@ fn default_synthetic_shop() -> ShopRecord {
     features: default_shop_features(),
     payment_settings: types_mod.PaymentSettingsRecord(
       supported_digital_wallets: [],
+      payment_gateways: [],
     ),
     shop_policies: [],
   )

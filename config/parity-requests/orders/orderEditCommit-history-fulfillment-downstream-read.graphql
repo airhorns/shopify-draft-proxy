@@ -1,0 +1,76 @@
+query OrderEditCommitHistoryFulfillmentRead($id: ID!) {
+  order(id: $id) {
+    id
+    name
+    updatedAt
+    currentSubtotalLineItemsQuantity
+    currentSubtotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    currentTotalPriceSet {
+      shopMoney {
+        amount
+        currencyCode
+      }
+    }
+    currentTaxLines {
+      title
+      rate
+      priceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    lineItems(first: 10) {
+      nodes {
+        id
+        title
+        quantity
+        currentQuantity
+        sku
+        variant {
+          id
+        }
+        originalUnitPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+      }
+    }
+    events(first: 10, query: "action:edited") {
+      nodes {
+        id
+        action
+        message
+        createdAt
+      }
+    }
+    fulfillmentOrders(first: 10) {
+      nodes {
+        id
+        status
+        lineItems(first: 10) {
+          nodes {
+            id
+            totalQuantity
+            remainingQuantity
+            lineItem {
+              id
+              title
+              quantity
+              currentQuantity
+              fulfillableQuantity
+            }
+          }
+        }
+      }
+    }
+  }
+}

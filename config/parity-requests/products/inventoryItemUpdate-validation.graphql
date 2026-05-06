@@ -1,0 +1,11 @@
+mutation InventoryItemUpdateValidation($id: ID!, $input: InventoryItemInput!) {
+  inventoryItemUpdate(id: $id, input: $input) {
+    inventoryItem {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

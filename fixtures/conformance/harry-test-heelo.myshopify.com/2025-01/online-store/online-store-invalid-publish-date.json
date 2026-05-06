@@ -1,0 +1,375 @@
+{
+  "scenarioId": "online-store/invalid-publish-date",
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2025-01",
+  "capturedAt": "2026-05-06T06:59:23.945Z",
+  "interactions": [
+    {
+      "name": "blogCreate-setup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDateBlogCreate($blog: BlogCreateInput!) {\n    blogCreate(blog: $blog) {\n      blog { id title handle }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "blog": {
+            "title": "Invalid Publish Date Blog 20260506065922"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogCreate": {
+            "blog": {
+              "id": "gid://shopify/Blog/120982077746",
+              "title": "Invalid Publish Date Blog 20260506065922",
+              "handle": "invalid-publish-date-blog-20260506065922"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageCreate-published-future-invalid",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDatePageCreate($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page { id title isPublished publishedAt }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "page": {
+            "title": "Invalid Publish Date Page 20260506065922",
+            "isPublished": true,
+            "publishDate": "2099-01-01T00:00:00Z"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": null,
+            "userErrors": [
+              {
+                "field": ["page"],
+                "message": "Can’t set isPublished to true and also set a future publish date.",
+                "code": "INVALID_PUBLISH_DATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-published-future-invalid",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDateArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title isPublished publishedAt }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "Invalid Publish Date Article 20260506065922",
+            "body": "<p>Body</p>",
+            "blogId": "gid://shopify/Blog/120982077746",
+            "author": {
+              "name": "Invalid Publish Date Author"
+            },
+            "isPublished": true,
+            "publishDate": "2099-01-01T00:00:00Z"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article"],
+                "message": "Can’t set isPublished to true and also set a future publish date.",
+                "code": "INVALID_PUBLISH_DATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageCreate-scheduled-setup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDatePageCreate($page: PageCreateInput!) {\n    pageCreate(page: $page) {\n      page { id title isPublished publishedAt }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "page": {
+            "title": "Scheduled Publish Date Page 20260506065922",
+            "isPublished": false,
+            "publishDate": "2099-01-01T00:00:00Z"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageCreate": {
+            "page": {
+              "id": "gid://shopify/Page/159619875122",
+              "title": "Scheduled Publish Date Page 20260506065922",
+              "isPublished": false,
+              "publishedAt": "2099-01-01T00:00:00Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageUpdate-published-future-invalid",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDatePageUpdate($id: ID!, $page: PageUpdateInput!) {\n    pageUpdate(id: $id, page: $page) {\n      page { id title isPublished publishedAt }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/159619875122",
+          "page": {
+            "isPublished": true,
+            "publishDate": "2099-01-01T00:00:00Z"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageUpdate": {
+            "page": null,
+            "userErrors": [
+              {
+                "field": ["page"],
+                "message": "Can’t set isPublished to true and also set a future publish date.",
+                "code": "INVALID_PUBLISH_DATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleCreate-scheduled-setup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDateArticleCreate($article: ArticleCreateInput!) {\n    articleCreate(article: $article) {\n      article { id title isPublished publishedAt }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "article": {
+            "title": "Scheduled Publish Date Article 20260506065922",
+            "body": "<p>Body</p>",
+            "blogId": "gid://shopify/Blog/120982077746",
+            "author": {
+              "name": "Invalid Publish Date Author"
+            },
+            "isPublished": false,
+            "publishDate": "2099-01-01T00:00:00Z"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleCreate": {
+            "article": {
+              "id": "gid://shopify/Article/683152671026",
+              "title": "Scheduled Publish Date Article 20260506065922",
+              "isPublished": false,
+              "publishedAt": "2099-01-01T00:00:00Z"
+            },
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1988,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "articleUpdate-published-future-invalid",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDateArticleUpdate($id: ID!, $article: ArticleUpdateInput!) {\n    articleUpdate(id: $id, article: $article) {\n      article { id title isPublished publishedAt }\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683152671026",
+          "article": {
+            "isPublished": true,
+            "publishDate": "2099-01-01T00:00:00Z"
+          }
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleUpdate": {
+            "article": null,
+            "userErrors": [
+              {
+                "field": ["article"],
+                "message": "Can’t set isPublished to true and also set a future publish date.",
+                "code": "INVALID_PUBLISH_DATE"
+              }
+            ]
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "cleanup": [
+    {
+      "name": "articleDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDateArticleDelete($id: ID!) {\n    articleDelete(id: $id) {\n      deletedArticleId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Article/683152671026"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "articleDelete": {
+            "deletedArticleId": "gid://shopify/Article/683152671026",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1989,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "pageDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDatePageDelete($id: ID!) {\n    pageDelete(id: $id) {\n      deletedPageId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Page/159619875122"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "pageDelete": {
+            "deletedPageId": "gid://shopify/Page/159619875122",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "blogDelete-cleanup",
+      "request": {
+        "query": "#graphql\n  mutation OnlineStoreInvalidPublishDateBlogDelete($id: ID!) {\n    blogDelete(id: $id) {\n      deletedBlogId\n      userErrors { field message code }\n    }\n  }\n",
+        "variables": {
+          "id": "gid://shopify/Blog/120982077746"
+        }
+      },
+      "status": 200,
+      "response": {
+        "data": {
+          "blogDelete": {
+            "deletedBlogId": "gid://shopify/Blog/120982077746",
+            "userErrors": []
+          }
+        },
+        "extensions": {
+          "cost": {
+            "requestedQueryCost": 10,
+            "actualQueryCost": 10,
+            "throttleStatus": {
+              "maximumAvailable": 2000,
+              "currentlyAvailable": 1990,
+              "restoreRate": 100
+            }
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
