@@ -1,0 +1,3833 @@
+{
+  "storeDomain": "harry-test-heelo.myshopify.com",
+  "apiVersion": "2026-04",
+  "variables": {
+    "namespace": "capability_eligibility_mothyu1c"
+  },
+  "primary": {
+    "request": {
+      "documentPath": "config/parity-requests/metafields/metafield-definition-capability-eligibility.graphql",
+      "variables": {
+        "namespace": "capability_eligibility_mothyu1c"
+      }
+    },
+    "response": {
+      "data": {
+        "uniqueJson": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "The capability unique_values is not valid for this definition.",
+              "code": "INVALID_CAPABILITY"
+            }
+          ]
+        },
+        "smartCustomer": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "The capability smart_collection_condition is not valid for this definition.",
+              "code": "INVALID_CAPABILITY"
+            }
+          ]
+        },
+        "idCreate": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816182578",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "external_id",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "id",
+              "category": "ID"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": false,
+                "eligible": true,
+                "status": "NOT_FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": false
+              },
+              "uniqueValues": {
+                "enabled": true,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "jsonBase": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816215346",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "json_payload",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "json",
+              "category": "JSON"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": false,
+                "eligible": false,
+                "status": "NOT_FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": false
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": false
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "jsonUpdateUnique": {
+          "updatedDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "The capability unique_values is not valid for this definition.",
+              "code": "INVALID_CAPABILITY"
+            }
+          ],
+          "validationJob": null
+        },
+        "admin01": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816248114",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_01",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin02": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816280882",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_02",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin03": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816313650",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_03",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin04": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816346418",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_04",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin05": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816379186",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_05",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin06": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816411954",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_06",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin07": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816444722",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_07",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin08": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816477490",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_08",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin09": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816510258",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_09",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin10": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816543026",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_10",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin11": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816575794",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_11",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin12": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816608562",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_12",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin13": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816641330",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_13",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin14": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816674098",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_14",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin15": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816706866",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_15",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin16": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816739634",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_16",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin17": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816772402",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_17",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin18": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816805170",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_18",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin19": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816837938",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_19",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin20": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816870706",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_20",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin21": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816903474",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_21",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin22": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816936242",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_22",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin23": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206816969010",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_23",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin24": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817001778",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_24",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin25": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817034546",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_25",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin26": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817067314",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_26",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin27": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817100082",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_27",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin28": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817132850",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_28",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin29": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817165618",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_29",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin30": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817198386",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_30",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin31": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817231154",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_31",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin32": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817263922",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_32",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin33": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817296690",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_33",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin34": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817329458",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_34",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin35": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817362226",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_35",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin36": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817394994",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_36",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin37": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817427762",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_37",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin38": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817460530",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_38",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin39": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817493298",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_39",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin40": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817526066",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_40",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin41": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817558834",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_41",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin42": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817591602",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_42",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin43": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817624370",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_43",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin44": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817657138",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_44",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin45": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817689906",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_45",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin46": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817722674",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_46",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin47": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817755442",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_47",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin48": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817788210",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_48",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin49": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817820978",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_49",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "admin50": {
+          "createdDefinition": {
+            "id": "gid://shopify/MetafieldDefinition/206817853746",
+            "namespace": "capability_eligibility_mothyu1c",
+            "key": "admin_50",
+            "ownerType": "PRODUCT",
+            "type": {
+              "name": "single_line_text_field",
+              "category": "TEXT"
+            },
+            "capabilities": {
+              "adminFilterable": {
+                "enabled": true,
+                "eligible": true,
+                "status": "FILTERABLE"
+              },
+              "smartCollectionCondition": {
+                "enabled": false,
+                "eligible": true
+              },
+              "uniqueValues": {
+                "enabled": false,
+                "eligible": true
+              }
+            }
+          },
+          "userErrors": []
+        },
+        "adminLimit": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": ["definition"],
+              "message": "You can only use 50 product metafield definitions to filter the product list. To add a new filter, disable filtering on an existing one.",
+              "code": "OWNER_TYPE_LIMIT_EXCEEDED_FOR_USE_AS_ADMIN_FILTERS"
+            }
+          ]
+        },
+        "standardUniqueReference": {
+          "createdDefinition": null,
+          "userErrors": [
+            {
+              "field": null,
+              "message": "The capability unique_values is not valid for this definition.",
+              "code": "INVALID_CAPABILITY"
+            }
+          ]
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 855,
+          "actualQueryCost": 830,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1170,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  },
+  "evidence": {
+    "preflightAdminFilterableDefinitions": [],
+    "createdDefinitions": [
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816182578",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "external_id",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "id",
+          "category": "ID"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": false,
+            "eligible": true,
+            "status": "NOT_FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": false
+          },
+          "uniqueValues": {
+            "enabled": true,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816215346",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "json_payload",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "json",
+          "category": "JSON"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": false,
+            "eligible": false,
+            "status": "NOT_FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": false
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": false
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816248114",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_01",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816280882",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_02",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816313650",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_03",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816346418",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_04",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816379186",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_05",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816411954",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_06",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816444722",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_07",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816477490",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_08",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816510258",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_09",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816543026",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_10",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816575794",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_11",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816608562",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_12",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816641330",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_13",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816674098",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_14",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816706866",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_15",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816739634",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_16",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816772402",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_17",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816805170",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_18",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816837938",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_19",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816870706",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_20",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816903474",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_21",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816936242",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_22",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206816969010",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_23",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817001778",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_24",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817034546",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_25",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817067314",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_26",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817100082",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_27",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817132850",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_28",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817165618",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_29",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817198386",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_30",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817231154",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_31",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817263922",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_32",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817296690",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_33",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817329458",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_34",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817362226",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_35",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817394994",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_36",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817427762",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_37",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817460530",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_38",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817493298",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_39",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817526066",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_40",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817558834",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_41",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817591602",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_42",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817624370",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_43",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817657138",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_44",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817689906",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_45",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817722674",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_46",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817755442",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_47",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817788210",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_48",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817820978",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_49",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      },
+      {
+        "id": "gid://shopify/MetafieldDefinition/206817853746",
+        "namespace": "capability_eligibility_mothyu1c",
+        "key": "admin_50",
+        "ownerType": "PRODUCT",
+        "type": {
+          "name": "single_line_text_field",
+          "category": "TEXT"
+        },
+        "capabilities": {
+          "adminFilterable": {
+            "enabled": true,
+            "eligible": true,
+            "status": "FILTERABLE"
+          },
+          "smartCollectionCondition": {
+            "enabled": false,
+            "eligible": true
+          },
+          "uniqueValues": {
+            "enabled": false,
+            "eligible": true
+          }
+        }
+      }
+    ]
+  },
+  "cleanup": [
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816182578",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1442,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816215346",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1449,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816248114",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1455,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816280882",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1461,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816313650",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1465,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816346418",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1469,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816379186",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1473,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816411954",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1481,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816444722",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1485,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816477490",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1490,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816510258",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1498,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816543026",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1503,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816575794",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1509,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816608562",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1514,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816641330",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1518,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816674098",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1522,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816706866",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1526,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816739634",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1531,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816772402",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1536,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816805170",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1542,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816837938",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1549,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816870706",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1553,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816903474",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1557,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816936242",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1563,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206816969010",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1569,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817001778",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1578,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817034546",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1599,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817067314",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1605,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817100082",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1612,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817132850",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1619,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817165618",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1624,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817198386",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1631,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817231154",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1638,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817263922",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1644,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817296690",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1660,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817329458",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1665,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817362226",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1671,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817394994",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1676,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817427762",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1683,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817460530",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1688,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817493298",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1695,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817526066",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1701,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817558834",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1707,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817591602",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1712,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817624370",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1718,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817657138",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1723,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817689906",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1731,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817722674",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1737,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817755442",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1745,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817788210",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1752,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817820978",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1757,
+            "restoreRate": 100
+          }
+        }
+      }
+    },
+    {
+      "data": {
+        "metafieldDefinitionDelete": {
+          "deletedDefinitionId": "gid://shopify/MetafieldDefinition/206817853746",
+          "userErrors": []
+        }
+      },
+      "extensions": {
+        "cost": {
+          "requestedQueryCost": 10,
+          "actualQueryCost": 10,
+          "throttleStatus": {
+            "maximumAvailable": 2000,
+            "currentlyAvailable": 1761,
+            "restoreRate": 100
+          }
+        }
+      }
+    }
+  ],
+  "upstreamCalls": []
+}
