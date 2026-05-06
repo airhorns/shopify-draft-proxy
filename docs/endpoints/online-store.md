@@ -56,7 +56,7 @@ The local proxy does not fetch remote image bytes during staging, so synthetic a
 
 Implemented local staging:
 
-- `blogCreate` / `blogUpdate` / `blogDelete` stage blog title, handle, template suffix, and comment policy changes
+- `blogCreate` / `blogUpdate` / `blogDelete` stage blog title, handle, template suffix, and comment policy changes. `blogUpdate` also accepts Core's `commentable` input alias and maps `MODERATE` to downstream `commentPolicy: MODERATED`; invalid `commentable` values return `INCLUSION` under `["blog", "commentable"]`.
 - `pageCreate` / `pageUpdate` / `pageDelete` stage page title, handle, body/body summary, template suffix, and publication fields; new pages default to published with a local `publishedAt` timestamp when `isPublished` and `publishDate` are both omitted
 - `articleCreate` / `articleUpdate` / `articleDelete` stage article title, handle, body, summary, tags, author, publication fields, image fields, ARTICLE-owned metafields, and blog membership; `articleCreate` can also stage an inline blog from the optional `blog` argument
 - `commentApprove`, `commentSpam`, `commentNotSpam`, and `commentDelete` stage moderation for comments that already exist in hydrated/snapshot local state, or hydrate the existing comment through a narrow upstream read before staging when needed. Moderation persists only Core `CommentStatus` values: approval sets `status: "PUBLISHED"`, spam sets `status: "SPAM"`, not-spam sets `status: "UNAPPROVED"`, and delete sets `status: "REMOVED"` while returning `deletedCommentId`.
