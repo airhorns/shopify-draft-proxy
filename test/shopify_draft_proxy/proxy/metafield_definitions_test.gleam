@@ -525,6 +525,284 @@ pub fn metafield_definition_pin_rejects_constrained_definition_test() {
     == "{\"data\":{\"metafieldDefinitionPin\":{\"pinnedDefinition\":null,\"userErrors\":[{\"field\":null,\"message\":\"Constrained metafield definitions do not support pinning.\",\"code\":\"UNSUPPORTED_PINNING\"}]}}}"
 }
 
+pub fn metafield_definition_update_rejects_conflicting_constraint_inputs_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Constraint update guard\",
+        namespace: \"constraint_update\",
+        key: \"guard\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let constraints_and_updates =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"guard\",
+        ownerType: PRODUCT,
+        constraints: [{ create: { key: \"shopify--tag\", value: \"fashion\" } }],
+        constraintsUpdates: { key: \"shopify--tag\", values: [{ create: \"fashion\" }] }
+      }) {
+        updatedDefinition { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: cu_status, body: cu_body, ..), proxy) =
+    graphql(proxy, constraints_and_updates)
+  assert cu_status == 200
+  let cu_json = json.to_string(cu_body)
+  assert string.contains(cu_json, "\"updatedDefinition\":null")
+  assert string.contains(cu_json, "\"field\":null")
+  assert string.contains(cu_json, "\"code\":\"INVALID_INPUT\"")
+  assert string.contains(
+    cu_json,
+    "Cannot use both `constraints` and `constraintsUpdates` in the same request.",
+  )
+
+  let constraints_and_set =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"guard\",
+        ownerType: PRODUCT,
+        constraints: [{ create: { key: \"shopify--tag\", value: \"fashion\" } }],
+        constraintsSet: { key: \"shopify--tag\", values: [\"fashion\"] }
+      }) {
+        updatedDefinition { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: cs_status, body: cs_body, ..), proxy) =
+    graphql(proxy, constraints_and_set)
+  assert cs_status == 200
+  let cs_json = json.to_string(cs_body)
+  assert string.contains(cs_json, "\"updatedDefinition\":null")
+  assert string.contains(cs_json, "\"field\":null")
+  assert string.contains(cs_json, "\"code\":\"INVALID_INPUT\"")
+  assert string.contains(
+    cs_json,
+    "Cannot use both `constraints` and `constraintsSet` in the same request.",
+  )
+
+  let updates_and_set =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"guard\",
+        ownerType: PRODUCT,
+        constraintsUpdates: { key: \"shopify--tag\", values: [{ create: \"fashion\" }] },
+        constraintsSet: { key: \"shopify--tag\", values: [\"fashion\"] }
+      }) {
+        updatedDefinition { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: us_status, body: us_body, ..), _) =
+    graphql(proxy, updates_and_set)
+  assert us_status == 200
+  let us_json = json.to_string(us_body)
+  assert string.contains(us_json, "\"updatedDefinition\":null")
+  assert string.contains(us_json, "\"field\":null")
+  assert string.contains(us_json, "\"code\":\"INVALID_INPUT\"")
+  assert string.contains(
+    us_json,
+    "Cannot use both `constraintsUpdates` and `constraintsSet` in the same request.",
+  )
+}
+
+pub fn metafield_definition_update_applies_constraint_inputs_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Constraint update tier\",
+        namespace: \"constraint_update\",
+        key: \"tier\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\"
+      }) {
+        createdDefinition { id constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let replace_all =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"tier\",
+        ownerType: PRODUCT,
+        constraintsSet: {
+          key: \"category\",
+          values: [
+            \"gid://shopify/TaxonomyCategory/ap-2\",
+            \"gid://shopify/TaxonomyCategory/ap-2-1\"
+          ]
+        }
+      }) {
+        updatedDefinition { constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: set_status, body: set_body, ..), proxy) =
+    graphql(proxy, replace_all)
+  assert set_status == 200
+  let set_json = json.to_string(set_body)
+  assert string.contains(set_json, "\"userErrors\":[]")
+  assert string.contains(set_json, "\"key\":\"category\"")
+  assert string.contains(set_json, "\"value\":\"ap-2\"")
+  assert string.contains(set_json, "\"value\":\"ap-2-1\"")
+
+  let pin_constrained =
+    "mutation {
+      metafieldDefinitionPin(identifier: {
+        ownerType: PRODUCT,
+        namespace: \"constraint_update\",
+        key: \"tier\"
+      }) {
+        pinnedDefinition { id }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: pin_status, body: pin_body, ..), proxy) =
+    graphql(proxy, pin_constrained)
+  assert pin_status == 200
+  let pin_json = json.to_string(pin_body)
+  assert string.contains(pin_json, "\"pinnedDefinition\":null")
+  assert string.contains(pin_json, "\"code\":\"UNSUPPORTED_PINNING\"")
+
+  let remove_and_add =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"tier\",
+        ownerType: PRODUCT,
+        constraintsUpdates: {
+          key: \"category\",
+          values: [
+            { delete: \"gid://shopify/TaxonomyCategory/ap-2\" },
+            { create: \"gid://shopify/TaxonomyCategory/ap-2-10\" },
+            { update: \"gid://shopify/TaxonomyCategory/ap-2-11\" }
+          ]
+        }
+      }) {
+        updatedDefinition { constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: updates_status, body: updates_body, ..), proxy) =
+    graphql(proxy, remove_and_add)
+  assert updates_status == 200
+  let updates_json = json.to_string(updates_body)
+  assert string.contains(updates_json, "\"userErrors\":[]")
+  assert string.contains(updates_json, "\"key\":\"category\"")
+  assert !string.contains(updates_json, "\"value\":\"ap-2\"")
+  assert string.contains(updates_json, "\"value\":\"ap-2-1\"")
+  assert string.contains(updates_json, "\"value\":\"ap-2-10\"")
+  assert string.contains(updates_json, "\"value\":\"ap-2-11\"")
+
+  let legacy_replace =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"tier\",
+        ownerType: PRODUCT,
+        constraints: [
+          { delete: { key: \"category\", value: \"gid://shopify/TaxonomyCategory/ap-2-1\" } },
+          { update: { key: \"category\", value: \"gid://shopify/TaxonomyCategory/ap-2-12\" } }
+        ]
+      }) {
+        updatedDefinition { constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: legacy_status, body: legacy_body, ..), _) =
+    graphql(proxy, legacy_replace)
+  assert legacy_status == 200
+  let legacy_json = json.to_string(legacy_body)
+  assert string.contains(legacy_json, "\"userErrors\":[]")
+  assert string.contains(legacy_json, "\"key\":\"category\"")
+  assert !string.contains(legacy_json, "\"value\":\"ap-2-1\"")
+  assert string.contains(legacy_json, "\"value\":\"ap-2-10\"")
+  assert string.contains(legacy_json, "\"value\":\"ap-2-11\"")
+  assert string.contains(legacy_json, "\"value\":\"ap-2-12\"")
+}
+
+pub fn metafield_definition_update_constraints_updates_unconstrains_test() {
+  let proxy = draft_proxy.new()
+  let create =
+    "mutation {
+      metafieldDefinitionCreate(definition: {
+        name: \"Constraint update unconstrain\",
+        namespace: \"constraint_update\",
+        key: \"unconstrain\",
+        ownerType: PRODUCT,
+        type: \"single_line_text_field\",
+        constraints: { key: \"category\", values: [\"gid://shopify/TaxonomyCategory/ap-2\"] }
+      }) {
+        createdDefinition { id constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql(proxy, create)
+  assert create_status == 200
+  assert string.contains(json.to_string(create_body), "\"userErrors\":[]")
+
+  let unconstrain =
+    "mutation {
+      metafieldDefinitionUpdate(definition: {
+        namespace: \"constraint_update\",
+        key: \"unconstrain\",
+        ownerType: PRODUCT,
+        constraintsUpdates: { key: null, values: [] }
+      }) {
+        updatedDefinition { constraints { key values(first: 10) { nodes { value } } } }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: update_status, body: update_body, ..), proxy) =
+    graphql(proxy, unconstrain)
+  assert update_status == 200
+  let update_json = json.to_string(update_body)
+  assert string.contains(update_json, "\"userErrors\":[]")
+  assert string.contains(update_json, "\"key\":null")
+  assert string.contains(update_json, "\"nodes\":[]")
+
+  let pin =
+    "mutation {
+      metafieldDefinitionPin(identifier: {
+        ownerType: PRODUCT,
+        namespace: \"constraint_update\",
+        key: \"unconstrain\"
+      }) {
+        pinnedDefinition { key pinnedPosition }
+        userErrors { field message code }
+      }
+    }"
+  let #(Response(status: pin_status, body: pin_body, ..), _) =
+    graphql(proxy, pin)
+  assert pin_status == 200
+  let pin_json = json.to_string(pin_body)
+  assert string.contains(pin_json, "\"pinnedPosition\":1")
+  assert string.contains(pin_json, "\"userErrors\":[]")
+}
+
 pub fn metafield_definition_unpin_compacts_pinned_positions_test() {
   let #(pinned_store, pinned_identity, _) =
     list.fold(

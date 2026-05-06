@@ -823,6 +823,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metafields',
+    captureId: 'metafield-definition-update-constraints',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metafield-definition-update-constraints.mts',
+    purpose:
+      'metafieldDefinitionUpdate constraintsUpdates staging, constrained pin guard, unconstrain, and pin-after-unconstrain readback.',
+    requiredAuthScopes: ['read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metafield-definition-update-constraints.json`,
+      'config/parity-specs/metafields/metafield-definition-update-constraints.json',
+      'config/parity-requests/metafields/metafield-definition-update-constraints*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable product-owned definition, updates its constraints, then deletes any remaining definitions in the temporary namespace.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metafields',
     captureId: 'metafield-definition-app-namespace-resolution',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metafield-definition-app-namespace-resolution-conformance.mts',
