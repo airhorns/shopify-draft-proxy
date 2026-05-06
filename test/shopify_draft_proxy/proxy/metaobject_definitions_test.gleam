@@ -156,6 +156,26 @@ fn create_definition_with_field_key_query(
   }"
 }
 
+fn create_definition_with_scalars_query(
+  type_: String,
+  name: String,
+  description: String,
+) -> String {
+  "mutation {
+    metaobjectDefinitionCreate(definition: {
+      type: \"" <> type_ <> "\",
+      name: \"" <> name <> "\",
+      description: \"" <> description <> "\",
+      fieldDefinitions: [
+        { key: \"title\", name: \"Title\", type: \"single_line_text_field\", required: true }
+      ]
+    }) {
+      metaobjectDefinition { id name description }
+      userErrors { field message code elementKey elementIndex }
+    }
+  }"
+}
+
 fn create_definition_with_access_query(type_: String) -> String {
   "mutation {
     metaobjectDefinitionCreate(definition: {
@@ -233,6 +253,43 @@ pub fn definition_create_rejects_invalid_type_values_test() {
     )
   assert json.to_string(too_long.data)
     == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+}
+
+pub fn definition_create_rejects_invalid_name_and_description_test() {
+  let blank_name =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_scalars_query("codex_blank_name", "", ""),
+    )
+  assert json.to_string(blank_name.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"name\"],\"message\":\"Name can't be blank\",\"code\":\"BLANK\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let too_long_name =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_scalars_query(
+        "codex_long_name",
+        string.repeat("n", times: 256),
+        "",
+      ),
+    )
+  assert json.to_string(too_long_name.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"name\"],\"message\":\"Name is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let too_long_description =
+    run_mutation(
+      store.new(),
+      synthetic_identity.new(),
+      create_definition_with_scalars_query(
+        "codex_long_description",
+        "Codex Rows",
+        string.repeat("d", times: 256),
+      ),
+    )
+  assert json.to_string(too_long_description.data)
+    == "{\"data\":{\"metaobjectDefinitionCreate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"description\"],\"message\":\"Description is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 }
 
 pub fn definition_create_resolves_app_type_before_storage_test() {
@@ -376,6 +433,79 @@ pub fn definition_update_validates_type_and_field_key_test() {
     )
   assert json.to_string(invalid_type_update.data)
     == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type is too short (minimum is 3 characters)\",\"code\":\"TOO_SHORT\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let too_long_type_update =
+    run_mutation(created.store, created.identity, "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { type: \"" <> string.repeat("t", times: 256) <> "\" }
+        ) {
+          metaobjectDefinition { id type }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }")
+  assert json.to_string(too_long_type_update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let invalid_format_type_update =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { type: \"Has Spaces!\" }
+        ) {
+          metaobjectDefinition { id type }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(invalid_format_type_update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"type\"],\"message\":\"Type contains one or more invalid characters. Only alphanumeric characters, underscores, and dashes are allowed.\",\"code\":\"INVALID\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let blank_name_update =
+    run_mutation(
+      created.store,
+      created.identity,
+      "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { name: \"\" }
+        ) {
+          metaobjectDefinition { id name }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }",
+    )
+  assert json.to_string(blank_name_update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"name\"],\"message\":\"Name can't be blank\",\"code\":\"BLANK\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let too_long_name_update =
+    run_mutation(created.store, created.identity, "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { name: \"" <> string.repeat("n", times: 256) <> "\" }
+        ) {
+          metaobjectDefinition { id name }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }")
+  assert json.to_string(too_long_name_update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"name\"],\"message\":\"Name is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"elementKey\":null,\"elementIndex\":null}]}}}"
+
+  let too_long_description_update =
+    run_mutation(created.store, created.identity, "mutation {
+        metaobjectDefinitionUpdate(
+          id: \"gid://shopify/MetaobjectDefinition/1?shopify-draft-proxy=synthetic\",
+          definition: { description: \"" <> string.repeat("d", times: 256) <> "\" }
+        ) {
+          metaobjectDefinition { id description }
+          userErrors { field message code elementKey elementIndex }
+        }
+      }")
+  assert json.to_string(too_long_description_update.data)
+    == "{\"data\":{\"metaobjectDefinitionUpdate\":{\"metaobjectDefinition\":null,\"userErrors\":[{\"field\":[\"definition\",\"description\"],\"message\":\"Description is too long (maximum is 255 characters)\",\"code\":\"TOO_LONG\",\"elementKey\":null,\"elementIndex\":null}]}}}"
 
   let invalid_key_update =
     run_mutation(

@@ -1,0 +1,110 @@
+{
+  "fixtureKind": "local-runtime-script-tag-update-validation",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T04:45:00.000Z",
+  "storeDomain": "local-runtime.myshopify.com",
+  "summary": "Executable local-runtime fixture for ScriptTag update validation, HTTPS enforcement, and event coercion.",
+  "expected": {
+    "create": {
+      "data": {
+        "scriptTagCreate": {
+          "scriptTag": {
+            "id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic",
+            "src": "https://cdn.example.test/app.js",
+            "displayScope": "ALL",
+            "event": "onload",
+            "cache": false
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "validation": {
+      "data": {
+        "blank": {
+          "scriptTag": null,
+          "userErrors": [
+            {
+              "code": "BLANK",
+              "field": ["src"],
+              "message": "Source can't be blank"
+            }
+          ]
+        },
+        "tooLong": {
+          "scriptTag": null,
+          "userErrors": [
+            {
+              "code": "TOO_LONG",
+              "field": ["src"],
+              "message": "Source is too long (maximum is 255 characters)"
+            }
+          ]
+        },
+        "invalid": {
+          "scriptTag": null,
+          "userErrors": [
+            {
+              "code": "INVALID",
+              "field": ["src"],
+              "message": "Source is invalid"
+            }
+          ]
+        },
+        "http": {
+          "scriptTag": null,
+          "userErrors": [
+            {
+              "code": "INVALID",
+              "field": ["src"],
+              "message": "Source is invalid"
+            }
+          ]
+        },
+        "display": {
+          "scriptTag": null,
+          "userErrors": [
+            {
+              "code": "INCLUSION",
+              "field": ["displayScope"],
+              "message": "Display scope is not included in the list"
+            }
+          ]
+        }
+      }
+    },
+    "eventUpdate": {
+      "data": {
+        "scriptTagUpdate": {
+          "scriptTag": {
+            "id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic",
+            "src": "https://cdn.example.test/app.js",
+            "displayScope": "ALL",
+            "event": "onload",
+            "cache": true
+          },
+          "userErrors": []
+        }
+      }
+    },
+    "readback": {
+      "data": {
+        "scriptTag": {
+          "id": "gid://shopify/ScriptTag/1?shopify-draft-proxy=synthetic",
+          "src": "https://cdn.example.test/app.js",
+          "displayScope": "ALL",
+          "event": "onload",
+          "cache": true
+        }
+      }
+    }
+  },
+  "evidence": {
+    "source": "Core ScriptTag model update behavior",
+    "notes": [
+      "The local-runtime fixture models the secure-src-enforced shop branch by rejecting non-HTTPS HTTP URLs with INVALID.",
+      "The event input is deliberately ignored and the staged/read ScriptTag event remains onload."
+    ]
+  },
+  "upstreamCalls": []
+}

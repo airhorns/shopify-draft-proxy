@@ -403,6 +403,7 @@ pub fn empty_staged_state() -> StagedState {
     deleted_marketing_event_ids: dict.new(),
     deleted_marketing_engagement_ids: dict.new(),
     marketing_delete_all_external_in_flight: False,
+    marketing_delete_all_external_in_flight_api_client_ids: dict.new(),
     validations: dict.new(),
     validation_order: [],
     deleted_validation_ids: dict.new(),

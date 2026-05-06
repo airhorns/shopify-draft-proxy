@@ -630,6 +630,50 @@ pub fn automatic_discount_creates_do_not_require_codes_test() {
   assert string.contains(body, "\"userErrors\":[]")
 }
 
+pub fn delete_unknown_discounts_returns_invalid_user_error_test() {
+  let code =
+    run_mutation(
+      "mutation { discountCodeDelete(id: \"gid://shopify/DiscountCodeNode/0\") { deletedCodeDiscountId userErrors { field message code } } }",
+    )
+  let automatic =
+    run_mutation(
+      "mutation { discountAutomaticDelete(id: \"gid://shopify/DiscountAutomaticNode/0\") { deletedAutomaticDiscountId userErrors { field message code } } }",
+    )
+
+  assert json.to_string(code.data)
+    == "{\"data\":{\"discountCodeDelete\":{\"deletedCodeDiscountId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Code discount does not exist.\",\"code\":\"INVALID\"}]}}}"
+  assert json.to_string(automatic.data)
+    == "{\"data\":{\"discountAutomaticDelete\":{\"deletedAutomaticDiscountId\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Automatic discount does not exist.\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn delete_existing_discounts_still_returns_deleted_id_test() {
+  let code_create =
+    run_mutation(
+      "mutation { discountCodeBasicCreate(basicCodeDiscount: { title: \"Delete me\", code: \"DELETE-ME\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+  let code_delete =
+    run_mutation_from(
+      code_create.store,
+      code_create.identity,
+      "mutation { discountCodeDelete(id: \"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\") { deletedCodeDiscountId userErrors { field message code } } }",
+    )
+  let automatic_create =
+    run_mutation(
+      "mutation { discountAutomaticBasicCreate(automaticBasicDiscount: { title: \"Delete automatic\", startsAt: \"2026-04-25T00:00:00Z\", customerGets: { value: { percentage: 0.1 }, items: { all: true } } }) { automaticDiscountNode { id } userErrors { field message code } } }",
+    )
+  let automatic_delete =
+    run_mutation_from(
+      automatic_create.store,
+      automatic_create.identity,
+      "mutation { discountAutomaticDelete(id: \"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\") { deletedAutomaticDiscountId userErrors { field message code } } }",
+    )
+
+  assert json.to_string(code_delete.data)
+    == "{\"data\":{\"discountCodeDelete\":{\"deletedCodeDiscountId\":\"gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+  assert json.to_string(automatic_delete.data)
+    == "{\"data\":{\"discountAutomaticDelete\":{\"deletedAutomaticDiscountId\":\"gid://shopify/DiscountAutomaticNode/1?shopify-draft-proxy=synthetic\",\"userErrors\":[]}}}"
+}
+
 pub fn create_discount_inputs_reject_context_customer_selection_conflicts_test() {
   let cases = [
     #(
@@ -1726,7 +1770,7 @@ pub fn deactivate_code_discount_rewrites_future_start_and_end_test() {
     == "{\"data\":{\"discountCodeDeactivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-01-01T00:00:00.000Z\",\"endsAt\":\"2024-01-01T00:00:00.000Z\",\"status\":\"EXPIRED\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
 }
 
-pub fn activate_missing_app_function_returns_internal_error_test() {
+pub fn activate_missing_app_function_returns_base_internal_error_test() {
   let id = "gid://shopify/DiscountCodeNode/app-missing"
   let function_id = "gid://shopify/ShopifyFunction/missing"
   let record =
@@ -1747,17 +1791,58 @@ pub fn activate_missing_app_function_returns_internal_error_test() {
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount could not be activated.\",\"code\":\"INTERNAL_ERROR\"}]}}}"
+    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Discount could not be activated.\",\"code\":\"INTERNAL_ERROR\"}]}}}"
 }
 
-pub fn activate_unknown_discount_uses_invalid_error_code_test() {
+pub fn automatic_activate_missing_app_function_returns_base_internal_error_test() {
+  let id = "gid://shopify/DiscountAutomaticNode/app-missing"
+  let function_id = "gid://shopify/ShopifyFunction/missing"
+  let record =
+    automatic_app_discount_record(
+      id,
+      "EXPIRED",
+      "2023-01-01T00:00:00Z",
+      Some("2023-02-01T00:00:00Z"),
+      Some(function_id),
+    )
+  let #(_, seeded_store) = store.stage_discount(store.new(), record)
   let outcome =
-    run_mutation(
-      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/0\") { codeDiscountNode { id } userErrors { field message code } } }",
+    run_mutation_from(
+      seeded_store,
+      synthetic_identity.new(),
+      "mutation { discountAutomaticActivate(id: \"gid://shopify/DiscountAutomaticNode/app-missing\") { automaticDiscountNode { id } userErrors { field message code } } }",
     )
 
   assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountAutomaticActivate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"base\"],\"message\":\"Discount could not be activated.\",\"code\":\"INTERNAL_ERROR\"}]}}}"
+}
+
+pub fn activate_deactivate_unknown_discounts_keep_id_invalid_error_test() {
+  let code_activate =
+    run_mutation(
+      "mutation { discountCodeActivate(id: \"gid://shopify/DiscountCodeNode/0\") { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+  let code_deactivate =
+    run_mutation(
+      "mutation { discountCodeDeactivate(id: \"gid://shopify/DiscountCodeNode/0\") { codeDiscountNode { id } userErrors { field message code } } }",
+    )
+  let automatic_activate =
+    run_mutation(
+      "mutation { discountAutomaticActivate(id: \"gid://shopify/DiscountAutomaticNode/0\") { automaticDiscountNode { id } userErrors { field message code } } }",
+    )
+  let automatic_deactivate =
+    run_mutation(
+      "mutation { discountAutomaticDeactivate(id: \"gid://shopify/DiscountAutomaticNode/0\") { automaticDiscountNode { id } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(code_activate.data)
     == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\"}]}}}"
+  assert json.to_string(code_deactivate.data)
+    == "{\"data\":{\"discountCodeDeactivate\":{\"codeDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\"}]}}}"
+  assert json.to_string(automatic_activate.data)
+    == "{\"data\":{\"discountAutomaticActivate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\"}]}}}"
+  assert json.to_string(automatic_deactivate.data)
+    == "{\"data\":{\"discountAutomaticDeactivate\":{\"automaticDiscountNode\":null,\"userErrors\":[{\"field\":[\"id\"],\"message\":\"Discount does not exist\",\"code\":\"INVALID\"}]}}}"
 }
 
 fn code_discount_record(
@@ -1786,6 +1871,43 @@ fn code_discount_record(
           [
             #("__typename", CapturedString(typename)),
             #("title", CapturedString("Test discount")),
+            #("status", CapturedString(status)),
+            #("startsAt", CapturedString(starts_at)),
+            #("endsAt", case ends_at {
+              Some(value) -> CapturedString(value)
+              None -> CapturedNull
+            }),
+          ]
+          |> with_app_discount_type(function_id),
+        ),
+      ),
+    ]),
+    cursor: None,
+  )
+}
+
+fn automatic_app_discount_record(
+  id: String,
+  status: String,
+  starts_at: String,
+  ends_at: Option(String),
+  function_id: Option(String),
+) -> DiscountRecord {
+  DiscountRecord(
+    id: id,
+    owner_kind: "automatic",
+    discount_type: "app",
+    title: Some("Test automatic discount"),
+    status: status,
+    code: None,
+    payload: CapturedObject([
+      #("id", CapturedString(id)),
+      #(
+        "automaticDiscount",
+        CapturedObject(
+          [
+            #("__typename", CapturedString("DiscountAutomaticApp")),
+            #("title", CapturedString("Test automatic discount")),
             #("status", CapturedString(status)),
             #("startsAt", CapturedString(starts_at)),
             #("endsAt", case ends_at {

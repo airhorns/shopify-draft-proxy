@@ -46,8 +46,9 @@ import shopify_draft_proxy/proxy/products/selling_plans_core.{
   selling_plan_group_connection_source,
 }
 import shopify_draft_proxy/proxy/products/shared.{
-  connection_page_info_source, count_source, mutation_result, read_bool_field,
-  read_string_argument, read_string_field, user_errors_source,
+  connection_page_info_source, count_source, mutation_rejected_result,
+  mutation_result, read_bool_field, read_string_argument, read_string_field,
+  user_errors_source,
 }
 import shopify_draft_proxy/proxy/products/variants_options.{
   product_options_source,
@@ -230,36 +231,56 @@ pub fn handle_publication_mutation(
       let input =
         graphql_helpers.read_arg_object(args, "input")
         |> option.unwrap(dict.new())
-      let #(publication_id, next_identity) =
-        make_unique_publication_gid(store, identity)
-      let name = read_string_field(input, "name")
-      let publication =
-        PublicationRecord(
-          id: publication_id,
-          name: name,
-          auto_publish: read_bool_field(input, "autoPublish"),
-          supports_future_publishing: Some(False),
-          catalog_id: read_string_field(input, "catalogId"),
-          channel_id: read_string_field(input, "channelId"),
-          cursor: None,
-        )
-      let #(staged, next_store) =
-        store.upsert_staged_publication(store, publication)
-      mutation_result(
-        key,
-        publication_mutation_payload(
-          next_store,
-          "PublicationCreatePayload",
-          Some(staged),
-          None,
-          [],
-          field,
-          fragments,
-        ),
-        next_store,
-        next_identity,
-        [staged.id],
-      )
+      let validation_errors = publication_target_errors(store, input, True)
+      case validation_errors {
+        [] -> {
+          let #(publication_id, next_identity) =
+            make_unique_publication_gid(store, identity)
+          let name = read_string_field(input, "name")
+          let publication =
+            PublicationRecord(
+              id: publication_id,
+              name: name,
+              auto_publish: read_bool_field(input, "autoPublish"),
+              supports_future_publishing: Some(False),
+              catalog_id: read_string_field(input, "catalogId"),
+              channel_id: read_string_field(input, "channelId"),
+              cursor: None,
+            )
+          let #(staged, next_store) =
+            store.upsert_staged_publication(store, publication)
+          mutation_result(
+            key,
+            publication_mutation_payload(
+              next_store,
+              "PublicationCreatePayload",
+              Some(staged),
+              None,
+              [],
+              field,
+              fragments,
+            ),
+            next_store,
+            next_identity,
+            [staged.id],
+          )
+        }
+        _ ->
+          mutation_rejected_result(
+            key,
+            publication_mutation_payload(
+              store,
+              "PublicationCreatePayload",
+              None,
+              None,
+              validation_errors,
+              field,
+              fragments,
+            ),
+            store,
+            identity,
+          )
+      }
     }
     "publicationUpdate" -> {
       let input =
@@ -304,45 +325,67 @@ pub fn handle_publication_mutation(
                 [],
               )
             Some(existing) -> {
-              let publication =
-                PublicationRecord(
-                  ..existing,
-                  name: read_string_field(input, "name")
-                    |> option.or(existing.name),
-                  auto_publish: read_bool_field(input, "autoPublish")
-                    |> option.or(existing.auto_publish),
-                  supports_future_publishing: read_bool_field(
-                      input,
-                      "supportsFuturePublishing",
+              let validation_errors =
+                publication_target_errors(store, input, False)
+              case validation_errors {
+                [] -> {
+                  let publication =
+                    PublicationRecord(
+                      ..existing,
+                      name: read_string_field(input, "name")
+                        |> option.or(existing.name),
+                      auto_publish: read_bool_field(input, "autoPublish")
+                        |> option.or(existing.auto_publish),
+                      supports_future_publishing: read_bool_field(
+                          input,
+                          "supportsFuturePublishing",
+                        )
+                        |> option.or(existing.supports_future_publishing),
+                      catalog_id: read_string_field(input, "catalogId")
+                        |> option.or(existing.catalog_id),
+                      channel_id: read_string_field(input, "channelId")
+                        |> option.or(existing.channel_id),
                     )
-                    |> option.or(existing.supports_future_publishing),
-                  catalog_id: read_string_field(input, "catalogId")
-                    |> option.or(existing.catalog_id),
-                  channel_id: read_string_field(input, "channelId")
-                    |> option.or(existing.channel_id),
-                )
-              let #(staged, next_store) =
-                store.upsert_staged_publication(store, publication)
-              mutation_result(
-                key,
-                publication_mutation_payload(
-                  next_store,
-                  "PublicationUpdatePayload",
-                  Some(staged),
-                  None,
-                  [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                identity,
-                [staged.id],
-              )
+                  let #(staged, next_store) =
+                    store.upsert_staged_publication(store, publication)
+                  mutation_result(
+                    key,
+                    publication_mutation_payload(
+                      next_store,
+                      "PublicationUpdatePayload",
+                      Some(staged),
+                      None,
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    identity,
+                    [staged.id],
+                  )
+                }
+                _ ->
+                  mutation_rejected_result(
+                    key,
+                    publication_mutation_payload(
+                      store,
+                      "PublicationUpdatePayload",
+                      None,
+                      None,
+                      validation_errors,
+                      field,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                  )
+              }
             }
           }
       }
     }
     "publicationDelete" -> {
+      let store = ensure_default_publication_baseline(store)
       case graphql_helpers.read_arg_string(args, "id") {
         None ->
           mutation_result(
@@ -379,31 +422,114 @@ pub fn handle_publication_mutation(
                 [],
               )
             Some(existing) -> {
-              let next_store =
-                store
-                |> remove_publication_from_publishables(id)
-                |> store.delete_staged_publication(id)
-              mutation_result(
-                key,
-                publication_mutation_payload(
-                  next_store,
-                  "PublicationDeletePayload",
-                  Some(existing),
-                  Some(id),
-                  [],
-                  field,
-                  fragments,
-                ),
-                next_store,
-                identity,
-                [id],
-              )
+              case is_default_online_store_publication(existing) {
+                True ->
+                  mutation_rejected_result(
+                    key,
+                    publication_mutation_payload(
+                      store,
+                      "PublicationDeletePayload",
+                      None,
+                      None,
+                      [
+                        ProductUserError(
+                          ["id"],
+                          "Cannot delete the default publication",
+                          Some("CANNOT_DELETE_DEFAULT_PUBLICATION"),
+                        ),
+                      ],
+                      field,
+                      fragments,
+                    ),
+                    store,
+                    identity,
+                  )
+                False -> {
+                  let next_store =
+                    store
+                    |> remove_publication_from_publishables(id)
+                    |> store.delete_staged_publication(id)
+                  mutation_result(
+                    key,
+                    publication_mutation_payload(
+                      next_store,
+                      "PublicationDeletePayload",
+                      Some(existing),
+                      Some(id),
+                      [],
+                      field,
+                      fragments,
+                    ),
+                    next_store,
+                    identity,
+                    [id],
+                  )
+                }
+              }
             }
           }
       }
     }
     _ -> mutation_result(key, json.null(), store, identity, [])
   }
+}
+
+fn publication_target_errors(
+  store: Store,
+  input: Dict(String, ResolvedValue),
+  require_target: Bool,
+) -> List(ProductUserError) {
+  let catalog_id = read_string_field(input, "catalogId")
+  let channel_id = read_string_field(input, "channelId")
+  case catalog_id, channel_id {
+    Some(_), Some(_) -> [
+      ProductUserError(
+        ["input"],
+        "Only one of catalog or channel can be provided",
+        Some("INVALID"),
+      ),
+    ]
+    None, None -> {
+      let has_legacy_name = option.is_some(read_string_field(input, "name"))
+      case require_target && !has_legacy_name {
+        True -> [
+          ProductUserError(
+            ["input", "catalogId"],
+            "Catalog can't be blank",
+            Some("BLANK"),
+          ),
+        ]
+        False -> []
+      }
+    }
+    Some(id), None ->
+      case store.get_effective_catalog_by_id(store, id) {
+        Some(_) -> []
+        None -> [
+          ProductUserError(
+            ["input", "catalogId"],
+            "Catalog not found",
+            Some("NOT_FOUND"),
+          ),
+        ]
+      }
+    None, Some(id) ->
+      case store.get_effective_channel_by_id(store, id) {
+        Some(_) -> []
+        None -> [
+          ProductUserError(
+            ["input", "channelId"],
+            "Channel not found",
+            Some("NOT_FOUND"),
+          ),
+        ]
+      }
+  }
+}
+
+fn is_default_online_store_publication(publication: PublicationRecord) -> Bool {
+  publication.id == "gid://shopify/Publication/1"
+  || publication.name == Some("Online Store")
 }
 
 // ===== from publications_l10 =====

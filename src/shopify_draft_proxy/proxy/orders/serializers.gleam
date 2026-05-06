@@ -48,6 +48,7 @@ import shopify_draft_proxy/proxy/orders/order_types.{
   type OrderMutationUserError, type ReverseDeliveryMutationResult,
   ReverseDeliveryMutationResult,
 }
+import shopify_draft_proxy/proxy/payments/serializers as payment_serializers
 
 import shopify_draft_proxy/search_query_parser
 
@@ -124,12 +125,45 @@ pub fn serialize_order_node(
               }
               None -> project_graphql_field_value(source, child, fragments)
             })
+            "paymentTerms" -> #(key, case store {
+              Some(store) ->
+                serialize_owner_payment_terms(
+                  store,
+                  order.id,
+                  child,
+                  fragments,
+                  source,
+                )
+              None -> project_graphql_field_value(source, child, fragments)
+            })
             _ -> #(key, project_graphql_field_value(source, child, fragments))
           }
         _ -> #(key, json.null())
       }
     })
   json.object(entries)
+}
+
+fn serialize_owner_payment_terms(
+  store: Store,
+  owner_id: String,
+  field: Selection,
+  fragments: FragmentMap,
+  fallback_source: SourceValue,
+) -> Json {
+  case store.payment_terms_owner_exists(store, owner_id) {
+    True ->
+      case store.get_effective_payment_terms_by_owner_id(store, owner_id) {
+        Some(terms) ->
+          project_graphql_value(
+            payment_serializers.payment_terms_source(terms),
+            selection_children(field),
+            fragments,
+          )
+        None -> json.null()
+      }
+    False -> project_graphql_field_value(fallback_source, field, fragments)
+  }
 }
 
 @internal
@@ -860,7 +894,12 @@ pub fn serialize_draft_orders(
       has_previous_page: window.has_previous_page,
       get_cursor_value: draft_order_cursor,
       serialize_node: fn(draft_order, selection, _index) {
-        serialize_draft_order_node(selection, draft_order, fragments)
+        serialize_draft_order_node(
+          Some(store),
+          selection,
+          draft_order,
+          fragments,
+        )
       },
       selected_field_options: SelectedFieldOptions(True),
       page_info_options: page_info_options,
@@ -1084,15 +1123,35 @@ pub fn graphql_helpers_project_field(
 
 @internal
 pub fn serialize_draft_order_node(
+  store: Option(Store),
   field: Selection,
   draft_order: DraftOrderRecord,
   fragments: FragmentMap,
 ) -> Json {
-  project_graphql_value(
-    captured_json_source(draft_order.data),
-    selection_children(field),
-    fragments,
-  )
+  let source = captured_json_source(draft_order.data)
+  let entries =
+    list.map(selection_children(field), fn(child) {
+      let key = get_field_response_key(child)
+      case child {
+        Field(name: name, ..) ->
+          case name.value {
+            "paymentTerms" -> #(key, case store {
+              Some(store) ->
+                serialize_owner_payment_terms(
+                  store,
+                  draft_order.id,
+                  child,
+                  fragments,
+                  source,
+                )
+              None -> project_graphql_field_value(source, child, fragments)
+            })
+            _ -> #(key, project_graphql_field_value(source, child, fragments))
+          }
+        _ -> #(key, json.null())
+      }
+    })
+  json.object(entries)
 }
 
 @internal

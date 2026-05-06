@@ -1,0 +1,26 @@
+mutation DraftOrderCompletePaymentGatewayPathsCreate {
+  draftOrderCreate(
+    input: {
+      email: "gateway-complete@example.test"
+      lineItems: [
+        { title: "Gateway completion service", quantity: 1, originalUnitPrice: "10.00", sku: "GATEWAY-COMPLETE" }
+      ]
+    }
+  ) {
+    draftOrder {
+      id
+      name
+      status
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

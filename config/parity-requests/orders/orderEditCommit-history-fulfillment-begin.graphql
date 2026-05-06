@@ -1,0 +1,35 @@
+mutation OrderEditCommitHistoryFulfillmentBegin($id: ID!) {
+  orderEditBegin(id: $id) {
+    calculatedOrder {
+      id
+      originalOrder {
+        id
+        name
+      }
+      lineItems(first: 10) {
+        nodes {
+          id
+          title
+          quantity
+          sku
+          variant {
+            id
+          }
+          originalUnitPriceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+      }
+    }
+    orderEditSession {
+      id
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}
