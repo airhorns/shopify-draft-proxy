@@ -27,14 +27,14 @@ import shopify_draft_proxy/proxy/mutation_helpers.{
   validate_required_field_arguments,
 }
 import shopify_draft_proxy/proxy/orders/common.{
-  captured_array_values, captured_field_or_null, captured_int_field,
-  captured_json_source, captured_money_amount, captured_money_value,
-  captured_number_field, captured_object_field, captured_string_field,
-  draft_order_gid_tail, field_arguments, format_decimal_amount,
-  fulfillment_order_line_items, max_float, money_set, money_set_string,
-  optional_captured_string, order_fulfillment_orders, order_line_items,
-  parse_amount, read_bool, read_int, read_number, read_object, read_string,
-  replace_captured_object_fields, selection_children,
+  captured_array_values, captured_bool_field, captured_field_or_null,
+  captured_int_field, captured_json_source, captured_money_amount,
+  captured_money_value, captured_number_field, captured_object_field,
+  captured_string_field, draft_order_gid_tail, field_arguments,
+  format_decimal_amount, fulfillment_order_line_items, max_float, money_set,
+  money_set_string, optional_captured_string, order_fulfillment_orders,
+  order_line_items, parse_amount, read_bool, read_int, read_number, read_object,
+  read_string, replace_captured_object_fields, selection_children,
   serialize_captured_selection,
 }
 
@@ -566,32 +566,51 @@ pub fn order_edit_add_custom_item(
   session: CapturedJsonValue,
   args: Dict(String, root_field.ResolvedValue),
 ) -> #(String, Json, Store, SyntheticIdentityRegistry) {
-  let #(line_item, next_identity) =
-    build_order_edit_custom_line_item(identity, args)
-  let line_items =
-    list.append(order_edit_session_line_items(session), [line_item])
-  let added_line_items =
-    list.append(order_edit_session_added_line_items(session), [line_item])
-  let updated_session =
-    replace_captured_object_fields(session, [
-      #("lineItems", CapturedObject([#("nodes", CapturedArray(line_items))])),
-      #(
-        "addedLineItems",
-        CapturedObject([#("nodes", CapturedArray(added_line_items))]),
-      ),
-    ])
-  let #(next_store, calculated_order) =
-    stage_updated_order_edit_session(store, order, updated_session)
-  let payload =
-    serialize_order_edit_residual_payload(
-      field,
-      Some(calculated_order),
-      Some(line_item),
-      None,
-      None,
-      fragments,
+  let line_items = order_edit_session_line_items(session)
+  let currency_code = order_edit_currency_code(order.data, line_items)
+  case
+    order_edit_add_custom_item_user_errors(
+      args,
+      currency_code,
+      line_items,
+      order.data,
     )
-  #(key, payload, next_store, next_identity)
+  {
+    [] -> {
+      let #(line_item, next_identity) =
+        build_order_edit_custom_line_item(identity, args, currency_code)
+      let line_items = list.append(line_items, [line_item])
+      let added_line_items =
+        list.append(order_edit_session_added_line_items(session), [line_item])
+      let updated_session =
+        replace_captured_object_fields(session, [
+          #(
+            "lineItems",
+            CapturedObject([#("nodes", CapturedArray(line_items))]),
+          ),
+          #(
+            "addedLineItems",
+            CapturedObject([#("nodes", CapturedArray(added_line_items))]),
+          ),
+        ])
+      let #(next_store, calculated_order) =
+        stage_updated_order_edit_session(store, order, updated_session)
+      let payload =
+        serialize_order_edit_residual_payload(
+          field,
+          Some(calculated_order),
+          Some(line_item),
+          None,
+          None,
+          fragments,
+        )
+      #(key, payload, next_store, next_identity)
+    }
+    user_errors -> {
+      let payload = serialize_order_edit_error_payload(field, user_errors)
+      #(key, payload, store, identity)
+    }
+  }
 }
 
 @internal
@@ -1060,12 +1079,12 @@ pub fn stage_updated_order_edit_session(
 pub fn build_order_edit_custom_line_item(
   identity: SyntheticIdentityRegistry,
   args: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
 ) -> #(CapturedJsonValue, SyntheticIdentityRegistry) {
   let #(id, next_identity) =
     synthetic_identity.make_synthetic_gid(identity, "CalculatedLineItem")
   let price = read_object(args, "price") |> option.unwrap(dict.new())
   let amount = read_number(price, "amount") |> option.unwrap(0.0)
-  let currency_code = read_string(price, "currencyCode") |> option.unwrap("CAD")
   let quantity = read_int(args, "quantity", 1)
   #(
     CapturedObject([
@@ -1080,6 +1099,119 @@ pub fn build_order_edit_custom_line_item(
     ]),
     next_identity,
   )
+}
+
+@internal
+pub fn order_edit_add_custom_item_user_errors(
+  args: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+  line_items: List(CapturedJsonValue),
+  order_data: CapturedJsonValue,
+) -> List(OrderEditUserError) {
+  let price = read_object(args, "price") |> option.unwrap(dict.new())
+  [
+    order_edit_add_custom_item_channel_policy_error(order_data),
+    order_edit_add_custom_item_title_error(args),
+    order_edit_add_custom_item_quantity_error(args),
+    order_edit_add_custom_item_price_error(price),
+    order_edit_add_custom_item_currency_error(price, currency_code),
+    order_edit_add_custom_item_count_error(line_items),
+  ]
+  |> list.filter_map(fn(error) {
+    case error {
+      Some(error) -> Ok(error)
+      None -> Error(Nil)
+    }
+  })
+}
+
+fn order_edit_add_custom_item_channel_policy_error(
+  order_data: CapturedJsonValue,
+) -> Option(OrderEditUserError) {
+  case add_custom_item_allowed(order_data) {
+    Some(False) -> Some(order_edit_user_error(["customItem"], "not_supported"))
+    _ -> None
+  }
+}
+
+fn add_custom_item_allowed(order_data: CapturedJsonValue) -> Option(Bool) {
+  captured_bool_field(order_data, "addCustomItemAllowed")
+  |> option.or(captured_bool_field(order_data, "add_custom_item_allowed"))
+  |> option.or(captured_bool_field(
+    order_data,
+    "__draftProxyAddCustomItemAllowed",
+  ))
+}
+
+fn order_edit_add_custom_item_title_error(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(OrderEditUserError) {
+  case read_string(args, "title") {
+    Some(title) -> {
+      let trimmed = string.trim(title)
+      case trimmed == "" {
+        True -> Some(order_edit_user_error(["title"], "can't be blank"))
+        False ->
+          case string.length(title) > 255 {
+            True ->
+              Some(order_edit_user_error(
+                ["title"],
+                "is too long (maximum is 255 characters)",
+              ))
+            False -> None
+          }
+      }
+    }
+    None -> None
+  }
+}
+
+fn order_edit_add_custom_item_quantity_error(
+  args: Dict(String, root_field.ResolvedValue),
+) -> Option(OrderEditUserError) {
+  case read_int(args, "quantity", 1) <= 0 {
+    True -> Some(order_edit_user_error(["quantity"], "must be greater than 0"))
+    False -> None
+  }
+}
+
+fn order_edit_add_custom_item_price_error(
+  price: Dict(String, root_field.ResolvedValue),
+) -> Option(OrderEditUserError) {
+  let amount = read_number(price, "amount") |> option.unwrap(0.0)
+  case amount <. 0.0 {
+    True ->
+      Some(order_edit_user_error(
+        ["price", "amount"],
+        "must be greater than or equal to 0",
+      ))
+    False -> None
+  }
+}
+
+fn order_edit_add_custom_item_currency_error(
+  price: Dict(String, root_field.ResolvedValue),
+  currency_code: String,
+) -> Option(OrderEditUserError) {
+  case read_string(price, "currencyCode") {
+    Some(input_currency) if input_currency != currency_code ->
+      Some(order_edit_user_error(
+        ["price", "amount"],
+        "Currency must be " <> currency_code <> ".",
+      ))
+    _ -> None
+  }
+}
+
+const order_edit_max_line_items = 250
+
+fn order_edit_add_custom_item_count_error(
+  line_items: List(CapturedJsonValue),
+) -> Option(OrderEditUserError) {
+  case list.length(line_items) >= order_edit_max_line_items {
+    True -> Some(order_edit_user_error([], "line_items_limit_exceeded"))
+    False -> None
+  }
 }
 
 @internal
@@ -2184,11 +2316,28 @@ pub fn order_edit_invalid_user_error(
   field_path: List(String),
   message: String,
 ) -> OrderEditUserError {
-  OrderEditUserError(
-    field_path: field_path,
-    message: message,
-    code: Some(user_error_codes.invalid),
+  order_edit_user_error_with_code(
+    field_path,
+    message,
+    Some(user_error_codes.invalid),
   )
+}
+
+@internal
+pub fn order_edit_user_error(
+  field_path: List(String),
+  message: String,
+) -> OrderEditUserError {
+  order_edit_user_error_with_code(field_path, message, None)
+}
+
+@internal
+pub fn order_edit_user_error_with_code(
+  field_path: List(String),
+  message: String,
+  code: Option(String),
+) -> OrderEditUserError {
+  OrderEditUserError(field_path: field_path, message: message, code: code)
 }
 
 @internal
@@ -2330,6 +2479,18 @@ pub fn serialize_order_edit_residual_payload(
             "addedDiscountStagedChange" -> #(
               key,
               serialize_captured_selection(child, staged_change, fragments),
+            )
+            "orderEditSession" -> #(
+              key,
+              serialize_order_edit_session(
+                child,
+                calculated_order
+                  |> option.then(fn(order) {
+                    captured_string_field(order, "id")
+                  })
+                  |> option.map(order_edit_session_id_from_calculated_id)
+                  |> option.unwrap(""),
+              ),
             )
             "userErrors" -> #(key, json.array([], fn(error) { error }))
             _ -> #(key, json.null())

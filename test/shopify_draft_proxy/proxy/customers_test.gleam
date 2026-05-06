@@ -1,4 +1,5 @@
 import gleam/dict
+import gleam/int
 import gleam/json
 import gleam/list
 import gleam/option.{type Option, None, Some}
@@ -9,8 +10,10 @@ import shopify_draft_proxy/state/store as store_mod
 import shopify_draft_proxy/state/types.{
   type CustomerOrderSummaryRecord, type CustomerRecord, type OrderRecord,
   B2BCompanyContactRecord, B2BCompanyRecord, CapturedNull, CapturedObject,
-  CapturedString, CustomerOrderSummaryRecord, CustomerRecord, Money, OrderRecord,
-  StoreCreditAccountRecord, StorePropertyList, StorePropertyString,
+  CapturedString, CustomerDefaultEmailAddressRecord, CustomerOrderSummaryRecord,
+  CustomerPaymentMethodRecord, CustomerPaymentMethodSubscriptionContractRecord,
+  CustomerRecord, GiftCardRecord, Money, OrderRecord, StoreCreditAccountRecord,
+  StorePropertyList, StorePropertyString,
 }
 
 fn graphql(proxy: draft_proxy.DraftProxy, query: String) {
@@ -610,6 +613,110 @@ pub fn customer_merge_job_and_result_nodes_readback_test() {
     "\"resultNode\":{\"__typename\":\"Customer\",\"id\":\"gid://shopify/Customer/3\",\"email\":\"merge-two@example.com\",\"tags\":[\"result\",\"source\"],\"displayName\":\"Two Result\"}",
   )
   assert string.contains(read_json, "\"sourceNode\":null")
+}
+
+pub fn customer_merge_blocks_combined_tags_overflow_test() {
+  let proxy =
+    customer_merge_blocker_proxy(
+      CustomerRecord(..merge_customer_one(), tags: numbered_tags("a", 126)),
+      CustomerRecord(..merge_customer_two(), tags: numbered_tags("b", 125)),
+    )
+
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, merge_blocker_mutation())
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"customerMerge\":{\"resultingCustomerId\":null,\"job\":null,\"userErrors\":[{\"field\":[\"customerOneId\"],\"message\":\"Customers must have 250 tags or less.\",\"code\":\"INVALID_CUSTOMER\"},{\"field\":[\"customerTwoId\"],\"message\":\"Customers must have 250 tags or less.\",\"code\":\"INVALID_CUSTOMER\"}],\"customerMergeErrors\":[{\"field\":[\"customerOneId\"],\"code\":\"INVALID_CUSTOMER\",\"block_type\":\"HARD\"},{\"field\":[\"customerTwoId\"],\"code\":\"INVALID_CUSTOMER\",\"block_type\":\"HARD\"}]}}}"
+  assert list.is_empty(store_mod.get_log(proxy_after.store))
+}
+
+pub fn customer_merge_blocks_combined_note_overflow_test() {
+  let proxy =
+    customer_merge_blocker_proxy(
+      CustomerRecord(..merge_customer_one(), note: Some(repeat("A", 3000))),
+      CustomerRecord(..merge_customer_two(), note: Some(repeat("B", 2501))),
+    )
+
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, merge_blocker_mutation())
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"customerMerge\":{\"resultingCustomerId\":null,\"job\":null,\"userErrors\":[{\"field\":[\"customerOneId\"],\"message\":\"Customer notes must be 5,000 characters or less.\",\"code\":\"INVALID_CUSTOMER\"},{\"field\":[\"customerTwoId\"],\"message\":\"Customer notes must be 5,000 characters or less.\",\"code\":\"INVALID_CUSTOMER\"}],\"customerMergeErrors\":[{\"field\":[\"customerOneId\"],\"code\":\"INVALID_CUSTOMER\",\"block_type\":\"HARD\"},{\"field\":[\"customerTwoId\"],\"code\":\"INVALID_CUSTOMER\",\"block_type\":\"HARD\"}]}}}"
+  assert list.is_empty(store_mod.get_log(proxy_after.store))
+}
+
+pub fn customer_merge_blocks_subscription_contracts_test() {
+  let proxy =
+    customer_merge_blocker_proxy(merge_customer_one(), merge_customer_two())
+  let method =
+    CustomerPaymentMethodRecord(
+      id: "gid://shopify/CustomerPaymentMethod/merge-contract",
+      customer_id: "gid://shopify/Customer/merge-one",
+      cursor: None,
+      instrument: None,
+      revoked_at: None,
+      revoked_reason: None,
+      subscription_contracts: [
+        CustomerPaymentMethodSubscriptionContractRecord(
+          id: "gid://shopify/SubscriptionContract/merge-contract",
+          cursor: None,
+          data: dict.from_list([#("status", "ACTIVE")]),
+        ),
+      ],
+    )
+  let proxy =
+    proxy_state.DraftProxy(
+      ..proxy,
+      store: store_mod.upsert_base_customer_payment_methods(proxy.store, [
+        method,
+      ]),
+    )
+
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, merge_blocker_mutation())
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"customerMerge\":{\"resultingCustomerId\":null,\"job\":null,\"userErrors\":[{\"field\":[\"customerOneId\"],\"message\":\"Customer with email merge-one@example.test has subscription contracts and can’t be merged.\",\"code\":\"INVALID_CUSTOMER\"}],\"customerMergeErrors\":[{\"field\":[\"customerOneId\"],\"code\":\"INVALID_CUSTOMER\",\"block_type\":\"HARD\"}]}}}"
+  assert list.is_empty(store_mod.get_log(proxy_after.store))
+}
+
+pub fn customer_merge_blocks_enabled_gift_cards_test() {
+  let proxy =
+    customer_merge_blocker_proxy(merge_customer_one(), merge_customer_two())
+  let #(_, store_with_gift_card) =
+    store_mod.stage_create_gift_card(
+      proxy.store,
+      GiftCardRecord(
+        id: "gid://shopify/GiftCard/merge-gift",
+        legacy_resource_id: "merge-gift",
+        last_characters: "1234",
+        masked_code: "**** **** **** 1234",
+        code: None,
+        enabled: True,
+        notify: True,
+        deactivated_at: None,
+        expires_on: None,
+        note: None,
+        template_suffix: None,
+        created_at: "2026-05-06T00:00:00Z",
+        updated_at: "2026-05-06T00:00:00Z",
+        initial_value: Money("5.0", "CAD"),
+        balance: Money("5.0", "CAD"),
+        customer_id: Some("gid://shopify/Customer/merge-one"),
+        recipient_id: None,
+        source: None,
+        recipient_attributes: None,
+        transactions: [],
+      ),
+    )
+  let proxy = proxy_state.DraftProxy(..proxy, store: store_with_gift_card)
+
+  let #(Response(status: status, body: body, ..), proxy_after) =
+    graphql(proxy, merge_blocker_mutation())
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"customerMerge\":{\"resultingCustomerId\":null,\"job\":null,\"userErrors\":[{\"field\":[\"customerOneId\"],\"message\":\"Customer with email merge-one@example.test has gift cards and can’t be merged.\",\"code\":\"INVALID_CUSTOMER\"}],\"customerMergeErrors\":[{\"field\":[\"customerOneId\"],\"code\":\"INVALID_CUSTOMER\",\"block_type\":\"HARD\"}]}}}"
+  assert list.is_empty(store_mod.get_log(proxy_after.store))
 }
 
 pub fn customer_create_readback_and_log_test() {
@@ -2002,5 +2109,76 @@ fn opt_in_level_for_state(state: String) -> String {
   case state {
     "PENDING" -> "CONFIRMED_OPT_IN"
     _ -> "SINGLE_OPT_IN"
+  }
+}
+
+fn merge_customer_one() -> CustomerRecord {
+  customer_with_state("gid://shopify/Customer/merge-one", "ENABLED")
+  |> merge_customer_with_email("merge-one@example.test")
+}
+
+fn merge_customer_two() -> CustomerRecord {
+  customer_with_state("gid://shopify/Customer/merge-two", "ENABLED")
+  |> merge_customer_with_email("merge-two@example.test")
+}
+
+fn merge_customer_with_email(
+  customer: CustomerRecord,
+  email: String,
+) -> CustomerRecord {
+  CustomerRecord(
+    ..customer,
+    email: Some(email),
+    display_name: Some(email),
+    default_email_address: Some(CustomerDefaultEmailAddressRecord(
+      email_address: Some(email),
+      marketing_state: None,
+      marketing_opt_in_level: None,
+      marketing_updated_at: None,
+    )),
+  )
+}
+
+fn customer_merge_blocker_proxy(
+  one: CustomerRecord,
+  two: CustomerRecord,
+) -> draft_proxy.DraftProxy {
+  let proxy = draft_proxy.new()
+  let store = store_mod.upsert_base_customers(proxy.store, [one, two])
+  proxy_state.DraftProxy(..proxy, store: store)
+}
+
+fn merge_blocker_mutation() -> String {
+  "mutation { customerMerge(customerOneId: \"gid://shopify/Customer/merge-one\", customerTwoId: \"gid://shopify/Customer/merge-two\") { resultingCustomerId job { id done } userErrors { field message code } customerMergeErrors { field code block_type } } }"
+}
+
+fn numbered_tags(prefix: String, count: Int) -> List(String) {
+  do_numbered_tags(prefix, 0, count, [])
+}
+
+fn do_numbered_tags(
+  prefix: String,
+  index: Int,
+  count: Int,
+  acc: List(String),
+) -> List(String) {
+  case index >= count {
+    True -> list.reverse(acc)
+    False ->
+      do_numbered_tags(prefix, index + 1, count, [
+        prefix <> "-" <> int.to_string(index),
+        ..acc
+      ])
+  }
+}
+
+fn repeat(value: String, count: Int) -> String {
+  do_repeat(value, count, "")
+}
+
+fn do_repeat(value: String, remaining: Int, acc: String) -> String {
+  case remaining <= 0 {
+    True -> acc
+    False -> do_repeat(value, remaining - 1, acc <> value)
   }
 }
