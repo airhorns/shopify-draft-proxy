@@ -224,18 +224,18 @@ let planId: string | null = null;
 const scenarios: Record<string, Scenario> = {};
 
 try {
-  scenarios.validSeed = await capture(
+  scenarios['validSeed'] = await capture(
     'validSeed',
     createMutation,
     { input: validGroupInput({ name: `Input validation seed ${Date.now()}` }), resources: {} },
     false,
   );
-  const createdGroup = readRecord(root(scenarios.validSeed.response, 'sellingPlanGroupCreate')['sellingPlanGroup']);
+  const createdGroup = readRecord(root(scenarios['validSeed'].response, 'sellingPlanGroupCreate')['sellingPlanGroup']);
   groupId = createdGroup['id'] as string;
   const planNodes = readArray(readRecord(createdGroup['sellingPlans'])['nodes']);
   planId = readRecord(planNodes[0])['id'] as string;
 
-  scenarios.groupOptionsTooLong = await capture(
+  scenarios['groupOptionsTooLong'] = await capture(
     'groupOptionsTooLong',
     createMutation,
     {
@@ -247,7 +247,7 @@ try {
     },
     true,
   );
-  scenarios.groupPositionInvalid = await capture(
+  scenarios['groupPositionInvalid'] = await capture(
     'groupPositionInvalid',
     createMutation,
     {
@@ -259,7 +259,7 @@ try {
     },
     true,
   );
-  scenarios.planCreateOptionsTooLong = await capture(
+  scenarios['planCreateOptionsTooLong'] = await capture(
     'planCreateOptionsTooLong',
     createMutation,
     {
@@ -271,7 +271,7 @@ try {
     },
     true,
   );
-  scenarios.planCreatePricingPoliciesTooLong = await capture(
+  scenarios['planCreatePricingPoliciesTooLong'] = await capture(
     'planCreatePricingPoliciesTooLong',
     createMutation,
     {
@@ -287,7 +287,7 @@ try {
     },
     true,
   );
-  scenarios.planCreatePositionInvalid = await capture(
+  scenarios['planCreatePositionInvalid'] = await capture(
     'planCreatePositionInvalid',
     createMutation,
     {
@@ -299,7 +299,7 @@ try {
     },
     true,
   );
-  scenarios.planCreatePolicyMismatch = await capture(
+  scenarios['planCreatePolicyMismatch'] = await capture(
     'planCreatePolicyMismatch',
     createMutation,
     {
@@ -311,7 +311,7 @@ try {
     },
     true,
   );
-  scenarios.groupUpdateOptionsTooLong = await capture(
+  scenarios['groupUpdateOptionsTooLong'] = await capture(
     'groupUpdateOptionsTooLong',
     updateMutation,
     {
@@ -322,7 +322,7 @@ try {
     },
     true,
   );
-  scenarios.planUpdateMissingId = await capture(
+  scenarios['planUpdateMissingId'] = await capture(
     'planUpdateMissingId',
     updateMutation,
     {
@@ -333,7 +333,7 @@ try {
     },
     true,
   );
-  scenarios.planUpdateOptionsTooLong = await capture(
+  scenarios['planUpdateOptionsTooLong'] = await capture(
     'planUpdateOptionsTooLong',
     updateMutation,
     {
@@ -344,7 +344,7 @@ try {
     },
     true,
   );
-  scenarios.planUpdatePricingPoliciesTooLong = await capture(
+  scenarios['planUpdatePricingPoliciesTooLong'] = await capture(
     'planUpdatePricingPoliciesTooLong',
     updateMutation,
     {
@@ -357,7 +357,7 @@ try {
     },
     true,
   );
-  scenarios.planUpdatePositionInvalid = await capture(
+  scenarios['planUpdatePositionInvalid'] = await capture(
     'planUpdatePositionInvalid',
     updateMutation,
     {
@@ -368,7 +368,7 @@ try {
     },
     true,
   );
-  scenarios.planUpdatePolicyMismatch = await capture(
+  scenarios['planUpdatePolicyMismatch'] = await capture(
     'planUpdatePolicyMismatch',
     updateMutation,
     {
