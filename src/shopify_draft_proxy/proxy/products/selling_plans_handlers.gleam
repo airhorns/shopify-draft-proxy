@@ -270,9 +270,8 @@ pub fn handle_product_selling_plan_group_mutation(
         product_id
         |> option.then(fn(id) { store.get_effective_product_by_id(store, id) })
       {
-        None ->
-          mutation_result(
-            key,
+        None -> {
+          let payload =
             product_selling_plan_group_mutation_payload(
               store,
               field,
@@ -287,11 +286,9 @@ pub fn handle_product_selling_plan_group_mutation(
                   Some("PRODUCT_DOES_NOT_EXIST"),
                 ),
               ],
-            ),
-            store,
-            identity,
-            [],
-          )
+            )
+          mutation_rejected_result(key, payload, store, identity)
+        }
         Some(product) -> {
           let #(next_store, errors, staged_ids) =
             update_product_selling_plan_group_membership(
@@ -300,8 +297,7 @@ pub fn handle_product_selling_plan_group_mutation(
               read_arg_string_list(args, "sellingPlanGroupIds"),
               root_name == "productJoinSellingPlanGroups",
             )
-          mutation_result(
-            key,
+          let payload =
             product_selling_plan_group_mutation_payload(
               next_store,
               field,
@@ -310,11 +306,13 @@ pub fn handle_product_selling_plan_group_mutation(
               store.get_effective_product_by_id(next_store, product.id),
               None,
               errors,
-            ),
-            next_store,
-            identity,
-            staged_ids,
-          )
+            )
+          case errors {
+            [_, ..] ->
+              mutation_rejected_result(key, payload, next_store, identity)
+            [] ->
+              mutation_result(key, payload, next_store, identity, staged_ids)
+          }
         }
       }
     }
@@ -325,9 +323,8 @@ pub fn handle_product_selling_plan_group_mutation(
         variant_id
         |> option.then(fn(id) { store.get_effective_variant_by_id(store, id) })
       {
-        None ->
-          mutation_result(
-            key,
+        None -> {
+          let payload =
             product_selling_plan_group_mutation_payload(
               store,
               field,
@@ -342,11 +339,9 @@ pub fn handle_product_selling_plan_group_mutation(
                   Some("PRODUCT_VARIANT_DOES_NOT_EXIST"),
                 ),
               ],
-            ),
-            store,
-            identity,
-            [],
-          )
+            )
+          mutation_rejected_result(key, payload, store, identity)
+        }
         Some(variant) -> {
           let #(next_store, errors, staged_ids) =
             update_variant_selling_plan_group_membership(
@@ -355,8 +350,7 @@ pub fn handle_product_selling_plan_group_mutation(
               read_arg_string_list(args, "sellingPlanGroupIds"),
               root_name == "productVariantJoinSellingPlanGroups",
             )
-          mutation_result(
-            key,
+          let payload =
             product_selling_plan_group_mutation_payload(
               next_store,
               field,
@@ -365,11 +359,13 @@ pub fn handle_product_selling_plan_group_mutation(
               None,
               store.get_effective_variant_by_id(next_store, variant.id),
               errors,
-            ),
-            next_store,
-            identity,
-            staged_ids,
-          )
+            )
+          case errors {
+            [_, ..] ->
+              mutation_rejected_result(key, payload, next_store, identity)
+            [] ->
+              mutation_result(key, payload, next_store, identity, staged_ids)
+          }
         }
       }
     }
