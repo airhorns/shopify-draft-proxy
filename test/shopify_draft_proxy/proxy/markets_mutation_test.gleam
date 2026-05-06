@@ -10,12 +10,17 @@ import shopify_draft_proxy/proxy/proxy_state.{
 }
 import shopify_draft_proxy/state/store
 import shopify_draft_proxy/state/types.{
-  type MarketRecord, type ProductMetafieldRecord, type ShopRecord,
-  CapturedObject, CapturedString, MarketLocalizableContentRecord, MarketRecord,
-  PaymentSettingsRecord, ProductMetafieldRecord, ShopAddressRecord,
-  ShopBundlesFeatureRecord, ShopCartTransformEligibleOperationsRecord,
-  ShopCartTransformFeatureRecord, ShopDomainRecord, ShopFeaturesRecord,
-  ShopPlanRecord, ShopRecord, ShopResourceLimitsRecord,
+  type CatalogRecord, type MarketRecord, type PriceListRecord,
+  type ProductMetafieldRecord, type ProductRecord, type ProductVariantRecord,
+  type PublicationRecord, type ShopRecord, CapturedArray, CapturedBool,
+  CapturedInt, CapturedNull, CapturedObject, CapturedString, CatalogRecord,
+  MarketLocalizableContentRecord, MarketRecord, PaymentSettingsRecord,
+  PriceListRecord, ProductMetafieldRecord, ProductRecord, ProductSeoRecord,
+  ProductVariantRecord, ProductVariantSelectedOptionRecord, PublicationRecord,
+  ShopAddressRecord, ShopBundlesFeatureRecord,
+  ShopCartTransformEligibleOperationsRecord, ShopCartTransformFeatureRecord,
+  ShopDomainRecord, ShopFeaturesRecord, ShopPlanRecord, ShopRecord,
+  ShopResourceLimitsRecord,
 }
 
 fn graphql(query: String) {
@@ -82,6 +87,155 @@ pub fn price_list_create_rejects_invalid_parent_adjustment_type_test() {
   assert status == 200
   assert json.to_string(body)
     == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"type\"],\"message\":\"Type is invalid\",\"code\":\"INVALID\"}]}}}"
+}
+
+pub fn price_list_fixed_prices_add_stages_variant_prices_test() {
+  let #(Response(status: create_status, body: create_body, ..), proxy) =
+    graphql_with_proxy(
+      price_list_fixed_price_proxy(),
+      "mutation { priceListFixedPricesAdd(priceListId: \"gid://shopify/PriceList/fixed\", prices: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"12.50\", currencyCode: EUR } }]) { prices { originType price { amount currencyCode } variant { id } } userErrors { __typename field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "query { priceList(id: \"gid://shopify/PriceList/fixed\") { id fixedPricesCount prices(first: 10, originType: FIXED) { edges { node { originType price { amount currencyCode } variant { id } } } } } }",
+    )
+
+  let create_json = json.to_string(create_body)
+  let read_json = json.to_string(read_body)
+  assert create_status == 200
+  assert read_status == 200
+  assert string.contains(create_json, "\"prices\":[")
+  assert string.contains(create_json, "\"userErrors\":[]")
+  assert string.contains(
+    create_json,
+    "\"amount\":\"12.5\",\"currencyCode\":\"EUR\"",
+  )
+  assert string.contains(
+    create_json,
+    "\"variant\":{\"id\":\"gid://shopify/ProductVariant/alpha\"}",
+  )
+  assert string.contains(read_json, "\"fixedPricesCount\":1")
+  assert string.contains(
+    read_json,
+    "\"amount\":\"12.5\",\"currencyCode\":\"EUR\"",
+  )
+  assert string.contains(
+    read_json,
+    "\"variant\":{\"id\":\"gid://shopify/ProductVariant/alpha\"}",
+  )
+}
+
+pub fn price_list_fixed_prices_update_and_delete_share_staged_fixed_rows_test() {
+  let #(Response(status: add_status, ..), proxy_after_add) =
+    graphql_with_proxy(
+      price_list_fixed_price_proxy(),
+      "mutation { priceListFixedPricesAdd(priceListId: \"gid://shopify/PriceList/fixed\", prices: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"12.50\", currencyCode: EUR } }, { variantId: \"gid://shopify/ProductVariant/beta\", price: { amount: \"20.00\", currencyCode: EUR } }]) { priceList { id } userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: update_status, body: update_body, ..),
+    proxy_after_update,
+  ) =
+    graphql_with_proxy(
+      proxy_after_add,
+      "mutation { priceListFixedPricesUpdate(priceListId: \"gid://shopify/PriceList/fixed\", pricesToAdd: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"15.00\", currencyCode: EUR } }], variantIdsToDelete: [\"gid://shopify/ProductVariant/beta\"]) { priceList { fixedPricesCount prices(first: 10, originType: FIXED) { edges { node { price { amount currencyCode } variant { id } } } } } pricesAdded { price { amount currencyCode } variant { id } } deletedFixedPriceVariantIds userErrors { field message code } } }",
+    )
+  let #(
+    Response(status: delete_status, body: delete_body, ..),
+    proxy_after_delete,
+  ) =
+    graphql_with_proxy(
+      proxy_after_update,
+      "mutation { priceListFixedPricesDelete(priceListId: \"gid://shopify/PriceList/fixed\", variantIds: [\"gid://shopify/ProductVariant/beta\", \"gid://shopify/ProductVariant/alpha\"]) { deletedFixedPriceVariantIds userErrors { field message code } } }",
+    )
+  let #(Response(status: read_status, body: read_body, ..), _) =
+    graphql_with_proxy(
+      proxy_after_delete,
+      "query { priceList(id: \"gid://shopify/PriceList/fixed\") { fixedPricesCount prices(first: 10, originType: FIXED) { edges { node { variant { id } } } } } }",
+    )
+
+  let update_json = json.to_string(update_body)
+  let delete_json = json.to_string(delete_body)
+  let read_json = json.to_string(read_body)
+  assert add_status == 200
+  assert update_status == 200
+  assert delete_status == 200
+  assert read_status == 200
+  assert string.contains(update_json, "\"pricesAdded\":[")
+  assert !string.contains(update_json, "\"fixedPriceVariantIds\"")
+  assert string.contains(
+    update_json,
+    "\"deletedFixedPriceVariantIds\":[\"gid://shopify/ProductVariant/beta\"]",
+  )
+  assert string.contains(update_json, "\"fixedPricesCount\":1")
+  assert string.contains(
+    update_json,
+    "\"amount\":\"15.0\",\"currencyCode\":\"EUR\"",
+  )
+  assert !string.contains(
+    update_json,
+    "\"variant\":{\"id\":\"gid://shopify/ProductVariant/beta\"}",
+  )
+  assert !string.contains(delete_json, "\"fixedPriceVariantIds\"")
+  assert string.contains(
+    delete_json,
+    "\"deletedFixedPriceVariantIds\":[\"gid://shopify/ProductVariant/alpha\"]",
+  )
+  assert string.contains(read_json, "\"fixedPricesCount\":0")
+  assert !string.contains(read_json, "\"variant\":{\"id\"")
+}
+
+pub fn price_list_fixed_prices_validates_target_variant_currency_and_duplicates_test() {
+  let #(Response(status: missing_status, body: missing_body, ..), _) =
+    graphql_with_proxy(
+      price_list_fixed_price_proxy(),
+      "mutation { priceListFixedPricesAdd(priceListId: \"gid://shopify/PriceList/missing\", prices: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"12.50\", currencyCode: EUR } }]) { prices { variant { id } } userErrors { __typename field message code } } }",
+    )
+  let #(Response(status: input_status, body: input_body, ..), _) =
+    graphql_with_proxy(
+      price_list_fixed_price_proxy(),
+      "mutation { priceListFixedPricesAdd(priceListId: \"gid://shopify/PriceList/fixed\", prices: [{ variantId: \"gid://shopify/ProductVariant/missing\", price: { amount: \"12.50\", currencyCode: EUR } }, { variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"10.00\", currencyCode: USD } }, { variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"11.00\", currencyCode: EUR } }]) { prices { variant { id } } userErrors { __typename field message code } } }",
+    )
+
+  let missing_json = json.to_string(missing_body)
+  let input_json = json.to_string(input_body)
+  assert missing_status == 200
+  assert input_status == 200
+  assert string.contains(
+    missing_json,
+    "\"__typename\":\"PriceListPriceUserError\"",
+  )
+  assert string.contains(
+    missing_json,
+    "\"field\":[\"priceListId\"],\"message\":\"Price list not found.\",\"code\":\"PRICE_LIST_NOT_FOUND\"",
+  )
+  assert string.contains(
+    input_json,
+    "\"field\":[\"prices\",\"0\",\"variantId\"],\"message\":\"Variant not found.\",\"code\":\"VARIANT_NOT_FOUND\"",
+  )
+  assert string.contains(
+    input_json,
+    "\"field\":[\"prices\",\"1\",\"price\",\"currencyCode\"],\"message\":\"Currency must match price list currency.\",\"code\":\"PRICES_TO_ADD_CURRENCY_MISMATCH\"",
+  )
+  assert string.contains(
+    input_json,
+    "\"field\":[\"prices\",\"2\",\"variantId\"],\"message\":\"Duplicate variant ID in input.\",\"code\":\"DUPLICATE_ID_IN_INPUT\"",
+  )
+  assert string.contains(input_json, "\"prices\":null")
+}
+
+pub fn price_list_fixed_prices_update_rejects_missing_fixed_price_test() {
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      price_list_fixed_price_proxy(),
+      "mutation { priceListFixedPricesUpdate(priceListId: \"gid://shopify/PriceList/fixed\", pricesToAdd: [{ variantId: \"gid://shopify/ProductVariant/alpha\", price: { amount: \"15.00\", currencyCode: EUR } }], variantIdsToDelete: []) { priceList { id } userErrors { __typename field message code } } }",
+    )
+
+  assert status == 200
+  assert string.contains(
+    json.to_string(body),
+    "\"field\":[\"pricesToAdd\",\"0\",\"variantId\"],\"message\":\"Price is not fixed.\",\"code\":\"PRICE_NOT_FIXED\"",
+  )
 }
 
 pub fn web_presence_create_subfolder_root_urls_include_all_locales_and_shop_domain_test() {
@@ -223,6 +377,121 @@ pub fn web_presence_create_reports_unknown_domain_only_when_not_stored_test() {
   assert string.contains(
     serialized,
     "\"field\":[\"input\",\"domainId\"],\"message\":\"Domain does not exist\",\"code\":\"DOMAIN_NOT_FOUND\"",
+  )
+}
+
+fn price_list_fixed_price_proxy() -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_products([fixed_price_product()])
+    |> store.upsert_base_product_variants([
+      fixed_price_variant("alpha", "Alpha"),
+      fixed_price_variant("beta", "Beta"),
+    ])
+    |> store.upsert_base_price_lists([fixed_price_price_list()])
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn fixed_price_price_list() -> PriceListRecord {
+  PriceListRecord(
+    id: "gid://shopify/PriceList/fixed",
+    cursor: None,
+    data: CapturedObject([
+      #("__typename", CapturedString("PriceList")),
+      #("id", CapturedString("gid://shopify/PriceList/fixed")),
+      #("name", CapturedString("EU Fixed")),
+      #("currency", CapturedString("EUR")),
+      #("fixedPricesCount", CapturedInt(0)),
+      #("parent", CapturedNull),
+      #("catalog", CapturedNull),
+      #("prices", empty_price_connection()),
+      #("quantityRules", empty_connection()),
+    ]),
+  )
+}
+
+fn empty_price_connection() {
+  CapturedObject([
+    #("edges", CapturedArray([])),
+    #("nodes", CapturedArray([])),
+    #(
+      "pageInfo",
+      CapturedObject([
+        #("hasNextPage", CapturedBool(False)),
+        #("hasPreviousPage", CapturedBool(False)),
+      ]),
+    ),
+  ])
+}
+
+fn empty_connection() {
+  CapturedObject([
+    #("edges", CapturedArray([])),
+    #("nodes", CapturedArray([])),
+    #(
+      "pageInfo",
+      CapturedObject([
+        #("hasNextPage", CapturedBool(False)),
+        #("hasPreviousPage", CapturedBool(False)),
+      ]),
+    ),
+  ])
+}
+
+fn fixed_price_product() -> ProductRecord {
+  ProductRecord(
+    id: "gid://shopify/Product/fixed",
+    legacy_resource_id: None,
+    title: "Fixed Price Product",
+    handle: "fixed-price-product",
+    status: "ACTIVE",
+    vendor: None,
+    product_type: None,
+    tags: [],
+    price_range_min: None,
+    price_range_max: None,
+    total_variants: Some(2),
+    has_only_default_variant: Some(False),
+    has_out_of_stock_variants: Some(False),
+    total_inventory: Some(0),
+    tracks_inventory: Some(False),
+    created_at: None,
+    updated_at: None,
+    published_at: None,
+    description_html: "",
+    online_store_preview_url: None,
+    template_suffix: None,
+    seo: ProductSeoRecord(title: None, description: None),
+    category: None,
+    publication_ids: [],
+    contextual_pricing: None,
+    cursor: None,
+    combined_listing_role: None,
+    combined_listing_parent_id: None,
+    combined_listing_child_ids: [],
+  )
+}
+
+fn fixed_price_variant(tail: String, title: String) -> ProductVariantRecord {
+  ProductVariantRecord(
+    id: "gid://shopify/ProductVariant/" <> tail,
+    product_id: "gid://shopify/Product/fixed",
+    title: title,
+    sku: None,
+    barcode: None,
+    price: Some("10.00"),
+    compare_at_price: None,
+    taxable: None,
+    inventory_policy: None,
+    inventory_quantity: Some(0),
+    selected_options: [
+      ProductVariantSelectedOptionRecord(name: "Title", value: title),
+    ],
+    media_ids: [],
+    inventory_item: None,
+    contextual_pricing: None,
+    cursor: None,
   )
 }
 
@@ -770,4 +1039,234 @@ pub fn catalog_create_stages_market_context_test() {
     json.to_string(read_body),
     "\"title\":\"EU Catalog\",\"status\":\"ACTIVE\",\"markets\":{\"nodes\":[{\"id\":\"gid://shopify/Market/1\"}]}",
   )
+}
+
+pub fn catalog_create_rejects_unknown_price_list_id_test() {
+  let #(Response(status: market_status, body: market_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] }, priceListId: \"gid://shopify/PriceList/9999999999\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert market_status == 200
+  assert json.to_string(market_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\"},\"userErrors\":[]}}}"
+  assert catalog_status == 200
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"priceListId\"],\"message\":\"Price list not found.\",\"code\":\"PRICE_LIST_NOT_FOUND\"}]}}}"
+}
+
+pub fn catalog_create_rejects_taken_price_list_id_test() {
+  let proxy = catalog_relation_proxy()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"Second Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] }, priceListId: \"gid://shopify/PriceList/1\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"priceListId\"],\"message\":\"Price list has already been taken\",\"code\":\"TAKEN\"}]}}}"
+}
+
+pub fn catalog_create_rejects_unknown_publication_id_test() {
+  let #(Response(status: market_status, body: market_body, ..), proxy) =
+    graphql(
+      "mutation { marketCreate(input: { name: \"Europe\", regions: [{ countryCode: DK }] }) { market { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: catalog_status, body: catalog_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"EU Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] }, publicationId: \"gid://shopify/Publication/9999999999\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert market_status == 200
+  assert json.to_string(market_body)
+    == "{\"data\":{\"marketCreate\":{\"market\":{\"id\":\"gid://shopify/Market/1\"},\"userErrors\":[]}}}"
+  assert catalog_status == 200
+  assert json.to_string(catalog_body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"publicationId\"],\"message\":\"Publication not found.\",\"code\":\"PUBLICATION_NOT_FOUND\"}]}}}"
+}
+
+pub fn catalog_create_rejects_taken_publication_id_test() {
+  let proxy = catalog_relation_proxy()
+  let #(Response(status: status, body: body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogCreate(input: { title: \"Second Catalog\", status: ACTIVE, context: { driverType: MARKET, marketIds: [\"gid://shopify/Market/1\"] }, publicationId: \"gid://shopify/Publication/1\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert status == 200
+  assert json.to_string(body)
+    == "{\"data\":{\"catalogCreate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"publicationId\"],\"message\":\"Publication is already attached to another catalog\",\"code\":\"PUBLICATION_TAKEN\"}]}}}"
+}
+
+pub fn catalog_update_rejects_unknown_attached_ids_test() {
+  let proxy = catalog_relation_proxy()
+  let #(Response(status: price_status, body: price_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogUpdate(id: \"gid://shopify/MarketCatalog/2\", input: { priceListId: \"gid://shopify/PriceList/9999999999\" }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: publication_status, body: publication_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogUpdate(id: \"gid://shopify/MarketCatalog/2\", input: { publicationId: \"gid://shopify/Publication/9999999999\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert price_status == 200
+  assert json.to_string(price_body)
+    == "{\"data\":{\"catalogUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"priceListId\"],\"message\":\"Price list not found.\",\"code\":\"PRICE_LIST_NOT_FOUND\"}]}}}"
+  assert publication_status == 200
+  assert json.to_string(publication_body)
+    == "{\"data\":{\"catalogUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"publicationId\"],\"message\":\"Publication not found.\",\"code\":\"PUBLICATION_NOT_FOUND\"}]}}}"
+}
+
+pub fn catalog_update_rejects_taken_attached_ids_test() {
+  let proxy = catalog_relation_proxy()
+  let #(Response(status: price_status, body: price_body, ..), proxy) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogUpdate(id: \"gid://shopify/MarketCatalog/2\", input: { priceListId: \"gid://shopify/PriceList/1\" }) { catalog { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: publication_status, body: publication_body, ..), _) =
+    graphql_with_proxy(
+      proxy,
+      "mutation { catalogUpdate(id: \"gid://shopify/MarketCatalog/2\", input: { publicationId: \"gid://shopify/Publication/1\" }) { catalog { id } userErrors { field message code } } }",
+    )
+
+  assert price_status == 200
+  assert json.to_string(price_body)
+    == "{\"data\":{\"catalogUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"priceListId\"],\"message\":\"Price list has already been taken\",\"code\":\"TAKEN\"}]}}}"
+  assert publication_status == 200
+  assert json.to_string(publication_body)
+    == "{\"data\":{\"catalogUpdate\":{\"catalog\":null,\"userErrors\":[{\"field\":[\"input\",\"publicationId\"],\"message\":\"Publication is already attached to another catalog\",\"code\":\"PUBLICATION_TAKEN\"}]}}}"
+}
+
+fn catalog_relation_proxy() -> DraftProxy {
+  let proxy = draft_proxy.new() |> draft_proxy.with_default_registry
+  let seeded_store =
+    proxy.store
+    |> store.upsert_base_markets([catalog_relation_market()])
+    |> store.upsert_base_price_lists([catalog_relation_price_list()])
+    |> store.upsert_base_publications([catalog_relation_publication()])
+    |> store.upsert_base_catalogs([
+      catalog_with_relations("gid://shopify/MarketCatalog/1"),
+      catalog_without_relations("gid://shopify/MarketCatalog/2"),
+    ])
+  DraftProxy(..proxy, store: seeded_store)
+}
+
+fn catalog_relation_market() -> MarketRecord {
+  MarketRecord(
+    id: "gid://shopify/Market/1",
+    cursor: Some("gid://shopify/Market/1"),
+    data: CapturedObject([
+      #("__typename", CapturedString("Market")),
+      #("id", CapturedString("gid://shopify/Market/1")),
+      #("name", CapturedString("Europe")),
+    ]),
+  )
+}
+
+fn catalog_relation_price_list() -> PriceListRecord {
+  PriceListRecord(
+    id: "gid://shopify/PriceList/1",
+    cursor: Some("gid://shopify/PriceList/1"),
+    data: CapturedObject([
+      #("__typename", CapturedString("PriceList")),
+      #("id", CapturedString("gid://shopify/PriceList/1")),
+      #("name", CapturedString("EU Prices")),
+      #("currency", CapturedString("EUR")),
+    ]),
+  )
+}
+
+fn catalog_relation_publication() -> PublicationRecord {
+  PublicationRecord(
+    id: "gid://shopify/Publication/1",
+    name: Some("Online Store"),
+    auto_publish: Some(False),
+    supports_future_publishing: Some(False),
+    catalog_id: None,
+    channel_id: None,
+    cursor: Some("gid://shopify/Publication/1"),
+  )
+}
+
+fn catalog_with_relations(id: String) -> CatalogRecord {
+  CatalogRecord(
+    id: id,
+    cursor: Some(id),
+    data: CapturedObject([
+      #("__typename", CapturedString("MarketCatalog")),
+      #("id", CapturedString(id)),
+      #("title", CapturedString("First Catalog")),
+      #("status", CapturedString("ACTIVE")),
+      #("markets", catalog_relation_markets()),
+      #("operations", CapturedArray([])),
+      #("priceList", catalog_relation_price_list_node()),
+      #("publication", catalog_relation_publication_node()),
+    ]),
+  )
+}
+
+fn catalog_without_relations(id: String) -> CatalogRecord {
+  CatalogRecord(
+    id: id,
+    cursor: Some(id),
+    data: CapturedObject([
+      #("__typename", CapturedString("MarketCatalog")),
+      #("id", CapturedString(id)),
+      #("title", CapturedString("Second Catalog")),
+      #("status", CapturedString("ACTIVE")),
+      #("markets", catalog_relation_markets()),
+      #("operations", CapturedArray([])),
+      #("priceList", CapturedNull),
+      #("publication", CapturedNull),
+    ]),
+  )
+}
+
+fn catalog_relation_markets() {
+  CapturedObject([
+    #(
+      "nodes",
+      CapturedArray([
+        CapturedObject([
+          #("__typename", CapturedString("Market")),
+          #("id", CapturedString("gid://shopify/Market/1")),
+          #("name", CapturedString("Europe")),
+        ]),
+      ]),
+    ),
+    #("edges", CapturedArray([])),
+    #(
+      "pageInfo",
+      CapturedObject([
+        #("hasNextPage", CapturedBool(False)),
+        #("hasPreviousPage", CapturedBool(False)),
+        #("startCursor", CapturedNull),
+        #("endCursor", CapturedNull),
+      ]),
+    ),
+  ])
+}
+
+fn catalog_relation_price_list_node() {
+  CapturedObject([
+    #("__typename", CapturedString("PriceList")),
+    #("id", CapturedString("gid://shopify/PriceList/1")),
+  ])
+}
+
+fn catalog_relation_publication_node() {
+  CapturedObject([
+    #("__typename", CapturedString("Publication")),
+    #("id", CapturedString("gid://shopify/Publication/1")),
+  ])
 }
