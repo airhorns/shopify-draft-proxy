@@ -934,6 +934,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'products',
+    captureId: 'selling-plan-group-input-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2025-01' },
+    scriptPath: 'scripts/capture-selling-plan-group-input-validation-conformance.ts',
+    purpose: 'Selling-plan group create/update input validation for group limits and nested selling-plan guardrails.',
+    requiredAuthScopes: ['read_products', 'write_products', 'write_purchase_options'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}selling-plan-group-input-validation.json`,
+      'config/parity-specs/products/sellingPlanGroupCreate-input-validation.json',
+      'config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql',
+      'config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql',
+    ],
+    cleanupBehavior: 'Creates one disposable selling-plan group, then deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'metafields',
     captureId: 'metafield-definition-mutations',
     scriptPath: 'scripts/capture-metafield-definition-mutation-conformance.mts',

@@ -1,0 +1,216 @@
+{
+  "scenarioId": "sellingPlanGroupCreate-input-validation",
+  "operationNames": ["sellingPlanGroupCreate", "sellingPlanGroupUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["payload-shape", "user-errors-parity", "local-runtime-backed"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/selling-plan-group-input-validation.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/products_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+    "variablesCapturePath": "$.scenarios.validSeed.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "seed-create-user-errors",
+        "capturePath": "$.scenarios.validSeed.response.data.sellingPlanGroupCreate.userErrors",
+        "proxyPath": "$.data.sellingPlanGroupCreate.userErrors"
+      },
+      {
+        "name": "group-options-too-long",
+        "capturePath": "$.scenarios.groupOptionsTooLong.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupOptionsTooLong.variables"
+        }
+      },
+      {
+        "name": "group-position-invalid",
+        "capturePath": "$.scenarios.groupPositionInvalid.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios.groupPositionInvalid.variables"
+        }
+      },
+      {
+        "name": "plan-create-options-too-long",
+        "capturePath": "$.scenarios.planCreateOptionsTooLong.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios.planCreateOptionsTooLong.variables"
+        }
+      },
+      {
+        "name": "plan-create-pricing-policies-too-long",
+        "capturePath": "$.scenarios.planCreatePricingPoliciesTooLong.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios.planCreatePricingPoliciesTooLong.variables"
+        }
+      },
+      {
+        "name": "plan-create-position-invalid",
+        "capturePath": "$.scenarios.planCreatePositionInvalid.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios.planCreatePositionInvalid.variables"
+        }
+      },
+      {
+        "name": "plan-create-policy-mismatch",
+        "capturePath": "$.scenarios.planCreatePolicyMismatch.response.data.sellingPlanGroupCreate",
+        "proxyPath": "$.data.sellingPlanGroupCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupCreate-input-validation.graphql",
+          "variablesCapturePath": "$.scenarios.planCreatePolicyMismatch.variables"
+        }
+      },
+      {
+        "name": "group-update-options-too-long",
+        "capturePath": "$.scenarios.groupUpdateOptionsTooLong.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "fromCapturePath": "$.scenarios.groupUpdateOptionsTooLong.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "plan-update-missing-id",
+        "capturePath": "$.scenarios.planUpdateMissingId.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "fromCapturePath": "$.scenarios.planUpdateMissingId.variables.input"
+            }
+          }
+        }
+      },
+      {
+        "name": "plan-update-options-too-long",
+        "capturePath": "$.scenarios.planUpdateOptionsTooLong.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToUpdate": [
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
+                  },
+                  "options": {
+                    "fromCapturePath": "$.scenarios.planUpdateOptionsTooLong.variables.input.sellingPlansToUpdate[0].options"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "plan-update-pricing-policies-too-long",
+        "capturePath": "$.scenarios.planUpdatePricingPoliciesTooLong.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToUpdate": [
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
+                  },
+                  "pricingPolicies": {
+                    "fromCapturePath": "$.scenarios.planUpdatePricingPoliciesTooLong.variables.input.sellingPlansToUpdate[0].pricingPolicies"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "plan-update-position-invalid",
+        "capturePath": "$.scenarios.planUpdatePositionInvalid.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToUpdate": [
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
+                  },
+                  "position": {
+                    "fromCapturePath": "$.scenarios.planUpdatePositionInvalid.variables.input.sellingPlansToUpdate[0].position"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "name": "plan-update-policy-mismatch",
+        "capturePath": "$.scenarios.planUpdatePolicyMismatch.response.data.sellingPlanGroupUpdate",
+        "proxyPath": "$.data.sellingPlanGroupUpdate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/products/sellingPlanGroupUpdate-input-validation.graphql",
+          "variables": {
+            "id": {
+              "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.id"
+            },
+            "input": {
+              "sellingPlansToUpdate": [
+                {
+                  "id": {
+                    "fromPrimaryProxyPath": "$.data.sellingPlanGroupCreate.sellingPlanGroup.sellingPlans.nodes[0].id"
+                  },
+                  "billingPolicy": {
+                    "fromCapturePath": "$.scenarios.planUpdatePolicyMismatch.variables.input.sellingPlansToUpdate[0].billingPolicy"
+                  },
+                  "deliveryPolicy": {
+                    "fromCapturePath": "$.scenarios.planUpdatePolicyMismatch.variables.input.sellingPlansToUpdate[0].deliveryPolicy"
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "notes": "Live 2025-01 selling-plan group input validation capture for group-level option/position limits, nested selling plan option/pricing-policy/position validation, required update ids, and billing/delivery policy kind compatibility. The primary request creates one disposable group so update validation targets can replay against a locally known synthetic group without pre-seeding parity state."
+}

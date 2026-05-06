@@ -1,0 +1,13 @@
+mutation SellingPlanGroupUpdateInputValidation($id: ID!, $input: SellingPlanGroupInput!) {
+  sellingPlanGroupUpdate(id: $id, input: $input) {
+    deletedSellingPlanIds
+    sellingPlanGroup {
+      id
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
