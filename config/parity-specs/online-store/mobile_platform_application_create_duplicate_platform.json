@@ -1,0 +1,60 @@
+{
+  "scenarioId": "mobile-platform-application-create-duplicate-platform",
+  "operationNames": ["mobilePlatformApplicationCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": [
+    "runtime-staging",
+    "user-errors-parity",
+    "payload-shape",
+    "side-effect-boundary",
+    "local-runtime-backed"
+  ],
+  "liveCaptureFiles": [
+    "fixtures/conformance/local-runtime/2026-04/online-store/mobile_platform_application_create_duplicate_platform.json"
+  ],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/online_store_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/online-store/mobile_platform_application_create_duplicate_android.graphql",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "android-create",
+        "capturePath": "$.androidCreate.response.data.mobilePlatformApplicationCreate",
+        "proxyPath": "$.data.mobilePlatformApplicationCreate"
+      },
+      {
+        "name": "android-duplicate",
+        "capturePath": "$.androidDuplicate.response.data.mobilePlatformApplicationCreate",
+        "proxyPath": "$.data.mobilePlatformApplicationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/mobile_platform_application_create_duplicate_android.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "apple-create",
+        "capturePath": "$.appleCreate.response.data.mobilePlatformApplicationCreate",
+        "proxyPath": "$.data.mobilePlatformApplicationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/mobile_platform_application_create_duplicate_apple.graphql",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "apple-duplicate",
+        "capturePath": "$.appleDuplicate.response.data.mobilePlatformApplicationCreate",
+        "proxyPath": "$.data.mobilePlatformApplicationCreate",
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/online-store/mobile_platform_application_create_duplicate_apple.graphql",
+          "apiVersion": "2026-04"
+        }
+      }
+    ]
+  },
+  "notes": "Executable local-runtime parity for the one-Android and one-Apple per-shop mobile platform application create limit. Duplicate platform creates return nested TAKEN userErrors and do not stage additional local records."
+}

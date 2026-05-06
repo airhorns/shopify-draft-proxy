@@ -1036,7 +1036,13 @@ pub fn product_variant_from_json(
         inventory_quantity: json_int_field(node, "inventoryQuantity"),
         selected_options: json_array_field(node, ["selectedOptions"])
           |> list.map(selected_option_from_json),
-        media_ids: [],
+        media_ids: json_array_field(node, ["media", "nodes"])
+          |> list.filter_map(fn(media_node) {
+            case json_string_field(media_node, "id") {
+              Some(media_id) -> Ok(media_id)
+              None -> Error(Nil)
+            }
+          }),
         inventory_item: json_field(node, ["inventoryItem"])
           |> option.then(fn(item) {
             case json_string_field(item, "id") {

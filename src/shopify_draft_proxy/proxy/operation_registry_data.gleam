@@ -4415,7 +4415,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metaobjectDefinitionCreate", "MetaobjectDefinitionCreate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages merchant-owned metaobject definition creation for captured 2026-04 fields, default access/capabilities, ordered field definitions, and downstream definition reads without runtime Shopify writes. Merchant-owned admin access input returns the captured ADMIN_ACCESS_INPUT_NOT_ALLOWED guardrail locally.",
+        "Locally stages merchant-owned metaobject definition creation for captured 2026-04 fields, default access/capabilities, ordered field definitions, name/type/description validation guardrails, and downstream definition reads without runtime Shopify writes. Merchant-owned admin access input returns the captured ADMIN_ACCESS_INPUT_NOT_ALLOWED guardrail locally.",
       ),
     ),
     RegistryEntry(
@@ -4427,7 +4427,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       match_names: ["metaobjectDefinitionUpdate", "MetaobjectDefinitionUpdate"],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, and resetFieldOrder-driven read ordering. Entry migration/validation side effects remain outside the current local entry model.",
+        "Locally stages definition updates for normalized name, description, displayNameKey, access, capabilities, field definition create/update/delete operations, name/type/description validation guardrails, and resetFieldOrder-driven read ordering. Entry migration/validation side effects remain outside the current local entry model.",
       ),
     ),
     RegistryEntry(
@@ -5486,7 +5486,7 @@ pub fn default_registry() -> List(RegistryEntry) {
       ],
       runtime_tests: ["test/parity_test.gleam"],
       support_notes: Some(
-        "HAR-367 captured 2026-04 fulfillment deadline support for open merchant-managed fulfillment orders: local staging returns `success: true`, writes `fulfillBy` on each selected fulfillment order, exposes the deadline in downstream order reads, and returns captured top-level RESOURCE_NOT_FOUND errors for unknown IDs.",
+        "2026-04 fulfillment deadline support for open merchant-managed fulfillment orders: local staging validates every selected fulfillment order before mutating, returns `success: false` with base userErrors for unknown and closed/cancelled fulfillment orders, atomically writes `fulfillBy` only when all selected fulfillment orders are eligible, exposes the deadline in downstream order reads, and never proxies supported attempts upstream.",
       ),
     ),
     RegistryEntry(

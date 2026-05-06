@@ -1,0 +1,57 @@
+{
+  "scenarioId": "metaobject-update-error-codes",
+  "operationNames": ["metaobjectUpdate", "metaobjectCreate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "payload-shape", "mutation-field-parity"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/metaobjects/metaobject-update-error-codes.json"
+  ],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/metaobjects/metaobject-update-error-codes-update-bad-id.graphql",
+    "variablesCapturePath": "$.cases.updateWithBadId.request.variables",
+    "apiVersion": "2026-04"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "notes": "Captured 2026-04 parity for metaobjectUpdate bad-id RECORD_NOT_FOUND payload, duplicate metaobjectCreate fields[] key validation, and update of a non-display field preserving displayName. Runtime tests cover duplicate field input across create, update, and upsert.",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "update-with-bad-id",
+        "capturePath": "$.cases.updateWithBadId.response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null
+      },
+      {
+        "name": "duplicate-field-input",
+        "capturePath": "$.cases.duplicateFieldInput.response.data.metaobjectCreate",
+        "proxyPath": "$.data.metaobjectCreate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-error-codes-duplicate-create.graphql",
+          "variablesCapturePath": "$.cases.duplicateFieldInput.request.variables",
+          "apiVersion": "2026-04"
+        }
+      },
+      {
+        "name": "display-name-untouched-update",
+        "capturePath": "$.cases.displayNameUntouchedUpdate.response.data.metaobjectUpdate",
+        "proxyPath": "$.data.metaobjectUpdate",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/metaobjects/metaobject-update-error-codes-display-update.graphql",
+          "variablesCapturePath": "$.cases.displayNameUntouchedUpdate.request.variables",
+          "apiVersion": "2026-04"
+        },
+        "expectedDifferences": [
+          {
+            "path": "$.metaobject.updatedAt",
+            "matcher": "iso-timestamp",
+            "reason": "The local proxy timestamps staged updates at replay time while Shopify returns the captured write timestamp."
+          }
+        ]
+      }
+    ]
+  }
+}

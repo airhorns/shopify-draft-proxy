@@ -532,6 +532,22 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'files',
+    captureId: 'media-file-cascade-variant-media-clear',
+    scriptPath: 'scripts/capture-media-file-cascade-variant-media-clear-conformance.mts',
+    purpose:
+      'Files API fileDelete and fileUpdate.referencesToRemove cascades that clear ProductVariant media membership after removing product media associations.',
+    requiredAuthScopes: ['read_files', 'write_files', 'read_products', 'write_products'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}media-file-cascade-variant-media-clear.json`,
+      'config/parity-specs/media/media-file-cascade-variant-media-clear.json',
+      'config/parity-requests/media/media-file-cascade-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable products with image media attached to their default variants; deletes the products and any detached file left by the update scenario during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'files',
     captureId: 'media-file-update-validation-branches',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-media-file-update-validation-branches.ts',
@@ -1245,6 +1261,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'metaobjects',
+    captureId: 'metaobject-definition-name-type-description-length',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-definition-name-type-description-length-conformance.ts',
+    purpose:
+      'Metaobject definition create/update validation for name presence, name/description length, and type minimum length.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}definition-name-type-description-length.json`,
+      'config/parity-specs/metaobjects/definition_name_type_description_length.json',
+      'config/parity-requests/metaobjects/definition-name-type-description-length-*.graphql',
+    ],
+    cleanupBehavior:
+      'Create validation branches create no records; the setup definition used for update validation is deleted during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
     captureId: 'metaobject-definition-delete-cascade',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-metaobject-definition-delete-cascade-conformance.ts',
@@ -1258,6 +1291,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     ],
     cleanupBehavior:
       'Creates one disposable definition and two rows, deletes the definition during the scenario, then best-effort deletes any remaining rows/definition during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'metaobjects',
+    captureId: 'metaobject-update-error-codes',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-metaobject-update-error-codes-conformance.ts',
+    purpose:
+      'metaobjectUpdate bad-id RECORD_NOT_FOUND, duplicate metaobjectCreate fields[] key validation, and non-display-field update displayName preservation.',
+    requiredAuthScopes: ['read_metaobjects', 'write_metaobjects'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}metaobject-update-error-codes.json`,
+      'config/parity-specs/metaobjects/metaobject_update_error_codes.json',
+      'config/parity-requests/metaobjects/metaobject-update-error-codes-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable metaobject definition and one row; deletes the row and definition during cleanup.',
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {

@@ -1,0 +1,33 @@
+{
+  "scenarioId": "web-pixel-update-validation-local-runtime",
+  "storeDomain": "local-runtime",
+  "apiVersion": "2026-04",
+  "capturedAt": "2026-05-06T04:35:00.000Z",
+  "notes": "Executable local-runtime evidence for webPixelUpdate JSON parsing and status derivation. The request first stages a WebPixel locally, then proves malformed settings JSON is rejected without runtime Shopify writes and valid settings JSON is parsed into the returned payload.",
+  "expected": {
+    "data": {
+      "invalidJson": {
+        "webPixel": null,
+        "userErrors": [
+          {
+            "__typename": "WebPixelUserError",
+            "code": "INVALID_CONFIGURATION_JSON",
+            "field": ["settings"],
+            "message": "Settings must be valid JSON"
+          }
+        ]
+      },
+      "validUpdate": {
+        "webPixel": {
+          "id": "gid://shopify/WebPixel/1?shopify-draft-proxy=synthetic",
+          "settings": {
+            "accountID": "abc"
+          },
+          "status": "CONNECTED"
+        },
+        "userErrors": []
+      }
+    }
+  },
+  "upstreamCalls": []
+}

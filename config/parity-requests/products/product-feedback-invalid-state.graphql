@@ -1,0 +1,22 @@
+mutation ProductFeedbackInvalidState {
+  bulkProductResourceFeedbackCreate(
+    feedbackInput: [
+      {
+        productId: "gid://shopify/Product/7001"
+        state: BANANAS
+        feedbackGeneratedAt: "2024-01-01T00:00:00Z"
+        productUpdatedAt: "2024-01-01T00:00:00Z"
+        messages: []
+      }
+    ]
+  ) {
+    feedback {
+      productId
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
