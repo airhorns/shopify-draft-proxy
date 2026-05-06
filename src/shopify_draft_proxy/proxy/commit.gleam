@@ -24,8 +24,9 @@ import gleam/result
 import gleam/string
 import shopify_draft_proxy/graphql/root_field
 import shopify_draft_proxy/state/store.{
-  type EntryStatus, type MutationLogEntry, type Store, Committed, Failed,
+  type EntryStatus, type MutationLogEntry, type Store,
 }
+import shopify_draft_proxy/state/store/types as store_types
 import shopify_draft_proxy/state/synthetic_identity
 
 // ---------------------------------------------------------------------------
@@ -403,7 +404,7 @@ pub fn step(
             store.update_log_entry(
               proxy_store,
               entry.id,
-              Failed,
+              store_types.Failed,
               Some(commit_failed_notes),
             )
           let attempt =
@@ -412,7 +413,7 @@ pub fn step(
               operation_name: entry.operation_name,
               path: entry.path,
               success: False,
-              status: Failed,
+              status: store_types.Failed,
               upstream_status: Some(status),
               upstream_body: Some(body),
               upstream_error: None,
@@ -426,7 +427,7 @@ pub fn step(
             store.update_log_entry(
               proxy_store,
               entry.id,
-              Committed,
+              store_types.Committed,
               Some(commit_succeeded_notes),
             )
           let attempt =
@@ -435,7 +436,7 @@ pub fn step(
               operation_name: entry.operation_name,
               path: entry.path,
               success: True,
-              status: Committed,
+              status: store_types.Committed,
               upstream_status: Some(status),
               upstream_body: Some(body),
               upstream_error: None,
@@ -450,7 +451,7 @@ pub fn step(
         store.update_log_entry(
           proxy_store,
           entry.id,
-          Failed,
+          store_types.Failed,
           Some(commit_threw_notes_prefix <> msg),
         )
       let attempt =
@@ -459,7 +460,7 @@ pub fn step(
           operation_name: entry.operation_name,
           path: entry.path,
           success: False,
-          status: Failed,
+          status: store_types.Failed,
           upstream_status: None,
           upstream_body: None,
           upstream_error: Some(msg),
@@ -552,10 +553,10 @@ fn serialize_attempt(attempt: CommitAttempt) -> Json {
 
 fn entry_status_to_string(status: EntryStatus) -> String {
   case status {
-    store.Staged -> "staged"
-    store.Proxied -> "proxied"
-    store.Committed -> "committed"
-    store.Failed -> "failed"
+    store_types.Staged -> "staged"
+    store_types.Proxied -> "proxied"
+    store_types.Committed -> "committed"
+    store_types.Failed -> "failed"
   }
 }
 
@@ -571,7 +572,7 @@ fn optional_string(value: Option(String)) -> Json {
 // ---------------------------------------------------------------------------
 
 pub fn entry_requires_commit(entry: MutationLogEntry) -> Bool {
-  entry.status == store.Staged
+  entry.status == store_types.Staged
 }
 
 // ---------------------------------------------------------------------------
