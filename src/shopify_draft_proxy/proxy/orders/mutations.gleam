@@ -562,6 +562,7 @@ pub fn process_mutation(
                   field,
                   fragments,
                   variables,
+                  upstream,
                 )
               let #(
                 key,
