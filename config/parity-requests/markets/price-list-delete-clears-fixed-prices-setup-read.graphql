@@ -1,0 +1,44 @@
+query PriceListDeleteClearsFixedPricesSetupRead($catalogId: ID!, $priceListId: ID!) {
+  catalog(id: $catalogId) {
+    __typename
+    id
+    title
+    status
+    priceList {
+      id
+    }
+  }
+  priceList(id: $priceListId) {
+    __typename
+    id
+    name
+    currency
+    fixedPricesCount
+    catalog {
+      id
+      title
+      status
+    }
+    prices(first: 10, originType: FIXED) {
+      nodes {
+        price {
+          amount
+          currencyCode
+        }
+        compareAtPrice {
+          amount
+          currencyCode
+        }
+        originType
+        variant {
+          id
+          sku
+          product {
+            id
+            title
+          }
+        }
+      }
+    }
+  }
+}
