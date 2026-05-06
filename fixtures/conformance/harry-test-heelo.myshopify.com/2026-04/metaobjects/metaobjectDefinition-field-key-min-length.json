@@ -78,11 +78,7 @@
           "metaobjectDefinition": null,
           "userErrors": [
             {
-              "field": [
-                "definition",
-                "fieldDefinitions",
-                "0"
-              ],
+              "field": ["definition", "fieldDefinitions", "0"],
               "message": "Key is too short (minimum is 2 characters)",
               "code": "TOO_SHORT",
               "elementKey": "a",
@@ -130,33 +126,21 @@
           "metaobjectDefinition": null,
           "userErrors": [
             {
-              "field": [
-                "definition",
-                "fieldDefinitions",
-                "0"
-              ],
+              "field": ["definition", "fieldDefinitions", "0"],
               "message": "Key can't be blank",
               "code": "BLANK",
               "elementKey": "",
               "elementIndex": null
             },
             {
-              "field": [
-                "definition",
-                "fieldDefinitions",
-                "0"
-              ],
+              "field": ["definition", "fieldDefinitions", "0"],
               "message": "Key is too short (minimum is 2 characters)",
               "code": "TOO_SHORT",
               "elementKey": "",
               "elementIndex": null
             },
             {
-              "field": [
-                "definition",
-                "fieldDefinitions",
-                "0"
-              ],
+              "field": ["definition", "fieldDefinitions", "0"],
               "message": "Key contains one or more invalid characters.",
               "code": "INVALID",
               "elementKey": "",
@@ -253,12 +237,7 @@
           "metaobjectDefinition": null,
           "userErrors": [
             {
-              "field": [
-                "definition",
-                "fieldDefinitions",
-                "0",
-                "create"
-              ],
+              "field": ["definition", "fieldDefinitions", "0", "create"],
               "message": "Key is too short (minimum is 2 characters)",
               "code": "TOO_SHORT",
               "elementKey": "a",
@@ -306,36 +285,21 @@
           "metaobjectDefinition": null,
           "userErrors": [
             {
-              "field": [
-                "definition",
-                "fieldDefinitions",
-                "0",
-                "create"
-              ],
+              "field": ["definition", "fieldDefinitions", "0", "create"],
               "message": "Key can't be blank",
               "code": "BLANK",
               "elementKey": "",
               "elementIndex": null
             },
             {
-              "field": [
-                "definition",
-                "fieldDefinitions",
-                "0",
-                "create"
-              ],
+              "field": ["definition", "fieldDefinitions", "0", "create"],
               "message": "Key is too short (minimum is 2 characters)",
               "code": "TOO_SHORT",
               "elementKey": "",
               "elementIndex": null
             },
             {
-              "field": [
-                "definition",
-                "fieldDefinitions",
-                "0",
-                "create"
-              ],
+              "field": ["definition", "fieldDefinitions", "0", "create"],
               "message": "Key contains one or more invalid characters.",
               "code": "INVALID",
               "elementKey": "",
@@ -433,13 +397,7 @@
           "metaobjectDefinition": null,
           "userErrors": [
             {
-              "field": [
-                "definition",
-                "fieldDefinitions",
-                "0",
-                "delete",
-                "key"
-              ],
+              "field": ["definition", "fieldDefinitions", "0", "delete", "key"],
               "message": "Field definition \"\" does not exist",
               "code": "UNDEFINED_OBJECT_FIELD",
               "elementKey": "",

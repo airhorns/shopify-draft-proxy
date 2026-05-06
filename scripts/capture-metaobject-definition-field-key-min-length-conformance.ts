@@ -187,7 +187,11 @@ async function cleanupDefinition(id: string | null, cleanup: Capture[]): Promise
   if (id === null) {
     return;
   }
-  cleanup.push(await captureGraphql(`cleanup-metaobject-definition-delete-${cleanup.length + 1}`, deleteDefinitionMutation, { id }));
+  cleanup.push(
+    await captureGraphql(`cleanup-metaobject-definition-delete-${cleanup.length + 1}`, deleteDefinitionMutation, {
+      id,
+    }),
+  );
 }
 
 const cleanup: Capture[] = [];
@@ -196,7 +200,9 @@ let createBoundaryDefinitionId: string | null = null;
 
 try {
   const setup = await captureGraphql('setup-valid-definition', queries.create, {
-    definition: createDefinitionInput(`field_key_min_setup_${runId}`, 'Field Key Min Setup', 'title', [field('title', 'Title')]),
+    definition: createDefinitionInput(`field_key_min_setup_${runId}`, 'Field Key Min Setup', 'title', [
+      field('title', 'Title'),
+    ]),
   });
   assertNoUserErrors(setup.response, ['data', 'metaobjectDefinitionCreate', 'userErrors'], 'setup-valid-definition');
   setupDefinitionId = readDefinitionId(
@@ -208,10 +214,17 @@ try {
   const createKeyA = await captureGraphql('create-key-a', queries.create, {
     definition: createDefinitionInput(`field_key_min_a_${runId}`, 'Field Key Min A', 'a', [field('a', 'A')]),
   });
-  assertHasUserErrorCode(createKeyA.response, ['data', 'metaobjectDefinitionCreate', 'userErrors'], 'TOO_SHORT', 'create-key-a');
+  assertHasUserErrorCode(
+    createKeyA.response,
+    ['data', 'metaobjectDefinitionCreate', 'userErrors'],
+    'TOO_SHORT',
+    'create-key-a',
+  );
 
   const createKeyEmpty = await captureGraphql('create-key-empty', queries.create, {
-    definition: createDefinitionInput(`field_key_min_empty_${runId}`, 'Field Key Min Empty', '', [field('', 'Empty Key')]),
+    definition: createDefinitionInput(`field_key_min_empty_${runId}`, 'Field Key Min Empty', '', [
+      field('', 'Empty Key'),
+    ]),
   });
   assertHasUserErrorCode(
     createKeyEmpty.response,
@@ -256,7 +269,11 @@ try {
     id: setupDefinitionId,
     definition: createFieldDefinition('ab', 'AB'),
   });
-  assertNoUserErrors(updateCreateKeyAb.response, ['data', 'metaobjectDefinitionUpdate', 'userErrors'], 'update-create-key-ab');
+  assertNoUserErrors(
+    updateCreateKeyAb.response,
+    ['data', 'metaobjectDefinitionUpdate', 'userErrors'],
+    'update-create-key-ab',
+  );
 
   const updateDeleteKeyEmpty = await captureGraphql('update-delete-key-empty', queries.update, {
     id: setupDefinitionId,
