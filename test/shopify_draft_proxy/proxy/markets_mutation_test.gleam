@@ -89,10 +89,14 @@ pub fn price_list_create_rejects_invalid_parent_adjustment_type_test() {
     == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"type\"],\"message\":\"Type is invalid\",\"code\":\"INVALID\"}]}}}"
 }
 
-pub fn price_list_create_rejects_parent_adjustment_value_bounds_test() {
+pub fn price_list_create_matches_parent_adjustment_value_bounds_test() {
   let #(Response(status: zero_status, body: zero_body, ..), _) =
     graphql(
       "mutation { priceListCreate(input: { name: \"Zero\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 0 } } }) { priceList { id } userErrors { field message code } } }",
+    )
+  let #(Response(status: negative_status, body: negative_body, ..), _) =
+    graphql(
+      "mutation { priceListCreate(input: { name: \"Negative\", currency: USD, parent: { adjustment: { type: PERCENTAGE_DECREASE, value: -10 } } }) { priceList { id } userErrors { field message code } } }",
     )
   let #(Response(status: decrease_status, body: decrease_body, ..), _) =
     graphql(
@@ -105,16 +109,19 @@ pub fn price_list_create_rejects_parent_adjustment_value_bounds_test() {
 
   assert zero_status == 200
   assert json.to_string(zero_body)
-    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"parent\",\"adjustment\",\"value\"],\"message\":\"Value is invalid\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/1\"},\"userErrors\":[]}}}"
+  assert negative_status == 200
+  assert json.to_string(negative_body)
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
   assert decrease_status == 200
   assert json.to_string(decrease_body)
-    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"parent\",\"adjustment\",\"value\"],\"message\":\"Value is too low\",\"code\":\"INVALID_ADJUSTMENT_MIN_VALUE\"}]}}}"
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
   assert increase_status == 200
   assert json.to_string(increase_body)
-    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"parent\",\"adjustment\",\"value\"],\"message\":\"Value is too high\",\"code\":\"INVALID_ADJUSTMENT_MAX_VALUE\"}]}}}"
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
 }
 
-pub fn price_list_create_and_update_validate_catalog_market_currency_test() {
+pub fn price_list_create_and_update_allow_catalog_market_currency_mismatch_test() {
   let #(Response(status: valid_status, body: valid_body, ..), _) =
     graphql_with_proxy(
       catalog_price_list_proxy(),
@@ -123,12 +130,12 @@ pub fn price_list_create_and_update_validate_catalog_market_currency_test() {
   let #(Response(status: create_status, body: create_body, ..), _) =
     graphql_with_proxy(
       catalog_price_list_proxy(),
-      "mutation { priceListCreate(input: { name: \"USD Catalog\", currency: USD, catalogId: \"gid://shopify/MarketCatalog/200\", parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id } userErrors { field message code } } }",
+      "mutation { priceListCreate(input: { name: \"USD Catalog\", currency: USD, catalogId: \"gid://shopify/MarketCatalog/200\", parent: { adjustment: { type: PERCENTAGE_DECREASE, value: 10 } } }) { priceList { id currency catalog { id } } userErrors { field message code } } }",
     )
   let #(Response(status: update_status, body: update_body, ..), _) =
     graphql_with_proxy(
       catalog_price_list_proxy(),
-      "mutation { priceListUpdate(id: \"gid://shopify/PriceList/300\", input: { currency: USD }) { priceList { id } userErrors { field message code } } }",
+      "mutation { priceListUpdate(id: \"gid://shopify/PriceList/300\", input: { currency: USD }) { priceList { id currency catalog { id } } userErrors { field message code } } }",
     )
 
   assert valid_status == 200
@@ -136,10 +143,10 @@ pub fn price_list_create_and_update_validate_catalog_market_currency_test() {
     == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/1\",\"currency\":\"CAD\",\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/200\"}},\"userErrors\":[]}}}"
   assert create_status == 200
   assert json.to_string(create_body)
-    == "{\"data\":{\"priceListCreate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"currency\"],\"message\":\"Currency market mismatch\",\"code\":\"CURRENCY_MARKET_MISMATCH\"}]}}}"
+    == "{\"data\":{\"priceListCreate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/1\",\"currency\":\"USD\",\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/200\"}},\"userErrors\":[]}}}"
   assert update_status == 200
   assert json.to_string(update_body)
-    == "{\"data\":{\"priceListUpdate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"currency\"],\"message\":\"Currency market mismatch\",\"code\":\"CURRENCY_MARKET_MISMATCH\"}]}}}"
+    == "{\"data\":{\"priceListUpdate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/300\",\"currency\":\"USD\",\"catalog\":{\"id\":\"gid://shopify/MarketCatalog/200\"}},\"userErrors\":[]}}}"
 }
 
 pub fn price_list_update_revalidates_existing_parent_adjustment_test() {
@@ -151,7 +158,7 @@ pub fn price_list_update_revalidates_existing_parent_adjustment_test() {
 
   assert status == 200
   assert json.to_string(body)
-    == "{\"data\":{\"priceListUpdate\":{\"priceList\":null,\"userErrors\":[{\"field\":[\"parent\",\"adjustment\",\"value\"],\"message\":\"Value is too low\",\"code\":\"INVALID_ADJUSTMENT_MIN_VALUE\"}]}}}"
+    == "{\"data\":{\"priceListUpdate\":{\"priceList\":{\"id\":\"gid://shopify/PriceList/400\"},\"userErrors\":[{\"field\":[\"input\",\"parent\",\"adjustment\",\"value\"],\"message\":\"The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.\",\"code\":\"INVALID_ADJUSTMENT_VALUE\"}]}}}"
 }
 
 pub fn quantity_rules_add_validates_numeric_inputs_test() {

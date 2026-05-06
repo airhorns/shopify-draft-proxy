@@ -1167,7 +1167,7 @@ pub fn market_node_for_id(store: Store, id: String) -> CapturedJsonValue {
 
 @internal
 pub fn price_list_input_errors(
-  store: Store,
+  _store: Store,
   input: Dict(String, root_field.ResolvedValue),
   existing: Option(CapturedJsonValue),
 ) -> List(CapturedJsonValue) {
@@ -1185,14 +1185,9 @@ pub fn price_list_input_errors(
     [] -> price_list_parent_errors(input, existing)
     _ -> []
   }
-  let market_currency_errors = case currency_errors {
-    [] -> price_list_market_currency_errors(store, input, existing)
-    _ -> []
-  }
   name_errors
   |> list.append(currency_errors)
   |> list.append(parent_errors)
-  |> list.append(market_currency_errors)
 }
 
 @internal
@@ -1329,30 +1324,20 @@ pub fn price_list_adjustment_number_errors(
   value: Float,
   adjustment_type: String,
 ) -> List(CapturedJsonValue) {
-  case value <=. 0.0 {
-    True -> [
-      user_error(
-        ["parent", "adjustment", "value"],
-        "Value is invalid",
-        "INVALID_ADJUSTMENT_VALUE",
-      ),
-    ]
+  let invalid_adjustment_error = [
+    user_error(
+      ["input", "parent", "adjustment", "value"],
+      "The adjustment value must be a positive value and not be greater than 100% for PERCENTAGE_DECREASE and not be greater than 1000% for PERCENTAGE_INCREASE.",
+      "INVALID_ADJUSTMENT_VALUE",
+    ),
+  ]
+
+  case value <. 0.0 {
+    True -> invalid_adjustment_error
     False ->
       case adjustment_type, value >. 100.0, value >. 1000.0 {
-        "PERCENTAGE_DECREASE", True, _ -> [
-          user_error(
-            ["parent", "adjustment", "value"],
-            "Value is too low",
-            "INVALID_ADJUSTMENT_MIN_VALUE",
-          ),
-        ]
-        "PERCENTAGE_INCREASE", _, True -> [
-          user_error(
-            ["parent", "adjustment", "value"],
-            "Value is too high",
-            "INVALID_ADJUSTMENT_MAX_VALUE",
-          ),
-        ]
+        "PERCENTAGE_DECREASE", True, _ -> invalid_adjustment_error
+        "PERCENTAGE_INCREASE", _, True -> invalid_adjustment_error
         _, _, _ -> []
       }
   }
@@ -1360,23 +1345,13 @@ pub fn price_list_adjustment_number_errors(
 
 @internal
 pub fn price_list_market_currency_errors(
-  store: Store,
-  input: Dict(String, root_field.ResolvedValue),
-  existing: Option(CapturedJsonValue),
+  _store: Store,
+  _input: Dict(String, root_field.ResolvedValue),
+  _existing: Option(CapturedJsonValue),
 ) -> List(CapturedJsonValue) {
-  case
-    effective_price_list_currency(input, existing),
-    effective_price_list_catalog_market_currency(store, input, existing)
-  {
-    Some(currency), Some(market_currency) if currency != market_currency -> [
-      user_error(
-        ["currency"],
-        "Currency market mismatch",
-        "CURRENCY_MARKET_MISMATCH",
-      ),
-    ]
-    _, _ -> []
-  }
+  // Current public Admin GraphQL accepts catalog-linked price lists whose
+  // currency differs from the linked market base currency.
+  []
 }
 
 @internal

@@ -1015,7 +1015,7 @@ fn handle_price_list_update(
                 fragments,
                 "priceListUpdate",
                 "priceList",
-                CapturedNull,
+                existing.data,
                 errors,
                 store,
                 identity,
