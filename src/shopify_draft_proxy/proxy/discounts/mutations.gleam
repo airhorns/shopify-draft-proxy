@@ -958,55 +958,68 @@ pub fn set_status(
 ) -> MutationResult {
   let key = get_field_response_key(field)
   case discount_types.read_string_arg(field, variables, "id") {
-    Some(id) ->
+    Some(id) -> {
+      let #(store, identity) =
+        maybe_hydrate_discount(store, identity, id, upstream)
       case store.get_effective_discount_by_id(store, id) {
         Some(record) -> {
-          let user_errors = case status {
-            "ACTIVE" -> app_discount_activation_errors(store, record, upstream)
-            _ -> []
-          }
-          case user_errors {
-            [_, ..] ->
+          case status_transition_is_noop(record.status, status) {
+            True ->
               MutationResult(
                 key,
-                payload_json(root, field, fragments, None, user_errors),
+                payload_json(root, field, fragments, Some(record), []),
                 store,
                 identity,
                 [],
                 [],
               )
-            [] -> {
-              let #(updated_at, next_identity) =
-                synthetic_identity.make_synthetic_timestamp(identity)
-              let transition_timestamp = case status {
+            False -> {
+              let user_errors = case status {
                 "ACTIVE" ->
-                  case record.status {
-                    "ACTIVE" -> None
-                    _ -> Some(updated_at)
-                  }
-                "EXPIRED" -> Some(updated_at)
-                _ -> None
+                  app_discount_activation_errors(store, record, upstream)
+                _ -> []
               }
-              let record =
-                DiscountRecord(
-                  ..record,
-                  status: status,
-                  payload: discount_types.update_payload_status(
-                      record.payload,
-                      status,
-                      transition_timestamp,
+              case user_errors {
+                [_, ..] ->
+                  MutationResult(
+                    key,
+                    payload_json(root, field, fragments, None, user_errors),
+                    store,
+                    identity,
+                    [],
+                    [],
+                  )
+                [] -> {
+                  let #(updated_at, next_identity) =
+                    synthetic_identity.make_synthetic_timestamp(identity)
+                  let transition_timestamp = case status {
+                    "ACTIVE" -> Some(updated_at)
+                    "EXPIRED" -> Some(updated_at)
+                    _ -> None
+                  }
+                  let record =
+                    DiscountRecord(
+                      ..record,
+                      status: status,
+                      payload: discount_types.update_payload_status(
+                          record.payload,
+                          status,
+                          transition_timestamp,
+                        )
+                        |> discount_types.update_payload_updated_at(updated_at),
                     )
-                    |> discount_types.update_payload_updated_at(updated_at),
-                )
-              let #(record, next_store) = store.stage_discount(store, record)
-              MutationResult(
-                key,
-                payload_json(root, field, fragments, Some(record), []),
-                next_store,
-                next_identity,
-                [record.id],
-                [],
-              )
+                  let #(record, next_store) =
+                    store.stage_discount(store, record)
+                  MutationResult(
+                    key,
+                    payload_json(root, field, fragments, Some(record), []),
+                    next_store,
+                    next_identity,
+                    [record.id],
+                    [],
+                  )
+                }
+              }
             }
           }
         }
@@ -1026,6 +1039,7 @@ pub fn set_status(
             [],
           )
       }
+    }
     None ->
       MutationResult(
         key,
@@ -1037,6 +1051,17 @@ pub fn set_status(
         [],
         [],
       )
+  }
+}
+
+fn status_transition_is_noop(
+  current_status: String,
+  requested_status: String,
+) -> Bool {
+  case current_status, requested_status {
+    "ACTIVE", "ACTIVE" -> True
+    "EXPIRED", "EXPIRED" -> True
+    _, _ -> False
   }
 }
 

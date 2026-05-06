@@ -3510,6 +3510,26 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'discounts',
+    captureId: 'discount-activate-deactivate-noop-idempotence',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-discount-activate-deactivate-noop-idempotence-conformance.ts',
+    purpose:
+      'Code and automatic basic discount activate/deactivate no-op idempotence for already-active and already-expired records.',
+    requiredAuthScopes: ['read_discounts', 'write_discounts'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}discount-activate-deactivate-noop-idempotence.json`,
+      'config/parity-specs/discounts/discount-activate-deactivate-noop-idempotence.json',
+      'config/parity-requests/discounts/discount-activate-deactivate-noop-automatic-activate.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-noop-automatic-deactivate.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-noop-code-activate.graphql',
+      'config/parity-requests/discounts/discount-activate-deactivate-noop-code-deactivate.graphql',
+    ],
+    cleanupBehavior:
+      'Creates disposable active and expired code/automatic basic discounts, captures no-op transitions, records hydrate cassette entries, and deletes all created discounts.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'discounts',
     captureId: 'discount-buyer-context',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-discount-buyer-context-conformance.ts',

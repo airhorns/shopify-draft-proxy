@@ -8,12 +8,12 @@
       "codeInput": {
         "title": "Activation failure code app",
         "code": "ACTIVATEFAILBASE",
-        "startsAt": "2024-01-01T00:00:00.000Z",
+        "startsAt": "2024-02-01T00:00:00.000Z",
         "functionHandle": "discount-local"
       },
       "automaticInput": {
         "title": "Activation failure automatic app",
-        "startsAt": "2024-01-01T00:00:00.000Z",
+        "startsAt": "2024-02-01T00:00:00.000Z",
         "functionHandle": "discount-local"
       }
     },
@@ -23,7 +23,7 @@
           "codeAppDiscount": {
             "discountId": "gid://shopify/DiscountCodeNode/1?shopify-draft-proxy=synthetic",
             "title": "Activation failure code app",
-            "status": "ACTIVE",
+            "status": "SCHEDULED",
             "appDiscountType": {
               "functionId": "discount-local"
             }
@@ -34,7 +34,7 @@
           "automaticAppDiscount": {
             "discountId": "gid://shopify/DiscountAutomaticNode/3?shopify-draft-proxy=synthetic",
             "title": "Activation failure automatic app",
-            "status": "ACTIVE",
+            "status": "SCHEDULED",
             "appDiscountType": {
               "functionId": "discount-local"
             }

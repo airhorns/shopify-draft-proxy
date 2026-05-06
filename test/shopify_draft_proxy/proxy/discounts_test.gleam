@@ -2097,7 +2097,8 @@ pub fn activate_already_active_code_discount_preserves_dates_test() {
     )
 
   assert json.to_string(outcome.data)
-    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-02-01T00:00:00Z\",\"endsAt\":\"2030-01-01T00:00:00Z\",\"status\":\"ACTIVE\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
+    == "{\"data\":{\"discountCodeActivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-02-01T00:00:00Z\",\"endsAt\":\"2030-01-01T00:00:00Z\",\"status\":\"ACTIVE\",\"updatedAt\":\"2023-12-01T00:00:00Z\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
 }
 
 pub fn deactivate_code_discount_rewrites_future_start_and_end_test() {
@@ -2121,6 +2122,70 @@ pub fn deactivate_code_discount_rewrites_future_start_and_end_test() {
 
   assert json.to_string(outcome.data)
     == "{\"data\":{\"discountCodeDeactivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-01-01T00:00:00.000Z\",\"endsAt\":\"2024-01-01T00:00:00.000Z\",\"status\":\"EXPIRED\",\"updatedAt\":\"2024-01-01T00:00:00.000Z\"}},\"userErrors\":[]}}}"
+}
+
+pub fn deactivate_already_expired_code_discount_preserves_dates_test() {
+  let id = "gid://shopify/DiscountCodeNode/expired-noop"
+  let record =
+    code_discount_record(
+      id,
+      "DiscountCodeBasic",
+      "EXPIRED",
+      "2024-02-01T00:00:00Z",
+      Some("2024-03-01T00:00:00Z"),
+      None,
+    )
+  let #(_, seeded_store) = store.stage_discount(store.new(), record)
+  let outcome =
+    run_mutation_from(
+      seeded_store,
+      synthetic_identity.new(),
+      "mutation { discountCodeDeactivate(id: \"gid://shopify/DiscountCodeNode/expired-noop\") { codeDiscountNode { codeDiscount { ... on DiscountCodeBasic { startsAt endsAt status updatedAt } } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"discountCodeDeactivate\":{\"codeDiscountNode\":{\"codeDiscount\":{\"startsAt\":\"2024-02-01T00:00:00Z\",\"endsAt\":\"2024-03-01T00:00:00Z\",\"status\":\"EXPIRED\",\"updatedAt\":\"2023-12-01T00:00:00Z\"}},\"userErrors\":[]}}}"
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn automatic_activate_and_deactivate_noops_preserve_existing_payload_test() {
+  let active_id = "gid://shopify/DiscountAutomaticNode/active-noop"
+  let expired_id = "gid://shopify/DiscountAutomaticNode/expired-noop"
+  let active_record =
+    automatic_basic_discount_record(
+      active_id,
+      "ACTIVE",
+      "2024-02-01T00:00:00Z",
+      Some("2030-01-01T00:00:00Z"),
+    )
+  let expired_record =
+    automatic_basic_discount_record(
+      expired_id,
+      "EXPIRED",
+      "2024-02-01T00:00:00Z",
+      Some("2024-03-01T00:00:00Z"),
+    )
+  let #(_, seeded_store) = store.stage_discount(store.new(), active_record)
+  let #(_, seeded_store) = store.stage_discount(seeded_store, expired_record)
+  let activate_outcome =
+    run_mutation_from(
+      seeded_store,
+      synthetic_identity.new(),
+      "mutation { discountAutomaticActivate(id: \"gid://shopify/DiscountAutomaticNode/active-noop\") { automaticDiscountNode { automaticDiscount { ... on DiscountAutomaticBasic { startsAt endsAt status updatedAt } } } userErrors { field message code } } }",
+    )
+  let deactivate_outcome =
+    run_mutation_from(
+      seeded_store,
+      synthetic_identity.new(),
+      "mutation { discountAutomaticDeactivate(id: \"gid://shopify/DiscountAutomaticNode/expired-noop\") { automaticDiscountNode { automaticDiscount { ... on DiscountAutomaticBasic { startsAt endsAt status updatedAt } } } userErrors { field message code } } }",
+    )
+
+  assert json.to_string(activate_outcome.data)
+    == "{\"data\":{\"discountAutomaticActivate\":{\"automaticDiscountNode\":{\"automaticDiscount\":{\"startsAt\":\"2024-02-01T00:00:00Z\",\"endsAt\":\"2030-01-01T00:00:00Z\",\"status\":\"ACTIVE\",\"updatedAt\":\"2023-12-01T00:00:00Z\"}},\"userErrors\":[]}}}"
+  assert activate_outcome.staged_resource_ids == []
+  assert json.to_string(deactivate_outcome.data)
+    == "{\"data\":{\"discountAutomaticDeactivate\":{\"automaticDiscountNode\":{\"automaticDiscount\":{\"startsAt\":\"2024-02-01T00:00:00Z\",\"endsAt\":\"2024-03-01T00:00:00Z\",\"status\":\"EXPIRED\",\"updatedAt\":\"2023-12-01T00:00:00Z\"}},\"userErrors\":[]}}}"
+  assert deactivate_outcome.staged_resource_ids == []
 }
 
 pub fn activate_missing_app_function_returns_base_internal_error_test() {
@@ -2226,6 +2291,7 @@ fn code_discount_record(
             #("title", CapturedString("Test discount")),
             #("status", CapturedString(status)),
             #("startsAt", CapturedString(starts_at)),
+            #("updatedAt", CapturedString("2023-12-01T00:00:00Z")),
             #("endsAt", case ends_at {
               Some(value) -> CapturedString(value)
               None -> CapturedNull
@@ -2270,6 +2336,40 @@ fn automatic_app_discount_record(
           ]
           |> with_app_discount_type(function_id),
         ),
+      ),
+    ]),
+    cursor: None,
+  )
+}
+
+fn automatic_basic_discount_record(
+  id: String,
+  status: String,
+  starts_at: String,
+  ends_at: Option(String),
+) -> DiscountRecord {
+  DiscountRecord(
+    id: id,
+    owner_kind: "automatic",
+    discount_type: "basic",
+    title: Some("Test automatic discount"),
+    status: status,
+    code: None,
+    payload: CapturedObject([
+      #("id", CapturedString(id)),
+      #(
+        "automaticDiscount",
+        CapturedObject([
+          #("__typename", CapturedString("DiscountAutomaticBasic")),
+          #("title", CapturedString("Test automatic discount")),
+          #("status", CapturedString(status)),
+          #("startsAt", CapturedString(starts_at)),
+          #("updatedAt", CapturedString("2023-12-01T00:00:00Z")),
+          #("endsAt", case ends_at {
+            Some(value) -> CapturedString(value)
+            None -> CapturedNull
+          }),
+        ]),
       ),
     ]),
     cursor: None,
