@@ -36,8 +36,8 @@ Current enum inventory:
 
 Current root behavior:
 
-- `bulkOperation(id: ID!)` returns one job by ID. Locally, unknown valid BulkOperation GIDs return `null`; malformed non-BulkOperation IDs return a top-level invalid-id error.
-- `bulkOperations` returns the app's jobs as a connection, newest first by default, with pagination, `reverse`, `sortKey`, and search filters for `created_at`, `id`, `operation_type`, and `status`. Locally, the endpoint uses shared connection helpers for cursor windows, `nodes`/`edges`, and selected `pageInfo`.
+- `bulkOperation(id: ID!)` returns one job by ID. Locally, unknown valid BulkOperation GIDs return `null`; malformed non-GID strings and non-BulkOperation GIDs return the captured top-level invalid-id errors.
+- `bulkOperations` returns the app's jobs as a connection, newest first by default, with pagination, `reverse`, `sortKey`, and search filters for `created_at`, `id`, `operation_type`, and `status`. Locally, the endpoint uses shared connection helpers for cursor windows, `nodes`/`edges`, and selected `pageInfo`. It also enforces Shopify's top-level validation for missing or conflicting `first`/`last` windows and malformed `created_at` values. Invalid `status` and `operation_type` search values return an empty selected connection plus `extensions.search` warnings, matching the focused 2026-04 capture.
 - `currentBulkOperation(type: BulkOperationType = QUERY)` is deprecated but still documents the app's most recent query or mutation job. Locally, it selects the newest effective job for the requested type and defaults to `QUERY`.
 - `bulkOperationRunQuery(query: String!, groupObjects: Boolean! = false)` creates an async query export. Locally supported product exports complete immediately against effective in-memory state, write JSONL result records, accept explicit `groupObjects: true`/`false` as well as the omitted default path, and never proxy supported export requests upstream at runtime. Before staging, the proxy refuses a new query run when any effective `QUERY` BulkOperation is non-terminal (`CREATED`, `RUNNING`, or `CANCELING`), returning `bulkOperation: null` and `userErrors[{ field: null, code: "OPERATION_IN_PROGRESS" }]`.
 - `bulkOperationRunMutation(mutation: String!, stagedUploadPath: String!, clientIdentifier: String, groupObjects: Boolean = true)` creates an async mutation import from uploaded JSONL variables. The `groupObjects` argument is deprecated. After inner-mutation validation and before reading staged upload content or staging a job, the proxy refuses a new mutation run when any effective `MUTATION` BulkOperation is non-terminal, using the same `OPERATION_IN_PROGRESS` userError shape.
@@ -97,8 +97,10 @@ Local `bulkOperations` supports:
 
 - empty connections with `edges: []`, `nodes: []`, `hasNextPage: false`, `hasPreviousPage: false`, and null cursors
 - `first`/`last`, `after`, and `before` cursor windowing through `paginateConnectionItems(...)`
+- top-level `BAD_REQUEST` envelopes for missing `first`/`last`, supplying both `first` and `last`, and malformed `created_at` search values
 - selected `nodes`, `edges`, and `pageInfo` serialization through `serializeConnection(...)`
 - default newest-first `CREATED_AT` ordering, `sortKey: ID`, `reverse`, and search filters for `created_at`, `id`, `operation_type`, and `status`
+- empty selected connections with `extensions.search` warnings for invalid `status` and `operation_type` filter values such as `status:EXPIRED` or `operation_type:EXPORT`
 
 Local `bulkOperationRunQuery` supports:
 
@@ -163,6 +165,8 @@ HAR-725 adds focused 2026-04 validation evidence at `fixtures/conformance/harry-
 
 HAR-733 adds a focused 2026-04 fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operation-run-query-user-error-codes.json`, produced by `corepack pnpm tsx scripts/capture-bulk-operation-run-query-user-error-codes-conformance.ts`. The strict parity spec `config/parity-specs/bulk-operations/bulk-operation-run-query-user-error-codes.json` proves that selecting `userErrors { field message code }` returns `code: "INVALID"` for both no-connection validation and empty-query malformed-query branches.
 
+The focused read-argument validation fixture at `fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/bulk-operations/bulk-operations-read-arg-validation.json`, produced by `corepack pnpm conformance:capture -- --run bulk-operations-read-arg-validation`, is registered by `config/parity-specs/bulk-operations/bulk-operations-read-arg-validation.json`. It proves the exact top-level error envelopes for missing/conflicting connection windows, malformed `created_at`, malformed inline IDs, and non-BulkOperation GIDs. It also proves that invalid `status` and `operation_type` search values are not top-level errors in this API version; Shopify returns the selected empty connection plus `extensions.search[].warnings[{ code: "invalid_value" }]`.
+
 The fixture captures these read and validation branches:
 
 - `bulkOperation(id: "gid://shopify/BulkOperation/0")` returns `bulkOperation: null`; a malformed non-GID string returns a top-level invalid-id error.
@@ -170,6 +174,8 @@ The fixture captures these read and validation branches:
 - `currentBulkOperation(type: MUTATION)` returns `null` on the captured store, while `currentBulkOperation(type: QUERY)` can return the most recent query job even when it is terminal.
 - Missing `bulkOperation(id:)`, missing `bulkOperationCancel(id:)`, and missing `bulkOperationRunQuery(query:)` fail as top-level GraphQL `missingRequiredArguments` errors.
 - `bulkOperations` without `first`/`last`, with both `first` and `last`, or with an invalid `created_at` timestamp filter fails as top-level `BAD_REQUEST`.
+- `bulkOperations(first:, query: "status:EXPIRED")`, another unknown `status`, and an invalid `operation_type` return an empty selected connection with `extensions.search` invalid-value warnings.
+- `bulkOperation(id: "gid://shopify/Product/1")` returns a top-level `RESOURCE_NOT_FOUND` error and `data.bulkOperation: null`.
 - `bulkOperationCancel(id:)` for an unknown ID returns `bulkOperation: null` plus `userErrors[{ field: ["id"], message: "Bulk operation does not exist" }]`.
 - `bulkOperationRunQuery(query:)` with no connection returns `bulkOperation: null` plus `userErrors[{ field: ["query"], message: "Bulk queries must contain at least one connection." }]`.
 
