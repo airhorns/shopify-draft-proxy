@@ -296,7 +296,7 @@ The local proxy can safely mirror the unknown-id `productCreate` / `productUpdat
 The `productBundleCreate-validation` fixture captured bundle validation behavior on Admin GraphQL 2025-01 at `fixtures/conformance/harry-test-heelo.myshopify.com/2025-01/products/productBundleCreate-validation.json`.
 
 - Missing component products return `field: null` with `Failed to locate the following products: [<numeric id>]`; the userError is not indexed to `["input", "components", i, "productId"]` on the captured public API.
-- A valid component mapping with `quantity: 0` is accepted and returns a `ProductBundleOperation` in `CREATED` status with `product: null`; `productOperation(id:)` immediately reads it back as `ACTIVE` with `product: null`.
+- A valid component mapping with `quantity: 0` is accepted and returns a `ProductBundleOperation` in `CREATED` status with `product: null`. The local proxy completes the staged operation immediately so `productOperation(id:)` and `node(id:)` read it back as `COMPLETE` with the staged bundle product. Older 2025-01 public captures returned `ACTIVE` with `product: null`, so the parity spec keeps that capture as validation evidence while explicitly allowing the local async-operation lifecycle delta.
 - The captured maximum component quantity is 2000. `quantity: 2001` returns `Quantity cannot be greater than 2000...`.
 - `quantityOption` entries must have at least two values, but the public 2025-01 resolver accepted a blank quantity option name and a quantity option value with `quantity: 0` once two values were present.
 - Submitting more option selections than the component product's real options returned the same mapping error as other invalid or missing component option mappings.

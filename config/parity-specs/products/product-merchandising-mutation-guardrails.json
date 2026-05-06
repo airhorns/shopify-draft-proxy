@@ -42,6 +42,14 @@
         "name": "product-bundle-create-empty-components",
         "capturePath": "$.probes[3].response.data.productBundleCreate",
         "proxyPath": "$.data.productBundleCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.productBundleOperation",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy now models ProductBundleOperation creation for validation failures so clients can poll operation userErrors; the older 2025-01 guardrail capture returned null at the mutation payload."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-merchandising-product-bundle-create.graphql",
           "variablesCapturePath": "$.probes[3].variables"
@@ -51,6 +59,14 @@
         "name": "product-bundle-update-unknown-product",
         "capturePath": "$.probes[4].response.data.productBundleUpdate",
         "proxyPath": "$.data.productBundleUpdate",
+        "expectedDifferences": [
+          {
+            "path": "$.productBundleOperation",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy now models ProductBundleOperation creation for validation failures so clients can poll operation userErrors; the older 2025-01 guardrail capture returned null at the mutation payload."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/product-merchandising-product-bundle-update.graphql",
           "variablesCapturePath": "$.probes[4].variables"

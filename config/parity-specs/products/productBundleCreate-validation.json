@@ -25,6 +25,14 @@
         "name": "missing-component-product",
         "capturePath": "$.captures.missingComponentProduct.result.data.productBundleCreate",
         "proxyPath": "$.data.productBundleCreate",
+        "expectedDifferences": [
+          {
+            "path": "$.productBundleOperation",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy now models ProductBundleOperation creation for validation failures so clients can poll operation userErrors; the older 2025-01 capture returned null at the mutation payload."
+          }
+        ],
         "proxyRequest": {
           "documentPath": "config/parity-requests/products/productBundleCreate-validation.graphql",
           "variablesCapturePath": "$.captures.missingComponentProduct.variables"
@@ -39,6 +47,12 @@
             "path": "$.userErrors[0].message",
             "matcher": "regex:^Mapping of components targeting products need to map all of the options of the product.",
             "reason": "The replay uses a proxy-created product id, so the product id embedded in Shopify's validation message is intentionally not compared exactly."
+          },
+          {
+            "path": "$.productBundleOperation",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy now models ProductBundleOperation creation for validation failures so clients can poll operation userErrors; the older 2025-01 capture returned null at the mutation payload."
           }
         ],
         "proxyRequest": {
@@ -87,6 +101,12 @@
             "path": "$.userErrors[0].message",
             "matcher": "regex:^Quantity cannot be greater than 2000.",
             "reason": "The replay uses a proxy-created product id, so the product id embedded in Shopify's validation message is intentionally not compared exactly."
+          },
+          {
+            "path": "$.productBundleOperation",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy now models ProductBundleOperation creation for validation failures so clients can poll operation userErrors; the older 2025-01 capture returned null at the mutation payload."
           }
         ],
         "proxyRequest": {
@@ -130,6 +150,12 @@
             "path": "$.userErrors[0].message",
             "matcher": "regex:^Quantity options must have at least two values.",
             "reason": "The replay uses a proxy-created product id, so the product id embedded in Shopify's validation message is intentionally not compared exactly."
+          },
+          {
+            "path": "$.productBundleOperation",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "The proxy now models ProductBundleOperation creation for validation failures so clients can poll operation userErrors; the older 2025-01 capture returned null at the mutation payload."
           }
         ],
         "proxyRequest": {
@@ -219,6 +245,17 @@
             "path": "$.id",
             "matcher": "shopify-gid:ProductBundleOperation",
             "reason": "The proxy reads back its locally staged synthetic ProductBundleOperation id instead of Shopify's live asynchronous operation id."
+          },
+          {
+            "path": "$.status",
+            "matcher": "exact-string:COMPLETE",
+            "reason": "Local bundle operations complete immediately after staging so clients can observe the terminal ProductBundleOperation without waiting on Shopify's job runner."
+          },
+          {
+            "path": "$.product",
+            "ignore": true,
+            "regrettable": true,
+            "reason": "Local bundle operations link to the staged bundle product on completion; the older 2025-01 capture returned null for this readback."
           }
         ],
         "proxyRequest": {
