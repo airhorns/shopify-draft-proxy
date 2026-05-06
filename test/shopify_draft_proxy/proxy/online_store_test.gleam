@@ -1592,7 +1592,7 @@ pub fn theme_publish_rejects_demo_locked_or_archived_theme_test() {
     == "{\"data\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"DEMO\"},\"themes\":{\"nodes\":[]}}}"
 }
 
-pub fn theme_update_ignores_role_input_test() {
+pub fn theme_update_rejects_role_input_at_schema_layer_test() {
   let proxy = draft_proxy.new()
   let theme_id =
     "gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic"
@@ -1603,12 +1603,17 @@ pub fn theme_update_ignores_role_input_test() {
   let update =
     "mutation { themeUpdate(id: \""
     <> theme_id
-    <> "\", input: { role: MAIN, processing: true }) { theme { id role name } userErrors { field message code } } }"
+    <> "\", input: { role: MAIN }) { theme { id role name } userErrors { field message code } } }"
   let #(Response(status: update_status, body: update_body, ..), proxy) =
     draft_proxy.process_request(proxy, graphql_request(update))
   assert update_status == 200
-  assert json.to_string(update_body)
-    == "{\"data\":{\"themeUpdate\":{\"theme\":{\"id\":\"gid://shopify/OnlineStoreTheme/1?shopify-draft-proxy=synthetic\",\"role\":\"UNPUBLISHED\",\"name\":\"Role fixture\"},\"userErrors\":[]}}}"
+  let update_json = json.to_string(update_body)
+  assert string.contains(
+    update_json,
+    "\"message\":\"InputObject 'OnlineStoreThemeInput' doesn't accept argument 'role'\"",
+  )
+  assert string.contains(update_json, "\"code\":\"argumentNotAccepted\"")
+  assert string.contains(update_json, "\"argumentName\":\"role\"")
 
   let read = "query { theme(id: \"" <> theme_id <> "\") { id role name } }"
   let #(Response(status: read_status, body: read_body, ..), _) =

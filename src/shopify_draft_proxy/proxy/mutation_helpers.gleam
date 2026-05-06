@@ -1132,8 +1132,8 @@ fn collect_literal_unknown_field_errors(
                   find_schema_input_field(io.input_fields, field_name.value)
                 {
                   None ->
-                    case io.name == "ValidationUpdateInput" {
-                      True -> [
+                    case io.name {
+                      "ValidationUpdateInput" -> [
                         build_unknown_input_object_field_error(
                           field_name.value,
                           io.name,
@@ -1142,7 +1142,16 @@ fn collect_literal_unknown_field_errors(
                           source_body,
                         ),
                       ]
-                      False -> []
+                      "OnlineStoreThemeInput" -> [
+                        build_input_object_argument_not_accepted_error(
+                          field_name.value,
+                          io.name,
+                          field_path,
+                          loc,
+                          source_body,
+                        ),
+                      ]
+                      _ -> []
                     }
                   Some(schema_field) ->
                     collect_literal_unknown_field_errors(
@@ -1508,6 +1517,12 @@ fn collect_unknown_variable_fields(
           explanation: "Field is not defined on " <> io.name,
           message: None,
         ))
+      "OnlineStoreThemeInput", None ->
+        Ok(ValueProblem(
+          path: list.append(path, [StringSegment(field_name)]),
+          explanation: "Field is not defined on " <> io.name,
+          message: None,
+        ))
       _, None -> Error(Nil)
     }
   })
@@ -1539,6 +1554,45 @@ fn build_unknown_input_object_field_error(
         "extensions",
         json.object([
           #("code", json.string("argumentLiteralsIncompatible")),
+          #("typeName", json.string("InputObject")),
+          #("argumentName", json.string(field_name)),
+        ]),
+      ),
+    ]),
+  )
+}
+
+fn build_input_object_argument_not_accepted_error(
+  field_name: String,
+  input_object_type: String,
+  path: List(PathSegment),
+  field_loc: Option(Location),
+  source_body: String,
+) -> Json {
+  let base = [
+    #(
+      "message",
+      json.string(
+        "InputObject '"
+        <> input_object_type
+        <> "' doesn't accept argument '"
+        <> field_name
+        <> "'",
+      ),
+    ),
+  ]
+  let with_locations = case locations_payload(field_loc, source_body) {
+    Some(locs) -> list.append(base, [#("locations", locs)])
+    None -> base
+  }
+  json.object(
+    list.append(with_locations, [
+      #("path", path_segments_to_json(path)),
+      #(
+        "extensions",
+        json.object([
+          #("code", json.string("argumentNotAccepted")),
+          #("name", json.string(input_object_type)),
           #("typeName", json.string("InputObject")),
           #("argumentName", json.string(field_name)),
         ]),

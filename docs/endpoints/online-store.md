@@ -77,7 +77,7 @@ Comment creation is not part of the Admin GraphQL root set captured for this tic
 HAR-372 adds a normalized local integration graph for themes, script tags, web pixels, server pixels, storefront access tokens, and mobile platform applications. These roots are local-only at runtime:
 
 - theme mutations stage theme metadata, publish role changes, deletion tombstones, and theme-file copy/upsert/delete effects in memory
-- `themeUpdate` stages only `name` changes; non-`name` input fields are ignored by the resolver, blank or whitespace names return `INVALID`, and `LOCKED` themes return `CANNOT_UPDATE_LOCKED_THEME` without mutating local state
+- `themeUpdate` stages only `name` changes; non-`name` input fields are rejected at GraphQL schema validation, blank or whitespace names return `INVALID`, and `LOCKED` themes return `CANNOT_UPDATE_LOCKED_THEME` without mutating local state
 - `themePublish` flips the staged target theme to `MAIN` and demotes any effective local main theme to `UNPUBLISHED`, without changing storefront presentation
 - `themePublish` returns a local `userErrors` response without staging when the target theme is in a non-publishable `DEMO`, `LOCKED`, or `ARCHIVED` role
 - theme-file bodies are stored in local theme records and exposed through `OnlineStoreTheme.files`; no asset upload or CDN write is performed. Local `themeFilesUpsert` accepts only one-level filenames under `templates/`, `sections/`, `snippets/`, `layout/`, `config/`, `locales/`, or `assets/`, computes `checksumMd5` from the persisted body content, and computes `size` from UTF-8 body bytes. `themeFilesCopy` reads the existing local source body before deriving the copied file metadata, and `themeFilesDelete` rejects required config files.
