@@ -21,28 +21,25 @@ pub type Outcome {
   Failed(spec_path: String, message: String)
 }
 
-pub fn parity_specs_admin_to_discounts_pass_test() {
+pub fn parity_specs_admin_to_discounts_corpus_shard_pass_test() {
   run_shard("admin-discounts")
 }
 
-pub fn parity_specs_events_to_metaobjects_pass_test() {
+pub fn parity_specs_events_to_metaobjects_corpus_shard_pass_test() {
   run_shard("events-metaobjects")
 }
 
-pub fn parity_specs_online_store_to_products_pass_test() {
+pub fn parity_specs_online_store_to_products_corpus_shard_pass_test() {
   run_shard("online-products")
 }
 
-pub fn parity_specs_saved_searches_to_webhooks_pass_test() {
+pub fn parity_specs_saved_searches_to_webhooks_corpus_shard_pass_test() {
   run_shard("saved-webhooks")
 }
 
-pub fn parity_shards_cover_every_discovered_spec_test() {
+pub fn parity_shards_exactly_cover_the_discovered_corpus_test() {
   let assert Ok(discovered_paths) = discover.discover(parity_root)
-  let spec_paths =
-    discovered_paths
-    |> list.map(repo_relative_path)
-    |> list.sort(by: string.compare)
+  let spec_paths = normalized_spec_paths(discovered_paths)
   let unassigned =
     list.filter(spec_paths, fn(path) {
       case shard_for_domain(spec_domain(path)) {
@@ -54,21 +51,31 @@ pub fn parity_shards_cover_every_discovered_spec_test() {
     [] -> Nil
     _ -> panic as render_section("unassigned parity specs", unassigned)
   }
+  let assigned_paths =
+    shard_labels()
+    |> list.fold([], fn(acc, shard) {
+      list.append(spec_paths_for_shard(spec_paths, shard), acc)
+    })
+    |> list.sort(by: string.compare)
+  case assigned_paths == spec_paths {
+    True -> Nil
+    False ->
+      panic as string.join(
+          [
+            "parity shard assignment did not exactly cover the corpus",
+            "discovered: " <> int.to_string(list.length(spec_paths)),
+            "assigned: " <> int.to_string(list.length(assigned_paths)),
+          ],
+          "\n",
+        )
+  }
 }
 
 fn run_shard(label: String) {
   let assert Ok(discovered_paths) = discover.discover(parity_root)
-  let spec_paths =
-    discovered_paths
-    |> list.map(repo_relative_path)
-    |> list.sort(by: string.compare)
-    |> list.filter(fn(path) {
-      case shard_for_domain(spec_domain(path)) {
-        Some(shard) -> shard == label
-        None -> False
-      }
-    })
-  let outcomes = list.map(spec_paths, run_one)
+  let spec_paths = normalized_spec_paths(discovered_paths)
+  let shard_paths = spec_paths_for_shard(spec_paths, label)
+  let outcomes = list.map(shard_paths, run_one)
 
   let failures =
     outcomes
@@ -82,7 +89,7 @@ fn run_shard(label: String) {
 
   case failures {
     [] ->
-      case spec_paths {
+      case shard_paths {
         [] -> {
           let message = "parity shard '" <> label <> "' matched no specs"
           panic as message
@@ -91,6 +98,28 @@ fn run_shard(label: String) {
       }
     _ -> panic as render_summary(label, failures)
   }
+}
+
+fn shard_labels() -> List(String) {
+  ["admin-discounts", "events-metaobjects", "online-products", "saved-webhooks"]
+}
+
+fn normalized_spec_paths(paths: List(String)) -> List(String) {
+  paths
+  |> list.map(repo_relative_path)
+  |> list.sort(by: string.compare)
+}
+
+fn spec_paths_for_shard(
+  spec_paths: List(String),
+  label: String,
+) -> List(String) {
+  list.filter(spec_paths, fn(path) {
+    case shard_for_domain(spec_domain(path)) {
+      Some(shard) -> shard == label
+      None -> False
+    }
+  })
 }
 
 fn spec_domain(path: String) -> String {
