@@ -2118,6 +2118,31 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'markets',
+    captureId: 'markets-legacy-parity-fixtures',
+    scriptPath: 'scripts/capture-market-orphan-fixture-replacements-conformance.mts',
+    purpose:
+      'Markets, market-localization, web-presence, quantity-pricing, and price-list parity fixtures that predate recorder provenance metadata.',
+    requiredAuthScopes: ['read_markets', 'write_markets', 'read_products', 'write_products', 'read_translations'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}quantity-pricing-rules-parity.json`,
+      `${CAPTURE_ROOT}catalog-create-missing-context.json`,
+      `${CAPTURE_ROOT}catalog-lifecycle-validation.json`,
+      `${CAPTURE_ROOT}market-create-status-enabled-mismatch.json`,
+      `${CAPTURE_ROOT}market-localizable-empty-read.json`,
+      `${CAPTURE_ROOT}market-localization-validation.json`,
+      `${CAPTURE_ROOT}market-localizations-register-too-many-keys.json`,
+      `${CAPTURE_ROOT}market-web-presence-delete-parity.json`,
+      `${CAPTURE_ROOT}market-web-presence-validation.json`,
+      `${CAPTURE_ROOT}price-list-create-dkk.json`,
+      `${CAPTURE_ROOT}price-list-fixed-prices-by-product-update-parity.json`,
+      `${CAPTURE_ROOT}price-list-mutation-validation.json`,
+    ],
+    cleanupBehavior:
+      'Records validation-only branches in place, creates and deletes disposable product, web-presence, price-list, and fixed-price state for success-path captures, and removes staged quantity-pricing rows after the 2025-01 quantity capture.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'markets',
     captureId: 'market-lifecycle-validation',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-market-lifecycle-validation-conformance.mts',
