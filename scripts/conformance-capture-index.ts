@@ -2806,6 +2806,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
   },
   {
     domain: 'webhooks',
+    captureId: 'webhook-subscription-topic-enum-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-webhook-subscription-topic-enum-validation.ts',
+    purpose: 'WebhookSubscriptionTopic enum coercion for unknown, hidden, variable, and accepted topic values.',
+    requiredAuthScopes: ['webhook subscription management access for the installed app'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}webhook-subscription-topic-enum-validation.json`,
+      'config/parity-specs/webhooks/webhook-subscription-topic-enum-validation.json',
+      'config/parity-requests/webhooks/webhook-subscription-bogus-topic.graphql',
+      'config/parity-requests/webhooks/webhook-subscription-hidden-topic.graphql',
+    ],
+    cleanupBehavior:
+      'Invalid enum branches fail before resolver side effects; accepted SHOP_UPDATE control creates one temporary HTTP webhook subscription and deletes it during cleanup.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
+    domain: 'webhooks',
     captureId: 'webhook-subscription-uri-whitespace',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
     scriptPath: 'scripts/capture-webhook-subscription-uri-whitespace.ts',
