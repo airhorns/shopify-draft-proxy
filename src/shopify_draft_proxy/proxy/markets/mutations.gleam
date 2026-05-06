@@ -1815,7 +1815,7 @@ fn handle_quantity_rules_add(
     ))
   let inputs = read_arg_object_array(args, "quantityRules")
   let errors = case price_list {
-    Some(_) -> quantity_rules_input_errors(store, inputs)
+    Some(existing) -> quantity_rules_input_errors(store, existing, inputs)
     None -> [
       quantity_rule_user_error(
         ["priceListId"],
@@ -1878,7 +1878,7 @@ fn handle_quantity_rules_delete(
   let variant_ids =
     read_arg_string_array(args, "variantIds") |> option.unwrap([])
   let errors = case price_list {
-    Some(_) -> quantity_rule_delete_errors(store, variant_ids)
+    Some(existing) -> quantity_rule_delete_errors(store, existing, variant_ids)
     None -> [
       user_error(
         ["priceListId"],
