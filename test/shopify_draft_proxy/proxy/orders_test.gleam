@@ -4635,7 +4635,7 @@ pub fn orders_order_delete_tombstone_read_after_write_test() {
         data: types.CapturedObject([
           #("id", types.CapturedString(order_id)),
           #("name", types.CapturedString("#DELETE")),
-          #("displayFinancialStatus", types.CapturedString("PAID")),
+          #("displayFinancialStatus", types.CapturedString("PENDING")),
           #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
         ]),
       ),
@@ -4648,6 +4648,7 @@ pub fn orders_order_delete_tombstone_read_after_write_test() {
         userErrors {
           field
           message
+          code
         }
       }
     }
@@ -4699,8 +4700,200 @@ pub fn orders_order_delete_tombstone_read_after_write_test() {
       empty_upstream_context(),
     )
   assert json.to_string(repeated.data)
-    == "{\"data\":{\"orderDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\"}]}}}"
+    == "{\"data\":{\"orderDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"Order does not exist\",\"code\":\"NOT_FOUND\"}]}}}"
   assert repeated.staged_resource_ids == []
+}
+
+pub fn orders_order_delete_rejects_non_deletable_paid_orders_test() {
+  let order_id = "gid://shopify/Order/order-delete-paid"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: Some("cursor-order-delete-paid"),
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#DELETE-PAID")),
+          #("displayFinancialStatus", types.CapturedString("PAID")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #("transactions", types.CapturedArray([])),
+          #("refunds", types.CapturedArray([])),
+          #("fulfillments", types.CapturedArray([])),
+          #("fulfillmentOrders", types.CapturedArray([])),
+          #("returns", types.CapturedArray([])),
+        ]),
+      ),
+    ])
+  let mutation =
+    "
+    mutation OrderDelete($orderId: ID!) {
+      orderDelete(orderId: $orderId) {
+        deletedId
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let variables = dict.from_list([#("orderId", root_field.StringVal(order_id))])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderDelete\":{\"deletedId\":null,\"userErrors\":[{\"field\":[\"orderId\"],\"message\":\"order_cannot_be_deleted\",\"code\":\"INVALID\"}]}}}"
+  assert store.get_order_by_id(outcome.store, order_id)
+    == Some(types.OrderRecord(
+      id: order_id,
+      cursor: Some("cursor-order-delete-paid"),
+      data: types.CapturedObject([
+        #("id", types.CapturedString(order_id)),
+        #("name", types.CapturedString("#DELETE-PAID")),
+        #("displayFinancialStatus", types.CapturedString("PAID")),
+        #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+        #("transactions", types.CapturedArray([])),
+        #("refunds", types.CapturedArray([])),
+        #("fulfillments", types.CapturedArray([])),
+        #("fulfillmentOrders", types.CapturedArray([])),
+        #("returns", types.CapturedArray([])),
+      ]),
+    ))
+  assert outcome.staged_resource_ids == []
+}
+
+pub fn orders_order_delete_cascades_local_child_graph_test() {
+  let order_id = "gid://shopify/Order/order-delete-cascade"
+  let fulfillment_order_id =
+    "gid://shopify/FulfillmentOrder/order-delete-cascade"
+  let return_id = "gid://shopify/Return/order-delete-cascade"
+  let payment_terms_id = "gid://shopify/PaymentTerms/order-delete-cascade"
+  let checkout_id = "gid://shopify/AbandonedCheckout/order-delete-cascade"
+  let seeded =
+    store.new()
+    |> store.upsert_base_orders([
+      types.OrderRecord(
+        id: order_id,
+        cursor: Some("cursor-order-delete-cascade"),
+        data: types.CapturedObject([
+          #("id", types.CapturedString(order_id)),
+          #("name", types.CapturedString("#DELETE-CASCADE")),
+          #("displayFinancialStatus", types.CapturedString("PENDING")),
+          #("displayFulfillmentStatus", types.CapturedString("UNFULFILLED")),
+          #("transactions", types.CapturedArray([])),
+          #("refunds", types.CapturedArray([])),
+          #("fulfillments", types.CapturedArray([])),
+          #(
+            "fulfillmentOrders",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(fulfillment_order_id)),
+                #("status", types.CapturedString("CLOSED")),
+              ]),
+            ]),
+          ),
+          #(
+            "returns",
+            types.CapturedArray([
+              types.CapturedObject([
+                #("id", types.CapturedString(return_id)),
+                #("name", types.CapturedString("#R1")),
+                #("status", types.CapturedString("CLOSED")),
+              ]),
+            ]),
+          ),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_abandoned_checkouts([
+      types.AbandonedCheckoutRecord(
+        id: checkout_id,
+        cursor: Some("cursor-checkout-delete-cascade"),
+        data: types.CapturedObject([
+          #("id", types.CapturedString(checkout_id)),
+          #("createdAt", types.CapturedString("2026-05-06T00:00:00Z")),
+          #("orderId", types.CapturedString(order_id)),
+          #(
+            "order",
+            types.CapturedObject([#("id", types.CapturedString(order_id))]),
+          ),
+        ]),
+      ),
+    ])
+    |> store.upsert_base_payment_terms(
+      types.PaymentTermsRecord(
+        id: payment_terms_id,
+        owner_id: order_id,
+        due: True,
+        overdue: False,
+        due_in_days: Some(30),
+        payment_terms_name: "Net 30",
+        payment_terms_type: "NET",
+        translated_name: "Net 30",
+        payment_schedules: [],
+      ),
+    )
+  let mutation =
+    "
+    mutation OrderDelete($orderId: ID!) {
+      orderDelete(orderId: $orderId) {
+        deletedId
+        userErrors {
+          field
+          message
+          code
+        }
+      }
+    }
+  "
+  let variables = dict.from_list([#("orderId", root_field.StringVal(order_id))])
+  let outcome =
+    orders.process_mutation(
+      seeded,
+      synthetic_identity.new(),
+      "/admin/api/2026-04/graphql.json",
+      mutation,
+      variables,
+      empty_upstream_context(),
+    )
+  assert json.to_string(outcome.data)
+    == "{\"data\":{\"orderDelete\":{\"deletedId\":\"gid://shopify/Order/order-delete-cascade\",\"userErrors\":[]}}}"
+  assert store.get_order_by_id(outcome.store, order_id) == None
+  assert store.get_effective_payment_terms_by_owner_id(outcome.store, order_id)
+    == None
+
+  let read =
+    "
+    query OrderDeleteCascadeRead($orderId: ID!, $fulfillmentOrderId: ID!, $returnId: ID!) {
+      order(id: $orderId) { id }
+      fulfillmentOrder(id: $fulfillmentOrderId) { id }
+      return(id: $returnId) { id }
+      abandonedCheckouts(first: 5) {
+        nodes {
+          id
+          orderId
+          order { id }
+        }
+      }
+    }
+  "
+  let read_variables =
+    dict.from_list([
+      #("orderId", root_field.StringVal(order_id)),
+      #("fulfillmentOrderId", root_field.StringVal(fulfillment_order_id)),
+      #("returnId", root_field.StringVal(return_id)),
+    ])
+  let assert Ok(read_result) =
+    orders.process(outcome.store, read, read_variables)
+  assert json.to_string(read_result)
+    == "{\"data\":{\"order\":null,\"fulfillmentOrder\":null,\"return\":null,\"abandonedCheckouts\":{\"nodes\":[{\"id\":\"gid://shopify/AbandonedCheckout/order-delete-cascade\",\"orderId\":null,\"order\":null}]}}}"
 }
 
 pub fn orders_order_create_validation_guardrails_test() {
@@ -7979,6 +8172,51 @@ pub fn orders_draft_order_complete_read_after_write_test() {
     orders.process(complete_outcome.store, read_query, dict.new())
   assert json.to_string(read_result)
     == "{\"data\":{\"draftOrder\":{\"id\":\"gid://shopify/DraftOrder/1\",\"status\":\"COMPLETED\",\"completedAt\":\"2024-01-01T00:00:01.000Z\",\"order\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\"}}}}"
+
+  let order_read_query =
+    "
+    query {
+      completedOrder: order(id: \"gid://shopify/Order/3\") {
+        id
+        name
+        sourceName
+        displayFinancialStatus
+        displayFulfillmentStatus
+        currentTotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        lineItems {
+          nodes {
+            id
+            title
+            quantity
+            sku
+          }
+        }
+      }
+      completedOrders: orders(first: 10, query: \"name:#1\") {
+        nodes {
+          id
+          name
+          sourceName
+          displayFinancialStatus
+        }
+        pageInfo {
+          hasNextPage
+          hasPreviousPage
+          startCursor
+          endCursor
+        }
+      }
+    }
+  "
+  let assert Ok(order_read_result) =
+    orders.process(complete_outcome.store, order_read_query, dict.new())
+  assert json.to_string(order_read_result)
+    == "{\"data\":{\"completedOrder\":{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\",\"displayFulfillmentStatus\":\"UNFULFILLED\",\"currentTotalPriceSet\":{\"shopMoney\":{\"amount\":\"25.0\",\"currencyCode\":\"CAD\"}},\"lineItems\":{\"nodes\":[{\"id\":\"gid://shopify/LineItem/4\",\"title\":\"Completion service\",\"quantity\":2,\"sku\":\"COMPLETE\"}]}},\"completedOrders\":{\"nodes\":[{\"id\":\"gid://shopify/Order/3\",\"name\":\"#1\",\"sourceName\":\"347082227713\",\"displayFinancialStatus\":\"PAID\"}],\"pageInfo\":{\"hasNextPage\":false,\"hasPreviousPage\":false,\"startCursor\":\"gid://shopify/Order/3\",\"endCursor\":\"gid://shopify/Order/3\"}}}}"
 }
 
 pub fn orders_draft_order_create_from_order_read_after_write_test() {

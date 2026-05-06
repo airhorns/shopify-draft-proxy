@@ -98,6 +98,8 @@ pub const list_effective_abandoned_checkouts = orders.list_effective_abandoned_c
 
 pub const list_effective_abandonments = orders.list_effective_abandonments
 
+pub const unassociate_abandoned_checkouts_from_order = orders.unassociate_abandoned_checkouts_from_order
+
 pub const stage_abandonment_delivery_activity = orders.stage_abandonment_delivery_activity
 
 pub const upsert_base_products = products.upsert_base_products

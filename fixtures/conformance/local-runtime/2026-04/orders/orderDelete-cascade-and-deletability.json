@@ -1,0 +1,63 @@
+{
+  "scenarioId": "orderDelete-cascade-and-deletability",
+  "recordedAt": "2026-05-06T00:00:00.000Z",
+  "source": "local-runtime",
+  "apiVersion": "2026-04",
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/orders_test.gleam"],
+  "coveredOperations": ["orderDelete", "order", "fulfillmentOrder", "return", "abandonedCheckouts"],
+  "requests": {
+    "unknownOrderDelete": {
+      "variables": {
+        "orderId": "gid://shopify/Order/order-delete-unknown"
+      }
+    }
+  },
+  "expected": {
+    "nonDeletablePaidOrderDelete": {
+      "payload": {
+        "deletedId": null,
+        "userErrors": [
+          {
+            "field": ["orderId"],
+            "message": "order_cannot_be_deleted",
+            "code": "INVALID"
+          }
+        ]
+      },
+      "orderRemains": true,
+      "stagedResourceIds": []
+    },
+    "deletableOrderDelete": {
+      "payload": {
+        "deletedId": "gid://shopify/Order/order-delete-cascade",
+        "userErrors": []
+      },
+      "downstreamRead": {
+        "order": null,
+        "fulfillmentOrder": null,
+        "return": null,
+        "paymentTermsByOwner": null,
+        "abandonedCheckout": {
+          "orderId": null,
+          "order": null
+        }
+      }
+    },
+    "unknownOrderDelete": {
+      "data": {
+        "orderDelete": {
+          "deletedId": null,
+          "userErrors": [
+            {
+              "field": ["orderId"],
+              "message": "Order does not exist",
+              "code": "NOT_FOUND"
+            }
+          ]
+        }
+      },
+      "stagedResourceIds": []
+    }
+  },
+  "upstreamCalls": []
+}

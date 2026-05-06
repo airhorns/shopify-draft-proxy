@@ -1,0 +1,24 @@
+mutation DraftOrderCompleteStagesResultingOrderCreate {
+  draftOrderCreate(
+    input: {
+      email: "complete-readback@example.test"
+      lineItems: [{ title: "Completion service", quantity: 2, originalUnitPrice: "12.50", sku: "COMPLETE" }]
+    }
+  ) {
+    draftOrder {
+      id
+      name
+      status
+      totalPriceSet {
+        shopMoney {
+          amount
+          currencyCode
+        }
+      }
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

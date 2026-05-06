@@ -1,0 +1,15 @@
+mutation WebhookSubscriptionHiddenTopic {
+  webhookSubscriptionCreate(
+    topic: CUSTOMER_INTERACTIONS
+    webhookSubscription: { uri: "https://example.com/webhook-topic-enum-hidden" }
+  ) {
+    webhookSubscription {
+      id
+      topic
+    }
+    userErrors {
+      field
+      message
+    }
+  }
+}

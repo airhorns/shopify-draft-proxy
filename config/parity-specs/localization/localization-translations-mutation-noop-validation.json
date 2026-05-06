@@ -1,0 +1,98 @@
+{
+  "scenarioId": "localization-translations-mutation-noop-validation",
+  "operationNames": ["shopLocaleEnable", "shopLocaleDisable", "translationsRegister", "translationsRemove"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-branch-parity", "mutation-lifecycle"],
+  "liveCaptureFiles": [
+    "fixtures/conformance/harry-test-heelo.myshopify.com/2026-04/localization/localization-translations-mutation-noop-validation.json"
+  ],
+  "runtimeTestFiles": ["test/parity_test.gleam", "test/shopify_draft_proxy/proxy/localization_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/localization/localization-translations-mutation-noop-validation-read.graphql",
+    "apiVersion": "2026-04",
+    "variablesCapturePath": "$.setupRead.variables"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "translations-remove-unknown-key-noop",
+        "capturePath": "$.unknownKeyRemove.response.data.translationsRemove",
+        "proxyPath": "$.data.translationsRemove",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-remove.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.unknownKeyRemove.variables"
+        }
+      },
+      {
+        "name": "shop-locale-enable-disabled-locale-setup",
+        "capturePath": "$.disabledLocaleRemove.localeEnable.response.data.shopLocaleEnable",
+        "proxyPath": "$.data.shopLocaleEnable",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.shopLocale.locale", "$.shopLocale.primary", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-enable.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.disabledLocaleRemove.localeEnable.variables"
+        }
+      },
+      {
+        "name": "translations-register-disabled-locale-setup",
+        "capturePath": "$.disabledLocaleRemove.register.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "selectedPaths": [
+          "$.translations[0].key",
+          "$.translations[0].value",
+          "$.translations[0].locale",
+          "$.userErrors"
+        ],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.disabledLocaleRemove.register.variables"
+        }
+      },
+      {
+        "name": "shop-locale-disable-disabled-locale-setup",
+        "capturePath": "$.disabledLocaleRemove.localeDisable.response.data.shopLocaleDisable",
+        "proxyPath": "$.data.shopLocaleDisable",
+        "upstreamCapturePath": null,
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-shop-locale-disable.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.disabledLocaleRemove.localeDisable.variables"
+        }
+      },
+      {
+        "name": "translations-remove-disabled-locale-noop",
+        "capturePath": "$.disabledLocaleRemove.remove.response.data.translationsRemove",
+        "proxyPath": "$.data.translationsRemove",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.translations", "$.userErrors"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-remove.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.disabledLocaleRemove.remove.variables"
+        }
+      },
+      {
+        "name": "translations-register-primary-locale-error",
+        "capturePath": "$.primaryLocaleRegister.response.data.translationsRegister",
+        "proxyPath": "$.data.translationsRegister",
+        "upstreamCapturePath": null,
+        "selectedPaths": ["$.translations", "$.userErrors[0].field", "$.userErrors[0].code"],
+        "proxyRequest": {
+          "documentPath": "config/parity-requests/localization/localization-translations-register.graphql",
+          "apiVersion": "2026-04",
+          "variablesCapturePath": "$.primaryLocaleRegister.variables"
+        }
+      }
+    ]
+  },
+  "notes": "Live Admin GraphQL 2026-04 capture proves translationsRemove does not validate unknown translation keys or currently-disabled locales, and translationsRegister rejects the shop primary locale with a TranslationUserError code. Message strings are intentionally not compared for the primary-locale branch."
+}

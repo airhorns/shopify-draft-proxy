@@ -1,0 +1,107 @@
+{
+  "draftOrderCompleteStagesResultingOrder": {
+    "expected": {
+      "create": {
+        "data": {
+          "draftOrderCreate": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1",
+              "name": "#D1",
+              "status": "OPEN",
+              "totalPriceSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "complete": {
+        "data": {
+          "draftOrderComplete": {
+            "draftOrder": {
+              "id": "gid://shopify/DraftOrder/1",
+              "status": "COMPLETED",
+              "completedAt": "2024-01-01T00:00:02.000Z",
+              "order": {
+                "id": "gid://shopify/Order/4",
+                "name": "#1",
+                "sourceName": "347082227713",
+                "displayFinancialStatus": "PAID",
+                "displayFulfillmentStatus": "UNFULFILLED",
+                "currentTotalPriceSet": {
+                  "shopMoney": {
+                    "amount": "25.0",
+                    "currencyCode": "CAD"
+                  }
+                },
+                "lineItems": {
+                  "nodes": [
+                    {
+                      "id": "gid://shopify/LineItem/5",
+                      "title": "Completion service",
+                      "quantity": 2,
+                      "sku": "COMPLETE"
+                    }
+                  ]
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "readById": {
+        "data": {
+          "order": {
+            "id": "gid://shopify/Order/4",
+            "name": "#1",
+            "sourceName": "347082227713",
+            "displayFinancialStatus": "PAID",
+            "displayFulfillmentStatus": "UNFULFILLED",
+            "currentTotalPriceSet": {
+              "shopMoney": {
+                "amount": "25.0",
+                "currencyCode": "CAD"
+              }
+            },
+            "lineItems": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/LineItem/5",
+                  "title": "Completion service",
+                  "quantity": 2,
+                  "sku": "COMPLETE"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "readByName": {
+        "data": {
+          "orders": {
+            "nodes": [
+              {
+                "id": "gid://shopify/Order/4",
+                "name": "#1",
+                "sourceName": "347082227713",
+                "displayFinancialStatus": "PAID"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "hasPreviousPage": false,
+              "startCursor": "gid://shopify/Order/4",
+              "endCursor": "gid://shopify/Order/4"
+            }
+          }
+        }
+      }
+    }
+  },
+  "upstreamCalls": []
+}

@@ -12,6 +12,7 @@ import shopify_draft_proxy/graphql/ast.{
   StringValue, VariableValue,
 }
 import shopify_draft_proxy/graphql/root_field
+import shopify_draft_proxy/proxy/admin_api_versions
 import shopify_draft_proxy/proxy/commit
 import shopify_draft_proxy/proxy/graphql_helpers.{
   type FragmentMap, type SourceValue, SrcList, SrcNull, SrcString,
@@ -342,7 +343,7 @@ fn stage_location_mutation(
       )
     "locationActivate" | "locationDeactivate" ->
       case
-        admin_api_version_at_least(request_path, "2026-04")
+        admin_api_versions.at_least(request_path, "2026-04")
         && !has_idempotency_key(field, document, variables)
       {
         True -> missing_idempotency_location_result(store, identity, root_name)
@@ -1685,44 +1686,6 @@ fn non_empty_string(value: String) -> Option(String) {
     True -> Some(trimmed)
     False -> None
   }
-}
-
-fn admin_api_version_at_least(
-  request_path: String,
-  minimum_version: String,
-) -> Bool {
-  case
-    admin_api_version_from_path(request_path),
-    parse_admin_api_version(minimum_version)
-  {
-    Some(version), Some(minimum) -> compare_admin_api_versions(version, minimum)
-    _, _ -> False
-  }
-}
-
-fn admin_api_version_from_path(path: String) -> Option(#(Int, Int)) {
-  case string.split(path, "/") {
-    ["", "admin", "api", version, "graphql.json"] ->
-      parse_admin_api_version(version)
-    _ -> None
-  }
-}
-
-fn parse_admin_api_version(version: String) -> Option(#(Int, Int)) {
-  case string.split(version, "-") {
-    [year, month] ->
-      case int.parse(year), int.parse(month) {
-        Ok(parsed_year), Ok(parsed_month) -> Some(#(parsed_year, parsed_month))
-        _, _ -> None
-      }
-    _ -> None
-  }
-}
-
-fn compare_admin_api_versions(version: #(Int, Int), minimum: #(Int, Int)) {
-  let #(year, month) = version
-  let #(minimum_year, minimum_month) = minimum
-  year > minimum_year || { year == minimum_year && month >= minimum_month }
 }
 
 fn location_delete_error_result(
