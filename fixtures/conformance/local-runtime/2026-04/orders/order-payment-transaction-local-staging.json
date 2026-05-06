@@ -704,7 +704,7 @@
           "orderCreateMandatePayment": {
             "job": {
               "done": true,
-              "id": "gid://shopify/Job/7"
+              "id": "gid://shopify/Job/6"
             },
             "order": {
               "displayFinancialStatus": "PAID",
@@ -725,7 +725,7 @@
               "paymentGatewayNames": ["mandate"],
               "transactions": [
                 {
-                  "kind": "MANDATE_PAYMENT",
+                  "kind": "SALE",
                   "status": "SUCCESS",
                   "gateway": "mandate",
                   "amountSet": {
@@ -734,8 +734,8 @@
                       "currencyCode": "CAD"
                     }
                   },
-                  "id": "gid://shopify/OrderTransaction/5",
-                  "paymentReferenceId": "gid://shopify/PaymentReference/4"
+                  "id": "gid://shopify/OrderTransaction/4",
+                  "paymentReferenceId": "gid://shopify/Order/1/har-353-idempotent-payment"
                 }
               ],
               "id": "gid://shopify/Order/1",
@@ -747,22 +747,94 @@
               }
             },
             "userErrors": [],
-            "paymentReferenceId": "gid://shopify/PaymentReference/4"
+            "paymentReferenceId": "gid://shopify/Order/1/har-353-idempotent-payment"
           }
         }
+      },
+      "autoCaptureFalse": {
+        "data": {
+          "orderCreateMandatePayment": {
+            "job": {
+              "done": true,
+              "id": "gid://shopify/Job/6"
+            },
+            "paymentReferenceId": "gid://shopify/Order/1/har-848-auth-only",
+            "order": {
+              "displayFinancialStatus": "AUTHORIZED",
+              "capturable": true,
+              "totalCapturable": "25.0",
+              "totalOutstandingSet": {
+                "shopMoney": {
+                  "amount": "25.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "totalReceivedSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              },
+              "paymentGatewayNames": ["mandate"],
+              "transactions": [
+                {
+                  "kind": "AUTHORIZATION",
+                  "status": "SUCCESS",
+                  "gateway": "mandate",
+                  "amountSet": {
+                    "shopMoney": {
+                      "amount": "25.0",
+                      "currencyCode": "CAD"
+                    }
+                  },
+                  "id": "gid://shopify/OrderTransaction/4",
+                  "paymentReferenceId": "gid://shopify/Order/1/har-848-auth-only"
+                }
+              ],
+              "id": "gid://shopify/Order/1",
+              "netPaymentSet": {
+                "shopMoney": {
+                  "amount": "0.0",
+                  "currencyCode": "CAD"
+                }
+              }
+            },
+            "userErrors": []
+          }
+        }
+      },
+      "missingMandate": {
+        "errors": [
+          {
+            "message": "Field 'orderCreateMandatePayment' is missing required arguments: mandateId",
+            "locations": [
+              {
+                "line": 2,
+                "column": 3
+              }
+            ],
+            "path": ["mutation OrderCreateMandatePaymentMissingMandate", "orderCreateMandatePayment"],
+            "extensions": {
+              "code": "missingRequiredArguments",
+              "className": "Field",
+              "name": "orderCreateMandatePayment",
+              "arguments": "mandateId"
+            }
+          }
+        ]
       },
       "repeatMandate": {
         "data": {
           "orderCreateMandatePayment": {
             "job": {
               "done": true,
-              "id": "gid://shopify/Job/7"
+              "id": "gid://shopify/Job/6"
             },
             "order": {
               "displayFinancialStatus": "PAID",
               "transactions": [
                 {
-                  "kind": "MANDATE_PAYMENT",
+                  "kind": "SALE",
                   "status": "SUCCESS",
                   "gateway": "mandate",
                   "amountSet": {
@@ -771,8 +843,8 @@
                       "currencyCode": "CAD"
                     }
                   },
-                  "id": "gid://shopify/OrderTransaction/5",
-                  "paymentReferenceId": "gid://shopify/PaymentReference/4"
+                  "id": "gid://shopify/OrderTransaction/4",
+                  "paymentReferenceId": "gid://shopify/Order/1/har-353-idempotent-payment"
                 }
               ],
               "capturable": false,
@@ -799,7 +871,7 @@
               }
             },
             "userErrors": [],
-            "paymentReferenceId": "gid://shopify/PaymentReference/4"
+            "paymentReferenceId": "gid://shopify/Order/1/har-353-idempotent-payment"
           }
         }
       }
