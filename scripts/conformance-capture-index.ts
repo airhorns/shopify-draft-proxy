@@ -2473,6 +2473,23 @@ export const conformanceCaptureIndex = defineCaptureIndex([
     expectedStatusChecks: DEFAULT_STATUS_CHECKS,
   },
   {
+    domain: 'orders',
+    captureId: 'order-edit-add-custom-item-validation',
+    environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
+    scriptPath: 'scripts/capture-order-edit-add-custom-item-validation-conformance.ts',
+    purpose:
+      'orderEditAddCustomItem title, quantity, price, currency, and happy-path custom-item validation against a disposable order-edit session.',
+    requiredAuthScopes: ['read_orders', 'write_orders'],
+    fixtureOutputs: [
+      `${CAPTURE_ROOT}orderEditAddCustomItem-validation.json`,
+      'config/parity-specs/orders/orderEditAddCustomItem-validation.json',
+      'config/parity-requests/orders/orderEditAddCustomItem-validation-*.graphql',
+    ],
+    cleanupBehavior:
+      'Creates one disposable CAD test order, begins an order edit, records validation and happy-path branches, then cancels the order with restock.',
+    expectedStatusChecks: DEFAULT_STATUS_CHECKS,
+  },
+  {
     domain: 'shipping-fulfillments',
     captureId: 'fulfillment-detail-events',
     environment: { SHOPIFY_CONFORMANCE_API_VERSION: '2026-04' },
