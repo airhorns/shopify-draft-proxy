@@ -17,6 +17,7 @@ import shopify_draft_proxy/proxy/b2b/serializers.{
   has_duplicate_strings, location_source, make_gid, maybe_put_bool,
   maybe_put_string, put_source, read_object, read_object_sources, read_string,
   read_string_list, resource_not_found, source_id, timestamp, user_error,
+  validate_address_input,
 }
 
 import shopify_draft_proxy/proxy/b2b/types as b2b_types
@@ -63,50 +64,71 @@ pub fn handle_assign_address(
                 [],
               )
             False -> {
-              let #(address, identity) =
-                address_from_input(identity, read_object(args, "address"), None)
-              let #(data, addresses) =
-                list.fold(address_types, #(location.data, []), fn(acc, typ) {
-                  let #(data, addresses) = acc
-                  case typ {
-                    "BILLING" -> #(
-                      put_source(data, "billingAddress", address),
-                      list.append(addresses, [address]),
-                    )
-                    "SHIPPING" -> #(
-                      put_source(data, "shippingAddress", address),
-                      list.append(addresses, [address]),
-                    )
-                    _ -> acc
-                  }
-                })
-              case addresses {
-                [] ->
+              let address_input = read_object(args, "address")
+              let validation_errors =
+                validate_address_input(address_input, ["address"])
+              case validation_errors {
+                [_, ..] ->
                   b2b_types.RootResult(
-                    b2b_types.Payload(
-                      ..empty_payload([
-                        user_error(
-                          Some(["addressTypes"]),
-                          "Address type is invalid",
-                          user_error_code.invalid,
-                        ),
-                      ]),
-                      addresses: [],
-                    ),
+                    empty_payload(validation_errors),
                     store,
                     identity,
                     [],
                   )
-                _ -> {
-                  let updated = B2BCompanyLocationRecord(..location, data: data)
-                  let #(updated, store) =
-                    store.upsert_staged_b2b_company_location(store, updated)
-                  b2b_types.RootResult(
-                    b2b_types.Payload(..empty_payload([]), addresses: addresses),
-                    store,
-                    identity,
-                    list.append([updated.id], list.map(addresses, source_id)),
-                  )
+                [] -> {
+                  let #(address, identity) =
+                    address_from_input(identity, address_input, None)
+                  let #(data, addresses) =
+                    list.fold(address_types, #(location.data, []), fn(acc, typ) {
+                      let #(data, addresses) = acc
+                      case typ {
+                        "BILLING" -> #(
+                          put_source(data, "billingAddress", address),
+                          list.append(addresses, [address]),
+                        )
+                        "SHIPPING" -> #(
+                          put_source(data, "shippingAddress", address),
+                          list.append(addresses, [address]),
+                        )
+                        _ -> acc
+                      }
+                    })
+                  case addresses {
+                    [] ->
+                      b2b_types.RootResult(
+                        b2b_types.Payload(
+                          ..empty_payload([
+                            user_error(
+                              Some(["addressTypes"]),
+                              "Address type is invalid",
+                              user_error_code.invalid,
+                            ),
+                          ]),
+                          addresses: [],
+                        ),
+                        store,
+                        identity,
+                        [],
+                      )
+                    _ -> {
+                      let updated =
+                        B2BCompanyLocationRecord(..location, data: data)
+                      let #(updated, store) =
+                        store.upsert_staged_b2b_company_location(store, updated)
+                      b2b_types.RootResult(
+                        b2b_types.Payload(
+                          ..empty_payload([]),
+                          addresses: addresses,
+                        ),
+                        store,
+                        identity,
+                        list.append(
+                          [updated.id],
+                          list.map(addresses, source_id),
+                        ),
+                      )
+                    }
+                  }
                 }
               }
             }

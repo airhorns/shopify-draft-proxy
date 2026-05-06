@@ -1,0 +1,35 @@
+mutation B2BAddressValidationLocationCreate($companyId: ID!, $input: CompanyLocationInput!) {
+  companyLocationCreate(companyId: $companyId, input: $input) {
+    companyLocation {
+      id
+      name
+      billingAddress {
+        address1
+        address2
+        city
+        recipient
+        firstName
+        lastName
+        countryCode
+        zoneCode
+        zip
+      }
+      shippingAddress {
+        address1
+        address2
+        city
+        recipient
+        firstName
+        lastName
+        countryCode
+        zoneCode
+        zip
+      }
+    }
+    userErrors {
+      field
+      message
+      code
+    }
+  }
+}
