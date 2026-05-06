@@ -34,5 +34,5 @@
       }
     ]
   },
-  "notes": "HAR-770 unknown identifier.id guard. Presence of identifier.id is id-first and update-like; a missing row returns the INVALID Customer-does-not-exist userError and leaves local customer state/log empty."
+  "notes": "Unknown identifier.id guard. Presence of identifier.id is id-first and update-like; a missing row returns the captured INVALID not-found userError and leaves local customer state/log empty."
 }

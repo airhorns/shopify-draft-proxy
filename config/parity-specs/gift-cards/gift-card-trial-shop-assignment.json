@@ -1,0 +1,41 @@
+{
+  "scenarioId": "gift-card-trial-shop-assignment",
+  "operationNames": ["giftCardCreate", "giftCardUpdate"],
+  "scenarioStatus": "captured",
+  "assertionKinds": ["user-errors-parity", "validation-parity", "local-runtime-backed"],
+  "liveCaptureFiles": ["fixtures/conformance/local-runtime/2025-01/gift-cards/gift-card-trial-shop-assignment.json"],
+  "runtimeTestFiles": ["test/shopify_draft_proxy/proxy/gift_cards_mutation_test.gleam"],
+  "proxyRequest": {
+    "documentPath": "config/parity-requests/gift-cards/gift-card-trial-shop-assignment.graphql",
+    "variablesCapturePath": "$.proxyVariables.trialAssignment",
+    "apiVersion": "2025-01"
+  },
+  "comparisonMode": "captured-vs-proxy-request",
+  "comparison": {
+    "mode": "strict-json",
+    "expectedDifferences": [],
+    "targets": [
+      {
+        "name": "giftCardCreate trial customer assignment",
+        "capturePath": "$.expected.data.createCustomerAssignment",
+        "proxyPath": "$.data.createCustomerAssignment"
+      },
+      {
+        "name": "giftCardCreate trial recipient assignment",
+        "capturePath": "$.expected.data.createRecipientAssignment",
+        "proxyPath": "$.data.createRecipientAssignment"
+      },
+      {
+        "name": "giftCardUpdate trial customer assignment",
+        "capturePath": "$.expected.data.updateCustomerAssignment",
+        "proxyPath": "$.data.updateCustomerAssignment"
+      },
+      {
+        "name": "giftCardUpdate trial recipient assignment",
+        "capturePath": "$.expected.data.updateRecipientAssignment",
+        "proxyPath": "$.data.updateRecipientAssignment"
+      }
+    ]
+  },
+  "notes": "Executable trial-plan assignment parity for giftCardCreate/giftCardUpdate. The configured live conformance credential probes successfully, but targets harry-test-heelo.myshopify.com, whose shop plan is Developer Preview rather than Trial. This local-runtime fixture follows the ticket-approved synthetic trial-shop strategy: the request starts cold, hydrates a trial-plan shop through the cassette-backed StorePropertiesShopBaselineHydrate read, hydrates one existing gift card through GiftCardHydrate for update branches, and strictly compares the Shopify/Rails-documented INVALID userError field/code/message payloads without runtime Shopify writes."
+}

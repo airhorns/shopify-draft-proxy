@@ -379,6 +379,15 @@ pub fn product_json(record: types.ProductRecord) -> Json {
       optional_to_json(record.contextual_pricing, captured_json_value_json),
     ),
     #("cursor", optional_string(record.cursor)),
+    #("combinedListingRole", optional_string(record.combined_listing_role)),
+    #(
+      "combinedListingParentId",
+      optional_string(record.combined_listing_parent_id),
+    ),
+    #(
+      "combinedListingChildIds",
+      json.array(record.combined_listing_child_ids, json.string),
+    ),
   ])
 }
 

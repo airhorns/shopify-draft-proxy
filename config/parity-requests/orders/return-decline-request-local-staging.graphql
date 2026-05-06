@@ -11,6 +11,7 @@ mutation ReturnDeclineRequest($input: ReturnDeclineRequestInput!) {
     userErrors {
       field
       message
+      code
     }
   }
 }
