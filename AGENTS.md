@@ -258,31 +258,15 @@ gleam:test`), or an explicitly runtime-test-backed fixture mode for
 The proxy runtime lives under `src/shopify_draft_proxy/` with tests under
 `test/`, and compiles to both Erlang/BEAM and JavaScript.
 
-- **Read first:** `GLEAM_PORT_INTENT.md` (non-negotiables). Use
-  `GLEAM_PORT_LOG.md` only as historical context when older porting decisions
-  matter for the task.
+- **Read first:** `docs/gleam-runtime.md` for the public runtime surface.
+  Use `docs/GLEAM_PORT_LOG.md` only as historical context when older porting
+  decisions matter for the task.
 - **Generic Gleam idioms** (decoders, opaque types, OTP, etc.) live in
   `.agents/skills/gleam/SKILL.md`.
-- **Both targets, every change:** `gleam test --target erlang` AND
-  `gleam test --target javascript`. Drift between them is the most
-  expensive bug class.
-- **Thompson host Erlang path:** if `erl` is missing, or if
-  `erl -eval 'erlang:display(erlang:system_info(otp_release)), halt().' -noshell`
-  reports OTP 25, use the checked-in mise toolchain instead of Docker. From the
-  repository root, run:
-  ```sh
-  mise trust .mise.toml
-  mise install
-  eval "$(mise activate bash)"
-  ```
-  Then verify `erl` reports OTP 28 and run `gleam clean` before testing so
-  stale OTP 25-compiled artifacts are rebuilt. In unattended shells where
-  trusting mise is not appropriate, prepend the existing install directly for
-  that command:
-  ```sh
-  PATH=/home/airhorns/.local/share/mise/installs/erlang/28.4.2/bin:$PATH gleam clean
-  PATH=/home/airhorns/.local/share/mise/installs/erlang/28.4.2/bin:$PATH corepack pnpm gleam:test
-  ```
+- **Runtime validation/toolchain workflow** (both JS/Erlang targets, Thompson
+  OTP 25, checked-in mise OTP 28, stale BEAM artifacts) lives in
+  `.agents/skills/gleam-runtime-validation/SKILL.md`. Use it before treating
+  local Erlang/OTP availability as a blocker or falling back to Docker.
 
 The legacy TypeScript runtime has been removed. Do not add TypeScript
 runtime behavior back under `src/`; new operation handling, fidelity

@@ -1,8 +1,8 @@
 {
   "storeDomain": "harry-test-heelo.myshopify.com",
   "apiVersion": "2025-01",
-  "capturedAt": "2026-04-27T16:01:47.689Z",
-  "scope": "HAR-321 quantity pricing/rules live capture",
+  "capturedAt": "2026-05-06T22:45:42.996Z",
+  "scope": "quantity pricing/rules live capture",
   "setup": {
     "priceListId": "gid://shopify/PriceList/32128106802",
     "variantId": "gid://shopify/ProductVariant/49875425296690",
@@ -12,15 +12,589 @@
     "priceList": {
       "__typename": "PriceList",
       "id": "gid://shopify/PriceList/32128106802",
-      "name": "HAR-321 quantity pricing seed price list",
+      "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
       "currency": "CAD",
-      "fixedPricesCount": 0,
+      "fixedPricesCount": 1,
       "quantityRules": {
-        "edges": []
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425296690"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425329458"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM2MjIyNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzYyMjI2In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425362226"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM5NDk5NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mzk0OTk0In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425394994"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQyNzc2MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDI3NzYyIn0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425427762"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ2MDUzMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDYwNTMwIn0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425460530"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ5MzI5OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDkzMjk4In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425493298"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTUyNjA2NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTI2MDY2In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425526066"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU1ODgzNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTU4ODM0In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425558834"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU5MTYwMiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTkxNjAyIn0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425591602"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTYyNDM3MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjI0MzcwIn0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425624370"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY1NzEzOCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjU3MTM4In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425657138"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY4OTkwNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Njg5OTA2In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425689906"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTcyMjY3NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzIyNjc0In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425722674"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc1NTQ0MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzU1NDQyIn0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425755442"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc4ODIxMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Nzg4MjEwIn0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425788210"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTgyMDk3OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODIwOTc4In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425820978"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg1Mzc0NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODUzNzQ2In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425853746"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg4NjUxNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODg2NTE0In0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425886514"
+              }
+            }
+          },
+          {
+            "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTkxOTI4MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1OTE5MjgyIn0=",
+            "node": {
+              "minimum": 1,
+              "maximum": null,
+              "increment": 1,
+              "isDefault": true,
+              "originType": "RELATIVE",
+              "productVariant": {
+                "id": "gid://shopify/ProductVariant/49875425919282"
+              }
+            }
+          }
+        ]
       },
       "prices": {
-        "edges": []
+        "edges": [
+          {
+            "cursor": "eyJsYXN0X2lkIjo1MDEyNDc3ODM3MzQyNiwibGFzdF92YWx1ZSI6IjUwMTI0Nzc4MzczNDI2In0=",
+            "node": {
+              "price": {
+                "amount": "10.99",
+                "currencyCode": "CAD"
+              },
+              "compareAtPrice": null,
+              "originType": "FIXED",
+              "variant": {
+                "id": "gid://shopify/ProductVariant/50124778373426",
+                "sku": "Tool - Ice 15mm Wrench",
+                "product": {
+                  "id": "gid://shopify/Product/9885503521074",
+                  "title": "15mm Combo Wrench"
+                }
+              },
+              "quantityPriceBreaks": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
+                    "node": {
+                      "minimumQuantity": 2,
+                      "price": {
+                        "amount": "10.0",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
+                    "node": {
+                      "minimumQuantity": 3,
+                      "price": {
+                        "amount": "9.0",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
+                    "node": {
+                      "minimumQuantity": 4,
+                      "price": {
+                        "amount": "8.0",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
+                    "node": {
+                      "minimumQuantity": 5,
+                      "price": {
+                        "amount": "7.0",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
+                    "node": {
+                      "minimumQuantity": 6,
+                      "price": {
+                        "amount": "6.0",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
+                    "node": {
+                      "minimumQuantity": 7,
+                      "price": {
+                        "amount": "5.0",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
+                    "node": {
+                      "minimumQuantity": 8,
+                      "price": {
+                        "amount": "3.0",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
+                    "node": {
+                      "minimumQuantity": 9,
+                      "price": {
+                        "amount": "1.0",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
+                    "node": {
+                      "minimumQuantity": 10,
+                      "price": {
+                        "amount": "0.5",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
+                    "node": {
+                      "minimumQuantity": 11,
+                      "price": {
+                        "amount": "0.25",
+                        "currencyCode": "CAD"
+                      },
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
       }
+    },
+    "products": {
+      "nodes": [
+        {
+          "id": "gid://shopify/Product/9801098789170",
+          "title": "The Inventory Not Tracked Snowboard",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425296690",
+                "title": "Default Title",
+                "sku": "sku-untracked-1"
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/9801098821938",
+          "title": "Gift Card",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425329458",
+                "title": "$10",
+                "sku": null
+              },
+              {
+                "id": "gid://shopify/ProductVariant/49875425362226",
+                "title": "$25",
+                "sku": null
+              },
+              {
+                "id": "gid://shopify/ProductVariant/49875425394994",
+                "title": "$50",
+                "sku": null
+              },
+              {
+                "id": "gid://shopify/ProductVariant/49875425427762",
+                "title": "$100",
+                "sku": null
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/9801098854706",
+          "title": "The Draft Snowboard",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425460530",
+                "title": "Default Title",
+                "sku": null
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/9801098887474",
+          "title": "The Out of Stock Snowboard",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425493298",
+                "title": "Default Title",
+                "sku": null
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/9801098920242",
+          "title": "The Minimal Snowboard",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425526066",
+                "title": "Default Title",
+                "sku": null
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/9801098953010",
+          "title": "The Archived Snowboard",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425558834",
+                "title": "Default Title",
+                "sku": null
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/9801098985778",
+          "title": "Selling Plans Ski Wax",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425886514",
+                "title": "Selling Plans Ski Wax",
+                "sku": null
+              },
+              {
+                "id": "gid://shopify/ProductVariant/49875425919282",
+                "title": "Special Selling Plans Ski Wax",
+                "sku": null
+              },
+              {
+                "id": "gid://shopify/ProductVariant/49875425952050",
+                "title": "Sample Selling Plans Ski Wax",
+                "sku": null
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/9801099018546",
+          "title": "The Collection Snowboard: Hydrogen",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425591602",
+                "title": "Default Title",
+                "sku": null
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/9801099051314",
+          "title": "The Videographer Snowboard",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425624370",
+                "title": "Default Title",
+                "sku": null
+              }
+            ]
+          }
+        },
+        {
+          "id": "gid://shopify/Product/9801099084082",
+          "title": "The Hidden Snowboard",
+          "variants": {
+            "nodes": [
+              {
+                "id": "gid://shopify/ProductVariant/49875425657138",
+                "title": "Default Title",
+                "sku": null
+              }
+            ]
+          }
+        }
+      ]
     }
   },
   "schemaEvidence": {
@@ -93,6 +667,11 @@
     },
     {
       "name": "downstream-price-list-read",
+      "request": {
+        "variables": {
+          "priceListId": "gid://shopify/PriceList/32128106802"
+        }
+      },
       "response": {
         "data": {
           "priceList": {
@@ -109,6 +688,114 @@
                     "originType": "FIXED",
                     "productVariant": {
                       "id": "gid://shopify/ProductVariant/49875425296690"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1,
+                    "isDefault": true,
+                    "originType": "RELATIVE",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425329458"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1,
+                    "isDefault": true,
+                    "originType": "RELATIVE",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425362226"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1,
+                    "isDefault": true,
+                    "originType": "RELATIVE",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425394994"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1,
+                    "isDefault": true,
+                    "originType": "RELATIVE",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425427762"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1,
+                    "isDefault": true,
+                    "originType": "RELATIVE",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425460530"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1,
+                    "isDefault": true,
+                    "originType": "RELATIVE",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425493298"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1,
+                    "isDefault": true,
+                    "originType": "RELATIVE",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425526066"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1,
+                    "isDefault": true,
+                    "originType": "RELATIVE",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425558834"
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "minimum": 1,
+                    "maximum": null,
+                    "increment": 1,
+                    "isDefault": true,
+                    "originType": "RELATIVE",
+                    "productVariant": {
+                      "id": "gid://shopify/ProductVariant/49875425591602"
                     }
                   }
                 }
@@ -137,6 +824,142 @@
                             },
                             "variant": {
                               "id": "gid://shopify/ProductVariant/49875425296690"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                {
+                  "node": {
+                    "price": {
+                      "amount": "10.99",
+                      "currencyCode": "CAD"
+                    },
+                    "originType": "FIXED",
+                    "variant": {
+                      "id": "gid://shopify/ProductVariant/50124778373426"
+                    },
+                    "quantityPriceBreaks": {
+                      "edges": [
+                        {
+                          "node": {
+                            "minimumQuantity": 2,
+                            "price": {
+                              "amount": "10.0",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "minimumQuantity": 3,
+                            "price": {
+                              "amount": "9.0",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "minimumQuantity": 4,
+                            "price": {
+                              "amount": "8.0",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "minimumQuantity": 5,
+                            "price": {
+                              "amount": "7.0",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "minimumQuantity": 6,
+                            "price": {
+                              "amount": "6.0",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "minimumQuantity": 7,
+                            "price": {
+                              "amount": "5.0",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "minimumQuantity": 8,
+                            "price": {
+                              "amount": "3.0",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "minimumQuantity": 9,
+                            "price": {
+                              "amount": "1.0",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "minimumQuantity": 10,
+                            "price": {
+                              "amount": "0.5",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
+                            }
+                          }
+                        },
+                        {
+                          "node": {
+                            "minimumQuantity": 11,
+                            "price": {
+                              "amount": "0.25",
+                              "currencyCode": "CAD"
+                            },
+                            "variant": {
+                              "id": "gid://shopify/ProductVariant/50124778373426"
                             }
                           }
                         }
@@ -236,16 +1059,6 @@
           "productVariants": null,
           "userErrors": [
             {
-              "field": ["input", "quantityPriceBreaksToAdd", "0"],
-              "code": "QUANTITY_PRICE_BREAK_ADD_VARIANT_NOT_FOUND",
-              "message": "Variant not found."
-            },
-            {
-              "field": ["input", "quantityRulesToAdd", "0"],
-              "code": "QUANTITY_RULE_ADD_VARIANT_NOT_FOUND",
-              "message": "Variant not found."
-            },
-            {
               "field": ["input", "pricesToAdd", "0"],
               "code": "PRICE_ADD_VARIANT_NOT_FOUND",
               "message": "Variant not found."
@@ -308,7 +1121,7 @@
           "quantityPriceBreaksToDelete": []
         }
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -316,25 +1129,582 @@
             "priceList": {
               "__typename": "PriceList",
               "id": "gid://shopify/PriceList/32128106802",
-              "name": "HAR-321 quantity pricing seed price list",
+              "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
               "currency": "CAD",
-              "fixedPricesCount": 0,
+              "fixedPricesCount": 1,
               "quantityRules": {
-                "edges": []
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425296690"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425329458"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM2MjIyNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzYyMjI2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425362226"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM5NDk5NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mzk0OTk0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425394994"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQyNzc2MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDI3NzYyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425427762"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ2MDUzMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDYwNTMwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425460530"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ5MzI5OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDkzMjk4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425493298"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTUyNjA2NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTI2MDY2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425526066"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU1ODgzNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTU4ODM0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425558834"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU5MTYwMiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTkxNjAyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425591602"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTYyNDM3MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjI0MzcwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425624370"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY1NzEzOCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjU3MTM4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425657138"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY4OTkwNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Njg5OTA2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425689906"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTcyMjY3NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzIyNjc0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425722674"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc1NTQ0MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzU1NDQyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425755442"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc4ODIxMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Nzg4MjEwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425788210"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTgyMDk3OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODIwOTc4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425820978"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg1Mzc0NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODUzNzQ2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425853746"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg4NjUxNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODg2NTE0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425886514"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTkxOTI4MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1OTE5MjgyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425919282"
+                      }
+                    }
+                  }
+                ]
               },
               "prices": {
-                "edges": []
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo1MDEyNDc3ODM3MzQyNiwibGFzdF92YWx1ZSI6IjUwMTI0Nzc4MzczNDI2In0=",
+                    "node": {
+                      "price": {
+                        "amount": "10.99",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "FIXED",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426",
+                        "sku": "Tool - Ice 15mm Wrench",
+                        "product": {
+                          "id": "gid://shopify/Product/9885503521074",
+                          "title": "15mm Combo Wrench"
+                        }
+                      },
+                      "quantityPriceBreaks": {
+                        "edges": [
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
+                            "node": {
+                              "minimumQuantity": 2,
+                              "price": {
+                                "amount": "10.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
+                            "node": {
+                              "minimumQuantity": 3,
+                              "price": {
+                                "amount": "9.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
+                            "node": {
+                              "minimumQuantity": 4,
+                              "price": {
+                                "amount": "8.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
+                            "node": {
+                              "minimumQuantity": 5,
+                              "price": {
+                                "amount": "7.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
+                            "node": {
+                              "minimumQuantity": 6,
+                              "price": {
+                                "amount": "6.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
+                            "node": {
+                              "minimumQuantity": 7,
+                              "price": {
+                                "amount": "5.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
+                            "node": {
+                              "minimumQuantity": 8,
+                              "price": {
+                                "amount": "3.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
+                            "node": {
+                              "minimumQuantity": 9,
+                              "price": {
+                                "amount": "1.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
+                            "node": {
+                              "minimumQuantity": 10,
+                              "price": {
+                                "amount": "0.5",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
+                            "node": {
+                              "minimumQuantity": 11,
+                              "price": {
+                                "amount": "0.25",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
               }
             },
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/10000000000001",
-                  "title": "HAR-321 quantity pricing seed product",
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
                   "variants": {
                     "nodes": [
                       {
                         "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": "sku-untracked-1"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "title": "$10",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425362226",
+                        "title": "$25",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425394994",
+                        "title": "$50",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425427762",
+                        "title": "$100",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098854706",
+                  "title": "The Draft Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425460530",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098887474",
+                  "title": "The Out of Stock Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425493298",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098920242",
+                  "title": "The Minimal Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425526066",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098953010",
+                  "title": "The Archived Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425558834",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098985778",
+                  "title": "Selling Plans Ski Wax",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425886514",
+                        "title": "Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425919282",
+                        "title": "Special Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425952050",
+                        "title": "Sample Selling Plans Ski Wax",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099018546",
+                  "title": "The Collection Snowboard: Hydrogen",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425591602",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099051314",
+                  "title": "The Videographer Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425624370",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099084082",
+                  "title": "The Hidden Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425657138",
                         "title": "Default Title",
                         "sku": null
                       }
@@ -343,6 +1713,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 124,
+              "actualQueryCost": 36,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1964,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -350,42 +1731,1003 @@
     {
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
-        "priceListId": {
-          "fromCapturePath": "$.setup.priceListId"
-        },
-        "variantIds": [
+        "priceListId": "gid://shopify/PriceList/32128106802",
+        "variantIds": ["gid://shopify/ProductVariant/49875425296690"]
+      },
+      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": {
+              "__typename": "PriceList",
+              "id": "gid://shopify/PriceList/32128106802",
+              "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
+              "currency": "CAD",
+              "fixedPricesCount": 1,
+              "quantityRules": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425296690"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425329458"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM2MjIyNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzYyMjI2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425362226"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM5NDk5NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mzk0OTk0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425394994"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQyNzc2MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDI3NzYyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425427762"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ2MDUzMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDYwNTMwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425460530"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ5MzI5OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDkzMjk4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425493298"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTUyNjA2NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTI2MDY2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425526066"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU1ODgzNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTU4ODM0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425558834"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU5MTYwMiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTkxNjAyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425591602"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTYyNDM3MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjI0MzcwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425624370"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY1NzEzOCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjU3MTM4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425657138"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY4OTkwNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Njg5OTA2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425689906"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTcyMjY3NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzIyNjc0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425722674"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc1NTQ0MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzU1NDQyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425755442"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc4ODIxMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Nzg4MjEwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425788210"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTgyMDk3OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODIwOTc4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425820978"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg1Mzc0NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODUzNzQ2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425853746"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg4NjUxNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODg2NTE0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425886514"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTkxOTI4MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1OTE5MjgyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425919282"
+                      }
+                    }
+                  }
+                ]
+              },
+              "prices": {
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo1MDEyNDc3ODM3MzQyNiwibGFzdF92YWx1ZSI6IjUwMTI0Nzc4MzczNDI2In0=",
+                    "node": {
+                      "price": {
+                        "amount": "10.99",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "FIXED",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426",
+                        "sku": "Tool - Ice 15mm Wrench",
+                        "product": {
+                          "id": "gid://shopify/Product/9885503521074",
+                          "title": "15mm Combo Wrench"
+                        }
+                      },
+                      "quantityPriceBreaks": {
+                        "edges": [
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
+                            "node": {
+                              "minimumQuantity": 2,
+                              "price": {
+                                "amount": "10.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
+                            "node": {
+                              "minimumQuantity": 3,
+                              "price": {
+                                "amount": "9.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
+                            "node": {
+                              "minimumQuantity": 4,
+                              "price": {
+                                "amount": "8.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
+                            "node": {
+                              "minimumQuantity": 5,
+                              "price": {
+                                "amount": "7.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
+                            "node": {
+                              "minimumQuantity": 6,
+                              "price": {
+                                "amount": "6.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
+                            "node": {
+                              "minimumQuantity": 7,
+                              "price": {
+                                "amount": "5.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
+                            "node": {
+                              "minimumQuantity": 8,
+                              "price": {
+                                "amount": "3.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
+                            "node": {
+                              "minimumQuantity": 9,
+                              "price": {
+                                "amount": "1.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
+                            "node": {
+                              "minimumQuantity": 10,
+                              "price": {
+                                "amount": "0.5",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
+                            "node": {
+                              "minimumQuantity": 11,
+                              "price": {
+                                "amount": "0.25",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
+              }
+            },
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": "sku-untracked-1"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "title": "$10",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425362226",
+                        "title": "$25",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425394994",
+                        "title": "$50",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425427762",
+                        "title": "$100",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098854706",
+                  "title": "The Draft Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425460530",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098887474",
+                  "title": "The Out of Stock Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425493298",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098920242",
+                  "title": "The Minimal Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425526066",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098953010",
+                  "title": "The Archived Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425558834",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098985778",
+                  "title": "Selling Plans Ski Wax",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425886514",
+                        "title": "Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425919282",
+                        "title": "Special Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425952050",
+                        "title": "Sample Selling Plans Ski Wax",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099018546",
+                  "title": "The Collection Snowboard: Hydrogen",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425591602",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099051314",
+                  "title": "The Videographer Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425624370",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099084082",
+                  "title": "The Hidden Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425657138",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 124,
+              "actualQueryCost": 36,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1950,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": "gid://shopify/PriceList/0",
+        "input": {
+          "pricesToAdd": [
+            {
+              "variantId": "gid://shopify/ProductVariant/49875425296690",
+              "price": {
+                "amount": "17.00",
+                "currencyCode": "CAD"
+              }
+            }
+          ],
+          "pricesToDeleteByVariantId": [],
+          "quantityRulesToAdd": [
+            {
+              "variantId": "gid://shopify/ProductVariant/49875425296690",
+              "minimum": 2,
+              "maximum": 10,
+              "increment": 2
+            }
+          ],
+          "quantityRulesToDeleteByVariantId": [],
+          "quantityPriceBreaksToAdd": [
+            {
+              "variantId": "gid://shopify/ProductVariant/49875425296690",
+              "minimumQuantity": 4,
+              "price": {
+                "amount": "15.00",
+                "currencyCode": "CAD"
+              }
+            }
+          ],
+          "quantityPriceBreaksToDelete": []
+        }
+      },
+      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": null,
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": "sku-untracked-1"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "title": "$10",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425362226",
+                        "title": "$25",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425394994",
+                        "title": "$50",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425427762",
+                        "title": "$100",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098854706",
+                  "title": "The Draft Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425460530",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098887474",
+                  "title": "The Out of Stock Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425493298",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098920242",
+                  "title": "The Minimal Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425526066",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098953010",
+                  "title": "The Archived Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425558834",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098985778",
+                  "title": "Selling Plans Ski Wax",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425886514",
+                        "title": "Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425919282",
+                        "title": "Special Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425952050",
+                        "title": "Sample Selling Plans Ski Wax",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099018546",
+                  "title": "The Collection Snowboard: Hydrogen",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425591602",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099051314",
+                  "title": "The Videographer Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425624370",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099084082",
+                  "title": "The Hidden Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425657138",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 124,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1947,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": "gid://shopify/PriceList/0",
+        "quantityRules": [
           {
-            "fromCapturePath": "$.setup.variantId"
+            "variantId": "gid://shopify/ProductVariant/49875425296690",
+            "minimum": 2,
+            "maximum": 10,
+            "increment": 2
           }
         ]
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
           "data": {
-            "priceList": {
-              "__typename": "PriceList",
-              "id": "gid://shopify/PriceList/32128106802",
-              "name": "HAR-321 quantity pricing seed price list",
-              "currency": "CAD",
-              "fixedPricesCount": 0,
-              "quantityRules": {
-                "edges": []
-              },
-              "prices": {
-                "edges": []
-              }
-            },
+            "priceList": null,
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/10000000000001",
-                  "title": "HAR-321 quantity pricing seed product",
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
                   "variants": {
                     "nodes": [
                       {
                         "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": "sku-untracked-1"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "title": "$10",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425362226",
+                        "title": "$25",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425394994",
+                        "title": "$50",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425427762",
+                        "title": "$100",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098854706",
+                  "title": "The Draft Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425460530",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098887474",
+                  "title": "The Out of Stock Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425493298",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098920242",
+                  "title": "The Minimal Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425526066",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098953010",
+                  "title": "The Archived Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425558834",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098985778",
+                  "title": "Selling Plans Ski Wax",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425886514",
+                        "title": "Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425919282",
+                        "title": "Special Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425952050",
+                        "title": "Sample Selling Plans Ski Wax",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099018546",
+                  "title": "The Collection Snowboard: Hydrogen",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425591602",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099051314",
+                  "title": "The Videographer Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425624370",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099084082",
+                  "title": "The Hidden Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425657138",
                         "title": "Default Title",
                         "sku": null
                       }
@@ -394,6 +2736,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 124,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1922,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -401,9 +2754,193 @@
     {
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
-        "priceListId": {
-          "fromCapturePath": "$.setup.priceListId"
-        },
+        "priceListId": "gid://shopify/PriceList/0",
+        "variantIds": ["gid://shopify/ProductVariant/49875425296690"]
+      },
+      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
+      "response": {
+        "status": 200,
+        "body": {
+          "data": {
+            "priceList": null,
+            "products": {
+              "nodes": [
+                {
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": "sku-untracked-1"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "title": "$10",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425362226",
+                        "title": "$25",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425394994",
+                        "title": "$50",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425427762",
+                        "title": "$100",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098854706",
+                  "title": "The Draft Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425460530",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098887474",
+                  "title": "The Out of Stock Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425493298",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098920242",
+                  "title": "The Minimal Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425526066",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098953010",
+                  "title": "The Archived Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425558834",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098985778",
+                  "title": "Selling Plans Ski Wax",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425886514",
+                        "title": "Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425919282",
+                        "title": "Special Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425952050",
+                        "title": "Sample Selling Plans Ski Wax",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099018546",
+                  "title": "The Collection Snowboard: Hydrogen",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425591602",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099051314",
+                  "title": "The Videographer Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425624370",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099084082",
+                  "title": "The Hidden Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425657138",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 124,
+              "actualQueryCost": 19,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1902,
+                "restoreRate": 100
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "operationName": "MarketsMutationPreflightHydrate",
+      "variables": {
+        "priceListId": "gid://shopify/PriceList/32128106802",
         "quantityRules": [
           {
             "variantId": "gid://shopify/ProductVariant/0",
@@ -413,7 +2950,7 @@
           }
         ]
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -421,25 +2958,582 @@
             "priceList": {
               "__typename": "PriceList",
               "id": "gid://shopify/PriceList/32128106802",
-              "name": "HAR-321 quantity pricing seed price list",
+              "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
               "currency": "CAD",
-              "fixedPricesCount": 0,
+              "fixedPricesCount": 1,
               "quantityRules": {
-                "edges": []
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425296690"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425329458"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM2MjIyNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzYyMjI2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425362226"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM5NDk5NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mzk0OTk0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425394994"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQyNzc2MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDI3NzYyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425427762"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ2MDUzMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDYwNTMwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425460530"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ5MzI5OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDkzMjk4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425493298"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTUyNjA2NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTI2MDY2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425526066"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU1ODgzNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTU4ODM0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425558834"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU5MTYwMiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTkxNjAyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425591602"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTYyNDM3MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjI0MzcwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425624370"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY1NzEzOCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjU3MTM4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425657138"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY4OTkwNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Njg5OTA2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425689906"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTcyMjY3NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzIyNjc0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425722674"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc1NTQ0MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzU1NDQyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425755442"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc4ODIxMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Nzg4MjEwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425788210"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTgyMDk3OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODIwOTc4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425820978"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg1Mzc0NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODUzNzQ2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425853746"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg4NjUxNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODg2NTE0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425886514"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTkxOTI4MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1OTE5MjgyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425919282"
+                      }
+                    }
+                  }
+                ]
               },
               "prices": {
-                "edges": []
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo1MDEyNDc3ODM3MzQyNiwibGFzdF92YWx1ZSI6IjUwMTI0Nzc4MzczNDI2In0=",
+                    "node": {
+                      "price": {
+                        "amount": "10.99",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "FIXED",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426",
+                        "sku": "Tool - Ice 15mm Wrench",
+                        "product": {
+                          "id": "gid://shopify/Product/9885503521074",
+                          "title": "15mm Combo Wrench"
+                        }
+                      },
+                      "quantityPriceBreaks": {
+                        "edges": [
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
+                            "node": {
+                              "minimumQuantity": 2,
+                              "price": {
+                                "amount": "10.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
+                            "node": {
+                              "minimumQuantity": 3,
+                              "price": {
+                                "amount": "9.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
+                            "node": {
+                              "minimumQuantity": 4,
+                              "price": {
+                                "amount": "8.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
+                            "node": {
+                              "minimumQuantity": 5,
+                              "price": {
+                                "amount": "7.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
+                            "node": {
+                              "minimumQuantity": 6,
+                              "price": {
+                                "amount": "6.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
+                            "node": {
+                              "minimumQuantity": 7,
+                              "price": {
+                                "amount": "5.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
+                            "node": {
+                              "minimumQuantity": 8,
+                              "price": {
+                                "amount": "3.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
+                            "node": {
+                              "minimumQuantity": 9,
+                              "price": {
+                                "amount": "1.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
+                            "node": {
+                              "minimumQuantity": 10,
+                              "price": {
+                                "amount": "0.5",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
+                            "node": {
+                              "minimumQuantity": 11,
+                              "price": {
+                                "amount": "0.25",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
               }
             },
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/10000000000001",
-                  "title": "HAR-321 quantity pricing seed product",
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
                   "variants": {
                     "nodes": [
                       {
                         "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": "sku-untracked-1"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "title": "$10",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425362226",
+                        "title": "$25",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425394994",
+                        "title": "$50",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425427762",
+                        "title": "$100",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098854706",
+                  "title": "The Draft Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425460530",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098887474",
+                  "title": "The Out of Stock Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425493298",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098920242",
+                  "title": "The Minimal Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425526066",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098953010",
+                  "title": "The Archived Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425558834",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098985778",
+                  "title": "Selling Plans Ski Wax",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425886514",
+                        "title": "Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425919282",
+                        "title": "Special Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425952050",
+                        "title": "Sample Selling Plans Ski Wax",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099018546",
+                  "title": "The Collection Snowboard: Hydrogen",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425591602",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099051314",
+                  "title": "The Videographer Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425624370",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099084082",
+                  "title": "The Hidden Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425657138",
                         "title": "Default Title",
                         "sku": null
                       }
@@ -448,6 +3542,17 @@
                 }
               ]
             }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 124,
+              "actualQueryCost": 36,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1838,
+                "restoreRate": 100
+              }
+            }
           }
         }
       }
@@ -455,12 +3560,10 @@
     {
       "operationName": "MarketsMutationPreflightHydrate",
       "variables": {
-        "priceListId": {
-          "fromCapturePath": "$.setup.priceListId"
-        },
+        "priceListId": "gid://shopify/PriceList/32128106802",
         "variantIds": ["gid://shopify/ProductVariant/0"]
       },
-      "query": "hand-synthesized from checked-in capture",
+      "query": "#graphql query MarketsMutationPreflightHydrate($priceListId: ID!) { priceList(id: $priceListId) { __typename id name currency fixedPricesCount quantityRules(first: 20) { edges { cursor node { minimum maximum increment isDefault originType productVariant { id } } } } prices(first: 20, originType: FIXED) { edges { cursor node { price { amount currencyCode } compareAtPrice { amount currencyCode } originType variant { id sku product { id title } } quantityPriceBreaks(first: 20) { edges { cursor node { minimumQuantity price { amount currencyCode } variant { id } } } } } } } } products(first: 10) { nodes { id title variants(first: 20) { nodes { id title sku } } } } }",
       "response": {
         "status": 200,
         "body": {
@@ -468,25 +3571,582 @@
             "priceList": {
               "__typename": "PriceList",
               "id": "gid://shopify/PriceList/32128106802",
-              "name": "HAR-321 quantity pricing seed price list",
+              "name": "Snowdevil - 5ab8ea7a-2a02-46a0-af55-01cdb431d3ca",
               "currency": "CAD",
-              "fixedPricesCount": 0,
+              "fixedPricesCount": 1,
               "quantityRules": {
-                "edges": []
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTI5NjY5MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mjk2NjkwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425296690"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTMyOTQ1OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzI5NDU4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425329458"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM2MjIyNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1MzYyMjI2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425362226"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTM5NDk5NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Mzk0OTk0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425394994"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQyNzc2MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDI3NzYyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425427762"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ2MDUzMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDYwNTMwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425460530"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTQ5MzI5OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NDkzMjk4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425493298"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTUyNjA2NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTI2MDY2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425526066"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU1ODgzNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTU4ODM0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425558834"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTU5MTYwMiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NTkxNjAyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425591602"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTYyNDM3MCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjI0MzcwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425624370"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY1NzEzOCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NjU3MTM4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425657138"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTY4OTkwNiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Njg5OTA2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425689906"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTcyMjY3NCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzIyNjc0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425722674"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc1NTQ0MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1NzU1NDQyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425755442"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTc4ODIxMCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1Nzg4MjEwIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425788210"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTgyMDk3OCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODIwOTc4In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425820978"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg1Mzc0NiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODUzNzQ2In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425853746"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTg4NjUxNCwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1ODg2NTE0In0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425886514"
+                      }
+                    }
+                  },
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo0OTg3NTQyNTkxOTI4MiwibGFzdF92YWx1ZSI6IjQ5ODc1NDI1OTE5MjgyIn0=",
+                    "node": {
+                      "minimum": 1,
+                      "maximum": null,
+                      "increment": 1,
+                      "isDefault": true,
+                      "originType": "RELATIVE",
+                      "productVariant": {
+                        "id": "gid://shopify/ProductVariant/49875425919282"
+                      }
+                    }
+                  }
+                ]
               },
               "prices": {
-                "edges": []
+                "edges": [
+                  {
+                    "cursor": "eyJsYXN0X2lkIjo1MDEyNDc3ODM3MzQyNiwibGFzdF92YWx1ZSI6IjUwMTI0Nzc4MzczNDI2In0=",
+                    "node": {
+                      "price": {
+                        "amount": "10.99",
+                        "currencyCode": "CAD"
+                      },
+                      "compareAtPrice": null,
+                      "originType": "FIXED",
+                      "variant": {
+                        "id": "gid://shopify/ProductVariant/50124778373426",
+                        "sku": "Tool - Ice 15mm Wrench",
+                        "product": {
+                          "id": "gid://shopify/Product/9885503521074",
+                          "title": "15mm Combo Wrench"
+                        }
+                      },
+                      "quantityPriceBreaks": {
+                        "edges": [
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTQ2NTAxMCwibGFzdF92YWx1ZSI6IjIifQ==",
+                            "node": {
+                              "minimumQuantity": 2,
+                              "price": {
+                                "amount": "10.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTQ5Nzc3OCwibGFzdF92YWx1ZSI6IjMifQ==",
+                            "node": {
+                              "minimumQuantity": 3,
+                              "price": {
+                                "amount": "9.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTUzMDU0NiwibGFzdF92YWx1ZSI6IjQifQ==",
+                            "node": {
+                              "minimumQuantity": 4,
+                              "price": {
+                                "amount": "8.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTU2MzMxNCwibGFzdF92YWx1ZSI6IjUifQ==",
+                            "node": {
+                              "minimumQuantity": 5,
+                              "price": {
+                                "amount": "7.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTU5NjA4MiwibGFzdF92YWx1ZSI6IjYifQ==",
+                            "node": {
+                              "minimumQuantity": 6,
+                              "price": {
+                                "amount": "6.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTYyODg1MCwibGFzdF92YWx1ZSI6IjcifQ==",
+                            "node": {
+                              "minimumQuantity": 7,
+                              "price": {
+                                "amount": "5.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTY2MTYxOCwibGFzdF92YWx1ZSI6IjgifQ==",
+                            "node": {
+                              "minimumQuantity": 8,
+                              "price": {
+                                "amount": "3.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTY5NDM4NiwibGFzdF92YWx1ZSI6IjkifQ==",
+                            "node": {
+                              "minimumQuantity": 9,
+                              "price": {
+                                "amount": "1.0",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTcyNzE1NCwibGFzdF92YWx1ZSI6IjEwIn0=",
+                            "node": {
+                              "minimumQuantity": 10,
+                              "price": {
+                                "amount": "0.5",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          },
+                          {
+                            "cursor": "eyJsYXN0X2lkIjo3NTc1OTkyMiwibGFzdF92YWx1ZSI6IjExIn0=",
+                            "node": {
+                              "minimumQuantity": 11,
+                              "price": {
+                                "amount": "0.25",
+                                "currencyCode": "CAD"
+                              },
+                              "variant": {
+                                "id": "gid://shopify/ProductVariant/50124778373426"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                ]
               }
             },
             "products": {
               "nodes": [
                 {
-                  "id": "gid://shopify/Product/10000000000001",
-                  "title": "HAR-321 quantity pricing seed product",
+                  "id": "gid://shopify/Product/9801098789170",
+                  "title": "The Inventory Not Tracked Snowboard",
                   "variants": {
                     "nodes": [
                       {
                         "id": "gid://shopify/ProductVariant/49875425296690",
+                        "title": "Default Title",
+                        "sku": "sku-untracked-1"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098821938",
+                  "title": "Gift Card",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425329458",
+                        "title": "$10",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425362226",
+                        "title": "$25",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425394994",
+                        "title": "$50",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425427762",
+                        "title": "$100",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098854706",
+                  "title": "The Draft Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425460530",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098887474",
+                  "title": "The Out of Stock Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425493298",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098920242",
+                  "title": "The Minimal Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425526066",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098953010",
+                  "title": "The Archived Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425558834",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801098985778",
+                  "title": "Selling Plans Ski Wax",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425886514",
+                        "title": "Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425919282",
+                        "title": "Special Selling Plans Ski Wax",
+                        "sku": null
+                      },
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425952050",
+                        "title": "Sample Selling Plans Ski Wax",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099018546",
+                  "title": "The Collection Snowboard: Hydrogen",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425591602",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099051314",
+                  "title": "The Videographer Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425624370",
+                        "title": "Default Title",
+                        "sku": null
+                      }
+                    ]
+                  }
+                },
+                {
+                  "id": "gid://shopify/Product/9801099084082",
+                  "title": "The Hidden Snowboard",
+                  "variants": {
+                    "nodes": [
+                      {
+                        "id": "gid://shopify/ProductVariant/49875425657138",
                         "title": "Default Title",
                         "sku": null
                       }
@@ -494,6 +4154,17 @@
                   }
                 }
               ]
+            }
+          },
+          "extensions": {
+            "cost": {
+              "requestedQueryCost": 124,
+              "actualQueryCost": 36,
+              "throttleStatus": {
+                "maximumAvailable": 2000,
+                "currentlyAvailable": 1830,
+                "restoreRate": 100
+              }
             }
           }
         }
